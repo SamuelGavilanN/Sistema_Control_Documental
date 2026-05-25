@@ -46,7 +46,11 @@ const App: React.FC = () => {
   if (!usuario) return <Login onLogin={handleLogin} />;
 
   const openModule = (moduleId: string) => {
-    setTabsMontadas(prev => new Set([...prev, moduleId]));
+    setTabsMontadas(prev => {
+  const nuevo = new Set(prev);
+  nuevo.add(moduleId);
+  return nuevo;
+});
     if (!openTabs.includes(moduleId)) setOpenTabs([...openTabs, moduleId]);
     setActiveTab(moduleId);
   };
