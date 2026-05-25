@@ -67,24 +67,20 @@ const ED01View: React.FC = () => {
       
       filtros.forEach((filtro: any) => {
         if (filtro.columna && filtro.valor !== undefined && filtro.valor !== '') {
-          switch (filtro.operador) {
-            case 'igual': query = query.eq(filtro.columna, filtro.valor); break;
-            case 'mayor': query = query.gt(filtro.columna, filtro.valor); break;
-            case 'menor': query = query.lt(filtro.columna, filtro.valor); break;
-            case 'mayor_igual': query = query.gte(filtro.columna, filtro.valor); break;
-            case 'menor_igual': query = query.lte(filtro.columna, filtro.valor); break;
-            case 'contiene': query = query.ilike(filtro.columna, `%${filtro.valor}%`); break;
-            case 'no_contiene': query = query.not('ilike', filtro.columna, `%${filtro.valor}%`); break;
-            case 'vacio': query = query.is(filtro.columna, null); break;
-            case 'no_vacio': query = query.not('is', filtro.columna, null); break;
-          }
-        } else if (filtro.columna && (filtro.operador === 'vacio' || filtro.operador === 'no_vacio')) {
+          if (filtro.operador === 'igual') query = query.eq(filtro.columna, filtro.valor);
+          else if (filtro.operador === 'mayor') query = query.gt(filtro.columna, filtro.valor);
+          else if (filtro.operador === 'menor') query = query.lt(filtro.columna, filtro.valor);
+          else if (filtro.operador === 'mayor_igual') query = query.gte(filtro.columna, filtro.valor);
+          else if (filtro.operador === 'menor_igual') query = query.lte(filtro.columna, filtro.valor);
+          else if (filtro.operador === 'contiene') query = query.ilike(filtro.columna, `%${filtro.valor}%`);
+          else if (filtro.operador === 'no_contiene') query = query.not('ilike', filtro.columna, `%${filtro.valor}%`);
+        } else if (filtro.columna) {
           if (filtro.operador === 'vacio') query = query.is(filtro.columna, null);
-          if (filtro.operador === 'no_vacio') query = query.not('is', filtro.columna, null);
+          else if (filtro.operador === 'no_vacio') query = query.not('is', filtro.columna, null);
         }
       });
       
-      query = query.order(ordenColumna, { ascending: ordenDireccion === 'asc' });
+      query = query.order(ordenColumna, { ascending: ordenDireccion === 'asc' }) as any;
       
       const { data, error } = await query;
       if (error) throw error;
@@ -108,7 +104,7 @@ const ED01View: React.FC = () => {
   };
   const handleCancelarRegistro = () => {
     if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
-    if (registroSeleccionado.estado === 'Cancelado') { alert('El registro ya está cancelado'); return; }
+    if (registroSeleccionado.estado === 'Cancelado') { alert('El registro ya esta cancelado'); return; }
     setModoModal('cancelar'); setShowModal(true);
   };
   const handleImprimirEtiqueta = () => {
