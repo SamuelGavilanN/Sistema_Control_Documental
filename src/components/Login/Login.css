@@ -1,5 +1,21 @@
+.login-page { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* Barra superior */
+.login-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: white; padding: 12px 40px; z-index: 10;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.login-topbar-logo { height: 30px; width: auto; }
+.login-topbar-links { display: flex; gap: 24px; }
+.login-topbar-links a {
+  font-size: 13px; color: #64748b; text-decoration: none; font-weight: 500; transition: color 0.15s;
+}
+.login-topbar-links a:hover { color: #dc2626; }
+
+/* Contenedor del login con carrusel */
 .login-container {
-  display: flex; justify-content: center; align-items: center; min-height: 100vh;
+  flex: 1; display: flex; justify-content: center; align-items: center;
   background-size: cover; background-position: center; background-repeat: no-repeat;
   padding: 20px; position: relative; transition: opacity 0.5s ease;
 }
@@ -18,13 +34,8 @@
 }
 .login-logo-area { text-align: center; margin-bottom: 8px; }
 .login-logo-img { max-width: 200px; height: auto; }
-.login-subtitle { text-align: center; margin-bottom: 4px; }
+.login-subtitle { text-align: center; margin-bottom: 20px; }
 .login-subtitle p { font-size: 14px; color: #64748b; margin: 0; font-weight: 400; }
-
-.login-powered { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px; }
-.login-powered span { font-size: 10px; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
-.login-docxentra-logo { height: 18px; width: auto; opacity: 0.8; }
-
 .login-form { display: flex; flex-direction: column; gap: 18px; }
 .login-field { display: flex; flex-direction: column; gap: 6px; }
 .login-field label { font-size: 13px; font-weight: 600; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; }
