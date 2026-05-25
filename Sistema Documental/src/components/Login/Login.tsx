@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { auth } from '../../lib/auth';
-import logoPath from '../assets/fashions-park-logo2.png';
+import logoPath from '../../assets/fashions-park-logo2.png';
 import './Login.css';
 
 interface LoginProps {
