@@ -45,7 +45,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div className={`login-container ${transicion ? 'fade-out' : 'fade-in'}`} style={{ backgroundImage: `url(${imagenesCarrusel[imagenActual]})` }}>
       <div className="login-card">
         <div className="login-logo-area"><img src={logoPath} alt="FASHIONSPARK" className="login-logo-img" /></div>
-        <div className="login-subtitle"><p>Sistema de Gestion · Portico</p></div>
+        <div className="login-subtitle"><p>Sistema de Gestion Documental</p></div>
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">
             <label>Usuario</label>
@@ -78,7 +78,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {error && <div className="login-error">{error}</div>}
           <button type="submit" className="login-btn" disabled={cargando}>{cargando ? 'Ingresando...' : 'Iniciar Sesion'}</button>
         </form>
-        <div className="login-footer"><p>© 2026 Fashions Park</p></div>
+        <div className="login-footer"><p>© 2026 Samuel Gavilan</p></div>
       </div>
     </div>
   );
