@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../lib/auth';
 import logoPath from '../../assets/fashions-park-logo2.png';
+import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
 import backlogin0 from '../../assets/Carrusel/Backlogin.jpeg';
 import backlogin1 from '../../assets/Carrusel/Backlogin1.jpeg';
 import backlogin2 from '../../assets/Carrusel/Backlogin2.jpeg';
@@ -44,8 +45,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   return (
     <div className={`login-container ${transicion ? 'fade-out' : 'fade-in'}`} style={{ backgroundImage: `url(${imagenesCarrusel[imagenActual]})` }}>
       <div className="login-card">
-        <div className="login-logo-area"><img src={logoPath} alt="FASHIONSPARK" className="login-logo-img" /></div>
-        <div className="login-subtitle"><p>Sistema de Gestion Documental</p></div>
+        <div className="login-logo-area">
+          <img src={logoPath} alt="FASHIONSPARK" className="login-logo-img" />
+        </div>
+        <div className="login-subtitle">
+          <p>Sistema de Gestion Documental</p>
+        </div>
+        <div className="login-powered">
+          <span>Powered by</span>
+          <img src={docxentraLogo} alt="Docxentra" className="login-docxentra-logo" />
+        </div>
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">
             <label>Usuario</label>
@@ -78,7 +87,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {error && <div className="login-error">{error}</div>}
           <button type="submit" className="login-btn" disabled={cargando}>{cargando ? 'Ingresando...' : 'Iniciar Sesion'}</button>
         </form>
-        <div className="login-footer"><p>© 2026 Samuel Gavilan</p></div>
+        <div className="login-footer"><p>© 2026 Docxentra · Control Documental Inteligente</p></div>
       </div>
     </div>
   );
