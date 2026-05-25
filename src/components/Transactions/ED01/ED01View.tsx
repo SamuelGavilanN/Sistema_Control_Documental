@@ -171,7 +171,12 @@ const ED01View: React.FC = () => {
       <ED01Modal isOpen={showModal} onClose={() => setShowModal(false)} onGuardar={handleGuardar} modo={modoModal} registro={registroSeleccionado} />
       <ObservacionModal isOpen={showObservacionModal} onClose={() => setShowObservacionModal(false)} observacion={observacionVer} />
       <FiltroModal isOpen={showFiltroModal} onClose={() => setShowFiltroModal(false)} filtros={filtros} onAplicar={setFiltros} />
-      <EtiquetaModal isOpen={showEtiquetaModal} onClose={() => setShowEtiquetaModal(false)} registro={registroSeleccionado} />
+      <EtiquetaModal 
+      isOpen={showEtiquetaModal} 
+      onClose={() => setShowEtiquetaModal(false)} 
+      registro={registroSeleccionado}
+      nombreCreador={registroSeleccionado ? (nombresUsuarios[registroSeleccionado.creado_por] || 'Usuario') : 'Usuario'}
+    />
     </div>
   );
 };
