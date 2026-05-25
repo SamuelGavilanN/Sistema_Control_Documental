@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import logoPath from '../assets/fashions-park-logo2.png';
+import logoPath from '../../assets/fashions-park-logo2.png';
 
 interface MenuSection {
   id: string;
