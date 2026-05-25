@@ -116,7 +116,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
       </div>
 
       <div className="sidebar-footer">
-        <img src={docxentraHorizontal} alt="Docxentra" className="sidebar-docxentra-logo" />
+        <div className="logo">
+          <img src={docxentraHorizontal} alt="Docxentra" className="logo-image" />
+        </div>
       </div>
     </div>
   );
