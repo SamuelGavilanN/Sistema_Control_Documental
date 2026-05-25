@@ -63,38 +63,44 @@ const ED01View: React.FC = () => {
   const cargarRegistros = async () => {
     try {
       setCargando(true);
+      const { data, error } = await supabase
+        .from('ed01_empaques')
+        .select('*')
+        .order(ordenColumna, { ascending: ordenDireccion === 'asc' });
       
-      let datos: any[] = [];
-      let query = supabase.from('ed01_empaques').select('*');
+      if (error) throw error;
       
-      // Aplicar filtros uno por uno con if/else
+      let datosFiltrados = data || [];
+      
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
         const op = filtro.operador;
-        const val = filtro.valor;
+        const val = (filtro.valor || '').toLowerCase();
         
         if (!col) return;
         
-        if (op === 'vacio') {
-          query = query.is(col, null);
-        } else if (op === 'no_vacio') {
-          query = query.not('is', col, null);
-        } else if (val !== undefined && val !== '') {
-          if (op === 'igual') query = query.eq(col, val);
-          else if (op === 'mayor') query = query.gt(col, val);
-          else if (op === 'menor') query = query.lt(col, val);
-          else if (op === 'mayor_igual') query = query.gte(col, val);
-          else if (op === 'menor_igual') query = query.lte(col, val);
-          else if (op === 'contiene') query = query.ilike(col, '%' + val + '%');
-          else if (op === 'no_contiene') query = query.not('ilike', col, '%' + val + '%');
-        }
+        datosFiltrados = datosFiltrados.filter((item: any) => {
+          const itemVal = item[col];
+          
+          if (op === 'vacio') return itemVal === null || itemVal === '' || itemVal === undefined;
+          if (op === 'no_vacio') return itemVal !== null && itemVal !== '' && itemVal !== undefined;
+          if (val === '') return true;
+          
+          const itemStr = String(itemVal || '').toLowerCase();
+          
+          if (op === 'igual') return itemStr === val;
+          if (op === 'mayor') return Number(itemVal) > Number(val);
+          if (op === 'menor') return Number(itemVal) < Number(val);
+          if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
+          if (op === 'menor_igual') return Number(itemVal) <= Number(val);
+          if (op === 'contiene') return itemStr.includes(val);
+          if (op === 'no_contiene') return !itemStr.includes(val);
+          
+          return true;
+        });
       });
       
-      query = query.order(ordenColumna, { ascending: ordenDireccion === 'asc' });
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      setRegistros(data || []);
+      setRegistros(datosFiltrados);
     } catch (error) {
       console.error('Error cargando registros:', error);
     } finally {
