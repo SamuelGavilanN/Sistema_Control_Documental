@@ -1,0 +1,11 @@
+.etiqueta-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.etiqueta-modal { background: white; border-radius: 16px; width: 95%; max-width: 450px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+.etiqueta-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #eef0f5; }
+.etiqueta-modal-header h2 { font-size: 18px; font-weight: 600; color: #1e293b; margin: 0; }
+.etiqueta-modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 20px; color: #64748b; cursor: pointer; }
+.etiqueta-modal-close:hover { background: #f1f5f9; }
+.etiqueta-modal-body { padding: 24px; }
+.etiqueta-modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #eef0f5; }
+.etiqueta-info { background: #f8fafd; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.etiqueta-dato { display: flex; justify-content: space-between; font-size: 14px; color: #475569; }
+.etiqueta-dato strong { color: #1e293b; }
