@@ -46,11 +46,11 @@ const App: React.FC = () => {
   if (!usuario) return <Login onLogin={handleLogin} />;
 
   const openModule = (moduleId: string) => {
-    setTabsMontadas(prev => {
-  const nuevo = new Set(prev);
-  nuevo.add(moduleId);
-  return nuevo;
-});
+    setTabsMontadas((prev: Set<string>) => {
+      const nuevo = new Set(prev);
+      nuevo.add(moduleId);
+      return nuevo;
+    });
     if (!openTabs.includes(moduleId)) setOpenTabs([...openTabs, moduleId]);
     setActiveTab(moduleId);
   };
@@ -80,7 +80,7 @@ const App: React.FC = () => {
             </div>
           )}
           {!['dashboard', 'ed'].includes(activeTab) && (
-            <div className="module-container"><h3>Módulo en desarrollo</h3></div>
+            <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
       </div>
