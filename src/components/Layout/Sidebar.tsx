@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import logoPath from '../../assets/fashions-park-logo2.png';
-import docxentraHorizontal from '../../assets/Carrusel/docxentra-horizontal.png';
+import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
 
 interface MenuSection {
   id: string;
@@ -117,8 +117,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
 
       <div className="sidebar-footer">
         <div className="logo">
-          <img src={docxentraHorizontal} alt="Docxentra" className="logo-image" />
+          <img src={docxentraLogo} alt="Docxentra" className="logo-image-docxentra" />
         </div>
+        <p className="sidebar-footer-text">Control Documental Inteligente</p>
       </div>
     </div>
   );
