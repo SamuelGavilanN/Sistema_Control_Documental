@@ -18,8 +18,7 @@ const menuSections: MenuSection[] = [
     id: 'ed',
     title: 'ED · Empaque Directos',
     items: [
-      { id: 'ed', label: 'ED01 Registro Empaque', type: 'item' },
-      { id: 'ed-history', label: 'ED02 Historial de Registro', type: 'subitem' }
+      { id: 'ed', label: 'ED01 Registro Empaque', type: 'item' }
     ]
   }
 ];
