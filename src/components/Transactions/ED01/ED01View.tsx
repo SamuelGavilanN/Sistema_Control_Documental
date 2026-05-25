@@ -63,10 +63,36 @@ const ED01View: React.FC = () => {
   const cargarRegistros = async () => {
     try {
       setCargando(true);
-      const { data, error } = await supabase
-        .from('ed01_empaques')
-        .select('*')
-        .order(ordenColumna, { ascending: ordenDireccion === 'asc' });
+      
+      let datos: any[] = [];
+      let query = supabase.from('ed01_empaques').select('*');
+      
+      // Aplicar filtros uno por uno con if/else
+      filtros.forEach((filtro: any) => {
+        const col = filtro.columna;
+        const op = filtro.operador;
+        const val = filtro.valor;
+        
+        if (!col) return;
+        
+        if (op === 'vacio') {
+          query = query.is(col, null);
+        } else if (op === 'no_vacio') {
+          query = query.not('is', col, null);
+        } else if (val !== undefined && val !== '') {
+          if (op === 'igual') query = query.eq(col, val);
+          else if (op === 'mayor') query = query.gt(col, val);
+          else if (op === 'menor') query = query.lt(col, val);
+          else if (op === 'mayor_igual') query = query.gte(col, val);
+          else if (op === 'menor_igual') query = query.lte(col, val);
+          else if (op === 'contiene') query = query.ilike(col, '%' + val + '%');
+          else if (op === 'no_contiene') query = query.not('ilike', col, '%' + val + '%');
+        }
+      });
+      
+      query = query.order(ordenColumna, { ascending: ordenDireccion === 'asc' });
+      
+      const { data, error } = await query;
       if (error) throw error;
       setRegistros(data || []);
     } catch (error) {
@@ -78,7 +104,7 @@ const ED01View: React.FC = () => {
 
   useEffect(() => {
     cargarRegistros();
-  }, [ordenColumna, ordenDireccion]);
+  }, [filtros, ordenColumna, ordenDireccion]);
 
   const handleNuevo = () => { setModoModal('nuevo'); setRegistroSeleccionado(null); setShowModal(true); };
   const handleEditar = () => {
