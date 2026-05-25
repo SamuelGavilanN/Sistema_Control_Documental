@@ -8,20 +8,51 @@ interface EtiquetaModalProps {
   isOpen: boolean;
   onClose: () => void;
   registro: ED01Row | null;
+  nombreCreador?: string;
 }
 
-const generarHTML = (registro: ED01Row, palletActual: number, totalPallets: number, qrGrande: string, qrPequeno: string, barcodeSvg: string): string => {
-  const fecha = registro?.creado_en ? new Date(registro.creado_en).toLocaleDateString('es-CL').replace(/\//g, '-') : '';
+const generarHTML = (
+  registro: ED01Row,
+  palletActual: number,
+  totalPallets: number,
+  qrGrande: string,
+  qrPequeno: string,
+  barcodeSvg: string,
+  nombreCreador: string
+): string => {
+  const fecha = registro?.creado_en
+    ? new Date(registro.creado_en).toLocaleDateString('es-CL').replace(/\//g, '-')
+    : '';
   const nombreTienda = `${registro.codigo_local}-${registro.nombre_local}`;
+
   return `
 <div class="contenedor-exterior">
  <div class="etiqueta">
-  <div class="recuadro recuadro-1"><img src="${qrGrande}" class="qr-grande" /><div class="columna-derecha-r1"><div class="fecha-texto">${fecha}</div><div class="codigo-largo">${registro.numero_tarea}</div></div></div>
-  <div class="recuadro recuadro-2"><div class="qr-titulo-container"><img src="${qrPequeno}" class="qr-pequeno" /></div><div class="titulo-texto">${nombreTienda}</div></div>
-  <div class="recuadro recuadro-3"><div class="col-cantidad-izq">CANTIDAD</div><div class="col-cantidad-der">${registro.cantidad_bultos}</div></div>
-  <div class="recuadro recuadro-4">${barcodeSvg}<div class="texto-pallet">${registro.numero_empaque}</div></div>
-  <div class="recuadro recuadro-5"><div class="revisado-texto">SAMUEL GAVILAN</div></div>
-  <div class="recuadro recuadro-6"><div class="footer-texto">PALLET ${palletActual} DE ${totalPallets}</div></div>
+  <div class="recuadro recuadro-1">
+   <img src="${qrGrande}" class="qr-grande" />
+   <div class="columna-derecha-r1">
+    <div class="fecha-texto">${fecha}</div>
+    <div class="codigo-largo">${registro.numero_tarea}</div>
+   </div>
+  </div>
+  <div class="recuadro recuadro-2">
+   <div class="qr-titulo-container"><img src="${qrPequeno}" class="qr-pequeno" /></div>
+   <div class="titulo-texto">${nombreTienda}</div>
+  </div>
+  <div class="recuadro recuadro-3">
+   <div class="col-cantidad-izq">CANTIDAD</div>
+   <div class="col-cantidad-der">${registro.cantidad_bultos}</div>
+  </div>
+  <div class="recuadro recuadro-4">
+   ${barcodeSvg}
+   <div class="texto-pallet">${registro.numero_empaque}</div>
+  </div>
+  <div class="recuadro recuadro-5">
+   <div class="revisado-texto">${nombreCreador.toUpperCase()}</div>
+  </div>
+  <div class="recuadro recuadro-6">
+   <div class="footer-texto">PALLET ${palletActual} DE ${totalPallets}</div>
+  </div>
  </div>
 </div>`;
 };
@@ -60,7 +91,7 @@ body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!
 }
 `;
 
-const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro }) => {
+const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro, nombreCreador }) => {
   const [qrGrande, setQrGrande] = useState('');
   const [qrPequeno, setQrPequeno] = useState('');
   const [barcodeSvg, setBarcodeSvg] = useState('');
@@ -84,9 +115,10 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro
     const totalPallets = registro.cantidad_pallet || 1;
     const ventana = window.open('', '_blank');
     if (!ventana) return;
+    const nombre = nombreCreador || 'Usuario';
     let htmlCompleto = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquetas</title><style>${cssEtiqueta}</style></head><body>`;
     for (let i = 1; i <= totalPallets; i++) {
-      htmlCompleto += `<div class="etiqueta-wrapper">${generarHTML(registro, i, totalPallets, qrGrande, qrPequeno, barcodeSvg)}</div>`;
+      htmlCompleto += `<div class="etiqueta-wrapper">${generarHTML(registro, i, totalPallets, qrGrande, qrPequeno, barcodeSvg, nombre)}</div>`;
     }
     htmlCompleto += '</body></html>';
     ventana.document.write(htmlCompleto);
@@ -108,7 +140,7 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro
             <div className="etiqueta-dato"><span>Bultos:</span> <strong>{registro.cantidad_bultos}</strong></div>
             <div className="etiqueta-dato"><span>Pallets:</span> <strong>{registro.cantidad_pallet}</strong></div>
           </div>
-          <p style={{ fontSize: '13px', color: '#64748b', marginTop: '12px' }}>Se generarán <strong>{registro.cantidad_pallet}</strong> etiqueta(s).</p>
+          <p style={{ fontSize: '13px', color: '#64748b', marginTop: '12px' }}>Se generaran <strong>{registro.cantidad_pallet}</strong> etiqueta(s).</p>
         </div>
         <div className="etiqueta-modal-footer">
           <button className="ed01-btn-cancel" onClick={onClose}>Cancelar</button>
