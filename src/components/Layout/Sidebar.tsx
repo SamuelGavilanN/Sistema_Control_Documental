@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import logoPath from '../../assets/fashions-park-logo2.png';
+import docxentraHorizontal from '../../assets/Carrusel/docxentra-horizontal.png';
 
 interface MenuSection {
   id: string;
@@ -45,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
     if (!searchTerm.trim()) return menuSections;
     const term = searchTerm.toLowerCase();
     return menuSections.map(section => {
-      const filteredItems = section.items.filter(item => 
+      const filteredItems = section.items.filter(item =>
         item.label.toLowerCase().includes(term) || section.title.toLowerCase().includes(term) || item.id.toLowerCase().includes(term)
       );
       return { ...section, items: filteredItems };
@@ -67,16 +68,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
           <img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" />
         </div>
       </div>
+
       <div className="search-container">
         <div className="search-wrapper">
           <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M14 14L11.1 11.1" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <input type="text" className="search-input" placeholder="Buscar transacción..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <input type="text" className="search-input" placeholder="Buscar transaccion..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           {searchTerm && <button className="search-clear" onClick={() => setSearchTerm('')}>×</button>}
         </div>
       </div>
+
       <div className="nav-menu">
         {filteredSections.length === 0 ? (
           <div className="search-no-results">No se encontraron resultados</div>
@@ -93,19 +96,27 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
                 </div>
                 {isExpanded && (
                   <div className="nav-section-content">
-                    {section.items.map(item => {
-                      if (item.type === 'item') {
-                        return <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}><span className="nav-indicator"></span>{item.label}</div>;
-                      } else {
-                        return <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>{item.label}</div>;
-                      }
-                    })}
+                    {section.items.map(item => (
+                      item.type === 'item' ? (
+                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
+                          <span className="nav-indicator"></span>{item.label}
+                        </div>
+                      ) : (
+                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>
+                          {item.label}
+                        </div>
+                      )
+                    ))}
                   </div>
                 )}
               </div>
             );
           })
         )}
+      </div>
+
+      <div className="sidebar-footer">
+        <img src={docxentraHorizontal} alt="Docxentra" className="sidebar-docxentra-logo" />
       </div>
     </div>
   );
