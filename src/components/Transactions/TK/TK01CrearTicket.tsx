@@ -22,8 +22,8 @@ const TK01CrearTicket: React.FC = () => {
   useEffect(() => { cargarUsuarios(); }, []);
 
   const cargarUsuarios = async () => {
-    const { data } = await supabase.from('usuarios').select('id, nombre, apellido, rol');
-    if (data) setUsuarios(data);
+    const result = await supabase.from('usuarios').select('id, nombre, apellido, rol');
+    if (result.data) setUsuarios(result.data);
   };
 
   const handleCrear = async () => {
@@ -31,7 +31,7 @@ const TK01CrearTicket: React.FC = () => {
     const usuario = auth.getUsuario();
     const numeroTicket = 'TK-' + Date.now().toString().slice(-8);
 
-    const { error, data } = await supabase.from('tickets').insert([{
+    const result = await supabase.from('tickets').insert([{
       numero_ticket: numeroTicket,
       area,
       tipo_problema: tipoProblema,
@@ -43,14 +43,21 @@ const TK01CrearTicket: React.FC = () => {
       asignado_a: asignadoA || null
     }]).select('id').single();
 
-    if (error) { alert('Error: ' + error.message); return; }
+    if (result.error) { alert('Error: ' + result.error.message); return; }
+    
+    const ticketId = result.data ? (result.data as any).id : null;
+    if (!ticketId) { alert('Error al obtener ID del ticket'); return; }
 
     // Crear notificaciones para usuarios de esta área y admins
-    const usuariosANotificar = usuarios.filter(u => u.rol === 'Admin' || u.rol === 'Owner' || (area === 'Portico' && u.rol === 'Portico') || (area === 'Portico' && u.rol === 'Lider'));
+    const usuariosANotificar = usuarios.filter(u => 
+      u.rol === 'Admin' || u.rol === 'Owner' || 
+      (area === 'Portico' && u.rol === 'Portico') || 
+      (area === 'Portico' && u.rol === 'Lider')
+    );
     
     for (const u of usuariosANotificar) {
       await supabase.from('ticket_notificaciones').insert([{
-        ticket_id: data.id,
+        ticket_id: ticketId,
         usuario_id: u.id
       }]);
     }
