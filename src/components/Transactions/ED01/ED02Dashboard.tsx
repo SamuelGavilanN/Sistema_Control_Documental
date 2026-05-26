@@ -142,7 +142,7 @@ const ED02Dashboard: React.FC = () => {
             <ZAxis range={[60, 60]} />
             <Tooltip 
               cursor={{ strokeDasharray: '3 3' }}
-              content={({ payload }) => {
+              content={({ payload }: { payload?: any[] }) => {
                 if (payload && payload[0]) {
                   const d = payload[0].payload;
                   return (
