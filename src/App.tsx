@@ -60,7 +60,7 @@ const App: React.FC = () => {
     <div className="app-container">
       <Sidebar activeTab={activeTab} onModuleClick={openModule} rol={usuario?.rol} />
       <div className="main-panel">
-        <Header activeTab={activeTab} openTabs={openTabs} onTabClick={setActiveTab} onTabClose={closeTab} usuario={usuario} onLogout={handleLogout} />
+        <Header activeTab={activeTab} openTabs={openTabs} onTabClick={setActiveTab} onTabClose={closeTab} usuario={usuario} onLogout={handleLogout} onOpenModule={openModule} />
         <div className="workspace">
           <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}><Dashboard /></div>
           {tabsMontadas.has('ed') && <div style={{ display: activeTab === 'ed' ? 'block' : 'none' }}><ED01View key="ed01" /></div>}
