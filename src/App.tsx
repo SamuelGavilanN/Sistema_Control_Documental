@@ -4,6 +4,7 @@ import Header from './components/Layout/Header';
 import Dashboard from './components/Layout/Dashboard';
 import ED01View from './components/Transactions/ED01/ED01View';
 import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
+import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -85,7 +86,12 @@ const App: React.FC = () => {
               <ED02Dashboard key="ed02" />
             </div>
           )}
-          {!['dashboard', 'ed', 'ed-history'].includes(activeTab) && (
+          {tabsMontadas.has('ed-tickets') && (
+            <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}>
+              <ED03Tickets key="ed03" />
+            </div>
+          )}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
