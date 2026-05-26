@@ -31,7 +31,7 @@ interface SidebarProps {
   rol?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
 
@@ -97,8 +97,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
                 </div>
                 {isExpanded && (
                   <div className="nav-section-content">
-                    {section.items.map(item => (
-                      item.type === 'item' ? (
+                    {section.items.map(item => {
+                      // Ocultar ED02 para rol Portico
+                      if (item.id === 'ed-history' && rol === 'Portico') return null;
+                      
+                      return item.type === 'item' ? (
                         <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
                           <span className="nav-indicator"></span>{item.label}
                         </div>
@@ -106,8 +109,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick }) => {
                         <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>
                           {item.label}
                         </div>
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
