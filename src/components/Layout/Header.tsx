@@ -15,6 +15,8 @@ const moduleTitles: Record<string, string> = {
   'ed': 'ED01 · Reg Empaque',
   'ed-history': 'ED02 · Dashboard',
   'ed-tickets': 'ED03 · BT Portico',
+  'tk': 'TK01 · Crear Ticket',
+  'tk-dashboard': 'TK02 · Dashboard',
 };
 
 interface Notificacion {
@@ -47,64 +49,59 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
 
   const cargarNotificaciones = async () => {
     try {
-      const resp = await fetch(
-        `${(supabase as any).restUrl}/ticket_notificaciones?usuario_id=eq.${usuario?.id}&order=creado_en.desc&limit=10`,
-        { headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}` } }
-      );
-      const notifs = await resp.json();
+      const result = await supabase
+        .from('ticket_notificaciones')
+        .select('*')
+        .eq('usuario_id', usuario?.id)
+        .order('creado_en', { ascending: false })
+        .limit(10) as any;
+      
+      if (result.error || !result.data || result.data.length === 0) return;
+      
+      const notifs = result.data;
+      const nuevas: Notificacion[] = [];
 
-      if (notifs && notifs.length > 0) {
-        const nuevas: Notificacion[] = [];
-        for (const n of notifs) {
-          const resp2 = await fetch(
-            `${(supabase as any).restUrl}/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.${n.ticket_id}`,
-            { headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}` } }
-          );
-          const tickets = await resp2.json();
-          const ticket = tickets && tickets.length > 0 ? tickets[0] : null;
-
-          nuevas.push({
-            id: n.id,
-            ticket_numero: ticket?.numero_ticket || '',
-            tipo_problema: ticket?.tipo_problema || '',
-            prioridad: ticket?.prioridad || '',
-            area: ticket?.area || '',
-            creado_en: n.creado_en,
-            visto: n.visto
-          });
-        }
-
-        const anteriores = notificaciones.map(n => n.id);
-        const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
-        if (recienLlegadas.length > 0) {
-          setToastActual(recienLlegadas[0]);
-          setTimeout(() => setToastActual(null), 5000);
-        }
-
-        setNotificaciones(nuevas);
+      for (const n of notifs) {
+        const tres = await supabase
+          .from('tickets')
+          .select('numero_ticket, tipo_problema, prioridad, area')
+          .eq('id', n.ticket_id)
+          .single() as any;
+        
+        const ticket = tres.data;
+        nuevas.push({
+          id: n.id,
+          ticket_numero: ticket?.numero_ticket || '',
+          tipo_problema: ticket?.tipo_problema || '',
+          prioridad: ticket?.prioridad || '',
+          area: ticket?.area || '',
+          creado_en: n.creado_en,
+          visto: n.visto
+        });
       }
+
+      const anteriores = notificaciones.map((n: any) => n.id);
+      const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
+      if (recienLlegadas.length > 0) {
+        setToastActual(recienLlegadas[0]);
+        setTimeout(() => setToastActual(null), 5000);
+      }
+
+      setNotificaciones(nuevas);
     } catch (e) {
       console.error('Error:', e);
     }
   };
 
   const marcarVisto = async (notifId: string) => {
-    try {
-      await fetch(
-        `${(supabase as any).restUrl}/ticket_notificaciones?id=eq.${notifId}`,
-        { method: 'PATCH', headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }
-      );
-      cargarNotificaciones();
-    } catch (e) {}
+    await supabase.from('ticket_notificaciones').update({ visto: true }).eq('id', notifId) as any;
+    cargarNotificaciones();
   };
 
   const marcarTodasVisto = async () => {
     const noVistasIds = notificaciones.filter(n => !n.visto).map(n => n.id);
     for (const id of noVistasIds) {
-      await fetch(
-        `${(supabase as any).restUrl}/ticket_notificaciones?id=eq.${id}`,
-        { method: 'PATCH', headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }
-      );
+      await supabase.from('ticket_notificaciones').update({ visto: true }).eq('id', id) as any;
     }
     cargarNotificaciones();
   };
