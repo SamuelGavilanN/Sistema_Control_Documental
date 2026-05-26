@@ -13,6 +13,7 @@ const moduleTitles: Record<string, string> = {
   'dashboard': 'Ventana de Trabajo',
   'ed': 'ED01 · Reg Empaque',
   'ed-history': 'ED02 · Dashboard',
+  'ed-tickets': 'ED03 · BT Portico',
 };
 
 const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabClose, usuario, onLogout }) => {
