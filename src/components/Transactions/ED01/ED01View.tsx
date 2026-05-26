@@ -43,9 +43,17 @@ const ED01View: React.FC = () => {
 
   useEffect(() => {
     cargarLocales();
-    cargarRegistros();
     cargarUsuarios();
   }, []);
+
+  // Polling: recargar registros cada 10 segundos
+  useEffect(() => {
+    cargarRegistros(false);
+    const intervalo = setInterval(() => {
+      cargarRegistros(false);
+    }, 10000);
+    return () => clearInterval(intervalo);
+  }, [filtros, ordenColumna, ordenDireccion]);
 
   const cargarUsuarios = async () => {
     try {
@@ -60,9 +68,9 @@ const ED01View: React.FC = () => {
     }
   };
 
-  const cargarRegistros = async () => {
+  const cargarRegistros = async (mostrarCargando: boolean = true) => {
     try {
-      setCargando(true);
+      if (mostrarCargando) setCargando(true);
       const { data, error } = await supabase
         .from('ed01_empaques')
         .select('*')
@@ -104,13 +112,9 @@ const ED01View: React.FC = () => {
     } catch (error) {
       console.error('Error cargando registros:', error);
     } finally {
-      setCargando(false);
+      if (mostrarCargando) setCargando(false);
     }
   };
-
-  useEffect(() => {
-    cargarRegistros();
-  }, [filtros, ordenColumna, ordenDireccion]);
 
   const handleNuevo = () => { setModoModal('nuevo'); setRegistroSeleccionado(null); setShowModal(true); };
   const handleEditar = () => {
@@ -158,7 +162,7 @@ const ED01View: React.FC = () => {
           modificado_por: usuario?.id, modificado_en: new Date().toISOString()
         }).eq('id', registroSeleccionado?.id);
       }
-      setShowModal(false); setRegistroSeleccionado(null); cargarRegistros();
+      setShowModal(false); setRegistroSeleccionado(null); cargarRegistros(false);
     } catch (error: any) { alert('Error: ' + error.message); }
   };
 
@@ -171,12 +175,7 @@ const ED01View: React.FC = () => {
       <ED01Modal isOpen={showModal} onClose={() => setShowModal(false)} onGuardar={handleGuardar} modo={modoModal} registro={registroSeleccionado} />
       <ObservacionModal isOpen={showObservacionModal} onClose={() => setShowObservacionModal(false)} observacion={observacionVer} />
       <FiltroModal isOpen={showFiltroModal} onClose={() => setShowFiltroModal(false)} filtros={filtros} onAplicar={setFiltros} />
-      <EtiquetaModal 
-      isOpen={showEtiquetaModal} 
-      onClose={() => setShowEtiquetaModal(false)} 
-      registro={registroSeleccionado}
-      nombreCreador={registroSeleccionado ? (nombresUsuarios[registroSeleccionado.creado_por] || 'Usuario') : 'Usuario'}
-    />
+      <EtiquetaModal isOpen={showEtiquetaModal} onClose={() => setShowEtiquetaModal(false)} registro={registroSeleccionado} nombreCreador={registroSeleccionado ? (nombresUsuarios[registroSeleccionado.creado_por] || 'Usuario') : 'Usuario'} />
     </div>
   );
 };
