@@ -46,7 +46,7 @@ const TK01CrearTicket: React.FC = () => {
     const numeroTicket = 'TK-' + Date.now().toString().slice(-8);
 
     const result = await supabase.from('tickets').insert([{
-      numero_ticket: numeroTicket, area, tipo_problema, prioridad,
+      numero_ticket: numeroTicket, area, tipo_problema: tipoProblema, prioridad,
       numero_empaque: numeroEmpaque, descripcion, estado: 'Abierto',
       creado_por: usuario?.id, asignado_a: asignadoA || null
     }]).select('id').single() as any;
