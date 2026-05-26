@@ -1,0 +1,11 @@
+.ed03-view { background: white; border-radius: 12px; padding: 24px; }
+.ed03-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.ed03-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
+.ed03-btn-crear { padding: 8px 16px; background: #1a1f2e; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.ed03-tabla-container { border: 1px solid #eef0f5; border-radius: 8px; overflow-x: auto; }
+.ed03-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ed03-tabla th { background: #fafcff; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left; border-bottom: 1px solid #eef0f5; }
+.ed03-tabla td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+.ed03-tabla tr:hover { background: #f8fafd; }
+.ed03-ticket-id { font-weight: 600; color: #1d4ed8; }
+.ed03-btn-ver { padding: 4px 10px; background: white; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px; cursor: pointer; color: #475569; }
