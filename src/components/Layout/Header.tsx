@@ -48,36 +48,47 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     return () => clearInterval(intervalo);
   }, [usuario]);
 
-  const cargarNotificaciones = async () => {
-    const { data } = await supabase
-      .from('ticket_notificaciones')
-      .select('*, tickets!inner(numero_ticket, tipo_problema, prioridad, area, creado_en)')
-      .eq('usuario_id', usuario?.id)
-      .order('creado_en', { ascending: false })
-      .limit(10);
+const cargarNotificaciones = async () => {
+  const { data: notifs } = await supabase
+    .from('ticket_notificaciones')
+    .select('*')
+    .eq('usuario_id', usuario?.id)
+    .order('creado_en', { ascending: false })
+    .limit(10);
 
-    if (data) {
-      const nuevas = data.map((n: any) => ({
+  if (notifs && notifs.length > 0) {
+    const ticketIds = notifs.map((n: any) => n.ticket_id);
+    const { data: ticketsData } = await supabase
+      .from('tickets')
+      .select('numero_ticket, tipo_problema, prioridad, area')
+      .in('id', ticketIds);
+
+    const ticketsMap: Record<string, any> = {};
+    if (ticketsData) ticketsData.forEach((t: any) => { ticketsMap[t.numero_ticket] = t; });
+
+    const nuevas = notifs.map((n: any) => {
+      const t = ticketsData?.find((t2: any) => t2.numero_ticket && notifs.find((n2: any) => n2.ticket_id === t2.id));
+      return {
         id: n.id,
-        ticket_numero: n.tickets?.numero_ticket || '',
-        tipo_problema: n.tickets?.tipo_problema || '',
-        prioridad: n.tickets?.prioridad || '',
-        area: n.tickets?.area || '',
+        ticket_numero: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.numero_ticket || '',
+        tipo_problema: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.tipo_problema || '',
+        prioridad: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.prioridad || '',
+        area: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.area || '',
         creado_en: n.creado_en,
         visto: n.visto
-      }));
+      };
+    });
 
-      // Detectar nuevas notificaciones para el toast
-      const anteriores = notificaciones.map(n => n.id);
-      const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
-      if (recienLlegadas.length > 0) {
-        setToastActual(recienLlegadas[0]);
-        setTimeout(() => setToastActual(null), 5000);
-      }
-
-      setNotificaciones(nuevas);
+    const anteriores = notificaciones.map(n => n.id);
+    const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
+    if (recienLlegadas.length > 0) {
+      setToastActual(recienLlegadas[0]);
+      setTimeout(() => setToastActual(null), 5000);
     }
-  };
+
+    setNotificaciones(nuevas);
+  }
+};
 
   const marcarVisto = async (notifId: string) => {
     await supabase.from('ticket_notificaciones').update({ visto: true }).eq('id', notifId);
