@@ -12,7 +12,7 @@ interface HeaderProps {
 const moduleTitles: Record<string, string> = {
   'dashboard': 'Ventana de Trabajo',
   'ed': 'ED01 · Reg Empaque',
-  'ed-history': 'ED02 · Historial',
+  'ed-history': 'ED02 · Dashboard',
 };
 
 const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabClose, usuario, onLogout }) => {
@@ -43,7 +43,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           <div className="user-menu">
             <div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 13V11H3V3H6V1H2V13H6Z" fill="#64748b"/><path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="#64748b"/></svg>
-              <span>Cerrar Sesión</span>
+              <span>Cerrar Sesion</span>
             </div>
           </div>
         )}
