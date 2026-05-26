@@ -20,7 +20,8 @@ const menuSections: MenuSection[] = [
     title: 'ED · Empaque Directos',
     items: [
       { id: 'ed', label: 'ED01 Registro Empaque', type: 'item' },
-      { id: 'ed-history', label: 'ED02 Dashboard Produccion', type: 'subitem' }
+      { id: 'ed-history', label: 'ED02 Dashboard Produccion', type: 'subitem' },
+      { id: 'ed-tickets', label: 'ED03 BT Portico', type: 'subitem' }
     ]
   }
 ];
@@ -98,8 +99,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                 {isExpanded && (
                   <div className="nav-section-content">
                     {section.items.map(item => {
-                      // Ocultar ED02 para rol Portico
                       if (item.id === 'ed-history' && rol === 'Portico') return null;
+                      if (item.id === 'ed-tickets' && rol === 'Portico') return null;
                       
                       return item.type === 'item' ? (
                         <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
