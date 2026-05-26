@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
-import TicketModal from './TicketModal';
 import './ED03Tickets.css';
 
 interface Ticket {
@@ -21,13 +20,23 @@ interface Ticket {
 const ED03Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [showModal, setShowModal] = useState(false);
   const [ticketSeleccionado, setTicketSeleccionado] = useState<Ticket | null>(null);
-  const [modoModal, setModoModal] = useState<'crear' | 'ver'>('crear');
+  const [respuesta, setRespuesta] = useState('');
+  const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
   useEffect(() => {
     cargarTickets();
+    cargarUsuarios();
   }, []);
+
+  const cargarUsuarios = async () => {
+    const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
+    if (data) {
+      const m: Record<string, string> = {};
+      data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
+      setNombresUsuarios(m);
+    }
+  };
 
   const cargarTickets = async () => {
     setCargando(true);
@@ -41,30 +50,29 @@ const ED03Tickets: React.FC = () => {
     setCargando(false);
   };
 
-  const handleCrear = () => {
-    setModoModal('crear');
-    setTicketSeleccionado(null);
-    setShowModal(true);
-  };
-
-  const handleVer = (ticket: Ticket) => {
-    setModoModal('ver');
-    setTicketSeleccionado(ticket);
-    setShowModal(true);
-  };
-
-  const handleGuardarTicket = async (datos: any) => {
+  const handleResponder = async () => {
+    if (!respuesta.trim() || !ticketSeleccionado) return;
     const usuario = auth.getUsuario();
-    const { error } = await supabase.from('tickets').insert([{
-      ...datos,
-      area: 'Portico',
-      creado_por: usuario?.id,
-      numero_ticket: 'TK-' + Date.now().toString().slice(-8)
-    }]);
     
-    if (error) { alert('Error: ' + error.message); return; }
-    setShowModal(false);
+    await supabase.from('ticket_respuestas').insert([{
+      ticket_id: ticketSeleccionado.id,
+      mensaje: respuesta,
+      creado_por: usuario?.id
+    }]);
+
+    if (ticketSeleccionado.estado === 'Abierto') {
+      await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id);
+    }
+
+    setRespuesta('');
     cargarTickets();
+  };
+
+  const handleResolver = async () => {
+    if (!ticketSeleccionado) return;
+    await supabase.from('tickets').update({ estado: 'Resuelto', resuelto_en: new Date().toISOString() }).eq('id', ticketSeleccionado.id);
+    cargarTickets();
+    setTicketSeleccionado(null);
   };
 
   const getPrioridadBadge = (p: string) => {
@@ -90,55 +98,83 @@ const ED03Tickets: React.FC = () => {
     <div className="ed03-view">
       <div className="ed03-header">
         <h2>Bandeja de Tickets · Portico</h2>
-        <button className="ed03-btn-crear" onClick={handleCrear}>+ Nuevo Ticket</button>
       </div>
 
-      <div className="ed03-tabla-container">
-        <table className="ed03-tabla">
-          <thead>
-            <tr>
-              <th>Ticket</th>
-              <th>Tipo</th>
-              <th>Prioridad</th>
-              <th>Empaque</th>
-              <th>Estado</th>
-              <th>Fecha</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {cargando ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '30px' }}>Cargando...</td></tr>
-            ) : tickets.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '30px' }}>No hay tickets</td></tr>
-            ) : (
-              tickets.map(t => {
-                const pb = getPrioridadBadge(t.prioridad);
-                const eb = getEstadoBadge(t.estado);
-                return (
-                  <tr key={t.id} onClick={() => handleVer(t)} style={{ cursor: 'pointer' }}>
-                    <td className="ed03-ticket-id">{t.numero_ticket}</td>
-                    <td>{t.tipo_problema}</td>
-                    <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
-                    <td>{t.numero_empaque || '-'}</td>
-                    <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.estado}</span></td>
-                    <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
-                    <td><button className="ed03-btn-ver">Ver</button></td>
-                  </tr>
-                );
-              })
+      <div className="ed03-layout">
+        {/* Lista de tickets */}
+        <div className="ed03-lista">
+          <div className="ed03-tabla-container">
+            <table className="ed03-tabla">
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>Tipo</th>
+                  <th>Prioridad</th>
+                  <th>Empaque</th>
+                  <th>Estado</th>
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cargando ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '30px' }}>Cargando...</td></tr>
+                ) : tickets.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '30px' }}>No hay tickets</td></tr>
+                ) : (
+                  tickets.map(t => {
+                    const pb = getPrioridadBadge(t.prioridad);
+                    const eb = getEstadoBadge(t.estado);
+                    return (
+                      <tr
+                        key={t.id}
+                        className={ticketSeleccionado?.id === t.id ? 'selected' : ''}
+                        onClick={() => setTicketSeleccionado(t)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td className="ed03-ticket-id">{t.numero_ticket}</td>
+                        <td>{t.tipo_problema}</td>
+                        <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
+                        <td>{t.numero_empaque || '-'}</td>
+                        <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.estado}</span></td>
+                        <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Detalle y respuesta */}
+        {ticketSeleccionado && (
+          <div className="ed03-detalle">
+            <h3>{ticketSeleccionado.numero_ticket}</h3>
+            <div className="ed03-detalle-info">
+              <p><strong>Tipo:</strong> {ticketSeleccionado.tipo_problema}</p>
+              <p><strong>Prioridad:</strong> {ticketSeleccionado.prioridad}</p>
+              <p><strong>Empaque:</strong> {ticketSeleccionado.numero_empaque || '-'}</p>
+              <p><strong>Estado:</strong> {ticketSeleccionado.estado}</p>
+              <p><strong>Descripcion:</strong> {ticketSeleccionado.descripcion}</p>
+            </div>
+
+            {ticketSeleccionado.estado !== 'Resuelto' && ticketSeleccionado.estado !== 'Cerrado' && (
+              <div className="ed03-respuesta">
+                <textarea
+                  value={respuesta}
+                  onChange={(e) => setRespuesta(e.target.value)}
+                  placeholder="Escribe una respuesta..."
+                  rows={3}
+                />
+                <div className="ed03-respuesta-acciones">
+                  <button onClick={handleResponder}>Responder</button>
+                  <button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button>
+                </div>
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
       </div>
-
-      <TicketModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onGuardar={handleGuardarTicket}
-        ticket={ticketSeleccionado}
-        modo={modoModal}
-      />
     </div>
   );
 };
