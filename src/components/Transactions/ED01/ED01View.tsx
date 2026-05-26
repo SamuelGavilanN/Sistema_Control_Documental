@@ -44,11 +44,11 @@ const ED01View: React.FC = () => {
   useEffect(() => {
     cargarLocales();
     cargarUsuarios();
+    cargarRegistros(true);
   }, []);
 
   // Polling: recargar registros cada 10 segundos
   useEffect(() => {
-    cargarRegistros(false);
     const intervalo = setInterval(() => {
       cargarRegistros(false);
     }, 10000);
@@ -68,9 +68,10 @@ const ED01View: React.FC = () => {
     }
   };
 
-  const cargarRegistros = async (mostrarCargando: boolean = true) => {
+  const cargarRegistros = async (mostrarCargando: boolean = false) => {
     try {
       if (mostrarCargando) setCargando(true);
+      
       const { data, error } = await supabase
         .from('ed01_empaques')
         .select('*')
@@ -89,13 +90,10 @@ const ED01View: React.FC = () => {
         
         datosFiltrados = datosFiltrados.filter((item: any) => {
           const itemVal = item[col];
-          
           if (op === 'vacio') return itemVal === null || itemVal === '' || itemVal === undefined;
           if (op === 'no_vacio') return itemVal !== null && itemVal !== '' && itemVal !== undefined;
           if (val === '') return true;
-          
           const itemStr = String(itemVal || '').toLowerCase();
-          
           if (op === 'igual') return itemStr === val;
           if (op === 'mayor') return Number(itemVal) > Number(val);
           if (op === 'menor') return Number(itemVal) < Number(val);
@@ -103,7 +101,6 @@ const ED01View: React.FC = () => {
           if (op === 'menor_igual') return Number(itemVal) <= Number(val);
           if (op === 'contiene') return itemStr.includes(val);
           if (op === 'no_contiene') return !itemStr.includes(val);
-          
           return true;
         });
       });
