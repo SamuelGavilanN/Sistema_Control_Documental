@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import './ED02Dashboard.css';
 
@@ -38,15 +38,13 @@ const ED02Dashboard: React.FC = () => {
     const { data } = await query.order('creado_en', { ascending: true });
     
     if (data) {
-      // Agrupar por día
       const agrupado: Record<string, any> = {};
       data.forEach((reg: any) => {
         const dia = new Date(reg.creado_en).toLocaleDateString('es-CL');
-        if (!agrupado[dia]) agrupado[dia] = { dia, tareas: 0, bultos: 0, tiempos: [], primera: '', ultima: '' };
+        if (!agrupado[dia]) agrupado[dia] = { dia, tareas: 0, bultos: 0, primera: '', ultima: '' };
         agrupado[dia].tareas++;
         agrupado[dia].bultos += reg.cantidad_bultos || 0;
         const hora = new Date(reg.creado_en);
-        agrupado[dia].tiempos.push(hora);
         if (!agrupado[dia].primera || hora < new Date(agrupado[dia].primera)) agrupado[dia].primera = reg.creado_en;
         if (!agrupado[dia].ultima || hora > new Date(agrupado[dia].ultima)) agrupado[dia].ultima = reg.creado_en;
       });
@@ -73,7 +71,6 @@ const ED02Dashboard: React.FC = () => {
         <h2>Dashboard Produccion Directo</h2>
       </div>
 
-      {/* Filtros */}
       <div className="ed02-filtros">
         <select value={filtros.usuario} onChange={(e) => setFiltros({ ...filtros, usuario: e.target.value })}>
           <option value="">Todos los usuarios</option>
@@ -84,33 +81,31 @@ const ED02Dashboard: React.FC = () => {
         <button className="ed02-btn-aplicar" onClick={cargarDatos}>Aplicar</button>
       </div>
 
-      {/* Resumen */}
       <div className="ed02-resumen">
         <div className="ed02-card"><span>Tareas Procesadas</span><strong>{totalTareas}</strong></div>
         <div className="ed02-card"><span>Total Bultos</span><strong>{totalBultos}</strong></div>
       </div>
 
-      {/* Gráficos */}
       <div className="ed02-charts">
         <div className="ed02-chart">
-          <h3>Tareas por Día</h3>
+          <h3>Tareas por Dia</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={datos}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis dataKey="dia" stroke="#64748b" fontSize={12} />
-              <YAxis stroke="#64748b" fontSize={12} />
+              <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
               <Tooltip />
               <Bar dataKey="tareas" fill="#3b82f6" radius={[4,4,0,0]} name="Tareas" />
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="ed02-chart">
-          <h3>Bultos por Día</h3>
+          <h3>Bultos por Dia</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={datos}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis dataKey="dia" stroke="#64748b" fontSize={12} />
-              <YAxis stroke="#64748b" fontSize={12} />
+              <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
               <Tooltip />
               <Bar dataKey="bultos" fill="#10b981" radius={[4,4,0,0]} name="Bultos" />
             </BarChart>
@@ -118,16 +113,15 @@ const ED02Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabla detalle */}
       <div className="ed02-tabla-container">
         <table className="ed02-tabla">
           <thead>
             <tr>
-              <th>Día</th>
+              <th>Dia</th>
               <th>Tareas</th>
               <th>Bultos</th>
-              <th>Hora Mín</th>
-              <th>Hora Máx</th>
+              <th>Hora Min</th>
+              <th>Hora Max</th>
             </tr>
           </thead>
           <tbody>
