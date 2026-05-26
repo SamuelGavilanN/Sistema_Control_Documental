@@ -100,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                   <div className="nav-section-content">
                     {section.items.map(item => {
                       if (item.id === 'ed-history' && rol === 'Portico') return null;
-                      if (item.id === 'ed-tickets' && rol === 'Portico') return null;
+                      // ED03 visible para todos
                       
                       return item.type === 'item' ? (
                         <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
