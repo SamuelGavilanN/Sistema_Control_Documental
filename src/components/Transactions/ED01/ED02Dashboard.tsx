@@ -105,7 +105,7 @@ const ED02Dashboard: React.FC = () => {
       {/* Gráfico de barras: Tareas y Bultos por día */}
       <div className="ed02-chart">
         <h3>Tareas y Bultos por Dia</h3>
-        <ResponsiveContainer width="100%" height={350}>
+        <ResponsiveContainer width="100%" height={250}>
           <BarChart data={datos}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
             <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 11 }} />
@@ -120,7 +120,7 @@ const ED02Dashboard: React.FC = () => {
       {/* Gráfico de dispersión: Distribución horaria */}
       <div className="ed02-chart">
         <h3>Distribucion Horaria de Empaques</h3>
-        <ResponsiveContainer width="100%" height={350}>
+        <ResponsiveContainer width="100%" height={250}>
           <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
             <XAxis 
