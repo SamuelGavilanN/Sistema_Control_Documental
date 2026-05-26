@@ -11,6 +11,7 @@ interface HeaderProps {
   onTabClose: (tabId: string) => void;
   usuario: any;
   onLogout: () => void;
+  onOpenModule?: (moduleId: string) => void;
 }
 
 const moduleTitles: Record<string, string> = {
@@ -32,7 +33,7 @@ interface Notificacion {
   visto: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabClose, usuario, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabClose, usuario, onLogout, onOpenModule }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
@@ -86,6 +87,12 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     cargarNotificaciones();
   };
 
+  const handleNotifClick = (n: Notificacion) => {
+    marcarVisto(n.id);
+    setShowNotifMenu(false);
+    onOpenModule?.('ed-tickets');
+  };
+
   const getPrioridadColor = (p: string) => {
     switch (p) { case 'Urgente': return '#dc2626'; case 'Alta': return '#ea580c'; case 'Media': return '#b45309'; default: return '#15803d'; }
   };
@@ -109,7 +116,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           <div className="user-menu" style={{ minWidth: '300px', right: 0, left: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #eef0f5' }}><span style={{ fontWeight: 600, fontSize: '13px' }}>Notificaciones</span><button onClick={marcarTodasVisto} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>Marcar todas vistas</button></div>
             {notificaciones.length === 0 ? <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Sin notificaciones</div> : notificaciones.map(n => (
-              <div key={n.id} className="user-menu-item" onClick={() => marcarVisto(n.id)} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: n.visto ? 0.6 : 1 }}>
+              <div key={n.id} className="user-menu-item" onClick={() => handleNotifClick(n)} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: n.visto ? 0.6 : 1 }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: n.visto ? 'transparent' : getPrioridadColor(n.prioridad) }}></span><span style={{ fontWeight: 600, fontSize: '13px' }}>{n.ticket_numero}</span><span style={{ fontSize: '11px', color: '#64748b' }}>{n.tipo_problema}</span></div>
                 <span style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(n.creado_en).toLocaleString('es-CL')}</span>
               </div>
