@@ -23,6 +23,14 @@ const menuSections: MenuSection[] = [
       { id: 'ed-history', label: 'ED02 Dashboard Produccion', type: 'subitem' },
       { id: 'ed-tickets', label: 'ED03 BT Portico', type: 'subitem' }
     ]
+  },
+  {
+    id: 'tk',
+    title: 'TK · Mesa de Ayuda',
+    items: [
+      { id: 'tk', label: 'TK01 Crear Ticket', type: 'item' },
+      { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets', type: 'subitem' }
+    ]
   }
 ];
 
@@ -99,8 +107,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                 {isExpanded && (
                   <div className="nav-section-content">
                     {section.items.map(item => {
+                      // Ocultar según rol
                       if (item.id === 'ed-history' && rol === 'Portico') return null;
-                      // ED03 visible para todos
+                      if ((item.id === 'tk' || item.id === 'tk-dashboard') && rol === 'Portico') return null;
                       
                       return item.type === 'item' ? (
                         <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
