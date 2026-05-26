@@ -49,44 +49,46 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   }, [usuario]);
 
 const cargarNotificaciones = async () => {
-  const { data: notifs } = await supabase
-    .from('ticket_notificaciones')
-    .select('*')
-    .eq('usuario_id', usuario?.id)
-    .order('creado_en', { ascending: false })
-    .limit(10);
+  try {
+    const { data: notifs } = await supabase
+      .from('ticket_notificaciones')
+      .select('*')
+      .eq('usuario_id', usuario?.id)
+      .order('creado_en', { ascending: false })
+      .limit(10) as any;
 
-  if (notifs && notifs.length > 0) {
-    const ticketIds = notifs.map((n: any) => n.ticket_id);
-    const { data: ticketsData } = await supabase
-      .from('tickets')
-      .select('numero_ticket, tipo_problema, prioridad, area')
-      .in('id', ticketIds);
+    if (notifs && notifs.length > 0) {
+      const nuevas: Notificacion[] = [];
+      
+      for (const n of notifs) {
+        const { data: ticket } = await supabase
+          .from('tickets')
+          .select('numero_ticket, tipo_problema, prioridad, area')
+          .eq('id', n.ticket_id)
+          .single() as any;
 
-    const ticketsMap: Record<string, any> = {};
-    if (ticketsData) ticketsData.forEach((t: any) => { ticketsMap[t.numero_ticket] = t; });
+        nuevas.push({
+          id: n.id,
+          ticket_numero: ticket?.numero_ticket || '',
+          tipo_problema: ticket?.tipo_problema || '',
+          prioridad: ticket?.prioridad || '',
+          area: ticket?.area || '',
+          creado_en: n.creado_en,
+          visto: n.visto
+        });
+      }
 
-    const nuevas = notifs.map((n: any) => {
-      const t = ticketsData?.find((t2: any) => t2.numero_ticket && notifs.find((n2: any) => n2.ticket_id === t2.id));
-      return {
-        id: n.id,
-        ticket_numero: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.numero_ticket || '',
-        tipo_problema: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.tipo_problema || '',
-        prioridad: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.prioridad || '',
-        area: ticketsData?.find((t2: any) => t2.id === n.ticket_id)?.area || '',
-        creado_en: n.creado_en,
-        visto: n.visto
-      };
-    });
+      const anteriores = notificaciones.map(n => n.id);
+      const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
+      if (recienLlegadas.length > 0) {
+        setToastActual(recienLlegadas[0]);
+        setTimeout(() => setToastActual(null), 5000);
+      }
 
-    const anteriores = notificaciones.map(n => n.id);
-    const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
-    if (recienLlegadas.length > 0) {
-      setToastActual(recienLlegadas[0]);
-      setTimeout(() => setToastActual(null), 5000);
+      setNotificaciones(nuevas);
     }
-
-    setNotificaciones(nuevas);
+  } catch (e) {
+    console.error('Error cargando notificaciones:', e);
   }
 };
 
