@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { auth } from '../../lib/auth';
 
 interface HeaderProps {
   activeTab: string;
@@ -37,10 +36,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase() : '??';
   const nombreCompleto = usuario ? `${usuario.nombre || ''} ${usuario.apellido || ''}`.trim() : 'Usuario';
-
   const noVistas = notificaciones.filter(n => !n.visto).length;
 
-  // Polling de notificaciones cada 30s
   useEffect(() => {
     if (!usuario) return;
     cargarNotificaciones();
@@ -48,70 +45,72 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     return () => clearInterval(intervalo);
   }, [usuario]);
 
-const cargarNotificaciones = async () => {
-  try {
-    const { data: notifs } = await supabase
-      .from('ticket_notificaciones')
-      .select('*')
-      .eq('usuario_id', usuario?.id)
-      .order('creado_en', { ascending: false })
-      .limit(10) as any;
+  const cargarNotificaciones = async () => {
+    try {
+      const resp = await fetch(
+        `${(supabase as any).restUrl}/ticket_notificaciones?usuario_id=eq.${usuario?.id}&order=creado_en.desc&limit=10`,
+        { headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}` } }
+      );
+      const notifs = await resp.json();
 
-    if (notifs && notifs.length > 0) {
-      const nuevas: Notificacion[] = [];
-      
-      for (const n of notifs) {
-        const { data: ticket } = await supabase
-          .from('tickets')
-          .select('numero_ticket, tipo_problema, prioridad, area')
-          .eq('id', n.ticket_id)
-          .single() as any;
+      if (notifs && notifs.length > 0) {
+        const nuevas: Notificacion[] = [];
+        for (const n of notifs) {
+          const resp2 = await fetch(
+            `${(supabase as any).restUrl}/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.${n.ticket_id}`,
+            { headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}` } }
+          );
+          const tickets = await resp2.json();
+          const ticket = tickets && tickets.length > 0 ? tickets[0] : null;
 
-        nuevas.push({
-          id: n.id,
-          ticket_numero: ticket?.numero_ticket || '',
-          tipo_problema: ticket?.tipo_problema || '',
-          prioridad: ticket?.prioridad || '',
-          area: ticket?.area || '',
-          creado_en: n.creado_en,
-          visto: n.visto
-        });
+          nuevas.push({
+            id: n.id,
+            ticket_numero: ticket?.numero_ticket || '',
+            tipo_problema: ticket?.tipo_problema || '',
+            prioridad: ticket?.prioridad || '',
+            area: ticket?.area || '',
+            creado_en: n.creado_en,
+            visto: n.visto
+          });
+        }
+
+        const anteriores = notificaciones.map(n => n.id);
+        const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
+        if (recienLlegadas.length > 0) {
+          setToastActual(recienLlegadas[0]);
+          setTimeout(() => setToastActual(null), 5000);
+        }
+
+        setNotificaciones(nuevas);
       }
-
-      const anteriores = notificaciones.map(n => n.id);
-      const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
-      if (recienLlegadas.length > 0) {
-        setToastActual(recienLlegadas[0]);
-        setTimeout(() => setToastActual(null), 5000);
-      }
-
-      setNotificaciones(nuevas);
+    } catch (e) {
+      console.error('Error:', e);
     }
-  } catch (e) {
-    console.error('Error cargando notificaciones:', e);
-  }
-};
+  };
 
   const marcarVisto = async (notifId: string) => {
-    await supabase.from('ticket_notificaciones').update({ visto: true }).eq('id', notifId);
-    cargarNotificaciones();
+    try {
+      await fetch(
+        `${(supabase as any).restUrl}/ticket_notificaciones?id=eq.${notifId}`,
+        { method: 'PATCH', headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }
+      );
+      cargarNotificaciones();
+    } catch (e) {}
   };
 
   const marcarTodasVisto = async () => {
     const noVistasIds = notificaciones.filter(n => !n.visto).map(n => n.id);
-    if (noVistasIds.length > 0) {
-      await supabase.from('ticket_notificaciones').update({ visto: true }).in('id', noVistasIds);
-      cargarNotificaciones();
+    for (const id of noVistasIds) {
+      await fetch(
+        `${(supabase as any).restUrl}/ticket_notificaciones?id=eq.${id}`,
+        { method: 'PATCH', headers: { apikey: (supabase as any).restKey, Authorization: `Bearer ${(supabase as any).restKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }
+      );
     }
+    cargarNotificaciones();
   };
 
   const getPrioridadColor = (p: string) => {
-    switch (p) {
-      case 'Urgente': return '#dc2626';
-      case 'Alta': return '#ea580c';
-      case 'Media': return '#b45309';
-      default: return '#15803d';
-    }
+    switch (p) { case 'Urgente': return '#dc2626'; case 'Alta': return '#ea580c'; case 'Media': return '#b45309'; default: return '#15803d'; }
   };
 
   return (
@@ -125,7 +124,6 @@ const cargarNotificaciones = async () => {
         ))}
       </div>
 
-      {/* Campana de notificaciones */}
       <div className="notif-area" style={{ position: 'relative', marginRight: '10px' }}>
         <button className="notif-btn" onClick={() => { setShowNotifMenu(!showNotifMenu); setShowUserMenu(false); }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -133,14 +131,7 @@ const cargarNotificaciones = async () => {
             <path d="M7 15C7 16.1046 7.89543 17 9 17C10.1046 17 11 16.1046 11 15" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
           {noVistas > 0 && (
-            <span style={{
-              position: 'absolute', top: '-4px', right: '-6px',
-              background: '#dc2626', color: 'white', fontSize: '10px',
-              fontWeight: 600, padding: '1px 5px', borderRadius: '10px',
-              minWidth: '18px', textAlign: 'center'
-            }}>
-              {noVistas}
-            </span>
+            <span style={{ position: 'absolute', top: '-4px', right: '-6px', background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>{noVistas}</span>
           )}
         </button>
 
@@ -154,12 +145,7 @@ const cargarNotificaciones = async () => {
               <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Sin notificaciones</div>
             ) : (
               notificaciones.map(n => (
-                <div
-                  key={n.id}
-                  className="user-menu-item"
-                  onClick={() => marcarVisto(n.id)}
-                  style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: n.visto ? 0.6 : 1 }}
-                >
+                <div key={n.id} className="user-menu-item" onClick={() => marcarVisto(n.id)} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: n.visto ? 0.6 : 1 }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: n.visto ? 'transparent' : getPrioridadColor(n.prioridad), flexShrink: 0 }}></span>
                     <span style={{ fontWeight: 600, fontSize: '13px' }}>{n.ticket_numero}</span>
@@ -189,44 +175,21 @@ const cargarNotificaciones = async () => {
         )}
       </div>
 
-      {/* Toast en esquina inferior derecha */}
       {toastActual && (
-        <div style={{
-          position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000,
-          background: 'white', borderRadius: '12px', padding: '16px 20px',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #eef0f5',
-          minWidth: '320px', animation: 'slideIn 0.3s ease'
-        }}>
+        <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000, background: 'white', borderRadius: '12px', padding: '16px 20px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #eef0f5', minWidth: '320px', animation: 'slideIn 0.3s ease' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
             <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Nuevo Ticket · {toastActual.area}</span>
-            <span style={{
-              background: getPrioridadColor(toastActual.prioridad), color: 'white',
-              padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600
-            }}>
-              {toastActual.prioridad}
-            </span>
+            <span style={{ background: getPrioridadColor(toastActual.prioridad), color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600 }}>{toastActual.prioridad}</span>
           </div>
           <p style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b', margin: '0 0 2px' }}>{toastActual.ticket_numero}</p>
           <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>{toastActual.tipo_problema}</p>
-          <button
-            onClick={() => setToastActual(null)}
-            style={{ position: 'absolute', top: '8px', right: '12px', background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: '#94a3b8' }}
-          >
-            ×
-          </button>
+          <button onClick={() => setToastActual(null)} style={{ position: 'absolute', top: '8px', right: '12px', background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: '#94a3b8' }}>×</button>
         </div>
       )}
 
       <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(100px); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .notif-btn {
-          width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-          background: white; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;
-          transition: all 0.15s; position: relative;
-        }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .notif-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.15s; position: relative; }
         .notif-btn:hover { background: #f8fafd; }
       `}</style>
     </div>
