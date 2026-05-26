@@ -3,6 +3,7 @@ import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Dashboard from './components/Layout/Dashboard';
 import ED01View from './components/Transactions/ED01/ED01View';
+import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -79,7 +80,12 @@ const App: React.FC = () => {
               <ED01View key="ed01" />
             </div>
           )}
-          {!['dashboard', 'ed'].includes(activeTab) && (
+          {tabsMontadas.has('ed-history') && (
+            <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}>
+              <ED02Dashboard key="ed02" />
+            </div>
+          )}
+          {!['dashboard', 'ed', 'ed-history'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
