@@ -1,23 +1,21 @@
-.ed02-view { background: white; border-radius: 12px; padding: 24px; }
-.ed02-header { margin-bottom: 20px; }
-.ed02-header h2 { font-size: 22px; font-weight: 600; color: #1e293b; }
-.ed02-filtros { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
-.ed02-filtros select, .ed02-filtros input { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; }
-.ed02-btn-aplicar { padding: 8px 16px; background: #1a1f2e; color: white; border: none; border-radius: 6px; cursor: pointer; }
-.ed02-resumen { display: flex; gap: 16px; margin-bottom: 24px; }
-.ed02-card { flex: 1; background: #f8fafd; border: 1px solid #eef0f5; border-radius: 12px; padding: 20px; text-align: center; }
-.ed02-card span { display: block; font-size: 13px; color: #64748b; margin-bottom: 8px; }
-.ed02-card strong { font-size: 32px; color: #1e293b; }
-.ed02-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.ed02-chart { background: #f8fafd; border: 1px solid #eef0f5; border-radius: 12px; padding: 20px; }
-.ed02-chart h3 { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px; }
-.ed02-tabla-container { border: 1px solid #eef0f5; border-radius: 8px; overflow-x: auto; }
-.ed02-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
-.ed02-tabla th { background: #fafcff; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left; border-bottom: 1px solid #eef0f5; }
-.ed02-tabla td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+.ed02-view { background: white; border-radius: 12px; padding: 20px; }
+.ed02-header { margin-bottom: 14px; }
+.ed02-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
+.ed02-filtros { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.ed02-filtros select, .ed02-filtros input { padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; }
+.ed02-btn-aplicar { padding: 6px 14px; background: #1a1f2e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.ed02-resumen { display: flex; gap: 12px; margin-bottom: 16px; }
+.ed02-card { flex: 1; background: #f8fafd; border: 1px solid #eef0f5; border-radius: 10px; padding: 14px; text-align: center; }
+.ed02-card span { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; }
+.ed02-card strong { font-size: 26px; color: #1e293b; }
+.ed02-chart { background: #f8fafd; border: 1px solid #eef0f5; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+.ed02-chart h3 { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
+.ed02-tabla-container { border: 1px solid #eef0f5; border-radius: 8px; overflow-x: auto; max-height: 250px; overflow-y: auto; }
+.ed02-tabla { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ed02-tabla th { background: #fafcff; padding: 8px 10px; font-size: 10px; text-transform: uppercase; color: #64748b; text-align: left; border-bottom: 1px solid #eef0f5; position: sticky; top: 0; }
+.ed02-tabla td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; }
 .ed02-tabla tr:hover { background: #f8fafd; }
 
 @media (max-width: 768px) {
-  .ed02-charts { grid-template-columns: 1fr; }
   .ed02-resumen { flex-direction: column; }
 }
