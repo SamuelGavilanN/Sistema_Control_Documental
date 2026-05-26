@@ -1,19 +1,17 @@
 .login-page { display: flex; flex-direction: column; min-height: 100vh; }
 
-/* Barra superior */
 .login-topbar {
   display: flex; align-items: center; justify-content: space-between;
-  background: white; padding: 16px 40px; z-index: 10;
+  background: white; padding: 12px 40px; z-index: 10;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
-.login-topbar-logo { height: 35px; width: auto; }
+.login-topbar-logo { height: 30px; width: auto; }
 .login-topbar-links { display: flex; gap: 24px; }
 .login-topbar-links a {
   font-size: 13px; color: #64748b; text-decoration: none; font-weight: 500; transition: color 0.15s;
 }
 .login-topbar-links a:hover { color: #dc2626; }
 
-/* Contenedor del login con carrusel */
 .login-container {
   flex: 1; display: flex; justify-content: center; align-items: center;
   background-size: cover; background-position: center; background-repeat: no-repeat;
@@ -62,3 +60,24 @@
 .login-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 .login-footer { text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
 .login-footer p { font-size: 11px; color: #94a3b8; margin: 0; }
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 768px) {
+  .login-topbar { padding: 10px 20px; }
+  .login-topbar-logo { height: 24px; }
+  .login-topbar-links { gap: 16px; }
+  .login-topbar-links a { font-size: 11px; }
+  .login-card { padding: 30px 24px 24px; max-width: 90%; }
+  .login-logo-img { max-width: 160px; }
+}
+
+@media (max-width: 480px) {
+  .login-topbar { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+  .login-topbar-logo { height: 20px; }
+  .login-topbar-links { gap: 12px; flex-wrap: wrap; }
+  .login-topbar-links a { font-size: 10px; }
+  .login-card { padding: 24px 16px 20px; border-radius: 14px; }
+  .login-logo-img { max-width: 140px; }
+  .login-input-wrapper input { font-size: 14px; padding: 10px 40px 10px 40px; }
+  .login-btn { font-size: 14px; padding: 12px; }
+}
