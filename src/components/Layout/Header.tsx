@@ -63,11 +63,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     try {
       const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
       const data = await resp.json();
-      if (data) {
-        const m: Record<string, string> = {};
-        data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
-        setNombresUsuarios(m);
-      }
+      if (data) { const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
     } catch (e) {}
   };
 
@@ -75,39 +71,28 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     setToastActual(null);
     await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
     const resp = await fetch(`${API_URL}/tickets?select=*&id=eq.${n.ticket_id}`, { headers: HEADERS });
-    const tickets = await resp.json();
-    const ticket = tickets?.[0];
+    const tickets = await resp.json(); const ticket = tickets?.[0];
     const resp2 = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticket?.id}&order=creado_en.asc`, { headers: HEADERS });
-    const respuestas = await resp2.json();
-    setTicketModalData(ticket);
-    setTicketRespuestas(respuestas || []);
-    setRespuestaTexto('');
-    setShowTicketModal(true);
+    setTicketModalData(ticket); setTicketRespuestas(await resp2.json() || []); setRespuestaTexto(''); setShowTicketModal(true);
     cargarNotificaciones();
   };
 
   const cargarNotificaciones = async () => {
     try {
       if (!usuario?.id) return;
-      const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario.id}&order=creado_en.desc&limit=10`, { headers: HEADERS });
+      const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario.id}&visto=eq.false&order=creado_en.desc&limit=20`, { headers: HEADERS });
       const notifs = await resp.json();
       if (!notifs || notifs.length === 0) return;
 
       const nuevas: Notificacion[] = [];
       for (const n of notifs) {
         const resp2 = await fetch(`${API_URL}/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.${n.ticket_id}`, { headers: HEADERS });
-        const tickets = await resp2.json();
-        const ticket = tickets?.[0];
-        nuevas.push({
-          id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '',
-          tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '',
-          area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto
-        });
+        const tickets = await resp2.json(); const ticket = tickets?.[0];
+        nuevas.push({ id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto });
       }
 
       setNotificaciones(nuevas);
 
-      // Mostrar toast para la primera notificación no vista que no se haya mostrado antes
       const noVistasList = nuevas.filter(n => !n.visto && !toastMostrado.has(n.id));
       if (noVistasList.length > 0) {
         const primera = noVistasList[0];
@@ -124,24 +109,18 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const marcarTodasVisto = async () => {
-    for (const n of notificaciones.filter(n => !n.visto)) {
+    for (const n of notificaciones) {
       await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
     }
     cargarNotificaciones();
   };
 
   const handleNotifClick = async (n: Notificacion) => {
-    marcarVisto(n.id);
-    setShowNotifMenu(false);
+    marcarVisto(n.id); setShowNotifMenu(false);
     const resp = await fetch(`${API_URL}/tickets?select=*&id=eq.${n.ticket_id}`, { headers: HEADERS });
-    const tickets = await resp.json();
-    const ticket = tickets?.[0];
+    const tickets = await resp.json(); const ticket = tickets?.[0];
     const resp2 = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticket?.id}&order=creado_en.asc`, { headers: HEADERS });
-    const respuestas = await resp2.json();
-    setTicketModalData(ticket);
-    setTicketRespuestas(respuestas || []);
-    setRespuestaTexto('');
-    setShowTicketModal(true);
+    setTicketModalData(ticket); setTicketRespuestas(await resp2.json() || []); setRespuestaTexto(''); setShowTicketModal(true);
   };
 
   const handleResponderDesdeModal = async () => {
@@ -214,10 +193,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
                 ))}
               </div>
               {ticketModalData.estado !== 'Resuelto' && ticketModalData.estado !== 'Cerrado' && (
-                <div>
-                  <textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
-                  <button className="ed01-btn-save" onClick={handleResponderDesdeModal}>Responder</button>
-                </div>
+                <div><textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
+                  <button className="ed01-btn-save" onClick={handleResponderDesdeModal}>Responder</button></div>
               )}
             </div>
           </div>
