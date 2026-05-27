@@ -21,6 +21,9 @@ const moduleTitles: Record<string, string> = {
   'ed-tickets': 'ED03 · BT Portico',
   'tk': 'TK01 · Crear Ticket',
   'tk-dashboard': 'TK02 · Dashboard',
+  'ad': 'AD01 · Gestión Auditoría',
+'ad-captura': 'AD02 · Captura Física',
+'ad-dashboard': 'AD03 · Dashboard',
 };
 
 interface Notificacion {
