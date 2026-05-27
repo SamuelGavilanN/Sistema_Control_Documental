@@ -52,10 +52,7 @@ const AD01View: React.FC = () => {
   const obtenerCantidad = (item: any): number => {
     const keys = Object.keys(item);
     const keyCantidad = keys.find(k => k.toLowerCase().includes('cantidad'));
-    if (keyCantidad) {
-      const val = item[keyCantidad];
-      return parseInt(String(val).trim()) || 0;
-    }
+    if (keyCantidad) return parseInt(String(item[keyCantidad]).trim()) || 0;
     return 0;
   };
 
@@ -103,7 +100,6 @@ const AD01View: React.FC = () => {
           sku: String(item['Material'] || '').trim(),
           cantidad_sap: obtenerCantidad(item)
         }));
-        
         await supabase.from('ad_datos_sap').insert(itemsInsert);
       }
       setMensaje('Auditorías creadas exitosamente');
@@ -132,6 +128,11 @@ const AD01View: React.FC = () => {
     cargarAuditorias();
   };
 
+  const handleReabrir = async (auditoriaId: string) => {
+    await supabase.from('ad_auditorias').update({ estado: 'En Proceso' }).eq('id', auditoriaId);
+    cargarAuditorias();
+  };
+
   const verDetalle = async (auditoria: Auditoria) => {
     setAuditoriaDetalle(auditoria);
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
@@ -146,11 +147,8 @@ const AD01View: React.FC = () => {
       const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
       const cantidadFisica = capturasSKU.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
       return {
-        sku: s.sku,
-        denominacion: s.denominacion,
-        cantidad_sap: s.cantidad_sap || 0,
-        cantidad_fisica: cantidadFisica,
-        diferencia: (s.cantidad_sap || 0) - cantidadFisica,
+        sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0,
+        cantidad_fisica: cantidadFisica, diferencia: (s.cantidad_sap || 0) - cantidadFisica,
         capturado: capturasSKU.length > 0
       };
     });
@@ -174,7 +172,7 @@ const AD01View: React.FC = () => {
 
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
-          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '80px' }}></th></tr></thead>
+          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '120px' }}>Acciones</th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
               auditorias.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Sin auditorías</td></tr> :
@@ -183,10 +181,22 @@ const AD01View: React.FC = () => {
                 return (
                   <tr key={a.id}>
                     <td className="ed03-ticket-id">{a.numero_tarea}</td><td>{a.codigo_local} - {a.nombre_local}</td><td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
-                    <td><select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} style={{ padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white' }}><option value="">Sin asignar</option>{usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}</select></td>
+                    <td>
+                      <select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} style={{ padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white' }}>
+                        <option value="">Sin asignar</option>
+                        {usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
+                      </select>
+                    </td>
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td>
                     <td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
-                    <td><button className="ed03-btn-ver" onClick={() => verDetalle(a)}>Detalle</button></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>
+                        {(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && (
+                          <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
