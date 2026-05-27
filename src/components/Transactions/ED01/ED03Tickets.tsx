@@ -36,10 +36,7 @@ const ED03Tickets: React.FC = () => {
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
   const [contadoresSinLeer, setContadoresSinLeer] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    cargarTickets();
-    cargarUsuarios();
-  }, []);
+  useEffect(() => { cargarTickets(); cargarUsuarios(); }, []);
 
   const cargarUsuarios = async () => {
     const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
@@ -68,6 +65,7 @@ const ED03Tickets: React.FC = () => {
 
   const abrirModal = async (ticket: Ticket) => {
     setTicketSeleccionado(ticket);
+    setRespuesta('');
     setShowModal(true);
     const usuario = auth.getUsuario();
     await supabase.from('ticket_notificaciones').update({ visto: true }).eq('ticket_id', ticket.id).eq('usuario_id', usuario?.id) as any;
@@ -83,6 +81,25 @@ const ED03Tickets: React.FC = () => {
     if (ticketSeleccionado.estado === 'Abierto') {
       await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id);
     }
+
+    // Notificar al creador del ticket
+    if (ticketSeleccionado.creado_por !== usuario?.id) {
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
+    }
+    // Notificar a otros que respondieron
+    const { data: respuestasData } = await supabase.from('ticket_respuestas').select('creado_por').eq('ticket_id', ticketSeleccionado.id);
+    if (respuestasData) {
+      const notificados = new Set<string>();
+      notificados.add(ticketSeleccionado.creado_por);
+      notificados.add(usuario?.id);
+      for (const r of respuestasData) {
+        if (!notificados.has(r.creado_por)) {
+          await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: r.creado_por }]) as any;
+          notificados.add(r.creado_por);
+        }
+      }
+    }
+
     setRespuesta('');
     const { data } = await supabase.from('ticket_respuestas').select('*').eq('ticket_id', ticketSeleccionado.id).order('creado_en', { ascending: true });
     if (data) setRespuestas(data);
@@ -110,29 +127,18 @@ const ED03Tickets: React.FC = () => {
       <div className="ed03-tabla-container" style={{ maxHeight: '350px' }}>
         <table className="ed03-tabla">
           <thead>
-            <tr>
-              <th style={{ width: '130px' }}>Ticket</th>
-              <th style={{ width: '140px' }}>Tipo</th>
-              <th style={{ width: '90px' }}>Prioridad</th>
-              <th style={{ width: '130px' }}>Empaque</th>
-              <th style={{ width: '100px' }}>Estado</th>
-              <th style={{ width: '100px' }}>Fecha</th>
-            </tr>
+            <tr><th style={{ width: '130px' }}>Ticket</th><th style={{ width: '140px' }}>Tipo</th><th style={{ width: '90px' }}>Prioridad</th><th style={{ width: '130px' }}>Empaque</th><th style={{ width: '100px' }}>Estado</th><th style={{ width: '100px' }}>Fecha</th></tr>
           </thead>
           <tbody>
             {lista.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Sin tickets</td></tr>
             ) : (
               lista.map(t => {
-                const pb = getPrioridadBadge(t.prioridad);
-                const eb = getEstadoBadge(t.estado);
+                const pb = getPrioridadBadge(t.prioridad); const eb = getEstadoBadge(t.estado);
                 const sinLeer = contadoresSinLeer[t.id] || 0;
                 return (
                   <tr key={t.id} onClick={() => abrirModal(t)} style={{ cursor: 'pointer' }}>
-                    <td className="ed03-ticket-id">
-                      {t.numero_ticket}
-                      {sinLeer > 0 && <span className="ed03-badge-sinleer">{sinLeer}</span>}
-                    </td>
+                    <td className="ed03-ticket-id">{t.numero_ticket}{sinLeer > 0 && <span className="ed03-badge-sinleer">{sinLeer}</span>}</td>
                     <td>{t.tipo_problema}</td>
                     <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
                     <td>{t.numero_empaque || '-'}</td>
@@ -152,41 +158,22 @@ const ED03Tickets: React.FC = () => {
     <div className="ed03-view">
       <div className="ed03-header"><h2>Bandeja de Tickets · Portico</h2></div>
       {cargando ? <p style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</p> : (
-        <>
-          {renderTabla(tickets, 'Tickets Pendientes')}
-          {renderTabla(ticketsFinalizados, 'Tickets Finalizados')}
-        </>
+        <>{renderTabla(tickets, 'Tickets Pendientes')}{renderTabla(ticketsFinalizados, 'Tickets Finalizados')}</>
       )}
 
-      {/* Modal para ver/responder ticket */}
       {showModal && ticketSeleccionado && (
         <div className="ed01-modal-overlay" onClick={() => setShowModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header">
-              <h2>{ticketSeleccionado.numero_ticket}</h2>
-              <button className="ed01-modal-close" onClick={() => setShowModal(false)}>×</button>
-            </div>
+            <div className="ed01-modal-header"><h2>{ticketSeleccionado.numero_ticket}</h2><button className="ed01-modal-close" onClick={() => setShowModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <div><strong>Tipo:</strong> {ticketSeleccionado.tipo_problema}</div>
-                <div><strong>Prioridad:</strong> {ticketSeleccionado.prioridad}</div>
-                <div><strong>Empaque:</strong> {ticketSeleccionado.numero_empaque || '-'}</div>
-                <div><strong>Estado:</strong> {ticketSeleccionado.estado}</div>
-              </div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}><div><strong>Tipo:</strong> {ticketSeleccionado.tipo_problema}</div><div><strong>Prioridad:</strong> {ticketSeleccionado.prioridad}</div><div><strong>Empaque:</strong> {ticketSeleccionado.numero_empaque || '-'}</div><div><strong>Estado:</strong> {ticketSeleccionado.estado}</div></div>
               <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketSeleccionado.descripcion}</p>
-
               <div className="ed03-respuestas-lista">
                 <h4>Historial de Respuestas</h4>
-                {respuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : (
-                  respuestas.map(r => (
-                    <div key={r.id} className="ed03-respuesta-item">
-                      <p className="ed03-respuesta-texto">{r.mensaje}</p>
-                      <span className="ed03-respuesta-info">{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span>
-                    </div>
-                  ))
-                )}
+                {respuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : respuestas.map(r => (
+                  <div key={r.id} className="ed03-respuesta-item"><p className="ed03-respuesta-texto">{r.mensaje}</p><span className="ed03-respuesta-info">{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span></div>
+                ))}
               </div>
-
               {ticketSeleccionado.estado !== 'Resuelto' && ticketSeleccionado.estado !== 'Cerrado' && (
                 <div>
                   <textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
