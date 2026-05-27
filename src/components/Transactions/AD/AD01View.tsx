@@ -143,8 +143,16 @@ const AD01View: React.FC = () => {
       capturas = data || [];
     }
     const detalle = (sap || []).map((s: any) => {
-      const captura = capturas.find((c: any) => c.sku === s.sku);
-      return { sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: captura?.cantidad_fisica || 0, diferencia: (s.cantidad_sap || 0) - (captura?.cantidad_fisica || 0), capturado: !!captura };
+      const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
+      const cantidadFisica = capturasSKU.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
+      return {
+        sku: s.sku,
+        denominacion: s.denominacion,
+        cantidad_sap: s.cantidad_sap || 0,
+        cantidad_fisica: cantidadFisica,
+        diferencia: (s.cantidad_sap || 0) - cantidadFisica,
+        capturado: capturasSKU.length > 0
+      };
     });
     setDatosDetalle(detalle);
     setShowDetalleModal(true);
