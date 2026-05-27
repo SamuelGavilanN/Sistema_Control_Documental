@@ -43,6 +43,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const [ticketModalData, setTicketModalData] = useState<any>(null);
   const [ticketRespuestas, setTicketRespuestas] = useState<any[]>([]);
   const [respuestaTexto, setRespuestaTexto] = useState('');
+  const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase() : '??';
@@ -52,9 +53,20 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   useEffect(() => {
     if (!usuario) return;
     cargarNotificaciones();
+    cargarNombresUsuarios();
     const intervalo = setInterval(cargarNotificaciones, 5000);
     return () => clearInterval(intervalo);
   }, [usuario]);
+
+  const cargarNombresUsuarios = async () => {
+    const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
+    const data = await resp.json();
+    if (data) {
+      const m: Record<string, string> = {};
+      data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
+      setNombresUsuarios(m);
+    }
+  };
 
   const cargarNotificaciones = async () => {
     try {
@@ -177,13 +189,12 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
       )}
 
-      {/* Modal de ticket - mismo estilo que ED03/TK01 */}
       {showTicketModal && ticketModalData && (
         <div className="ed01-modal-overlay" onClick={() => setShowTicketModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>{ticketModalData.numero_ticket}</h2><button className="ed01-modal-close" onClick={() => setShowTicketModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
                 <div><strong>Tipo:</strong> {ticketModalData.tipo_problema}</div>
                 <div><strong>Prioridad:</strong> {ticketModalData.prioridad}</div>
                 <div><strong>Empaque:</strong> {ticketModalData.numero_empaque || '-'}</div>
@@ -196,7 +207,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
                 {ticketRespuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : ticketRespuestas.map((r: any) => (
                   <div key={r.id} style={{ background: '#f8fafd', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', border: '1px solid #eef0f5' }}>
                     <p style={{ fontSize: '13px', color: '#1e293b', margin: '0 0 4px' }}>{r.mensaje}</p>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{new Date(r.creado_en).toLocaleString('es-CL')}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span>
                   </div>
                 ))}
               </div>
