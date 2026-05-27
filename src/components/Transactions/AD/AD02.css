@@ -2,7 +2,7 @@
 .ad02-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .ad02-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
 .ad02-subtitle { font-size: 13px; color: #64748b; display: block; margin-top: 2px; }
-.ad02-header-actions { display: flex; gap: 12px; align-items: center; }
+.ad02-header-actions { display: flex; gap: 10px; align-items: center; }
 .ad02-caja-badge { background: #1a1f2e; color: white; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
 .ad02-busqueda { display: flex; gap: 10px; margin-bottom: 16px; }
 .ad02-busqueda input { flex: 1; padding: 14px; font-size: 18px; border: 2px solid #e2e8f0; border-radius: 8px; }
@@ -11,14 +11,13 @@
 .ad02-btn-buscar:hover { background: #2d3748; }
 .ad02-btn-iniciar { padding: 6px 14px; background: #1a1f2e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .ad02-btn-iniciar:hover { background: #2d3748; }
+.ad02-btn-finalizar { padding: 8px 16px; background: #15803d; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.ad02-btn-finalizar:hover { background: #166534; }
 .ad02-curva-info { margin-bottom: 12px; font-size: 13px; color: #64748b; }
 .ad02-curva-info strong { color: #1e293b; }
 .ad02-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
 .ad02-totales { font-size: 13px; color: #64748b; }
-.ad02-footer-btns { display: flex; gap: 8px; }
 .ad02-btn-guardar { padding: 10px 20px; background: #1a1f2e; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
 .ad02-btn-guardar:hover { background: #2d3748; }
-.ad02-btn-finalizar { padding: 10px 20px; background: #15803d; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
-.ad02-btn-finalizar:hover { background: #166534; }
 .ad02-empty { text-align: center; padding: 60px; color: #94a3b8; }
 .ad02-empty p { font-size: 16px; margin-bottom: 4px; }
