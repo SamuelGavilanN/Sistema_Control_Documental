@@ -6,6 +6,7 @@ import ED01View from './components/Transactions/ED01/ED01View';
 import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
 import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
 import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
+import TK02Dashboard from './components/Transactions/TK/TK02Dashboard';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -36,8 +37,10 @@ const App: React.FC = () => {
   }, [usuario]);
 
   const handleLogin = (userData: any) => setUsuario(userData);
+
   const handleLogout = () => {
-    auth.logout(); setUsuario(null); setActiveTab('dashboard'); setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true);
+    auth.logout(); setUsuario(null); setActiveTab('dashboard');
+    setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true);
   };
 
   if (!usuario) return <Login onLogin={handleLogin} />;
@@ -54,7 +57,9 @@ const App: React.FC = () => {
     if (activeTab === tabId) setActiveTab(newOpenTabs.length > 0 ? newOpenTabs[newOpenTabs.length - 1] : 'dashboard');
   };
 
-  if (cargando) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#64748b', fontSize: '16px' }}>Cargando datos...</div>;
+  if (cargando) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#64748b', fontSize: '16px' }}>Cargando datos...</div>;
+  }
 
   return (
     <div className="app-container">
@@ -67,7 +72,10 @@ const App: React.FC = () => {
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
           {tabsMontadas.has('tk') && <div style={{ display: activeTab === 'tk' ? 'block' : 'none' }}><TK01CrearTicket key="tk01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk'].includes(activeTab) && <div className="module-container"><h3>Modulo en desarrollo</h3></div>}
+          {tabsMontadas.has('tk-dashboard') && <div style={{ display: activeTab === 'tk-dashboard' ? 'block' : 'none' }}><TK02Dashboard key="tk02" /></div>}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard'].includes(activeTab) && (
+            <div className="module-container"><h3>Modulo en desarrollo</h3></div>
+          )}
         </div>
       </div>
     </div>
