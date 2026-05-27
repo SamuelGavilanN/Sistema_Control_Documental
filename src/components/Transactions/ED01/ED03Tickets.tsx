@@ -16,6 +16,7 @@ interface Respuesta {
 const ED03Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketSeleccionado, setTicketSeleccionado] = useState<Ticket | null>(null);
+  const [showChatModal, setShowChatModal] = useState(false);
   const [respuesta, setRespuesta] = useState('');
   const [respuestas, setRespuestas] = useState<Respuesta[]>([]);
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
@@ -23,8 +24,12 @@ const ED03Tickets: React.FC = () => {
   useEffect(() => { cargarTickets(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(() => cargarTickets(), 15000); return () => clearInterval(intervalo); }, []);
 
+  // Polling del chat cada 5 segundos cuando hay ticket seleccionado
   useEffect(() => {
-    if (ticketSeleccionado) cargarRespuestas(ticketSeleccionado.id);
+    if (!ticketSeleccionado) return;
+    cargarRespuestas(ticketSeleccionado.id);
+    const intervalo = setInterval(() => cargarRespuestas(ticketSeleccionado.id), 5000);
+    return () => clearInterval(intervalo);
   }, [ticketSeleccionado]);
 
   const cargarUsuarios = async () => {
@@ -42,6 +47,11 @@ const ED03Tickets: React.FC = () => {
     if (result.data) setRespuestas(result.data);
   };
 
+  const handleVerTicket = (ticket: Ticket) => {
+    setTicketSeleccionado(ticket);
+    setShowChatModal(true);
+  };
+
   const handleResponder = async () => {
     if (!respuesta.trim() || !ticketSeleccionado) return;
     const usuario = auth.getUsuario();
@@ -51,7 +61,6 @@ const ED03Tickets: React.FC = () => {
       await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id) as any;
     }
 
-    // Notificar al creador del ticket
     if (ticketSeleccionado.creado_por !== usuario?.id) {
       await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
     }
@@ -62,10 +71,9 @@ const ED03Tickets: React.FC = () => {
   const handleResolver = async () => {
     if (!ticketSeleccionado) return;
     const usuario = auth.getUsuario();
-    await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: '✅ Ticket marcado como resuelto', creado_por: usuario?.id }]) as any;
+    await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: 'Ticket marcado como resuelto', creado_por: usuario?.id }]) as any;
     await supabase.from('tickets').update({ estado: 'Resuelto', resuelto_en: new Date().toISOString() }).eq('id', ticketSeleccionado.id) as any;
     
-    // Notificar al creador
     if (ticketSeleccionado.creado_por !== usuario?.id) {
       await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
     }
@@ -83,48 +91,74 @@ const ED03Tickets: React.FC = () => {
   return (
     <div className="ed03-view">
       <div className="ed03-header"><h2>Bandeja de Tickets · Portico</h2></div>
-      <div className="ed03-layout">
-        <div className="ed03-lista">
-          <div className="ed03-tabla-container">
-            <table className="ed03-tabla"><thead><tr><th>Ticket</th><th>Tipo</th><th>Prioridad</th><th>Empaque</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>
-              {tickets.length === 0 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '30px' }}>No hay tickets</td></tr> :
-                tickets.map(t => {
-                  const pb = getPrioridadBadge(t.prioridad); const eb = getEstadoBadge(t.estado);
-                  return <tr key={t.id} className={ticketSeleccionado?.id === t.id ? 'selected' : ''} onClick={() => setTicketSeleccionado(t)} style={{ cursor: 'pointer' }}><td className="ed03-ticket-id">{t.numero_ticket}</td><td>{t.tipo_problema}</td><td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td><td>{t.numero_empaque || '-'}</td><td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.estado}</span></td><td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td></tr>;
-                })
-              }
-            </tbody></table>
+      <div className="ed03-tabla-container">
+        <table className="ed03-tabla"><thead><tr><th>Ticket</th><th>Tipo</th><th>Prioridad</th><th>Empaque</th><th>Estado</th><th>Fecha</th><th></th></tr></thead><tbody>
+          {tickets.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '30px' }}>No hay tickets</td></tr> :
+            tickets.map(t => {
+              const pb = getPrioridadBadge(t.prioridad); const eb = getEstadoBadge(t.estado);
+              return <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => handleVerTicket(t)}>
+                <td className="ed03-ticket-id">{t.numero_ticket}</td><td>{t.tipo_problema}</td>
+                <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
+                <td>{t.numero_empaque || '-'}</td>
+                <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.estado}</span></td>
+                <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
+                <td><button className="ed03-btn-ver">Ver</button></td>
+              </tr>;
+            })
+          }
+        </tbody></table>
+      </div>
+
+      {/* Modal de chat */}
+      {showChatModal && ticketSeleccionado && (
+        <div className="ed01-modal-overlay" onClick={() => setShowChatModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '650px', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>{ticketSeleccionado.numero_ticket}</h2>
+              <button className="ed01-modal-close" onClick={() => setShowChatModal(false)}>×</button>
+            </div>
+            <div className="ed01-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Info del ticket */}
+              <div className="ed03-modal-info">
+                <div className="ed03-info-row"><span>Tipo:</span><strong>{ticketSeleccionado.tipo_problema}</strong></div>
+                <div className="ed03-info-row"><span>Prioridad:</span><strong>{ticketSeleccionado.prioridad}</strong></div>
+                <div className="ed03-info-row"><span>Empaque:</span><strong>{ticketSeleccionado.numero_empaque || '-'}</strong></div>
+                <div className="ed03-info-row"><span>Estado:</span><strong>{ticketSeleccionado.estado}</strong></div>
+                <div className="ed03-info-row"><span>Descripcion:</span><strong>{ticketSeleccionado.descripcion}</strong></div>
+              </div>
+
+              {/* Chat */}
+              <div className="ed03-chat">
+                <h4>Conversacion</h4>
+                <div className="ed03-chat-mensajes">
+                  {respuestas.length === 0 ? <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '10px' }}>Sin respuestas</p> :
+                    respuestas.map(r => {
+                      const esMio = r.creado_por === auth.getUsuario()?.id;
+                      return (
+                        <div key={r.id} className={`ed03-mensaje ${esMio ? 'mio' : 'otro'}`}>
+                          <div className="ed03-mensaje-header"><span className="ed03-mensaje-usuario">{nombresUsuarios[r.creado_por] || 'Usuario'}</span><span className="ed03-mensaje-hora">{new Date(r.creado_en).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                          <div className="ed03-mensaje-texto">{r.mensaje}</div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
+
+              {/* Campo de respuesta con separación */}
+              {ticketSeleccionado.estado !== 'Resuelto' && ticketSeleccionado.estado !== 'Cerrado' && (
+                <div className="ed03-respuesta-separada">
+                  <textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} placeholder="Escribe una respuesta..." rows={2} />
+                  <div className="ed03-respuesta-acciones">
+                    <button onClick={handleResponder}>Responder</button>
+                    <button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        {ticketSeleccionado && (
-          <div className="ed03-detalle">
-            <h3>{ticketSeleccionado.numero_ticket}</h3>
-            <div className="ed03-detalle-info"><p><strong>Tipo:</strong> {ticketSeleccionado.tipo_problema}</p><p><strong>Prioridad:</strong> {ticketSeleccionado.prioridad}</p><p><strong>Empaque:</strong> {ticketSeleccionado.numero_empaque || '-'}</p><p><strong>Estado:</strong> {ticketSeleccionado.estado}</p><p><strong>Descripcion:</strong> {ticketSeleccionado.descripcion}</p></div>
-            
-            {/* Historial de conversación */}
-            <div className="ed03-chat">
-              <h4>Conversación</h4>
-              <div className="ed03-chat-mensajes">
-                {respuestas.length === 0 ? <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '10px' }}>Sin respuestas aún</p> :
-                  respuestas.map(r => {
-                    const esMio = r.creado_por === auth.getUsuario()?.id;
-                    return (
-                      <div key={r.id} className={`ed03-mensaje ${esMio ? 'mio' : 'otro'}`}>
-                        <div className="ed03-mensaje-header"><span className="ed03-mensaje-usuario">{nombresUsuarios[r.creado_por] || 'Usuario'}</span><span className="ed03-mensaje-hora">{new Date(r.creado_en).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span></div>
-                        <div className="ed03-mensaje-texto">{r.mensaje}</div>
-                      </div>
-                    );
-                  })
-                }
-              </div>
-            </div>
-
-            {ticketSeleccionado.estado !== 'Resuelto' && ticketSeleccionado.estado !== 'Cerrado' && (
-              <div className="ed03-respuesta"><textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} placeholder="Escribe una respuesta..." rows={2} /><div className="ed03-respuesta-acciones"><button onClick={handleResponder}>Responder</button><button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button></div></div>
-            )}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
