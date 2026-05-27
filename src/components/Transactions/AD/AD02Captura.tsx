@@ -49,7 +49,6 @@ const AD02Captura: React.FC = () => {
     setTareaActiva(tarea);
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', tarea.id).order('sku');
     
-    // Obtener capturas previas para calcular lo ya capturado
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tarea.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
     let capturasPrevias: any[] = [];
@@ -100,9 +99,7 @@ const AD02Captura: React.FC = () => {
 
     if (caja) {
       const skusInsert = skusConFisico.map(s => ({
-        caja_id: (caja as any).id, sku: s.sku,
-        cantidad_sap: s.cantidad_sap, cantidad_fisica: s.cantidad_fisica,
-        diferencia: s.diferencia
+        caja_id: (caja as any).id, sku: s.sku, cantidad_sap: s.cantidad_sap, cantidad_fisica: s.cantidad_fisica, diferencia: s.diferencia
       }));
       await supabase.from('ad_capturas_skus').insert(skusInsert);
     }
@@ -123,8 +120,7 @@ const AD02Captura: React.FC = () => {
       hayDiferencias = diferencias?.some((d: any) => d.diferencia !== 0) || false;
     }
     await supabase.from('ad_auditorias').update({
-      estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
-      finalizado_en: new Date().toISOString()
+      estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado', finalizado_en: new Date().toISOString()
     }).eq('id', tareaActiva.id);
     alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
     setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
@@ -156,7 +152,11 @@ const AD02Captura: React.FC = () => {
         <>
           <div className="ad02-header">
             <div><h2>{tareaActiva.numero_tarea}</h2><span className="ad02-subtitle">{tareaActiva.codigo_local} - {tareaActiva.nombre_local} | Acta: {tareaActiva.acta} | Guía: {tareaActiva.guia}</span></div>
-            <div className="ad02-header-actions"><span className="ad02-caja-badge">Caja #{cajaActual}</span><button className="ed01-btn-cancel" onClick={() => { setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); }}>Volver</button></div>
+            <div className="ad02-header-actions">
+              <span className="ad02-caja-badge">Caja #{cajaActual}</span>
+              <button className="ad02-btn-finalizar" onClick={finalizarTarea}>Finalizar Tarea</button>
+              <button className="ed01-btn-cancel" onClick={() => { setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); }}>Volver</button>
+            </div>
           </div>
 
           <div className="ad02-busqueda">
@@ -172,14 +172,12 @@ const AD02Captura: React.FC = () => {
                   <thead><tr><th>SKU</th><th>Descripción</th><th>SAP</th><th>Capturado</th><th>Físico</th><th>Dif.</th></tr></thead>
                   <tbody>
                     {curvaActual.map((s, i) => {
-                      const pendiente = s.cantidad_sap - (s.capturadoTotal || 0);
                       const diff = s.diferencia;
                       return (
                         <tr key={s.id} style={{ background: diff !== undefined ? (diff === 0 ? '#dcfce7' : '#fef2f2') : 'transparent' }}>
                           <td className="ed03-ticket-id">{s.sku}</td><td style={{ fontSize: '12px' }}>{s.denominacion}</td>
-                          <td>{s.cantidad_sap}</td>
-                          <td style={{ color: '#64748b' }}>{s.capturadoTotal || 0}</td>
-                          <td><input type="number" value={s.cantidad_fisica ?? ''} onChange={e => handleCantidadChange(s.id, parseInt(e.target.value) || 0)} data-index={i} style={{ width: '70px', padding: '8px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '14px' }} /></td>
+                          <td>{s.cantidad_sap}</td><td style={{ color: '#64748b' }}>{s.capturadoTotal || 0}</td>
+                          <td><input type="number" value={s.cantidad_fisica ?? ''} onChange={e => handleCantidadChange(s.id, parseInt(e.target.value) || 0)} style={{ width: '70px', padding: '8px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '14px' }} /></td>
                           <td style={{ fontWeight: 600, color: diff !== undefined ? (diff === 0 ? '#15803d' : '#dc2626') : '#64748b', textAlign: 'center' }}>{diff !== undefined ? (diff === 0 ? '✓' : diff) : '-'}</td>
                         </tr>
                       );
@@ -189,10 +187,7 @@ const AD02Captura: React.FC = () => {
               </div>
               <div className="ad02-footer">
                 <span className="ad02-totales">SAP: {curvaActual.reduce((s, i) => s + i.cantidad_sap, 0)} | Capturado: {curvaActual.reduce((s, i) => s + (i.capturadoTotal || 0), 0)} | Físico: {curvaActual.filter(s => s.cantidad_fisica !== undefined).reduce((s, i) => s + (i.cantidad_fisica || 0), 0)}</span>
-                <div className="ad02-footer-btns">
-                  <button className="ad02-btn-guardar" onClick={guardarCaja}>Guardar Caja</button>
-                  <button className="ad02-btn-finalizar" onClick={finalizarTarea}>Finalizar Tarea</button>
-                </div>
+                <button className="ad02-btn-guardar" onClick={guardarCaja}>Guardar Caja</button>
               </div>
             </>
           )}
