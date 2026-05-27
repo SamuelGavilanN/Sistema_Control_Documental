@@ -90,6 +90,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const handleNotifClick = (n: Notificacion) => {
     marcarVisto(n.id);
     setShowNotifMenu(false);
+    localStorage.setItem('ticket_abrir', n.ticket_numero);
     const rol = usuario?.rol;
     if (rol === 'Portico') {
       onOpenModule?.('ed-tickets');
@@ -99,6 +100,9 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const handleToastClick = () => {
+    if (toastActual) {
+      localStorage.setItem('ticket_abrir', toastActual.ticket_numero);
+    }
     setToastActual(null);
     const rol = usuario?.rol;
     if (rol === 'Portico') {
