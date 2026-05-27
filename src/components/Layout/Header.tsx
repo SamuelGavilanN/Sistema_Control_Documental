@@ -44,6 +44,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const [ticketRespuestas, setTicketRespuestas] = useState<any[]>([]);
   const [respuestaTexto, setRespuestaTexto] = useState('');
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
+  const [cargaInicial, setCargaInicial] = useState(true);
 
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase() : '??';
@@ -52,27 +53,35 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
 
   useEffect(() => {
     if (!usuario) return;
-    cargarNotificaciones();
     cargarNombresUsuarios();
+    cargarNotificaciones();
     const intervalo = setInterval(cargarNotificaciones, 5000);
     return () => clearInterval(intervalo);
   }, [usuario]);
 
   const cargarNombresUsuarios = async () => {
-    const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
-    const data = await resp.json();
-    if (data) {
-      const m: Record<string, string> = {};
-      data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
-      setNombresUsuarios(m);
-    }
+    try {
+      const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
+      const data = await resp.json();
+      if (data) {
+        const m: Record<string, string> = {};
+        data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
+        setNombresUsuarios(m);
+      }
+    } catch (e) { console.error('Error nombres:', e); }
   };
 
   const cargarNotificaciones = async () => {
     try {
-      const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario?.id}&order=creado_en.desc&limit=10`, { headers: HEADERS });
+      if (!usuario?.id) return;
+      
+      const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario.id}&order=creado_en.desc&limit=10`, { headers: HEADERS });
       const notifs = await resp.json();
-      if (!notifs || notifs.length === 0) return;
+      
+      if (!notifs || notifs.length === 0) {
+        if (cargaInicial) setCargaInicial(false);
+        return;
+      }
 
       const nuevas: Notificacion[] = [];
       for (const n of notifs) {
@@ -80,26 +89,40 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         const tickets = await resp2.json();
         const ticket = tickets?.[0];
         nuevas.push({
-          id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '',
-          prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto
+          id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', 
+          tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '', 
+          area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto
         });
       }
 
       const anteriores = notificaciones.map(n => n.id);
       const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
-      if (recienLlegadas.length > 0) { setToastActual(recienLlegadas[0]); setTimeout(() => setToastActual(null), 5000); }
+      if (recienLlegadas.length > 0 && !cargaInicial) {
+        setToastActual(recienLlegadas[0]);
+        setTimeout(() => setToastActual(null), 5000);
+      }
+      
       setNotificaciones(nuevas);
-    } catch (e) { console.error(e); }
+      setCargaInicial(false);
+    } catch (e) { console.error('Error notif:', e); }
   };
 
   const marcarVisto = async (notifId: string) => {
-    await fetch(`${API_URL}/ticket_notificaciones?id=eq.${notifId}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
+    await fetch(`${API_URL}/ticket_notificaciones?id=eq.${notifId}`, { 
+      method: 'PATCH', 
+      headers: { ...HEADERS, 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ visto: true }) 
+    });
     cargarNotificaciones();
   };
 
   const marcarTodasVisto = async () => {
     for (const n of notificaciones.filter(n => !n.visto)) {
-      await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
+      await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { 
+        method: 'PATCH', 
+        headers: { ...HEADERS, 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ visto: true }) 
+      });
     }
     cargarNotificaciones();
   };
@@ -201,7 +224,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
                 <div><strong>Estado:</strong> {ticketModalData.estado}</div>
               </div>
               <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketModalData.descripcion}</p>
-              
               <div style={{ marginBottom: '16px', maxHeight: '250px', overflowY: 'auto' }}>
                 <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial de Respuestas</h4>
                 {ticketRespuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : ticketRespuestas.map((r: any) => (
@@ -211,7 +233,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
                   </div>
                 ))}
               </div>
-              
               {ticketModalData.estado !== 'Resuelto' && ticketModalData.estado !== 'Cerrado' && (
                 <div>
                   <textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
