@@ -47,7 +47,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   useEffect(() => {
     if (!usuario) return;
     cargarNotificaciones();
-    const intervalo = setInterval(cargarNotificaciones, 30000);
+    const intervalo = setInterval(cargarNotificaciones, 5000);
     return () => clearInterval(intervalo);
   }, [usuario]);
 
