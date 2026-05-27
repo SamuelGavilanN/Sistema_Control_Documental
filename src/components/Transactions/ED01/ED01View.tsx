@@ -27,6 +27,7 @@ export interface ED01Row {
 }
 
 const ED01View: React.FC = () => {
+  const usuario = auth.getUsuario();
   const [registros, setRegistros] = useState<ED01Row[]>([]);
   const [cargando, setCargando] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -101,7 +102,7 @@ const ED01View: React.FC = () => {
 
   const handleGuardar = async (datos: any) => {
     try {
-      const usuario = auth.getUsuario();
+      const user = auth.getUsuario();
       if (modoModal === 'nuevo') {
         const { data: idData, error: idError } = await supabase.rpc('generar_numero_empaque');
         if (idError) throw idError;
@@ -111,37 +112,39 @@ const ED01View: React.FC = () => {
           codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '',
           cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet,
           observacion: datos.observacion || null, estado: 'Finalizado',
-          creado_por: usuario?.id, creado_en: new Date().toISOString()
+          creado_por: user?.id, creado_en: new Date().toISOString()
         }]);
         if (insertError) throw insertError;
         setShowModal(false); cargarRegistros(false);
-        // Imprimir automáticamente
         setTimeout(() => {
-          setRegistroSeleccionado({ id: '', numero_empaque: idData, numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '', cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, ...datos } as any);
+          setRegistroSeleccionado({ id: '', numero_empaque: idData, numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '', cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, creado_por: user?.id, ...datos } as any);
           setTimeout(() => setShowEtiquetaModal(true), 300);
         }, 500);
       } else if (modoModal === 'editar') {
-        await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: usuario?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
+        await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         await supabase.from('ed01_empaques').update({
           numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: datos.nombre_local,
           cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, observacion: datos.observacion,
-          estado: 'Finalizado', modificado_por: usuario?.id, modificado_en: new Date().toISOString()
+          estado: 'Finalizado', modificado_por: user?.id, modificado_en: new Date().toISOString()
         }).eq('id', registroSeleccionado?.id);
         setShowModal(false); cargarRegistros(false);
-        // Imprimir automáticamente
         setTimeout(() => {
           setRegistroSeleccionado({ ...registroSeleccionado!, ...datos } as any);
           setTimeout(() => setShowEtiquetaModal(true), 300);
         }, 500);
       } else if (modoModal === 'cancelar') {
-        await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: usuario?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
-        await supabase.from('ed01_empaques').update({ estado: 'Cancelado', observacion: datos.observacion, modificado_por: usuario?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
+        await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
+        await supabase.from('ed01_empaques').update({ estado: 'Cancelado', observacion: datos.observacion, modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         setShowModal(false); setRegistroSeleccionado(null); cargarRegistros(false);
       }
     } catch (error: any) { alert('Error: ' + error.message); }
   };
 
   const handleVerObservacion = (obs: string | null) => { setObservacionVer(obs || 'Sin observacion'); setShowObservacionModal(true); };
+
+  const nombreCreadorEtiqueta = registroSeleccionado?.creado_por
+    ? (nombresUsuarios[registroSeleccionado.creado_por] || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim())
+    : `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
 
   return (
     <div className="ed01-view">
@@ -150,7 +153,7 @@ const ED01View: React.FC = () => {
       <ED01Modal isOpen={showModal} onClose={() => setShowModal(false)} onGuardar={handleGuardar} modo={modoModal} registro={registroSeleccionado} />
       <ObservacionModal isOpen={showObservacionModal} onClose={() => setShowObservacionModal(false)} observacion={observacionVer} />
       <FiltroModal isOpen={showFiltroModal} onClose={() => setShowFiltroModal(false)} filtros={filtros} onAplicar={setFiltros} />
-      <EtiquetaModal isOpen={showEtiquetaModal} onClose={() => setShowEtiquetaModal(false)} registro={registroSeleccionado} nombreCreador={registroSeleccionado ? (nombresUsuarios[registroSeleccionado.creado_por] || 'Usuario') : 'Usuario'} />
+      <EtiquetaModal isOpen={showEtiquetaModal} onClose={() => setShowEtiquetaModal(false)} registro={registroSeleccionado} nombreCreador={nombreCreadorEtiqueta} />
     </div>
   );
 };
