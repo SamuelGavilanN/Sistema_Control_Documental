@@ -6,6 +6,8 @@ import ED01View from './components/Transactions/ED01/ED01View';
 import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
 import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
 import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
+import AD01View from './components/Transactions/AD/AD01View';
+import AD02Captura from './components/Transactions/AD/AD02Captura';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -61,7 +63,9 @@ const App: React.FC = () => {
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
           {tabsMontadas.has('tk') && <div style={{ display: activeTab === 'tk' ? 'block' : 'none' }}><TK01CrearTicket key="tk01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard'].includes(activeTab) && (
+          {tabsMontadas.has('ad') && <div style={{ display: activeTab === 'ad' ? 'block' : 'none' }}><AD01View key="ad01" /></div>}
+          {tabsMontadas.has('ad-captura') && <div style={{ display: activeTab === 'ad-captura' ? 'block' : 'none' }}><AD02Captura key="ad02" /></div>}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
