@@ -93,6 +93,11 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     onOpenModule?.('ed-tickets');
   };
 
+  const handleToastClick = () => {
+    setToastActual(null);
+    onOpenModule?.('ed-tickets');
+  };
+
   const getPrioridadColor = (p: string) => {
     switch (p) { case 'Urgente': return '#dc2626'; case 'Alta': return '#ea580c'; case 'Media': return '#b45309'; default: return '#15803d'; }
   };
@@ -107,11 +112,13 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           </div>
         ))}
       </div>
+
       <div className="notif-area" style={{ position: 'relative', marginRight: '10px' }}>
         <button className="notif-btn" onClick={() => { setShowNotifMenu(!showNotifMenu); setShowUserMenu(false); }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 2C5.34315 2 4 3.34315 4 5V9L2 12H14L12 9V5C12 3.34315 10.6569 2 9 2H7Z" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/><path d="M7 15C7 16.1046 7.89543 17 9 17C10.1046 17 11 16.1046 11 15" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/></svg>
           {noVistas > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-6px', background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>{noVistas}</span>}
         </button>
+
         {showNotifMenu && (
           <div className="user-menu" style={{ minWidth: '300px', right: 0, left: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #eef0f5' }}><span style={{ fontWeight: 600, fontSize: '13px' }}>Notificaciones</span><button onClick={marcarTodasVisto} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>Marcar todas vistas</button></div>
@@ -124,6 +131,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           </div>
         )}
       </div>
+
       <div className="user-area">
         <div className="user-info" onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifMenu(false); }}>
           <div className="user-avatar"><span>{iniciales}</span></div><span className="user-name">{nombreCompleto}</span>
@@ -131,13 +139,15 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
         {showUserMenu && <div className="user-menu"><div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 13V11H3V3H6V1H2V13H6Z" fill="#64748b"/><path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="#64748b"/></svg><span>Cerrar Sesion</span></div></div>}
       </div>
+
       {toastActual && (
-        <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000, background: 'white', borderRadius: '12px', padding: '16px 20px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #eef0f5', minWidth: '320px', animation: 'slideIn 0.3s ease' }}>
+        <div onClick={handleToastClick} style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000, background: 'white', borderRadius: '12px', padding: '16px 20px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #eef0f5', minWidth: '320px', animation: 'slideIn 0.3s ease', cursor: 'pointer' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Nuevo Ticket · {toastActual.area}</span><span style={{ background: getPrioridadColor(toastActual.prioridad), color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600 }}>{toastActual.prioridad}</span></div>
           <p style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b', margin: '0 0 2px' }}>{toastActual.ticket_numero}</p><p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>{toastActual.tipo_problema}</p>
-          <button onClick={() => setToastActual(null)} style={{ position: 'absolute', top: '8px', right: '12px', background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: '#94a3b8' }}>×</button>
+          <button onClick={(e) => { e.stopPropagation(); setToastActual(null); }} style={{ position: 'absolute', top: '8px', right: '12px', background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: '#94a3b8' }}>×</button>
         </div>
       )}
+
       <style>{`@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}.notif-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s;position:relative}.notif-btn:hover{background:#f8fafd}`}</style>
     </div>
   );
