@@ -56,6 +56,12 @@ const AD01View: React.FC = () => {
       const dataSAP = await leerExcel(archivoSAP);
       const dataCorreo = await leerExcel(archivoCorreo);
 
+      // Depurar: ver nombres de columnas
+      if (dataSAP.length > 0) {
+        console.log('Columnas SAP:', Object.keys(dataSAP[0]));
+        console.log('Primera fila SAP:', dataSAP[0]);
+      }
+
       const mapaCorreo: Record<string, { acta: string; guia: string }> = {};
       dataCorreo.forEach((row: any) => {
         const despacho = String(row['Despacho HC'] || '').trim();
@@ -83,10 +89,22 @@ const AD01View: React.FC = () => {
           numero_tarea: tarea, codigo_local: codLocal, nombre_local: grupo.nombre, acta, guia, estado: 'Pendiente', creado_por: auth.getUsuario()?.id
         }]).select('id').single();
         if (!auditoria) continue;
-        const itemsInsert = grupo.items.map((item: any) => ({
-          auditoria_id: (auditoria as any).id, entrega: String(item['Entrega'] || '').trim(), denominacion: String(item['Denominación'] || '').trim(),
-          codigo_local: codLocal, nombre_local: grupo.nombre, sku: String(item['Material'] || '').trim(), cantidad_sap: parseInt(item['Cantidad entrega']) || 0
-        }));
+
+        const itemsInsert = grupo.items.map((item: any) => {
+          // Intentar múltiples nombres de columna para la cantidad
+          const cantidad = item['Cantidad entrega'] || item['cantidad entrega'] || item['CANTIDAD ENTREGA'] || item['Cantidad'] || item['cantidad'] || 0;
+          return {
+            auditoria_id: (auditoria as any).id,
+            entrega: String(item['Entrega'] || '').trim(),
+            denominacion: String(item['Denominación'] || item['Denominacion'] || '').trim(),
+            codigo_local: codLocal,
+            nombre_local: grupo.nombre,
+            sku: String(item['Material'] || '').trim(),
+            cantidad_sap: parseInt(String(cantidad)) || 0
+          };
+        });
+        
+        console.log('Insertando items:', itemsInsert.slice(0, 3));
         await supabase.from('ad_datos_sap').insert(itemsInsert);
       }
       setMensaje('Auditorías creadas exitosamente');
@@ -118,6 +136,7 @@ const AD01View: React.FC = () => {
   const verDetalle = async (auditoria: Auditoria) => {
     setAuditoriaDetalle(auditoria);
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
+    console.log('SAP cargado:', sap?.slice(0, 3));
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoria.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
     let capturas: any[] = [];
@@ -127,7 +146,7 @@ const AD01View: React.FC = () => {
     }
     const detalle = (sap || []).map((s: any) => {
       const captura = capturas.find((c: any) => c.sku === s.sku);
-      return { sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap, cantidad_fisica: captura?.cantidad_fisica || 0, diferencia: (s.cantidad_sap || 0) - (captura?.cantidad_fisica || 0), capturado: !!captura };
+      return { sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: captura?.cantidad_fisica || 0, diferencia: (s.cantidad_sap || 0) - (captura?.cantidad_fisica || 0), capturado: !!captura };
     });
     setDatosDetalle(detalle);
     setShowDetalleModal(true);
@@ -149,9 +168,7 @@ const AD01View: React.FC = () => {
 
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
-          <thead>
-            <tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '80px' }}></th></tr>
-          </thead>
+          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '80px' }}></th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
               auditorias.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Sin auditorías</td></tr> :
@@ -159,15 +176,8 @@ const AD01View: React.FC = () => {
                 const eb = getEstadoBadge(a.estado);
                 return (
                   <tr key={a.id}>
-                    <td className="ed03-ticket-id">{a.numero_tarea}</td>
-                    <td>{a.codigo_local} - {a.nombre_local}</td>
-                    <td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
-                    <td>
-                      <select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} style={{ padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white' }}>
-                        <option value="">Sin asignar</option>
-                        {usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
-                      </select>
-                    </td>
+                    <td className="ed03-ticket-id">{a.numero_tarea}</td><td>{a.codigo_local} - {a.nombre_local}</td><td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
+                    <td><select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} style={{ padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white' }}><option value="">Sin asignar</option>{usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}</select></td>
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td>
                     <td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
                     <td><button className="ed03-btn-ver" onClick={() => verDetalle(a)}>Detalle</button></td>
@@ -178,7 +188,6 @@ const AD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal Nueva Auditoría */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
@@ -188,25 +197,17 @@ const AD01View: React.FC = () => {
               <div className="ed01-field"><label>Archivo Correo (.xlsx)</label><input type="file" accept=".xlsx,.xls" onChange={e => setArchivoCorreo(e.target.files?.[0] || null)} /></div>
               {mensaje && <div style={{ padding: '10px', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '13px' }}>{mensaje}</div>}
             </div>
-            <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button>
-              <button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button>
-            </div>
+            <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button></div>
           </div>
         </div>
       )}
 
-      {/* Modal Detalle */}
       {showDetalleModal && auditoriaDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '850px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', fontSize: '13px', flexWrap: 'wrap' }}>
-                <div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div>
-                <div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div>
-                <div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div>
-              </div>
+              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', fontSize: '13px', flexWrap: 'wrap' }}><div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div><div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div><div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div></div>
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Total SAP</span><br /><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_sap, 0)}</strong></div>
                 <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Total Físico</span><br /><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_fisica, 0)}</strong></div>
