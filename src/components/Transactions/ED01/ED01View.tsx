@@ -47,70 +47,40 @@ const ED01View: React.FC = () => {
     cargarRegistros(true);
   }, []);
 
-  // Polling: recargar registros cada 10 segundos
   useEffect(() => {
-    const intervalo = setInterval(() => {
-      cargarRegistros(false);
-    }, 10000);
+    const intervalo = setInterval(() => { cargarRegistros(false); }, 10000);
     return () => clearInterval(intervalo);
   }, [filtros, ordenColumna, ordenDireccion]);
 
   const cargarUsuarios = async () => {
-    try {
-      const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
-      if (data) {
-        const mapa: Record<string, string> = {};
-        data.forEach((u: any) => { mapa[u.id] = `${u.nombre} ${u.apellido}`; });
-        setNombresUsuarios(mapa);
-      }
-    } catch (error) {
-      console.error('Error cargando usuarios:', error);
-    }
+    const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
+    if (data) { const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
   };
 
   const cargarRegistros = async (mostrarCargando: boolean = false) => {
     try {
       if (mostrarCargando) setCargando(true);
-      
-      const { data, error } = await supabase
-        .from('ed01_empaques')
-        .select('*')
-        .order(ordenColumna, { ascending: ordenDireccion === 'asc' });
-      
+      const { data, error } = await supabase.from('ed01_empaques').select('*').order(ordenColumna, { ascending: ordenDireccion === 'asc' });
       if (error) throw error;
-      
       let datosFiltrados = data || [];
-      
       filtros.forEach((filtro: any) => {
-        const col = filtro.columna;
-        const op = filtro.operador;
-        const val = (filtro.valor || '').toLowerCase();
-        
+        const col = filtro.columna; const op = filtro.operador; const val = (filtro.valor || '').toLowerCase();
         if (!col) return;
-        
         datosFiltrados = datosFiltrados.filter((item: any) => {
           const itemVal = item[col];
           if (op === 'vacio') return itemVal === null || itemVal === '' || itemVal === undefined;
           if (op === 'no_vacio') return itemVal !== null && itemVal !== '' && itemVal !== undefined;
           if (val === '') return true;
           const itemStr = String(itemVal || '').toLowerCase();
-          if (op === 'igual') return itemStr === val;
-          if (op === 'mayor') return Number(itemVal) > Number(val);
-          if (op === 'menor') return Number(itemVal) < Number(val);
-          if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
-          if (op === 'menor_igual') return Number(itemVal) <= Number(val);
-          if (op === 'contiene') return itemStr.includes(val);
-          if (op === 'no_contiene') return !itemStr.includes(val);
-          return true;
+          if (op === 'igual') return itemStr === val; if (op === 'mayor') return Number(itemVal) > Number(val);
+          if (op === 'menor') return Number(itemVal) < Number(val); if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
+          if (op === 'menor_igual') return Number(itemVal) <= Number(val); if (op === 'contiene') return itemStr.includes(val);
+          if (op === 'no_contiene') return !itemStr.includes(val); return true;
         });
       });
-      
       setRegistros(datosFiltrados);
-    } catch (error) {
-      console.error('Error cargando registros:', error);
-    } finally {
-      if (mostrarCargando) setCargando(false);
-    }
+    } catch (error) { console.error('Error:', error); }
+    finally { if (mostrarCargando) setCargando(false); }
   };
 
   const handleNuevo = () => { setModoModal('nuevo'); setRegistroSeleccionado(null); setShowModal(true); };
@@ -144,22 +114,30 @@ const ED01View: React.FC = () => {
           creado_por: usuario?.id, creado_en: new Date().toISOString()
         }]);
         if (insertError) throw insertError;
+        setShowModal(false); cargarRegistros(false);
+        // Imprimir automáticamente
+        setTimeout(() => {
+          setRegistroSeleccionado({ id: '', numero_empaque: idData, numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '', cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, ...datos } as any);
+          setTimeout(() => setShowEtiquetaModal(true), 300);
+        }, 500);
       } else if (modoModal === 'editar') {
         await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: usuario?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         await supabase.from('ed01_empaques').update({
-          numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local,
-          nombre_local: datos.nombre_local, cantidad_bultos: datos.cantidad_bultos,
-          cantidad_pallet: datos.cantidad_pallet, observacion: datos.observacion,
+          numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: datos.nombre_local,
+          cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, observacion: datos.observacion,
           estado: 'Finalizado', modificado_por: usuario?.id, modificado_en: new Date().toISOString()
         }).eq('id', registroSeleccionado?.id);
+        setShowModal(false); cargarRegistros(false);
+        // Imprimir automáticamente
+        setTimeout(() => {
+          setRegistroSeleccionado({ ...registroSeleccionado!, ...datos } as any);
+          setTimeout(() => setShowEtiquetaModal(true), 300);
+        }, 500);
       } else if (modoModal === 'cancelar') {
         await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: usuario?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
-        await supabase.from('ed01_empaques').update({
-          estado: 'Cancelado', observacion: datos.observacion,
-          modificado_por: usuario?.id, modificado_en: new Date().toISOString()
-        }).eq('id', registroSeleccionado?.id);
+        await supabase.from('ed01_empaques').update({ estado: 'Cancelado', observacion: datos.observacion, modificado_por: usuario?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
+        setShowModal(false); setRegistroSeleccionado(null); cargarRegistros(false);
       }
-      setShowModal(false); setRegistroSeleccionado(null); cargarRegistros(false);
     } catch (error: any) { alert('Error: ' + error.message); }
   };
 
