@@ -25,6 +25,15 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
+    id: 'ad',
+    title: 'AD · Auditoría',
+    items: [
+      { id: 'ad', label: 'AD01 Gestión Auditoría', type: 'item' },
+      { id: 'ad-captura', label: 'AD02 Captura Física', type: 'subitem' },
+      { id: 'ad-dashboard', label: 'AD03 Dashboard', type: 'subitem' }
+    ]
+  },
+  {
     id: 'tk',
     title: 'TK · Mesa de Ayuda',
     items: [
@@ -71,6 +80,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
     }
   }, [searchTerm]);
 
+  const puedeVer = (itemId: string) => {
+    if (itemId === 'ed-history' && rol === 'Portico') return false;
+    if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
+    if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
+    return true;
+  };
+
   return (
     <div className="sidebar">
       <div className="logo-area">
@@ -107,10 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                 {isExpanded && (
                   <div className="nav-section-content">
                     {section.items.map(item => {
-                      // Ocultar según rol
-                      if (item.id === 'ed-history' && rol === 'Portico') return null;
-                      if ((item.id === 'tk' || item.id === 'tk-dashboard') && rol === 'Portico') return null;
-                      
+                      if (!puedeVer(item.id)) return null;
                       return item.type === 'item' ? (
                         <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
                           <span className="nav-indicator"></span>{item.label}
