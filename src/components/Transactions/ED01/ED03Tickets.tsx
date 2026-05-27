@@ -9,18 +9,27 @@ interface Ticket {
   estado: string; creado_por: string; asignado_a: string; creado_en: string;
 }
 
+interface Respuesta {
+  id: string; ticket_id: string; mensaje: string; creado_por: string; creado_en: string;
+}
+
 const ED03Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketSeleccionado, setTicketSeleccionado] = useState<Ticket | null>(null);
   const [respuesta, setRespuesta] = useState('');
+  const [respuestas, setRespuestas] = useState<Respuesta[]>([]);
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
   useEffect(() => { cargarTickets(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(() => cargarTickets(), 15000); return () => clearInterval(intervalo); }, []);
 
+  useEffect(() => {
+    if (ticketSeleccionado) cargarRespuestas(ticketSeleccionado.id);
+  }, [ticketSeleccionado]);
+
   const cargarUsuarios = async () => {
-    const result = await supabase.from('usuarios').select('id, nombre, apellido') as any;
-    if (result.data) { const m: Record<string, string> = {}; result.data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
+    const result = await supabase.from('usuarios').select('id, nombre, apellido, rol') as any;
+    if (result.data) { const m: Record<string, string> = {}; result.data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido} (${u.rol})`; }); setNombresUsuarios(m); }
   };
 
   const cargarTickets = async () => {
@@ -28,20 +37,40 @@ const ED03Tickets: React.FC = () => {
     if (result.data) setTickets(result.data);
   };
 
+  const cargarRespuestas = async (ticketId: string) => {
+    const result = await supabase.from('ticket_respuestas').select('*').eq('ticket_id', ticketId).order('creado_en', { ascending: true }) as any;
+    if (result.data) setRespuestas(result.data);
+  };
+
   const handleResponder = async () => {
     if (!respuesta.trim() || !ticketSeleccionado) return;
     const usuario = auth.getUsuario();
     await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: respuesta, creado_por: usuario?.id }]) as any;
+    
     if (ticketSeleccionado.estado === 'Abierto') {
       await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id) as any;
     }
-    setRespuesta(''); cargarTickets();
+
+    // Notificar al creador del ticket
+    if (ticketSeleccionado.creado_por !== usuario?.id) {
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
+    }
+
+    setRespuesta(''); cargarTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
 
   const handleResolver = async () => {
     if (!ticketSeleccionado) return;
+    const usuario = auth.getUsuario();
+    await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: '✅ Ticket marcado como resuelto', creado_por: usuario?.id }]) as any;
     await supabase.from('tickets').update({ estado: 'Resuelto', resuelto_en: new Date().toISOString() }).eq('id', ticketSeleccionado.id) as any;
-    cargarTickets(); setTicketSeleccionado(null);
+    
+    // Notificar al creador
+    if (ticketSeleccionado.creado_por !== usuario?.id) {
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
+    }
+
+    cargarTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
 
   const getPrioridadBadge = (p: string) => {
@@ -71,8 +100,27 @@ const ED03Tickets: React.FC = () => {
           <div className="ed03-detalle">
             <h3>{ticketSeleccionado.numero_ticket}</h3>
             <div className="ed03-detalle-info"><p><strong>Tipo:</strong> {ticketSeleccionado.tipo_problema}</p><p><strong>Prioridad:</strong> {ticketSeleccionado.prioridad}</p><p><strong>Empaque:</strong> {ticketSeleccionado.numero_empaque || '-'}</p><p><strong>Estado:</strong> {ticketSeleccionado.estado}</p><p><strong>Descripcion:</strong> {ticketSeleccionado.descripcion}</p></div>
+            
+            {/* Historial de conversación */}
+            <div className="ed03-chat">
+              <h4>Conversación</h4>
+              <div className="ed03-chat-mensajes">
+                {respuestas.length === 0 ? <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '10px' }}>Sin respuestas aún</p> :
+                  respuestas.map(r => {
+                    const esMio = r.creado_por === auth.getUsuario()?.id;
+                    return (
+                      <div key={r.id} className={`ed03-mensaje ${esMio ? 'mio' : 'otro'}`}>
+                        <div className="ed03-mensaje-header"><span className="ed03-mensaje-usuario">{nombresUsuarios[r.creado_por] || 'Usuario'}</span><span className="ed03-mensaje-hora">{new Date(r.creado_en).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                        <div className="ed03-mensaje-texto">{r.mensaje}</div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+
             {ticketSeleccionado.estado !== 'Resuelto' && ticketSeleccionado.estado !== 'Cerrado' && (
-              <div className="ed03-respuesta"><textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} placeholder="Escribe una respuesta..." rows={3} /><div className="ed03-respuesta-acciones"><button onClick={handleResponder}>Responder</button><button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button></div></div>
+              <div className="ed03-respuesta"><textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} placeholder="Escribe una respuesta..." rows={2} /><div className="ed03-respuesta-acciones"><button onClick={handleResponder}>Responder</button><button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button></div></div>
             )}
           </div>
         )}
