@@ -39,3 +39,7 @@
 .ed03-respuesta-separada textarea { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; margin-bottom: 10px; }
 .ed03-respuesta-acciones { display: flex; gap: 8px; }
 .ed03-respuesta-acciones button { padding: 8px 14px; background: #1a1f2e; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.ed03-badge-sinleer {
+  background: #dc2626; color: white; font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 10px; margin-left: 6px; display: inline-block;
+}
