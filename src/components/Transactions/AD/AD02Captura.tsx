@@ -104,19 +104,27 @@ const AD02Captura: React.FC = () => {
   };
 
   const finalizarTarea = async () => {
-    if (!tareaActiva) return;
-    const { data: diferencias } = await supabase.from('ad_capturas_skus').select('*')
-      .in('caja_id', supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id));
-    
-    const hayDiferencias = diferencias?.some((d: any) => d.diferencia !== 0);
-    await supabase.from('ad_auditorias').update({
-      estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
-      finalizado_en: new Date().toISOString()
-    }).eq('id', tareaActiva.id);
+  if (!tareaActiva) return;
+  
+  // Obtener IDs de cajas
+  const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
+  const cajaIds = cajas?.map((c: any) => c.id) || [];
+  
+  let hayDiferencias = false;
+  
+  if (cajaIds.length > 0) {
+    const { data: diferencias } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
+    hayDiferencias = diferencias?.some((d: any) => d.diferencia !== 0) || false;
+  }
 
-    alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
-    setTareaActiva(null); cargarMisTareas();
-  };
+  await supabase.from('ad_auditorias').update({
+    estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
+    finalizado_en: new Date().toISOString()
+  }).eq('id', tareaActiva.id);
+
+  alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
+  setTareaActiva(null); cargarMisTareas();
+};
 
   const skusFiltrados = busqueda ? skus.filter(s => s.sku.includes(busqueda)) : skus;
 
