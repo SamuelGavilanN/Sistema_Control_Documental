@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const API_KEY = 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G';
-const HEADERS = { 'apikey': API_KEY, 'Authorization': 'Bearer ' + API_KEY };
+import { supabase } from '../../lib/supabase';
 
 interface HeaderProps {
   activeTab: string; openTabs: string[]; onTabClick: (tabId: string) => void;
@@ -31,37 +28,26 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const nombreCompleto = usuario ? `${usuario.nombre || ''} ${usuario.apellido || ''}`.trim() : 'Usuario';
   const noVistas = notificaciones.filter(n => !n.visto).length;
 
-  useEffect(() => { if (!usuario) return; cargarNotificaciones(); const intervalo = setInterval(cargarNotificaciones, 30000); return () => clearInterval(intervalo); }, [usuario]);
+  useEffect(() => { if (!usuario) return; cargarNotificaciones(); const intervalo = setInterval(cargarNotificaciones, 60000); return () => clearInterval(intervalo); }, [usuario]);
 
   const cargarNotificaciones = async () => {
     try {
-      const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario?.id}&order=creado_en.desc&limit=10`, { headers: HEADERS });
-      const notifs = await resp.json();
+      const { data: notifs } = await supabase.from('ticket_notificaciones').select('*').eq('usuario_id', usuario?.id).order('creado_en', { ascending: false }).limit(10) as any;
       if (!notifs || notifs.length === 0) return;
 
-      const nuevas: Notificacion[] = [];
-      for (const n of notifs) {
-        const resp2 = await fetch(`${API_URL}/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.${n.ticket_id}`, { headers: HEADERS });
-        const tickets = await resp2.json();
+      // Cargar tickets y respuestas en paralelo
+      const nuevas: Notificacion[] = await Promise.all(notifs.map(async (n: any) => {
+        const { data: tickets } = await supabase.from('tickets').select('numero_ticket,tipo_problema,prioridad,area').eq('id', n.ticket_id) as any;
         const ticket = tickets?.[0];
-
-        const resp3 = await fetch(`${API_URL}/ticket_respuestas?select=mensaje,creado_por&ticket_id=eq.${n.ticket_id}&order=creado_en.desc&limit=1`, { headers: HEADERS });
-        const respuestas = await resp3.json();
-        const ultimaRespuesta = respuestas?.[0];
-        
+        const { data: respuestas } = await supabase.from('ticket_respuestas').select('mensaje,creado_por').eq('ticket_id', n.ticket_id).order('creado_en', { ascending: false }).limit(1) as any;
+        const ultima = respuestas?.[0];
         let remitente = '';
-        if (ultimaRespuesta?.creado_por) {
-          const resp4 = await fetch(`${API_URL}/usuarios?select=nombre,apellido&id=eq.${ultimaRespuesta.creado_por}`, { headers: HEADERS });
-          const users = await resp4.json();
+        if (ultima?.creado_por) {
+          const { data: users } = await supabase.from('usuarios').select('nombre,apellido').eq('id', ultima.creado_por) as any;
           if (users?.[0]) remitente = `${users[0].nombre} ${users[0].apellido}`;
         }
-
-        nuevas.push({
-          id: n.id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '',
-          prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto,
-          ultimo_mensaje: ultimaRespuesta?.mensaje || '', remitente
-        });
-      }
+        return { id: n.id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto, ultimo_mensaje: ultima?.mensaje || '', remitente };
+      }));
 
       const anteriores = notificaciones.map(n => n.id);
       const recienLlegadas = nuevas.filter(n => !anteriores.includes(n.id) && !n.visto);
@@ -71,13 +57,13 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const marcarVisto = async (notifId: string) => {
-    await fetch(`${API_URL}/ticket_notificaciones?id=eq.${notifId}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
+    await supabase.from('ticket_notificaciones').update({ visto: true }).eq('id', notifId) as any;
     cargarNotificaciones();
   };
 
   const marcarTodasVisto = async () => {
     for (const n of notificaciones.filter(n => !n.visto)) {
-      await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
+      await supabase.from('ticket_notificaciones').update({ visto: true }).eq('id', n.id) as any;
     }
     cargarNotificaciones();
   };
@@ -89,10 +75,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const handleToastClick = () => {
-    if (toastActual) {
-      marcarVisto(toastActual.id);
-      localStorage.setItem('ticket_abrir', toastActual.ticket_numero);
-    }
+    if (toastActual) { marcarVisto(toastActual.id); localStorage.setItem('ticket_abrir', toastActual.ticket_numero); }
     setToastActual(null);
     onOpenModule?.(usuario?.rol === 'Portico' ? 'ed-tickets' : 'tk');
   };
