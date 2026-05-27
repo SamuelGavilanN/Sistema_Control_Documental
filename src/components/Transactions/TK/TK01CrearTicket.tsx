@@ -69,7 +69,6 @@ const TK01CrearTicket: React.FC = () => {
         const { data: notifs } = await supabase.from('ticket_notificaciones').select('*').eq('ticket_id', t.id).eq('usuario_id', usuario.id).eq('visto', false) as any;
         contadores[t.id] = notifs?.length || 0;
       }
-      console.log('Contadores TK01:', contadores);
       setContadoresSinLeer(contadores);
       setMisTickets(result.data);
     }
@@ -119,21 +118,17 @@ const TK01CrearTicket: React.FC = () => {
     const usuario = auth.getUsuario();
     await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketVer.id, mensaje: respuestaTexto, creado_por: usuario?.id }]);
 
-    // Notificar al creador del ticket (si no es quien responde)
-    if (ticketVer.creado_por !== usuario?.id) {
-      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: ticketVer.creado_por }]) as any;
-    }
+    const usuariosANotificar = new Set<string>();
+    if (ticketVer.creado_por !== usuario?.id) usuariosANotificar.add(ticketVer.creado_por);
     
-    // Notificar a otros que respondieron
+    const { data: usuariosPortico } = await supabase.from('usuarios').select('id').in('rol', ['Portico', 'Lider', 'Admin', 'Owner']);
+    if (usuariosPortico) usuariosPortico.forEach((u: any) => { if (u.id !== usuario?.id) usuariosANotificar.add(u.id); });
+    
     const { data: respuestasData } = await supabase.from('ticket_respuestas').select('creado_por').eq('ticket_id', ticketVer.id);
-    if (respuestasData) {
-      const notificados = new Set([ticketVer.creado_por, usuario?.id]);
-      for (const r of respuestasData) {
-        if (!notificados.has(r.creado_por)) {
-          await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: r.creado_por }]) as any;
-          notificados.add(r.creado_por);
-        }
-      }
+    if (respuestasData) respuestasData.forEach((r: any) => { if (r.creado_por !== usuario?.id) usuariosANotificar.add(r.creado_por); });
+    
+    for (const uid of usuariosANotificar) {
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: uid }]) as any;
     }
 
     setRespuestaTexto('');
@@ -151,38 +146,23 @@ const TK01CrearTicket: React.FC = () => {
 
   return (
     <div className="tk01-view">
-      <div className="tk01-header">
-        <h2>Crear Ticket</h2>
-        <button className="ed01-btn-save" onClick={() => setShowCrearModal(true)}>+ Nuevo Ticket</button>
-      </div>
-
+      <div className="tk01-header"><h2>Crear Ticket</h2><button className="ed01-btn-save" onClick={() => setShowCrearModal(true)}>+ Nuevo Ticket</button></div>
       <div className="ed03-tabla-container" style={{ maxHeight: '500px' }}>
         <table className="ed03-tabla">
-          <thead>
-            <tr><th style={{ width: '130px' }}>Ticket</th><th style={{ width: '130px' }}>Empaque</th><th style={{ width: '150px' }}>Tipo</th><th style={{ width: '90px' }}>Prioridad</th><th style={{ width: '100px' }}>Estado</th><th style={{ width: '100px' }}>Fecha</th></tr>
-          </thead>
+          <thead><tr><th style={{ width: '130px' }}>Ticket</th><th style={{ width: '130px' }}>Empaque</th><th style={{ width: '150px' }}>Tipo</th><th style={{ width: '90px' }}>Prioridad</th><th style={{ width: '100px' }}>Estado</th><th style={{ width: '100px' }}>Fecha</th></tr></thead>
           <tbody>
-            {misTickets.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No has creado tickets</td></tr>
-            ) : (
-              misTickets.map(t => {
-                const eb = getEstadoBadge(t.estado); const pb = getPrioridadBadge(t.prioridad);
-                const sinLeer = contadoresSinLeer[t.id] || 0;
-                return (
-                  <tr key={t.id} onClick={() => abrirVerModal(t)} style={{ cursor: 'pointer' }}>
-                    <td className="ed03-ticket-id">
-                      {t.numero_ticket}
-                      {sinLeer > 0 && <span style={{ background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '10px', marginLeft: '8px', display: 'inline-block' }}>{sinLeer}</span>}
-                    </td>
-                    <td>{t.numero_empaque || '-'}</td>
-                    <td>{t.tipo_problema}</td>
-                    <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
-                    <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.estado}</span></td>
-                    <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
-                  </tr>
-                );
-              })
-            )}
+            {misTickets.length === 0 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No has creado tickets</td></tr> : misTickets.map(t => {
+              const eb = getEstadoBadge(t.estado); const pb = getPrioridadBadge(t.prioridad); const sinLeer = contadoresSinLeer[t.id] || 0;
+              return (
+                <tr key={t.id} onClick={() => abrirVerModal(t)} style={{ cursor: 'pointer' }}>
+                  <td className="ed03-ticket-id">{t.numero_ticket}{sinLeer > 0 && <span style={{ background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '10px', marginLeft: '8px', display: 'inline-block' }}>{sinLeer}</span>}</td>
+                  <td>{t.numero_empaque || '-'}</td><td>{t.tipo_problema}</td>
+                  <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
+                  <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.estado}</span></td>
+                  <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -210,17 +190,16 @@ const TK01CrearTicket: React.FC = () => {
           <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>{ticketVer.numero_ticket}</h2><button className="ed01-modal-close" onClick={() => setShowVerModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}><div><strong>Tipo:</strong> {ticketVer.tipo_problema}</div><div><strong>Prioridad:</strong> {ticketVer.prioridad}</div><div><strong>Empaque:</strong> {ticketVer.numero_empaque || '-'}</div><div><strong>Estado:</strong> {ticketVer.estado}</div></div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}><div><strong>Tipo:</strong> {ticketVer.tipo_problema}</div><div><strong>Prioridad:</strong> {ticketVer.prioridad}</div><div><strong>Empaque:</strong> {ticketVer.numero_empaque || '-'}</div><div><strong>Estado:</strong> {ticketVer.estado}</div></div>
               <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketVer.descripcion}</p>
-              <div className="ed03-respuestas-lista">
-                <h4>Historial de Respuestas</h4>
+              <div style={{ marginBottom: '16px', maxHeight: '250px', overflowY: 'auto' }}><h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial de Respuestas</h4>
                 {respuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : respuestas.map(r => (
-                  <div key={r.id} className="ed03-respuesta-item"><p className="ed03-respuesta-texto">{r.mensaje}</p><span className="ed03-respuesta-info">{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span></div>
+                  <div key={r.id} style={{ background: '#f8fafd', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', border: '1px solid #eef0f5' }}><p style={{ fontSize: '13px', color: '#1e293b', margin: '0 0 4px' }}>{r.mensaje}</p><span style={{ fontSize: '10px', color: '#94a3b8' }}>{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span></div>
                 ))}
               </div>
               {ticketVer.estado !== 'Resuelto' && ticketVer.estado !== 'Cerrado' && (
                 <div>
-                  <textarea value={respuestaTexto} onChange={(e) => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
+                  <textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
                   <button className="ed01-btn-save" onClick={handleResponder}>Responder</button>
                 </div>
               )}
