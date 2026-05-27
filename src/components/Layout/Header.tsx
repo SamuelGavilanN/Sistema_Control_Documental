@@ -25,6 +25,7 @@ const moduleTitles: Record<string, string> = {
 
 interface Notificacion {
   id: string;
+  ticket_id: string;
   ticket_numero: string;
   tipo_problema: string;
   prioridad: string;
@@ -38,6 +39,10 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [toastActual, setToastActual] = useState<Notificacion | null>(null);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketModalData, setTicketModalData] = useState<any>(null);
+  const [ticketRespuestas, setTicketRespuestas] = useState<any[]>([]);
+  const [respuestaTexto, setRespuestaTexto] = useState('');
 
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase() : '??';
@@ -63,7 +68,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         const tickets = await resp2.json();
         const ticket = tickets?.[0];
         nuevas.push({
-          id: n.id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '',
+          id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '',
           prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto
         });
       }
@@ -87,10 +92,43 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     cargarNotificaciones();
   };
 
-  const handleNotifClick = (n: Notificacion) => {
+  const handleNotifClick = async (n: Notificacion) => {
     marcarVisto(n.id);
     setShowNotifMenu(false);
-    onOpenModule?.('tk');
+    
+    const resp = await fetch(`${API_URL}/tickets?select=*&id=eq.${n.ticket_id}`, { headers: HEADERS });
+    const tickets = await resp.json();
+    const ticket = tickets?.[0];
+    
+    const resp2 = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticket?.id}&order=creado_en.asc`, { headers: HEADERS });
+    const respuestas = await resp2.json();
+    
+    setTicketModalData(ticket);
+    setTicketRespuestas(respuestas || []);
+    setRespuestaTexto('');
+    setShowTicketModal(true);
+  };
+
+  const handleResponderDesdeModal = async () => {
+    if (!respuestaTexto.trim() || !ticketModalData) return;
+    
+    await fetch(`${API_URL}/ticket_respuestas`, {
+      method: 'POST',
+      headers: { ...HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticket_id: ticketModalData.id, mensaje: respuestaTexto, creado_por: usuario?.id })
+    });
+    
+    if (ticketModalData.creado_por !== usuario?.id) {
+      await fetch(`${API_URL}/ticket_notificaciones`, {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket_id: ticketModalData.id, usuario_id: ticketModalData.creado_por })
+      });
+    }
+    
+    setRespuestaTexto('');
+    const resp = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticketModalData.id}&order=creado_en.asc`, { headers: HEADERS });
+    setTicketRespuestas(await resp.json());
   };
 
   const getPrioridadColor = (p: string) => {
@@ -138,6 +176,38 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           <button onClick={() => setToastActual(null)} style={{ position: 'absolute', top: '8px', right: '12px', background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: '#94a3b8' }}>×</button>
         </div>
       )}
+
+      {/* Modal de ticket desde notificación */}
+      {showTicketModal && ticketModalData && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowTicketModal(false)}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '90%', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', padding: '24px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}><h2 style={{ fontSize: '18px', fontWeight: 600 }}>{ticketModalData.numero_ticket}</h2><button onClick={() => setShowTicketModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>×</button></div>
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
+              <div><strong>Tipo:</strong> {ticketModalData.tipo_problema}</div>
+              <div><strong>Prioridad:</strong> {ticketModalData.prioridad}</div>
+              <div><strong>Empaque:</strong> {ticketModalData.numero_empaque || '-'}</div>
+              <div><strong>Estado:</strong> {ticketModalData.estado}</div>
+            </div>
+            <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketModalData.descripcion}</p>
+            
+            <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial de Respuestas</h4>
+            {ticketRespuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : ticketRespuestas.map((r: any) => (
+              <div key={r.id} style={{ background: '#f8fafd', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', border: '1px solid #eef0f5' }}>
+                <p style={{ fontSize: '13px', color: '#1e293b', margin: '0 0 4px' }}>{r.mensaje}</p>
+                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{new Date(r.creado_en).toLocaleString('es-CL')}</span>
+              </div>
+            ))}
+            
+            {ticketModalData.estado !== 'Resuelto' && ticketModalData.estado !== 'Cerrado' && (
+              <div style={{ marginTop: '16px' }}>
+                <textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
+                <button onClick={handleResponderDesdeModal} style={{ padding: '10px 20px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>Responder</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <style>{`@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}.notif-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s;position:relative}.notif-btn:hover{background:#f8fafd}`}</style>
     </div>
   );
