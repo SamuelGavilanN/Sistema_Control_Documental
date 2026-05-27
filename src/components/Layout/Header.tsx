@@ -90,7 +90,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const handleNotifClick = (n: Notificacion) => {
     marcarVisto(n.id);
     setShowNotifMenu(false);
-    onOpenModule?.('ed-tickets');
+    onOpenModule?.('tk');
   };
 
   const getPrioridadColor = (p: string) => {
