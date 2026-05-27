@@ -69,6 +69,7 @@ const TK01CrearTicket: React.FC = () => {
         const { data: notifs } = await supabase.from('ticket_notificaciones').select('*').eq('ticket_id', t.id).eq('usuario_id', usuario.id).eq('visto', false) as any;
         contadores[t.id] = notifs?.length || 0;
       }
+      console.log('Contadores TK01:', contadores);
       setContadoresSinLeer(contadores);
       setMisTickets(result.data);
     }
@@ -117,16 +118,22 @@ const TK01CrearTicket: React.FC = () => {
     if (!respuestaTexto.trim() || !ticketVer) return;
     const usuario = auth.getUsuario();
     await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketVer.id, mensaje: respuestaTexto, creado_por: usuario?.id }]);
+
+    // Notificar al creador del ticket (si no es quien responde)
+    if (ticketVer.creado_por !== usuario?.id) {
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: ticketVer.creado_por }]) as any;
+    }
     
-    // Notificar al creador del ticket y a otros involucrados
-    const { data: respuestasAnteriores } = await supabase.from('ticket_respuestas').select('creado_por').eq('ticket_id', ticketVer.id);
-    const involucrados = new Set<string>();
-    involucrados.add(ticketVer.creado_por);
-    if (respuestasAnteriores) respuestasAnteriores.forEach((r: any) => involucrados.add(r.creado_por));
-    involucrados.delete(usuario?.id);
-    
-    for (const uid of involucrados) {
-      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: uid }]) as any;
+    // Notificar a otros que respondieron
+    const { data: respuestasData } = await supabase.from('ticket_respuestas').select('creado_por').eq('ticket_id', ticketVer.id);
+    if (respuestasData) {
+      const notificados = new Set([ticketVer.creado_por, usuario?.id]);
+      for (const r of respuestasData) {
+        if (!notificados.has(r.creado_por)) {
+          await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: r.creado_por }]) as any;
+          notificados.add(r.creado_por);
+        }
+      }
     }
 
     setRespuestaTexto('');
@@ -163,7 +170,10 @@ const TK01CrearTicket: React.FC = () => {
                 const sinLeer = contadoresSinLeer[t.id] || 0;
                 return (
                   <tr key={t.id} onClick={() => abrirVerModal(t)} style={{ cursor: 'pointer' }}>
-                    <td className="ed03-ticket-id">{t.numero_ticket}{sinLeer > 0 && <span className="ed03-badge-sinleer">{sinLeer}</span>}</td>
+                    <td className="ed03-ticket-id">
+                      {t.numero_ticket}
+                      {sinLeer > 0 && <span style={{ background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '10px', marginLeft: '8px', display: 'inline-block' }}>{sinLeer}</span>}
+                    </td>
                     <td>{t.numero_empaque || '-'}</td>
                     <td>{t.tipo_problema}</td>
                     <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
@@ -177,7 +187,6 @@ const TK01CrearTicket: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal Crear */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
@@ -196,32 +205,19 @@ const TK01CrearTicket: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Ver + Responder */}
       {showVerModal && ticketVer && (
         <div className="ed01-modal-overlay" onClick={() => setShowVerModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>{ticketVer.numero_ticket}</h2><button className="ed01-modal-close" onClick={() => setShowVerModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <div><strong>Tipo:</strong> {ticketVer.tipo_problema}</div>
-                <div><strong>Prioridad:</strong> {ticketVer.prioridad}</div>
-                <div><strong>Empaque:</strong> {ticketVer.numero_empaque || '-'}</div>
-                <div><strong>Estado:</strong> {ticketVer.estado}</div>
-              </div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}><div><strong>Tipo:</strong> {ticketVer.tipo_problema}</div><div><strong>Prioridad:</strong> {ticketVer.prioridad}</div><div><strong>Empaque:</strong> {ticketVer.numero_empaque || '-'}</div><div><strong>Estado:</strong> {ticketVer.estado}</div></div>
               <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketVer.descripcion}</p>
-              
               <div className="ed03-respuestas-lista">
                 <h4>Historial de Respuestas</h4>
-                {respuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : (
-                  respuestas.map(r => (
-                    <div key={r.id} className="ed03-respuesta-item">
-                      <p className="ed03-respuesta-texto">{r.mensaje}</p>
-                      <span className="ed03-respuesta-info">{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span>
-                    </div>
-                  ))
-                )}
+                {respuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : respuestas.map(r => (
+                  <div key={r.id} className="ed03-respuesta-item"><p className="ed03-respuesta-texto">{r.mensaje}</p><span className="ed03-respuesta-info">{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span></div>
+                ))}
               </div>
-
               {ticketVer.estado !== 'Resuelto' && ticketVer.estado !== 'Cerrado' && (
                 <div>
                   <textarea value={respuestaTexto} onChange={(e) => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
