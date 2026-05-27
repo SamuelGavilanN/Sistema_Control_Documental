@@ -25,17 +25,17 @@ const ED03Tickets: React.FC = () => {
   useEffect(() => { const intervalo = setInterval(() => cargarTickets(), 15000); return () => clearInterval(intervalo); }, []);
 
   useEffect(() => {
-    if (!ticketSeleccionado) return;
+    if (!ticketSeleccionado || !showChatModal) return;
     cargarRespuestas(ticketSeleccionado.id);
     const intervalo = setInterval(() => cargarRespuestas(ticketSeleccionado.id), 5000);
     return () => clearInterval(intervalo);
-  }, [ticketSeleccionado]);
+  }, [ticketSeleccionado, showChatModal]);
 
   useEffect(() => {
     const ticketAbrir = localStorage.getItem('ticket_abrir');
     if (ticketAbrir && tickets.length > 0) {
       const ticket = tickets.find(t => t.numero_ticket === ticketAbrir);
-      if (ticket) { setTicketSeleccionado(ticket); setShowChatModal(true); localStorage.removeItem('ticket_abrir'); }
+      if (ticket) { setTicketSeleccionado(ticket); setRespuestas([]); setShowChatModal(true); localStorage.removeItem('ticket_abrir'); }
     }
   }, [tickets]);
 
@@ -54,7 +54,12 @@ const ED03Tickets: React.FC = () => {
     if (result.data) setRespuestas(result.data);
   };
 
-  const handleVerTicket = (ticket: Ticket) => { setTicketSeleccionado(ticket); setShowChatModal(true); };
+  const handleVerTicket = (ticket: Ticket) => {
+    setTicketSeleccionado(ticket);
+    setRespuestas([]);
+    setShowChatModal(true);
+    cargarRespuestas(ticket.id);
+  };
 
   const handleResponder = async () => {
     if (!respuesta.trim() || !ticketSeleccionado) return;
@@ -63,13 +68,8 @@ const ED03Tickets: React.FC = () => {
     if (ticketSeleccionado.estado === 'Abierto') {
       await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id) as any;
     }
-    // Notificar con el mensaje
     if (ticketSeleccionado.creado_por !== usuario?.id) {
-      await supabase.from('ticket_notificaciones').insert([{ 
-        ticket_id: ticketSeleccionado.id, 
-        usuario_id: ticketSeleccionado.creado_por,
-        visto: false
-      }]) as any;
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por, visto: false }]) as any;
     }
     setRespuesta(''); cargarTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
@@ -77,17 +77,11 @@ const ED03Tickets: React.FC = () => {
   const handleResolver = async () => {
     if (!ticketSeleccionado) return;
     if (!window.confirm('¿Estás seguro de marcar este ticket como RESUELTO? Esta acción no se puede deshacer.')) return;
-    
     const usuario = auth.getUsuario();
-    await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: '✅ Ticket marcado como resuelto', creado_por: usuario?.id }]) as any;
+    await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: 'Ticket marcado como resuelto', creado_por: usuario?.id }]) as any;
     await supabase.from('tickets').update({ estado: 'Resuelto', resuelto_en: new Date().toISOString() }).eq('id', ticketSeleccionado.id) as any;
-    
     if (ticketSeleccionado.creado_por !== usuario?.id) {
-      await supabase.from('ticket_notificaciones').insert([{ 
-        ticket_id: ticketSeleccionado.id, 
-        usuario_id: ticketSeleccionado.creado_por,
-        visto: false
-      }]) as any;
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por, visto: false }]) as any;
     }
     cargarTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
@@ -131,7 +125,7 @@ const ED03Tickets: React.FC = () => {
               <div className="ed03-chat">
                 <h4>Conversacion</h4>
                 <div className="ed03-chat-mensajes" style={{ maxHeight: '200px' }}>
-                  {respuestas.length === 0 ? <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '10px' }}>Sin respuestas</p> :
+                  {respuestas.length === 0 ? <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', padding: '10px' }}>Cargando respuestas...</p> :
                     respuestas.map(r => {
                       const esMio = r.creado_por === auth.getUsuario()?.id;
                       return (
