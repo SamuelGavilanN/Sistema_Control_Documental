@@ -49,18 +49,22 @@ const AD01View: React.FC = () => {
     setCargando(false);
   };
 
+  const obtenerCantidad = (item: any): number => {
+    const keys = Object.keys(item);
+    const keyCantidad = keys.find(k => k.toLowerCase().includes('cantidad'));
+    if (keyCantidad) {
+      const val = item[keyCantidad];
+      return parseInt(String(val).trim()) || 0;
+    }
+    return 0;
+  };
+
   const procesarArchivos = async () => {
     if (!archivoSAP || !archivoCorreo) { alert('Selecciona ambos archivos'); return; }
     setProcesando(true);
     try {
       const dataSAP = await leerExcel(archivoSAP);
       const dataCorreo = await leerExcel(archivoCorreo);
-
-      // Depurar: ver nombres de columnas
-      if (dataSAP.length > 0) {
-        console.log('Columnas SAP:', Object.keys(dataSAP[0]));
-        console.log('Primera fila SAP:', dataSAP[0]);
-      }
 
       const mapaCorreo: Record<string, { acta: string; guia: string }> = {};
       dataCorreo.forEach((row: any) => {
@@ -90,21 +94,16 @@ const AD01View: React.FC = () => {
         }]).select('id').single();
         if (!auditoria) continue;
 
-        const itemsInsert = grupo.items.map((item: any) => {
-          // Intentar múltiples nombres de columna para la cantidad
-          const cantidad = item['Cantidad entrega'] || item['cantidad entrega'] || item['CANTIDAD ENTREGA'] || item['Cantidad'] || item['cantidad'] || 0;
-          return {
-            auditoria_id: (auditoria as any).id,
-            entrega: String(item['Entrega'] || '').trim(),
-            denominacion: String(item['Denominación'] || item['Denominacion'] || '').trim(),
-            codigo_local: codLocal,
-            nombre_local: grupo.nombre,
-            sku: String(item['Material'] || '').trim(),
-            cantidad_sap: parseInt(String(cantidad)) || 0
-          };
-        });
+        const itemsInsert = grupo.items.map((item: any) => ({
+          auditoria_id: (auditoria as any).id,
+          entrega: String(item['Entrega'] || '').trim(),
+          denominacion: String(item['Denominación'] || item['Denominacion'] || '').trim(),
+          codigo_local: codLocal,
+          nombre_local: grupo.nombre,
+          sku: String(item['Material'] || '').trim(),
+          cantidad_sap: obtenerCantidad(item)
+        }));
         
-        console.log('Insertando items:', itemsInsert.slice(0, 3));
         await supabase.from('ad_datos_sap').insert(itemsInsert);
       }
       setMensaje('Auditorías creadas exitosamente');
@@ -136,7 +135,6 @@ const AD01View: React.FC = () => {
   const verDetalle = async (auditoria: Auditoria) => {
     setAuditoriaDetalle(auditoria);
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
-    console.log('SAP cargado:', sap?.slice(0, 3));
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoria.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
     let capturas: any[] = [];
