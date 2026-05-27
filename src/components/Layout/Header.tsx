@@ -45,12 +45,10 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         const tickets = await resp2.json();
         const ticket = tickets?.[0];
 
-        // Obtener último mensaje para esta notificación
         const resp3 = await fetch(`${API_URL}/ticket_respuestas?select=mensaje,creado_por&ticket_id=eq.${n.ticket_id}&order=creado_en.desc&limit=1`, { headers: HEADERS });
         const respuestas = await resp3.json();
         const ultimaRespuesta = respuestas?.[0];
         
-        // Obtener nombre del remitente
         let remitente = '';
         if (ultimaRespuesta?.creado_por) {
           const resp4 = await fetch(`${API_URL}/usuarios?select=nombre,apellido&id=eq.${ultimaRespuesta.creado_por}`, { headers: HEADERS });
@@ -84,8 +82,21 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     cargarNotificaciones();
   };
 
-  const handleNotifClick = (n: Notificacion) => { marcarVisto(n.id); setShowNotifMenu(false); localStorage.setItem('ticket_abrir', n.ticket_numero); onOpenModule?.(usuario?.rol === 'Portico' ? 'ed-tickets' : 'tk'); };
-  const handleToastClick = () => { if (toastActual) localStorage.setItem('ticket_abrir', toastActual.ticket_numero); setToastActual(null); onOpenModule?.(usuario?.rol === 'Portico' ? 'ed-tickets' : 'tk'); };
+  const handleNotifClick = (n: Notificacion) => {
+    marcarVisto(n.id); setShowNotifMenu(false);
+    localStorage.setItem('ticket_abrir', n.ticket_numero);
+    onOpenModule?.(usuario?.rol === 'Portico' ? 'ed-tickets' : 'tk');
+  };
+
+  const handleToastClick = () => {
+    if (toastActual) {
+      marcarVisto(toastActual.id);
+      localStorage.setItem('ticket_abrir', toastActual.ticket_numero);
+    }
+    setToastActual(null);
+    onOpenModule?.(usuario?.rol === 'Portico' ? 'ed-tickets' : 'tk');
+  };
+
   const getPrioridadColor = (p: string) => { switch (p) { case 'Urgente': return '#dc2626'; case 'Alta': return '#ea580c'; case 'Media': return '#b45309'; default: return '#15803d'; } };
 
   return (
@@ -98,7 +109,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           </div>
         ))}
       </div>
-
       <div className="notif-area" style={{ position: 'relative', marginRight: '10px' }}>
         <button className="notif-btn" onClick={() => { setShowNotifMenu(!showNotifMenu); setShowUserMenu(false); }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 2C5.34315 2 4 3.34315 4 5V9L2 12H14L12 9V5C12 3.34315 10.6569 2 9 2H7Z" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/><path d="M7 15C7 16.1046 7.89543 17 9 17C10.1046 17 11 16.1046 11 15" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -122,7 +132,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           </div>
         )}
       </div>
-
       <div className="user-area">
         <div className="user-info" onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifMenu(false); }}>
           <div className="user-avatar"><span>{iniciales}</span></div><span className="user-name">{nombreCompleto}</span>
@@ -130,7 +139,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
         {showUserMenu && <div className="user-menu"><div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 13V11H3V3H6V1H2V13H6Z" fill="#64748b"/><path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="#64748b"/></svg><span>Cerrar Sesion</span></div></div>}
       </div>
-
       {toastActual && (
         <div onClick={handleToastClick} style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000, background: 'white', borderRadius: '12px', padding: '16px 20px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #eef0f5', minWidth: '340px', animation: 'slideIn 0.3s ease', cursor: 'pointer' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>{toastActual.ticket_numero}</span><span style={{ background: getPrioridadColor(toastActual.prioridad), color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600 }}>{toastActual.prioridad}</span></div>
@@ -139,7 +147,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           <button onClick={(e) => { e.stopPropagation(); setToastActual(null); }} style={{ position: 'absolute', top: '8px', right: '12px', background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: '#94a3b8' }}>×</button>
         </div>
       )}
-
       <style>{`@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}.notif-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s;position:relative}.notif-btn:hover{background:#f8fafd}`}</style>
     </div>
   );
