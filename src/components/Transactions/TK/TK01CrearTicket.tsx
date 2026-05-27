@@ -34,6 +34,7 @@ const TK01CrearTicket: React.FC = () => {
   const [showVerModal, setShowVerModal] = useState(false);
   const [ticketVer, setTicketVer] = useState<Ticket | null>(null);
   const [respuestas, setRespuestas] = useState<Respuesta[]>([]);
+  const [respuestaTexto, setRespuestaTexto] = useState('');
   const [area, setArea] = useState('Portico');
   const [tipoProblema, setTipoProblema] = useState('');
   const [prioridad, setPrioridad] = useState('Media');
@@ -103,12 +104,35 @@ const TK01CrearTicket: React.FC = () => {
 
   const abrirVerModal = async (ticket: Ticket) => {
     setTicketVer(ticket);
+    setRespuestaTexto('');
     const usuario = auth.getUsuario();
     await supabase.from('ticket_notificaciones').update({ visto: true }).eq('ticket_id', ticket.id).eq('usuario_id', usuario?.id) as any;
     setContadoresSinLeer(prev => ({ ...prev, [ticket.id]: 0 }));
     const { data } = await supabase.from('ticket_respuestas').select('*').eq('ticket_id', ticket.id).order('creado_en', { ascending: true });
     setRespuestas(data || []);
     setShowVerModal(true);
+  };
+
+  const handleResponder = async () => {
+    if (!respuestaTexto.trim() || !ticketVer) return;
+    const usuario = auth.getUsuario();
+    await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketVer.id, mensaje: respuestaTexto, creado_por: usuario?.id }]);
+    
+    // Notificar al creador del ticket y a otros involucrados
+    const { data: respuestasAnteriores } = await supabase.from('ticket_respuestas').select('creado_por').eq('ticket_id', ticketVer.id);
+    const involucrados = new Set<string>();
+    involucrados.add(ticketVer.creado_por);
+    if (respuestasAnteriores) respuestasAnteriores.forEach((r: any) => involucrados.add(r.creado_por));
+    involucrados.delete(usuario?.id);
+    
+    for (const uid of involucrados) {
+      await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketVer.id, usuario_id: uid }]) as any;
+    }
+
+    setRespuestaTexto('');
+    const { data } = await supabase.from('ticket_respuestas').select('*').eq('ticket_id', ticketVer.id).order('creado_en', { ascending: true });
+    setRespuestas(data || []);
+    cargarMisTickets();
   };
 
   const getEstadoBadge = (e: string) => {
@@ -172,7 +196,7 @@ const TK01CrearTicket: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Ver */}
+      {/* Modal Ver + Responder */}
       {showVerModal && ticketVer && (
         <div className="ed01-modal-overlay" onClick={() => setShowVerModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
@@ -185,6 +209,7 @@ const TK01CrearTicket: React.FC = () => {
                 <div><strong>Estado:</strong> {ticketVer.estado}</div>
               </div>
               <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketVer.descripcion}</p>
+              
               <div className="ed03-respuestas-lista">
                 <h4>Historial de Respuestas</h4>
                 {respuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : (
@@ -196,6 +221,13 @@ const TK01CrearTicket: React.FC = () => {
                   ))
                 )}
               </div>
+
+              {ticketVer.estado !== 'Resuelto' && ticketVer.estado !== 'Cerrado' && (
+                <div>
+                  <textarea value={respuestaTexto} onChange={(e) => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
+                  <button className="ed01-btn-save" onClick={handleResponder}>Responder</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
