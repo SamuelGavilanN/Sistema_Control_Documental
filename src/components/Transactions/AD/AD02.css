@@ -1,0 +1,5 @@
+.ad02-view { background: white; border-radius: 12px; padding: 24px; }
+.ad02-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.ad02-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
+.ad02-busqueda { display: flex; gap: 10px; margin-bottom: 16px; }
+.ad02-busqueda input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
