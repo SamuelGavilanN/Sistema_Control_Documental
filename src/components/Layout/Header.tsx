@@ -177,33 +177,37 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
       )}
 
-      {/* Modal de ticket desde notificación */}
+      {/* Modal de ticket - mismo estilo que ED03/TK01 */}
       {showTicketModal && ticketModalData && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowTicketModal(false)}>
-          <div style={{ background: 'white', borderRadius: '16px', width: '90%', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', padding: '24px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}><h2 style={{ fontSize: '18px', fontWeight: 600 }}>{ticketModalData.numero_ticket}</h2><button onClick={() => setShowTicketModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>×</button></div>
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
-              <div><strong>Tipo:</strong> {ticketModalData.tipo_problema}</div>
-              <div><strong>Prioridad:</strong> {ticketModalData.prioridad}</div>
-              <div><strong>Empaque:</strong> {ticketModalData.numero_empaque || '-'}</div>
-              <div><strong>Estado:</strong> {ticketModalData.estado}</div>
+        <div className="ed01-modal-overlay" onClick={() => setShowTicketModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header"><h2>{ticketModalData.numero_ticket}</h2><button className="ed01-modal-close" onClick={() => setShowTicketModal(false)}>×</button></div>
+            <div className="ed01-modal-body">
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div><strong>Tipo:</strong> {ticketModalData.tipo_problema}</div>
+                <div><strong>Prioridad:</strong> {ticketModalData.prioridad}</div>
+                <div><strong>Empaque:</strong> {ticketModalData.numero_empaque || '-'}</div>
+                <div><strong>Estado:</strong> {ticketModalData.estado}</div>
+              </div>
+              <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketModalData.descripcion}</p>
+              
+              <div style={{ marginBottom: '16px', maxHeight: '250px', overflowY: 'auto' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial de Respuestas</h4>
+                {ticketRespuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : ticketRespuestas.map((r: any) => (
+                  <div key={r.id} style={{ background: '#f8fafd', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', border: '1px solid #eef0f5' }}>
+                    <p style={{ fontSize: '13px', color: '#1e293b', margin: '0 0 4px' }}>{r.mensaje}</p>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{new Date(r.creado_en).toLocaleString('es-CL')}</span>
+                  </div>
+                ))}
+              </div>
+              
+              {ticketModalData.estado !== 'Resuelto' && ticketModalData.estado !== 'Cerrado' && (
+                <div>
+                  <textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
+                  <button className="ed01-btn-save" onClick={handleResponderDesdeModal}>Responder</button>
+                </div>
+              )}
             </div>
-            <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketModalData.descripcion}</p>
-            
-            <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial de Respuestas</h4>
-            {ticketRespuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : ticketRespuestas.map((r: any) => (
-              <div key={r.id} style={{ background: '#f8fafd', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', border: '1px solid #eef0f5' }}>
-                <p style={{ fontSize: '13px', color: '#1e293b', margin: '0 0 4px' }}>{r.mensaje}</p>
-                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{new Date(r.creado_en).toLocaleString('es-CL')}</span>
-              </div>
-            ))}
-            
-            {ticketModalData.estado !== 'Resuelto' && ticketModalData.estado !== 'Cerrado' && (
-              <div style={{ marginTop: '16px' }}>
-                <textarea value={respuestaTexto} onChange={e => setRespuestaTexto(e.target.value)} placeholder="Escribe una respuesta..." rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '10px' }} />
-                <button onClick={handleResponderDesdeModal} style={{ padding: '10px 20px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>Responder</button>
-              </div>
-            )}
           </div>
         </div>
       )}
