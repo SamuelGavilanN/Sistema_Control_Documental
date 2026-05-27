@@ -42,13 +42,21 @@ const TK01CrearTicket: React.FC = () => {
     return () => clearInterval(intervalo);
   }, [ticketSeleccionado]);
 
+  useEffect(() => {
+    const ticketAbrir = localStorage.getItem('ticket_abrir');
+    if (ticketAbrir && misTickets.length > 0) {
+      const ticket = misTickets.find(t => t.numero_ticket === ticketAbrir);
+      if (ticket) {
+        setTicketSeleccionado(ticket);
+        setShowChatModal(true);
+        localStorage.removeItem('ticket_abrir');
+      }
+    }
+  }, [misTickets]);
+
   const cargarUsuarios = async () => {
     const result = await supabase.from('usuarios').select('id, nombre, apellido, rol') as any;
-    if (result.data) {
-      const m: Record<string, string> = {};
-      result.data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido} (${u.rol})`; });
-      setUsuarios(result.data); setNombresUsuarios(m);
-    }
+    if (result.data) { const m: Record<string, string> = {}; result.data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido} (${u.rol})`; }); setUsuarios(result.data); setNombresUsuarios(m); }
   };
 
   const cargarMisTickets = async () => {
@@ -62,10 +70,7 @@ const TK01CrearTicket: React.FC = () => {
     if (result.data) setRespuestas(result.data);
   };
 
-  const handleVerTicket = (ticket: Ticket) => {
-    setTicketSeleccionado(ticket);
-    setShowChatModal(true);
-  };
+  const handleVerTicket = (ticket: Ticket) => { setTicketSeleccionado(ticket); setShowChatModal(true); };
 
   const handleCrear = async () => {
     if (!tipoProblema || !descripcion || !area) return;
@@ -84,14 +89,8 @@ const TK01CrearTicket: React.FC = () => {
     if (!respuesta.trim() || !ticketSeleccionado) return;
     const usuario = auth.getUsuario();
     await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: respuesta, creado_por: usuario?.id }]) as any;
-    
     const usersANotificar = usuarios.filter(u => u.rol === 'Admin' || u.rol === 'Owner' || u.rol === 'Portico' || u.rol === 'Lider');
-    for (const u of usersANotificar) {
-      if (u.id !== usuario?.id) {
-        await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: u.id }]) as any;
-      }
-    }
-
+    for (const u of usersANotificar) { if (u.id !== usuario?.id) { await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: u.id }]) as any; } }
     setRespuesta(''); cargarMisTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
 
@@ -101,7 +100,6 @@ const TK01CrearTicket: React.FC = () => {
   return (
     <div className="tk01-view">
       <div className="tk01-header"><h2>Mis Tickets</h2><button className="ed01-btn-save" onClick={() => setShowModal(true)}>+ Nuevo Ticket</button></div>
-      
       <div className="ed03-tabla-container" style={{ maxHeight: '500px' }}>
         <table className="ed03-tabla"><thead><tr><th>Ticket</th><th>Empaque</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Fecha</th><th></th></tr></thead><tbody>
           {misTickets.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px' }}>No has creado tickets</td></tr> :
@@ -118,7 +116,6 @@ const TK01CrearTicket: React.FC = () => {
         </tbody></table>
       </div>
 
-      {/* Modal de chat */}
       {showChatModal && ticketSeleccionado && (
         <div className="ed01-modal-overlay" onClick={() => setShowChatModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '650px', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
@@ -158,7 +155,6 @@ const TK01CrearTicket: React.FC = () => {
         </div>
       )}
 
-      {/* Modal nuevo ticket */}
       {showModal && (
         <div className="ed01-modal-overlay" onClick={() => setShowModal(false)}><div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}><div className="ed01-modal-header"><h2>Nuevo Ticket</h2><button className="ed01-modal-close" onClick={() => setShowModal(false)}>×</button></div><div className="ed01-modal-body"><div className="ed01-field"><label>Area *</label><select value={area} onChange={e => setArea(e.target.value)}><option value="Portico">Portico</option></select></div><div className="ed01-field"><label>Tipo de Problema *</label><select value={tipoProblema} onChange={e => setTipoProblema(e.target.value)}><option value="">Seleccionar...</option>{tiposProblema.map(t => <option key={t} value={t}>{t}</option>)}</select></div><div className="ed01-field"><label>Prioridad</label><select value={prioridad} onChange={e => setPrioridad(e.target.value)}><option value="Baja">Baja</option><option value="Media">Media</option><option value="Alta">Alta</option><option value="Urgente">Urgente</option></select></div><div className="ed01-field"><label>Numero de Empaque (Pallet)</label><input type="text" value={numeroEmpaque} onChange={e => setNumeroEmpaque(e.target.value)} placeholder="Obligatorio para Portico" /></div><div className="ed01-field"><label>Descripcion *</label><textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={4} placeholder="Describe el problema..." /></div><div className="ed01-field"><label>Asignar a (opcional)</label><select value={asignadoA} onChange={e => setAsignadoA(e.target.value)}><option value="">Sin asignar</option>{usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} ({u.rol})</option>)}</select></div>{mensaje && <div style={{ padding: '10px', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '13px' }}>{mensaje}</div>}</div><div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={handleCrear}>Crear Ticket</button></div></div></div>
       )}
