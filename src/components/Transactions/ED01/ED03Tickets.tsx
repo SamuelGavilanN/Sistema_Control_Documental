@@ -24,13 +24,25 @@ const ED03Tickets: React.FC = () => {
   useEffect(() => { cargarTickets(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(() => cargarTickets(), 15000); return () => clearInterval(intervalo); }, []);
 
-  // Polling del chat cada 5 segundos cuando hay ticket seleccionado
   useEffect(() => {
     if (!ticketSeleccionado) return;
     cargarRespuestas(ticketSeleccionado.id);
     const intervalo = setInterval(() => cargarRespuestas(ticketSeleccionado.id), 5000);
     return () => clearInterval(intervalo);
   }, [ticketSeleccionado]);
+
+  // Abrir modal automáticamente desde notificación
+  useEffect(() => {
+    const ticketAbrir = localStorage.getItem('ticket_abrir');
+    if (ticketAbrir && tickets.length > 0) {
+      const ticket = tickets.find(t => t.numero_ticket === ticketAbrir);
+      if (ticket) {
+        setTicketSeleccionado(ticket);
+        setShowChatModal(true);
+        localStorage.removeItem('ticket_abrir');
+      }
+    }
+  }, [tickets]);
 
   const cargarUsuarios = async () => {
     const result = await supabase.from('usuarios').select('id, nombre, apellido, rol') as any;
@@ -56,15 +68,12 @@ const ED03Tickets: React.FC = () => {
     if (!respuesta.trim() || !ticketSeleccionado) return;
     const usuario = auth.getUsuario();
     await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: respuesta, creado_por: usuario?.id }]) as any;
-    
     if (ticketSeleccionado.estado === 'Abierto') {
       await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id) as any;
     }
-
     if (ticketSeleccionado.creado_por !== usuario?.id) {
       await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
     }
-
     setRespuesta(''); cargarTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
 
@@ -73,20 +82,14 @@ const ED03Tickets: React.FC = () => {
     const usuario = auth.getUsuario();
     await supabase.from('ticket_respuestas').insert([{ ticket_id: ticketSeleccionado.id, mensaje: 'Ticket marcado como resuelto', creado_por: usuario?.id }]) as any;
     await supabase.from('tickets').update({ estado: 'Resuelto', resuelto_en: new Date().toISOString() }).eq('id', ticketSeleccionado.id) as any;
-    
     if (ticketSeleccionado.creado_por !== usuario?.id) {
       await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
     }
-
     cargarTickets(); cargarRespuestas(ticketSeleccionado.id);
   };
 
-  const getPrioridadBadge = (p: string) => {
-    switch (p) { case 'Urgente': return { color: '#dc2626', bg: '#fef2f2' }; case 'Alta': return { color: '#ea580c', bg: '#fff7ed' }; case 'Media': return { color: '#b45309', bg: '#fef3c7' }; default: return { color: '#15803d', bg: '#dcfce7' }; }
-  };
-  const getEstadoBadge = (e: string) => {
-    switch (e) { case 'Abierto': return { color: '#dc2626', bg: '#fef2f2' }; case 'En Proceso': return { color: '#b45309', bg: '#fef3c7' }; case 'Resuelto': return { color: '#15803d', bg: '#dcfce7' }; default: return { color: '#64748b', bg: '#f1f5f9' }; }
-  };
+  const getPrioridadBadge = (p: string) => { switch (p) { case 'Urgente': return { color: '#dc2626', bg: '#fef2f2' }; case 'Alta': return { color: '#ea580c', bg: '#fff7ed' }; case 'Media': return { color: '#b45309', bg: '#fef3c7' }; default: return { color: '#15803d', bg: '#dcfce7' }; } };
+  const getEstadoBadge = (e: string) => { switch (e) { case 'Abierto': return { color: '#dc2626', bg: '#fef2f2' }; case 'En Proceso': return { color: '#b45309', bg: '#fef3c7' }; case 'Resuelto': return { color: '#15803d', bg: '#dcfce7' }; default: return { color: '#64748b', bg: '#f1f5f9' }; } };
 
   return (
     <div className="ed03-view">
@@ -109,16 +112,11 @@ const ED03Tickets: React.FC = () => {
         </tbody></table>
       </div>
 
-      {/* Modal de chat */}
       {showChatModal && ticketSeleccionado && (
         <div className="ed01-modal-overlay" onClick={() => setShowChatModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '650px', maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header">
-              <h2>{ticketSeleccionado.numero_ticket}</h2>
-              <button className="ed01-modal-close" onClick={() => setShowChatModal(false)}>×</button>
-            </div>
+            <div className="ed01-modal-header"><h2>{ticketSeleccionado.numero_ticket}</h2><button className="ed01-modal-close" onClick={() => setShowChatModal(false)}>×</button></div>
             <div className="ed01-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Info del ticket */}
               <div className="ed03-modal-info">
                 <div className="ed03-info-row"><span>Tipo:</span><strong>{ticketSeleccionado.tipo_problema}</strong></div>
                 <div className="ed03-info-row"><span>Prioridad:</span><strong>{ticketSeleccionado.prioridad}</strong></div>
@@ -126,8 +124,6 @@ const ED03Tickets: React.FC = () => {
                 <div className="ed03-info-row"><span>Estado:</span><strong>{ticketSeleccionado.estado}</strong></div>
                 <div className="ed03-info-row"><span>Descripcion:</span><strong>{ticketSeleccionado.descripcion}</strong></div>
               </div>
-
-              {/* Chat */}
               <div className="ed03-chat">
                 <h4>Conversacion</h4>
                 <div className="ed03-chat-mensajes">
@@ -144,15 +140,10 @@ const ED03Tickets: React.FC = () => {
                   }
                 </div>
               </div>
-
-              {/* Campo de respuesta con separación */}
               {ticketSeleccionado.estado !== 'Resuelto' && ticketSeleccionado.estado !== 'Cerrado' && (
                 <div className="ed03-respuesta-separada">
                   <textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} placeholder="Escribe una respuesta..." rows={2} />
-                  <div className="ed03-respuesta-acciones">
-                    <button onClick={handleResponder}>Responder</button>
-                    <button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button>
-                  </div>
+                  <div className="ed03-respuesta-acciones"><button onClick={handleResponder}>Responder</button><button onClick={handleResolver} className="ed03-btn-resolver">Marcar como Resuelto</button></div>
                 </div>
               )}
             </div>
