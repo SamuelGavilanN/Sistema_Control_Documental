@@ -82,16 +82,12 @@ const ED03Tickets: React.FC = () => {
       await supabase.from('tickets').update({ estado: 'En Proceso' }).eq('id', ticketSeleccionado.id);
     }
 
-    // Notificar al creador del ticket
     if (ticketSeleccionado.creado_por !== usuario?.id) {
       await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: ticketSeleccionado.creado_por }]) as any;
     }
-    // Notificar a otros que respondieron
     const { data: respuestasData } = await supabase.from('ticket_respuestas').select('creado_por').eq('ticket_id', ticketSeleccionado.id);
     if (respuestasData) {
-      const notificados = new Set<string>();
-      notificados.add(ticketSeleccionado.creado_por);
-      notificados.add(usuario?.id);
+      const notificados = new Set([ticketSeleccionado.creado_por, usuario?.id]);
       for (const r of respuestasData) {
         if (!notificados.has(r.creado_por)) {
           await supabase.from('ticket_notificaciones').insert([{ ticket_id: ticketSeleccionado.id, usuario_id: r.creado_por }]) as any;
@@ -138,7 +134,10 @@ const ED03Tickets: React.FC = () => {
                 const sinLeer = contadoresSinLeer[t.id] || 0;
                 return (
                   <tr key={t.id} onClick={() => abrirModal(t)} style={{ cursor: 'pointer' }}>
-                    <td className="ed03-ticket-id">{t.numero_ticket}{sinLeer > 0 && <span className="ed03-badge-sinleer">{sinLeer}</span>}</td>
+                    <td className="ed03-ticket-id">
+                      {t.numero_ticket}
+                      {sinLeer > 0 && <span style={{ background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '10px', marginLeft: '8px', display: 'inline-block' }}>{sinLeer}</span>}
+                    </td>
                     <td>{t.tipo_problema}</td>
                     <td><span style={{ background: pb.bg, color: pb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{t.prioridad}</span></td>
                     <td>{t.numero_empaque || '-'}</td>
