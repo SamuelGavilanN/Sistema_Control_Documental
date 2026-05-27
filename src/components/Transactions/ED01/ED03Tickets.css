@@ -53,3 +53,8 @@
 .ed03-respuesta-acciones { display: flex; gap: 8px; }
 .ed03-respuesta-acciones button { padding: 8px 14px; background: #1a1f2e; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
 .ed03-btn-resolver { background: #15803d !important; }
+.ed03-respuestas-lista { margin-bottom: 16px; max-height: 250px; overflow-y: auto; }
+.ed03-respuestas-lista h4 { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
+.ed03-respuesta-item { background: #f8fafd; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #eef0f5; }
+.ed03-respuesta-texto { font-size: 13px; color: #1e293b; margin: 0 0 4px; }
+.ed03-respuesta-info { font-size: 10px; color: #94a3b8; }
