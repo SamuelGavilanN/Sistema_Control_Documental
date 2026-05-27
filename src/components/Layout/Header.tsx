@@ -44,7 +44,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const [ticketRespuestas, setTicketRespuestas] = useState<any[]>([]);
   const [respuestaTexto, setRespuestaTexto] = useState('');
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
-  const [cargaInicial, setCargaInicial] = useState(true);
+  const [toastMostrado, setToastMostrado] = useState<Set<string>>(new Set());
 
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase() : '??';
@@ -68,11 +68,12 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
         setNombresUsuarios(m);
       }
-    } catch (e) { console.error('Error nombres:', e); }
+    } catch (e) {}
   };
 
   const abrirModalDesdeToast = async (n: Notificacion) => {
     setToastActual(null);
+    await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
     const resp = await fetch(`${API_URL}/tickets?select=*&id=eq.${n.ticket_id}`, { headers: HEADERS });
     const tickets = await resp.json();
     const ticket = tickets?.[0];
@@ -82,19 +83,15 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     setTicketRespuestas(respuestas || []);
     setRespuestaTexto('');
     setShowTicketModal(true);
+    cargarNotificaciones();
   };
 
   const cargarNotificaciones = async () => {
     try {
       if (!usuario?.id) return;
-      
       const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario.id}&order=creado_en.desc&limit=10`, { headers: HEADERS });
       const notifs = await resp.json();
-      
-      if (!notifs || notifs.length === 0) {
-        if (cargaInicial) setCargaInicial(false);
-        return;
-      }
+      if (!notifs || notifs.length === 0) return;
 
       const nuevas: Notificacion[] = [];
       for (const n of notifs) {
@@ -102,25 +99,23 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         const tickets = await resp2.json();
         const ticket = tickets?.[0];
         nuevas.push({
-          id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', 
-          tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '', 
+          id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '',
+          tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '',
           area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto
         });
       }
 
-      // Detectar nuevas notificaciones para el toast
-      if (notificaciones.length > 0) {
-        const idsAnteriores = notificaciones.map(n => n.id);
-        const recienLlegadas = nuevas.filter(n => !idsAnteriores.includes(n.id) && !n.visto);
-        if (recienLlegadas.length > 0) {
-          setToastActual(recienLlegadas[0]);
-          setTimeout(() => setToastActual(null), 8000);
-        }
-      }
-      
       setNotificaciones(nuevas);
-      setCargaInicial(false);
-    } catch (e) { console.error('Error notif:', e); }
+
+      // Mostrar toast para la primera notificación no vista que no se haya mostrado antes
+      const noVistasList = nuevas.filter(n => !n.visto && !toastMostrado.has(n.id));
+      if (noVistasList.length > 0) {
+        const primera = noVistasList[0];
+        setToastActual(primera);
+        setToastMostrado(prev => new Set([...prev, primera.id]));
+        setTimeout(() => setToastActual(null), 8000);
+      }
+    } catch (e) {}
   };
 
   const marcarVisto = async (notifId: string) => {
@@ -199,7 +194,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         {showUserMenu && <div className="user-menu"><div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 13V11H3V3H6V1H2V13H6Z" fill="#64748b"/><path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="#64748b"/></svg><span>Cerrar Sesion</span></div></div>}
       </div>
 
-      {/* Toast */}
       {toastActual && (
         <div onClick={() => abrirModalDesdeToast(toastActual)} style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 3000, background: 'white', borderRadius: '12px', padding: '16px 20px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', border: '1px solid #eef0f5', minWidth: '320px', cursor: 'pointer', animation: 'slideIn 0.3s ease' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Nuevo Ticket · {toastActual.area}</span><span style={{ background: getPrioridadColor(toastActual.prioridad), color: 'white', padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600 }}>{toastActual.prioridad}</span></div>
@@ -207,7 +201,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
       )}
 
-      {/* Modal de ticket */}
       {showTicketModal && ticketModalData && (
         <div className="ed01-modal-overlay" onClick={() => setShowTicketModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
@@ -215,8 +208,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
             <div className="ed01-modal-body">
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}><div><strong>Tipo:</strong> {ticketModalData.tipo_problema}</div><div><strong>Prioridad:</strong> {ticketModalData.prioridad}</div><div><strong>Empaque:</strong> {ticketModalData.numero_empaque || '-'}</div><div><strong>Estado:</strong> {ticketModalData.estado}</div></div>
               <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px' }}><strong>Descripcion:</strong> {ticketModalData.descripcion}</p>
-              <div style={{ marginBottom: '16px', maxHeight: '250px', overflowY: 'auto' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial de Respuestas</h4>
+              <div style={{ marginBottom: '16px', maxHeight: '250px', overflowY: 'auto' }}><h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Historial</h4>
                 {ticketRespuestas.length === 0 ? <p style={{ fontSize: '12px', color: '#94a3b8' }}>Sin respuestas</p> : ticketRespuestas.map((r: any) => (
                   <div key={r.id} style={{ background: '#f8fafd', borderRadius: '8px', padding: '10px 12px', marginBottom: '8px', border: '1px solid #eef0f5' }}><p style={{ fontSize: '13px', color: '#1e293b', margin: '0 0 4px' }}>{r.mensaje}</p><span style={{ fontSize: '10px', color: '#94a3b8' }}>{nombresUsuarios[r.creado_por] || 'Usuario'} · {new Date(r.creado_en).toLocaleString('es-CL')}</span></div>
                 ))}
