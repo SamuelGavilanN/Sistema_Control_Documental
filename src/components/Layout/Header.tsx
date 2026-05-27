@@ -90,12 +90,22 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const handleNotifClick = (n: Notificacion) => {
     marcarVisto(n.id);
     setShowNotifMenu(false);
-    onOpenModule?.('ed-tickets');
+    const rol = usuario?.rol;
+    if (rol === 'Portico') {
+      onOpenModule?.('ed-tickets');
+    } else {
+      onOpenModule?.('tk');
+    }
   };
 
   const handleToastClick = () => {
     setToastActual(null);
-    onOpenModule?.('ed-tickets');
+    const rol = usuario?.rol;
+    if (rol === 'Portico') {
+      onOpenModule?.('ed-tickets');
+    } else {
+      onOpenModule?.('tk');
+    }
   };
 
   const getPrioridadColor = (p: string) => {
@@ -118,7 +128,6 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 2C5.34315 2 4 3.34315 4 5V9L2 12H14L12 9V5C12 3.34315 10.6569 2 9 2H7Z" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/><path d="M7 15C7 16.1046 7.89543 17 9 17C10.1046 17 11 16.1046 11 15" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/></svg>
           {noVistas > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-6px', background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>{noVistas}</span>}
         </button>
-
         {showNotifMenu && (
           <div className="user-menu" style={{ minWidth: '300px', right: 0, left: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #eef0f5' }}><span style={{ fontWeight: 600, fontSize: '13px' }}>Notificaciones</span><button onClick={marcarTodasVisto} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>Marcar todas vistas</button></div>
