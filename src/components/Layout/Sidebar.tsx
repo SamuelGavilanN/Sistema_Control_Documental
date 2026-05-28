@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import logoPath from '../../assets/fashions-park-logo2.png';
 import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
 
@@ -52,6 +52,14 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleSection = (sectionId: string) => {
     if (expandedSections.includes(sectionId)) {
@@ -87,8 +95,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
     return true;
   };
 
-  return (
-    <div className="sidebar">
+  const handleModuleClick = (moduleId: string) => {
+    onModuleClick(moduleId);
+    if (isMobile) setMenuAbierto(false);
+  };
+
+  const contenidoSidebar = (
+    <div className={`sidebar ${isMobile ? 'sidebar-mobile' : ''} ${menuAbierto ? 'sidebar-open' : ''}`}>
       <div className="logo-area">
         <div className="logo">
           <img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" />
@@ -125,11 +138,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                     {section.items.map(item => {
                       if (!puedeVer(item.id)) return null;
                       return item.type === 'item' ? (
-                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
+                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => handleModuleClick(item.id)}>
                           <span className="nav-indicator"></span>{item.label}
                         </div>
                       ) : (
-                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>
+                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => handleModuleClick(item.id)}>
                           {item.label}
                         </div>
                       );
@@ -149,6 +162,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
         <p className="sidebar-footer-text">Control Documental Inteligente</p>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {isMobile && (
+        <div className="sidebar-mobile-toggle" onClick={() => setMenuAbierto(!menuAbierto)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+          </svg>
+          <span>Menú</span>
+        </div>
+      )}
+      
+      {isMobile ? (
+        <>
+          {contenidoSidebar}
+          {menuAbierto && <div className="sidebar-overlay" onClick={() => setMenuAbierto(false)} />}
+        </>
+      ) : (
+        contenidoSidebar
+      )}
+    </>
   );
 };
 
