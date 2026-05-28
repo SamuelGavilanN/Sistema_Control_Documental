@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import './AD02.css';
@@ -33,6 +33,8 @@ const AD02Captura: React.FC = () => {
   const [cargando, setCargando] = useState(true);
   const [cajaActual, setCajaActual] = useState(1);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const busquedaRef = useRef<HTMLInputElement>(null);
+  const primerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { cargarMisTareas(); }, []);
   useEffect(() => {
@@ -68,6 +70,7 @@ const AD02Captura: React.FC = () => {
     }
     setCajaActual(cajaIds.length + 1);
     if (tarea.estado === 'Pendiente') await supabase.from('ad_auditorias').update({ estado: 'En Proceso' }).eq('id', tarea.id);
+    setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
   const buscarCurva = () => {
@@ -78,25 +81,52 @@ const AD02Captura: React.FC = () => {
     const curva = todosLosSKUs.filter(s => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
     if (curva.length === 0) { alert('SKU no encontrado'); return; }
     setCurvaActual(curva.map(s => ({ ...s, cantidad_fisica: undefined, diferencia: undefined })));
+    // Enfocar primer input de cantidad después de buscar
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.ad02-input-cantidad');
+      if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
+    }, 200);
   };
 
-  const handleCantidadChange = (skuId: string, valor: number) => {
-    setCurvaActual(prev => prev.map(s => s.id === skuId ? { ...s, cantidad_fisica: valor, diferencia: s.cantidad_sap - (s.capturadoTotal || 0) - valor } : s));
+  const handleCantidadChange = (skuId: string, valor: number, index: number) => {
+    setCurvaActual(prev => prev.map((s, i) => {
+      if (i === index) return { ...s, cantidad_fisica: valor, diferencia: s.cantidad_sap - (s.capturadoTotal || 0) - valor };
+      return s;
+    }));
+  };
+
+  const handleCantidadKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const nextIndex = index + 1;
+      if (nextIndex < curvaActual.length) {
+        const inputs = document.querySelectorAll('.ad02-input-cantidad');
+        (inputs[nextIndex] as HTMLInputElement)?.focus();
+      } else {
+        // Último campo: enfocar botón guardar
+        document.querySelector('.ad02-btn-guardar')?.focus();
+      }
+    }
   };
 
   const guardarCaja = async () => {
     if (!tareaActiva || curvaActual.length === 0) return;
-    const skusConFisico = curvaActual.filter(s => s.cantidad_fisica !== undefined && s.cantidad_fisica > 0);
+    const skusConFisico = curvaActual.filter(s => s.cantidad_fisica !== undefined);
     if (skusConFisico.length === 0) { alert('Ingresa al menos una cantidad'); return; }
+
     const { data: caja } = await supabase.from('ad_capturas_cajas').insert([{
       auditoria_id: tareaActiva.id, numero_caja: cajaActual, capturado_por: usuario?.id, estado: 'Capturada'
     }]).select('id').single();
+
     if (caja) {
       await supabase.from('ad_capturas_skus').insert(skusConFisico.map(s => ({
-        caja_id: (caja as any).id, sku: s.sku, cantidad_sap: s.cantidad_sap, cantidad_fisica: s.cantidad_fisica, diferencia: s.diferencia
+        caja_id: (caja as any).id, sku: s.sku, cantidad_sap: s.cantidad_sap, cantidad_fisica: s.cantidad_fisica || 0, diferencia: s.diferencia || 0
       })));
     }
-    setCajaActual(prev => prev + 1); setCurvaActual([]); setBusqueda('');
+
+    setCajaActual(prev => prev + 1);
+    setCurvaActual([]);
+    setBusqueda('');
     abrirTarea(tareaActiva);
   };
 
@@ -148,11 +178,7 @@ const AD02Captura: React.FC = () => {
                   {cargando ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
                     misTareas.length === 0 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No tienes tareas</td></tr> :
                     misTareas.map(t => (
-                      <tr key={t.id}>
-                        <td className="ed03-ticket-id">{t.numero_tarea}</td><td>{t.codigo_local} - {t.nombre_local}</td><td>{t.acta || '-'}</td><td>{t.guia || '-'}</td>
-                        <td><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#dbeafe', color: '#1d4ed8' }}>{t.estado}</span></td>
-                        <td><button className="ad02-btn-iniciar" onClick={() => abrirTarea(t)}>Iniciar</button></td>
-                      </tr>
+                      <tr key={t.id}><td className="ed03-ticket-id">{t.numero_tarea}</td><td>{t.codigo_local} - {t.nombre_local}</td><td>{t.acta || '-'}</td><td>{t.guia || '-'}</td><td><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#dbeafe', color: '#1d4ed8' }}>{t.estado}</span></td><td><button className="ad02-btn-iniciar" onClick={() => abrirTarea(t)}>Iniciar</button></td></tr>
                     ))}
                 </tbody>
               </table>
@@ -171,7 +197,10 @@ const AD02Captura: React.FC = () => {
           </div>
 
           <div className="ad02-busqueda">
-            <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); buscarCurva(); } }} placeholder="Escanear EAN o SKU..." autoFocus style={{ fontSize: isMobile ? '14px' : '18px', padding: isMobile ? '10px' : '14px' }} />
+            <input ref={busquedaRef} type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); buscarCurva(); } }}
+              placeholder="Escanear EAN o SKU..." autoFocus
+              style={{ fontSize: isMobile ? '14px' : '18px', padding: isMobile ? '10px' : '14px' }} />
             <button className="ad02-btn-buscar" onClick={buscarCurva} style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px' }}>Buscar</button>
           </div>
 
@@ -187,7 +216,13 @@ const AD02Captura: React.FC = () => {
                         <td className="ed03-ticket-id" style={{ fontSize: isMobile ? '10px' : '13px' }}>{s.sku}</td>
                         <td style={{ fontSize: isMobile ? '10px' : '12px' }}>{s.denominacion}</td>
                         <td>{s.cantidad_sap}</td><td style={{ color: '#64748b' }}>{s.capturadoTotal || 0}</td>
-                        <td><input type="number" value={s.cantidad_fisica ?? ''} onChange={e => handleCantidadChange(s.id, parseInt(e.target.value) || 0)} style={{ width: isMobile ? '50px' : '70px', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '12px' : '14px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px' }} /></td>
+                        <td>
+                          <input ref={i === 0 ? primerInputRef : undefined} type="number" className="ad02-input-cantidad"
+                            value={s.cantidad_fisica ?? ''}
+                            onChange={e => handleCantidadChange(s.id, parseInt(e.target.value) || 0, i)}
+                            onKeyDown={e => handleCantidadKeyDown(e, i)}
+                            style={{ width: isMobile ? '50px' : '70px', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '12px' : '14px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px' }} />
+                        </td>
                         <td style={{ fontWeight: 600, color: s.diferencia !== undefined ? (s.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b', textAlign: 'center' }}>{s.diferencia !== undefined ? (s.diferencia === 0 ? 'OK' : s.diferencia) : '-'}</td>
                       </tr>
                     ))}
