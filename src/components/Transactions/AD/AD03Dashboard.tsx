@@ -20,6 +20,11 @@ const AD03Dashboard: React.FC = () => {
 
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
 
+  // Recargar al cambiar filtros
+  useEffect(() => {
+    cargarDatos();
+  }, [filtroLocal, filtroDesde, filtroHasta]);
+
   const cargarLocales = async () => {
     try {
       const resp = await fetch(`${API_URL}/ad_auditorias?select=codigo_local`, { headers: HEADERS });
@@ -57,7 +62,7 @@ const AD03Dashboard: React.FC = () => {
   });
   const datosBarra = Object.values(porDia);
 
-  // KPIs
+  // KPIs basados en datos filtrados
   const total = datos.length;
   const finalizadas = datos.filter(d => d.estado === 'Finalizado').length;
   const conDiferencias = datos.filter(d => d.estado === 'Con Diferencias').length;
@@ -128,7 +133,7 @@ const AD03Dashboard: React.FC = () => {
           <thead><tr><th>Día</th><th>Total</th><th>OK</th><th>Diferencias</th><th>% Dif.</th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
-              datosBarra.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Sin datos</td></tr> :
+              datosBarra.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Sin datos en este rango</td></tr> :
               datosBarra.map((d, i) => {
                 const cerradas = d.ok + d.diferencias;
                 const pct = cerradas > 0 ? ((d.diferencias / cerradas) * 100).toFixed(1) : '0';
