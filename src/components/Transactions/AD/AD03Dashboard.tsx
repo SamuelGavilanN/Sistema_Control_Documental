@@ -19,6 +19,10 @@ const AD03Dashboard: React.FC = () => {
   const [locales, setLocales] = useState<string[]>([]);
 
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
+  useEffect(() => {
+  const intervalo = setInterval(cargarDatos, 10000);
+  return () => clearInterval(intervalo);
+}, [filtroLocal, filtroDesde, filtroHasta]);
 
   const cargarLocales = async () => {
     try {
