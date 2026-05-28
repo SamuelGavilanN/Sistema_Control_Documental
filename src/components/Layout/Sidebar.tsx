@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import logoPath from '../../assets/fashions-park-logo2.png';
 import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
 
@@ -52,14 +52,6 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [menuAbierto, setMenuAbierto] = useState(false);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const toggleSection = (sectionId: string) => {
     if (expandedSections.includes(sectionId)) {
@@ -83,9 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
   const filteredSections = filterMenuSections();
 
   React.useEffect(() => {
-    if (searchTerm.trim()) {
-      setExpandedSections(filteredSections.map(s => s.id));
-    }
+    if (searchTerm.trim()) setExpandedSections(filteredSections.map(s => s.id));
   }, [searchTerm]);
 
   const puedeVer = (itemId: string) => {
@@ -95,19 +85,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
     return true;
   };
 
-  const handleModuleClick = (moduleId: string) => {
-    onModuleClick(moduleId);
-    if (isMobile) setMenuAbierto(false);
-  };
-
-  const contenidoSidebar = (
-    <div className={`sidebar ${isMobile ? 'sidebar-mobile' : ''} ${menuAbierto ? 'sidebar-open' : ''}`}>
+  return (
+    <div className="sidebar">
       <div className="logo-area">
-        <div className="logo">
-          <img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" />
-        </div>
+        <div className="logo"><img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" /></div>
       </div>
-
       <div className="search-container">
         <div className="search-wrapper">
           <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -118,7 +100,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
           {searchTerm && <button className="search-clear" onClick={() => setSearchTerm('')}>×</button>}
         </div>
       </div>
-
       <div className="nav-menu">
         {filteredSections.length === 0 ? (
           <div className="search-no-results">No se encontraron resultados</div>
@@ -138,11 +119,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                     {section.items.map(item => {
                       if (!puedeVer(item.id)) return null;
                       return item.type === 'item' ? (
-                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => handleModuleClick(item.id)}>
+                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
                           <span className="nav-indicator"></span>{item.label}
                         </div>
                       ) : (
-                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => handleModuleClick(item.id)}>
+                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>
                           {item.label}
                         </div>
                       );
@@ -154,36 +135,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
           })
         )}
       </div>
-
       <div className="sidebar-footer">
-        <div className="logo">
-          <img src={docxentraLogo} alt="Docxentra" className="logo-image-docxentra" />
-        </div>
+        <div className="logo"><img src={docxentraLogo} alt="Docxentra" className="logo-image-docxentra" /></div>
         <p className="sidebar-footer-text">Control Documental Inteligente</p>
       </div>
     </div>
-  );
-
-  return (
-    <>
-      {isMobile && (
-        <div className="sidebar-mobile-toggle" onClick={() => setMenuAbierto(!menuAbierto)}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M3 12h18M3 6h18M3 18h18"/>
-          </svg>
-          <span>Menú</span>
-        </div>
-      )}
-      
-      {isMobile ? (
-        <>
-          {contenidoSidebar}
-          {menuAbierto && <div className="sidebar-overlay" onClick={() => setMenuAbierto(false)} />}
-        </>
-      ) : (
-        contenidoSidebar
-      )}
-    </>
   );
 };
 
