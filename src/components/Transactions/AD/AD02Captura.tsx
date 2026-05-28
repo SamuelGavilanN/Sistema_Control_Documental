@@ -104,7 +104,7 @@ const AD02Captura: React.FC = () => {
         (inputs[nextIndex] as HTMLInputElement)?.focus();
       } else {
         // Último campo: enfocar botón guardar
-        document.querySelector('.ad02-btn-guardar')?.focus();
+        (document.querySelector('.ad02-btn-guardar') as HTMLElement)?.focus();
       }
     }
   };
