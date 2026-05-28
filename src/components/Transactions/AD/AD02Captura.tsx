@@ -111,21 +111,35 @@ const AD02Captura: React.FC = () => {
   };
 
   const finalizarTarea = async () => {
-    if (!tareaActiva) return;
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
-    const cajaIds = cajas?.map((c: any) => c.id) || [];
-    let hayDiferencias = false;
-    if (cajaIds.length > 0) {
-      const { data: diferencias } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
-      hayDiferencias = diferencias?.some((d: any) => d.diferencia !== 0) || false;
-    }
-    await supabase.from('ad_auditorias').update({
-      estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado', finalizado_en: new Date().toISOString()
-    }).eq('id', tareaActiva.id);
-    alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
-    setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
-  };
+  if (!tareaActiva) return;
+  
+  const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
+  const cajaIds = cajas?.map((c: any) => c.id) || [];
+  
+  let hayDiferencias = false;
+  
+  if (cajaIds.length > 0) {
+    const { data: capturas } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
+    
+    // Agrupar por SKU y sumar cantidades físicas
+    const agrupado: Record<string, { sap: number; fisico: number }> = {};
+    (capturas || []).forEach((c: any) => {
+      if (!agrupado[c.sku]) agrupado[c.sku] = { sap: c.cantidad_sap, fisico: 0 };
+      agrupado[c.sku].fisico += c.cantidad_fisica || 0;
+    });
+    
+    // Verificar diferencias
+    hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
+  }
 
+  await supabase.from('ad_auditorias').update({
+    estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
+    finalizado_en: new Date().toISOString()
+  }).eq('id', tareaActiva.id);
+
+  alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
+  setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
+};
   return (
     <div className="ad02-view">
       {!tareaActiva ? (
