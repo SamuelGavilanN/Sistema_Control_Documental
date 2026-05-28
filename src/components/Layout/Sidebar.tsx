@@ -54,17 +54,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
 
   const toggleSection = (sectionId: string) => {
-    if (expandedSections.includes(sectionId)) {
-      setExpandedSections(expandedSections.filter(id => id !== sectionId));
-    } else {
-      setExpandedSections([...expandedSections, sectionId]);
-    }
+    if (expandedSections.includes(sectionId)) setExpandedSections(expandedSections.filter(id => id !== sectionId));
+    else setExpandedSections([...expandedSections, sectionId]);
   };
 
+  // Filtrar secciones por rol
+  const seccionesVisibles = rol === 'Auditor' 
+    ? menuSections.filter(s => s.id === 'ad')
+    : rol === 'Portico'
+    ? menuSections.filter(s => s.id === 'ed')
+    : menuSections;
+
   const filterMenuSections = () => {
-    if (!searchTerm.trim()) return menuSections;
+    if (!searchTerm.trim()) return seccionesVisibles;
     const term = searchTerm.toLowerCase();
-    return menuSections.map(section => {
+    return seccionesVisibles.map(section => {
       const filteredItems = section.items.filter(item =>
         item.label.toLowerCase().includes(term) || section.title.toLowerCase().includes(term) || item.id.toLowerCase().includes(term)
       );
@@ -81,15 +85,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
   const puedeVer = (itemId: string) => {
     if (itemId === 'ed-history' && rol === 'Portico') return false;
     if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
-    if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
     return true;
   };
 
   return (
     <div className="sidebar">
-      <div className="logo-area">
-        <div className="logo"><img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" /></div>
-      </div>
+      <div className="logo-area"><div className="logo"><img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" /></div></div>
       <div className="search-container">
         <div className="search-wrapper">
           <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -101,39 +102,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
         </div>
       </div>
       <div className="nav-menu">
-        {filteredSections.length === 0 ? (
-          <div className="search-no-results">No se encontraron resultados</div>
-        ) : (
+        {filteredSections.length === 0 ? <div className="search-no-results">No se encontraron resultados</div> :
           filteredSections.map(section => {
             const isExpanded = expandedSections.includes(section.id);
             return (
               <div key={section.id} className="nav-section">
                 <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
                   <span className="nav-section-title">{section.title}</span>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`section-arrow ${isExpanded ? 'expanded' : ''}`}>
-                    <path d="M3 4.5L6 7.5L9 4.5" stroke="#8a93a5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`section-arrow ${isExpanded ? 'expanded' : ''}`}><path d="M3 4.5L6 7.5L9 4.5" stroke="#8a93a5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
                 {isExpanded && (
                   <div className="nav-section-content">
                     {section.items.map(item => {
                       if (!puedeVer(item.id)) return null;
                       return item.type === 'item' ? (
-                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}>
-                          <span className="nav-indicator"></span>{item.label}
-                        </div>
+                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}><span className="nav-indicator"></span>{item.label}</div>
                       ) : (
-                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>
-                          {item.label}
-                        </div>
+                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>{item.label}</div>
                       );
                     })}
                   </div>
                 )}
               </div>
             );
-          })
-        )}
+          })}
       </div>
       <div className="sidebar-footer">
         <div className="logo"><img src={docxentraLogo} alt="Docxentra" className="logo-image-docxentra" /></div>
