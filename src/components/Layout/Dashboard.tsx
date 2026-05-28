@@ -6,13 +6,13 @@ interface DashboardProps {
 }
 
 const transacciones = [
-  { id: 'ed', label: 'ED01 · Registro Empaque', desc: 'Registrar nuevos empaques y generar etiquetas', icon: '📦', color: '#3b82f6' },
-  { id: 'ed-history', label: 'ED02 · Dashboard Producción', desc: 'Visualizar flujo de empaques y estadísticas', icon: '📊', color: '#10b981' },
-  { id: 'ed-tickets', label: 'ED03 · BT Portico', desc: 'Bandeja de tickets del área Portico', icon: '🎫', color: '#f59e0b' },
-  { id: 'ad', label: 'AD01 · Gestión Auditoría', desc: 'Crear y gestionar tareas de auditoría', icon: '🔍', color: '#8b5cf6' },
-  { id: 'ad-captura', label: 'AD02 · Captura Física', desc: 'Realizar capturas físicas de auditoría', icon: '📋', color: '#ec4899' },
-  { id: 'ad-dashboard', label: 'AD03 · Dashboard Auditoría', desc: 'KPIs y estadísticas de auditorías', icon: '📈', color: '#06b6d4' },
-  { id: 'tk', label: 'TK01 · Crear Ticket', desc: 'Crear tickets de soporte', icon: '🎫', color: '#ef4444' },
+  { id: 'ed', label: 'ED01 · Registro Empaque', desc: 'Registrar nuevos empaques y generar etiquetas', color: '#3b82f6' },
+  { id: 'ed-history', label: 'ED02 · Dashboard Producción', desc: 'Visualizar flujo de empaques y estadísticas', color: '#10b981' },
+  { id: 'ed-tickets', label: 'ED03 · BT Portico', desc: 'Bandeja de tickets del área Portico', color: '#f59e0b' },
+  { id: 'ad', label: 'AD01 · Gestión Auditoría', desc: 'Crear y gestionar tareas de auditoría', color: '#8b5cf6' },
+  { id: 'ad-captura', label: 'AD02 · Captura Física', desc: 'Realizar capturas físicas de auditoría', color: '#ec4899' },
+  { id: 'ad-dashboard', label: 'AD03 · Dashboard Auditoría', desc: 'KPIs y estadísticas de auditorías', color: '#06b6d4' },
+  { id: 'tk', label: 'TK01 · Crear Ticket', desc: 'Crear tickets de soporte', color: '#ef4444' },
 ];
 
 const filtradasPorRol = (rol?: string) => {
@@ -35,52 +35,53 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol }) => {
   const trans = filtradasPorRol(rol);
 
   return (
-    <div style={{ background: 'white', borderRadius: '16px', padding: isMobile ? '20px' : '40px', border: '1px solid #f0f3f7' }}>
-      <h1 style={{ fontSize: isMobile ? '20px' : '24px', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>FASHIONSPARK · Portico</h1>
-      <p style={{ fontSize: isMobile ? '13px' : '14px', color: '#64748b', marginBottom: isMobile ? '20px' : '24px' }}>Sistema de Gestión de Empaques Directos</p>
+    <div style={{ background: 'white', borderRadius: '16px', padding: isMobile ? '16px' : '40px', border: '1px solid #f0f3f7' }}>
+      <h1 style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 600, color: '#0f172a', marginBottom: '6px' }}>FASHIONSPARK</h1>
+      <p style={{ fontSize: isMobile ? '12px' : '14px', color: '#64748b', marginBottom: isMobile ? '16px' : '24px' }}>Sistema de Gestion Documental</p>
 
       {isMobile ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {trans.map(t => (
             <div
               key={t.id}
               onClick={() => onModuleClick?.(t.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '14px 16px', background: '#f8fafd', borderRadius: '12px',
-                border: '1px solid #eef0f5', cursor: 'pointer', transition: 'all 0.15s'
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '12px 14px', background: '#f8fafd', borderRadius: '10px',
+                border: '1px solid #eef0f5', cursor: 'pointer'
               }}
             >
-              <span style={{ fontSize: '24px' }}>{t.icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{t.label}</div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{t.desc}</div>
+              <div style={{ width: '4px', height: '36px', background: t.color, borderRadius: '2px', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{t.label}</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.desc}</div>
               </div>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round"/></svg>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-          {trans.map(t => (
-            <div
-              key={t.id}
-              onClick={() => onModuleClick?.(t.id)}
-              style={{
-                padding: '20px', background: '#f8fafd', borderRadius: '12px',
-                border: '1px solid #eef0f5', cursor: 'pointer', transition: 'all 0.15s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafd'; e.currentTarget.style.borderColor = '#eef0f5'; }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '20px' }}>{t.icon}</span>
-                <h3 style={{ fontSize: '14px', fontWeight: 600, color: t.color, margin: 0 }}>{t.label}</h3>
+        <>
+          <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>Selecciona una transacción en el menú lateral para comenzar.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+            {trans.map(t => (
+              <div
+                key={t.id}
+                onClick={() => onModuleClick?.(t.id)}
+                style={{
+                  padding: '20px', background: '#f8fafd', borderRadius: '12px',
+                  border: '1px solid #eef0f5', cursor: 'pointer', transition: 'all 0.15s',
+                  borderLeft: `4px solid ${t.color}`
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafd'; }}
+              >
+                <h3 style={{ fontSize: '14px', fontWeight: 600, color: t.color, margin: '0 0 6px' }}>{t.label}</h3>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>{t.desc}</p>
               </div>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>{t.desc}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
