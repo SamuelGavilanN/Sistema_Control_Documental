@@ -19,11 +19,11 @@ const moduleTitles: Record<string, string> = {
   'ed': 'ED01 · Reg Empaque',
   'ed-history': 'ED02 · Dashboard',
   'ed-tickets': 'ED03 · BT Portico',
+  'ad': 'AD01 · Gestión Auditoría',
+  'ad-captura': 'AD02 · Captura Física',
+  'ad-dashboard': 'AD03 · Dashboard',
   'tk': 'TK01 · Crear Ticket',
   'tk-dashboard': 'TK02 · Dashboard',
-  'ad': 'AD01 · Gestión Auditoría',
-'ad-captura': 'AD02 · Captura Física',
-'ad-dashboard': 'AD03 · Dashboard',
 };
 
 interface Notificacion {
@@ -62,6 +62,19 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     return () => clearInterval(intervalo);
   }, [usuario]);
 
+  // Cerrar menús al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.user-area') && !target.closest('.notif-area')) {
+        setShowUserMenu(false);
+        setShowNotifMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const cargarNombresUsuarios = async () => {
     try {
       const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
@@ -86,23 +99,15 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
       const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario.id}&visto=eq.false&order=creado_en.desc&limit=20`, { headers: HEADERS });
       const notifs = await resp.json();
       if (!notifs || notifs.length === 0) return;
-
       const nuevas: Notificacion[] = [];
       for (const n of notifs) {
         const resp2 = await fetch(`${API_URL}/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.${n.ticket_id}`, { headers: HEADERS });
         const tickets = await resp2.json(); const ticket = tickets?.[0];
         nuevas.push({ id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto });
       }
-
       setNotificaciones(nuevas);
-
       const noVistasList = nuevas.filter(n => !n.visto && !toastMostrado.has(n.id));
-      if (noVistasList.length > 0) {
-        const primera = noVistasList[0];
-        setToastActual(primera);
-        setToastMostrado(prev => new Set([...prev, primera.id]));
-        setTimeout(() => setToastActual(null), 8000);
-      }
+      if (noVistasList.length > 0) { setToastActual(noVistasList[0]); setToastMostrado(prev => new Set([...prev, noVistasList[0].id])); setTimeout(() => setToastActual(null), 8000); }
     } catch (e) {}
   };
 
@@ -112,9 +117,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const marcarTodasVisto = async () => {
-    for (const n of notificaciones) {
-      await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
-    }
+    for (const n of notificaciones) { await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }); }
     cargarNotificaciones();
   };
 
@@ -129,9 +132,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const handleResponderDesdeModal = async () => {
     if (!respuestaTexto.trim() || !ticketModalData) return;
     await fetch(`${API_URL}/ticket_respuestas`, { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, mensaje: respuestaTexto, creado_por: usuario?.id }) });
-    if (ticketModalData.creado_por !== usuario?.id) {
-      await fetch(`${API_URL}/ticket_notificaciones`, { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, usuario_id: ticketModalData.creado_por }) });
-    }
+    if (ticketModalData.creado_por !== usuario?.id) { await fetch(`${API_URL}/ticket_notificaciones`, { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, usuario_id: ticketModalData.creado_por }) }); }
     setRespuestaTexto('');
     const resp = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticketModalData.id}&order=creado_en.asc`, { headers: HEADERS });
     setTicketRespuestas(await resp.json());
@@ -152,12 +153,12 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         ))}
       </div>
       <div className="notif-area" style={{ position: 'relative', marginRight: '10px' }}>
-        <button className="notif-btn" onClick={() => { setShowNotifMenu(!showNotifMenu); setShowUserMenu(false); }}>
+        <button className="notif-btn" onClick={(e) => { e.stopPropagation(); setShowNotifMenu(!showNotifMenu); setShowUserMenu(false); }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 2C5.34315 2 4 3.34315 4 5V9L2 12H14L12 9V5C12 3.34315 10.6569 2 9 2H7Z" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/><path d="M7 15C7 16.1046 7.89543 17 9 17C10.1046 17 11 16.1046 11 15" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/></svg>
           {noVistas > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-6px', background: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>{noVistas}</span>}
         </button>
         {showNotifMenu && (
-          <div className="user-menu" style={{ minWidth: '300px', right: 0, left: 'auto' }}>
+          <div className="user-menu" style={{ minWidth: '300px', right: 0, left: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #eef0f5' }}><span style={{ fontWeight: 600, fontSize: '13px' }}>Notificaciones</span><button onClick={marcarTodasVisto} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>Marcar todas vistas</button></div>
             {notificaciones.length === 0 ? <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Sin notificaciones</div> : notificaciones.map(n => (
               <div key={n.id} className="user-menu-item" onClick={() => handleNotifClick(n)} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: n.visto ? 0.6 : 1 }}>
@@ -169,11 +170,17 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         )}
       </div>
       <div className="user-area">
-        <div className="user-info" onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifMenu(false); }}>
+        <div className="user-info" onClick={(e) => { e.stopPropagation(); setShowUserMenu(!showUserMenu); setShowNotifMenu(false); }}>
           <div className="user-avatar"><span>{iniciales}</span></div><span className="user-name">{nombreCompleto}</span>
           <svg className="user-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
-        {showUserMenu && <div className="user-menu"><div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 13V11H3V3H6V1H2V13H6Z" fill="#64748b"/><path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="#64748b"/></svg><span>Cerrar Sesion</span></div></div>}
+        {showUserMenu && (
+          <div className="user-menu" onClick={e => e.stopPropagation()}>
+            <div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 13V11H3V3H6V1H2V13H6Z" fill="#64748b"/><path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="#64748b"/></svg><span>Cerrar Sesion</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {toastActual && (
