@@ -3,6 +3,9 @@ import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import './BD01.css';
 
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
+
 interface Usuario {
   id: string;
   nombre: string;
@@ -38,7 +41,7 @@ const BD01Usuarios: React.FC = () => {
 
   const cargarUsuarios = async () => {
     setCargando(true);
-    const { data } = await supabase.from('usuarios').select('*').order('nombre');
+    const { data } = await supabase.from('usuarios').select('*').order('nombre') as any;
     if (data) setUsuarios(data);
     setCargando(false);
   };
@@ -46,10 +49,10 @@ const BD01Usuarios: React.FC = () => {
   const handleGuardar = async () => {
     if (!form.nombre || !form.apellido || !form.usuario) { alert('Completa todos los campos'); return; }
     if (usuarioEditar) {
-      await supabase.from('usuarios').update({ nombre: form.nombre, apellido: form.apellido, usuario: form.usuario, password: form.password || undefined, rol: form.rol }).eq('id', usuarioEditar.id);
+      await supabase.from('usuarios').update({ nombre: form.nombre, apellido: form.apellido, usuario: form.usuario, password: form.password || undefined, rol: form.rol }).eq('id', usuarioEditar.id) as any;
     } else {
       if (!form.password) { alert('Ingresa una contraseña'); return; }
-      await supabase.from('usuarios').insert([{ nombre: form.nombre, apellido: form.apellido, usuario: form.usuario, password: form.password, rol: form.rol, activo: true }]);
+      await supabase.from('usuarios').insert([{ nombre: form.nombre, apellido: form.apellido, usuario: form.usuario, password: form.password, rol: form.rol, activo: true }]) as any;
     }
     setShowModal(false); setUsuarioEditar(null); cargarUsuarios();
   };
@@ -59,13 +62,16 @@ const BD01Usuarios: React.FC = () => {
   };
 
   const handleToggleActivo = async (u: Usuario) => {
-    await supabase.from('usuarios').update({ activo: !u.activo }).eq('id', u.id); cargarUsuarios();
+    await supabase.from('usuarios').update({ activo: !u.activo }).eq('id', u.id) as any; cargarUsuarios();
   };
 
   const handleAbrirPermisos = async (u: Usuario) => {
     setUsuarioEditar(u);
-    const { data } = await supabase.from('usuario_permisos').select('transaccion_id').eq('usuario_id', u.id).eq('activo', true);
-    setPermisosUsuario(data?.map(p => p.transaccion_id) || []);
+    try {
+      const resp = await fetch(`${API_URL}/usuario_permisos?select=transaccion_id&usuario_id=eq.${u.id}&activo=eq.true`, { headers: HEADERS });
+      const data = await resp.json();
+      setPermisosUsuario(data?.map((p: any) => p.transaccion_id) || []);
+    } catch (e) {}
     setShowPermisosModal(true);
   };
 
@@ -76,10 +82,12 @@ const BD01Usuarios: React.FC = () => {
 
   const handleGuardarPermisos = async () => {
     if (!usuarioEditar) return;
-    await supabase.from('usuario_permisos').delete().eq('usuario_id', usuarioEditar.id);
-    if (permisosUsuario.length > 0) {
-      await supabase.from('usuario_permisos').insert(permisosUsuario.map(tid => ({ usuario_id: usuarioEditar!.id, transaccion_id: tid, activo: true })));
-    }
+    try {
+      await fetch(`${API_URL}/usuario_permisos?usuario_id=eq.${usuarioEditar.id}`, { method: 'DELETE', headers: HEADERS });
+      if (permisosUsuario.length > 0) {
+        await fetch(`${API_URL}/usuario_permisos`, { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify(permisosUsuario.map(tid => ({ usuario_id: usuarioEditar!.id, transaccion_id: tid, activo: true }))) });
+      }
+    } catch (e) {}
     setShowPermisosModal(false); cargarUsuarios();
   };
 
@@ -89,7 +97,7 @@ const BD01Usuarios: React.FC = () => {
 
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
-          <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Activo</th><th style={{ width: '160px' }}>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Activo</th><th style={{ width: '200px' }}>Acciones</th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
               usuarios.map(u => (
