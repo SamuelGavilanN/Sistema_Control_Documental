@@ -5,3 +5,5 @@
 .ad01-btn-detalle:hover { background: #2d3748; }
 .ad01-btn-reabrir { padding: 5px 12px; background: #ea580c; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .ad01-btn-reabrir:hover { background: #c2410c; }
+.ad01-btn-eliminar { padding: 5px 12px; background: #dc2626; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.ad01-btn-eliminar:hover { background: #b91c1c; }
