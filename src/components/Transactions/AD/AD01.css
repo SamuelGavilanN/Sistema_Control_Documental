@@ -68,4 +68,6 @@
   border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
   transition: background 0.15s;
 }
+.ad01-btn-limpiar { padding: 5px 12px; background: #f59e0b; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.ad01-btn-limpiar:hover { background: #d97706; }
 .ad01-btn-exportar:hover { background: #166534; }
