@@ -8,7 +8,7 @@ import './AD03.css';
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
 const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
 
-const COLORS = ['#15803d', '#dc2626', '#b45309', '#1d4ed8'];
+const COLORS = ['#15803d', '#dc2626', '#b45309'];
 
 const AD03Dashboard: React.FC = () => {
   const [datos, setDatos] = useState<any[]>([]);
@@ -19,10 +19,6 @@ const AD03Dashboard: React.FC = () => {
   const [locales, setLocales] = useState<string[]>([]);
 
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
-  useEffect(() => {
-  const intervalo = setInterval(cargarDatos, 10000);
-  return () => clearInterval(intervalo);
-}, [filtroLocal, filtroDesde, filtroHasta]);
 
   const cargarLocales = async () => {
     try {
@@ -36,20 +32,30 @@ const AD03Dashboard: React.FC = () => {
   };
 
   const cargarDatos = async () => {
-  setCargando(true);
-  try {
-    let url = `${API_URL}/ad_auditorias?select=*&order=creado_en.asc`;
-    
-    if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
-    if (filtroDesde) url += `&creado_en=gte.${filtroDesde}`;
-    if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
-    
-    const resp = await fetch(url, { headers: HEADERS });
-    const data = await resp.json();
-    setDatos(data || []);
-  } catch (e) {}
-  setCargando(false);
-};
+    setCargando(true);
+    try {
+      let url = `${API_URL}/ad_auditorias?select=*&order=creado_en.asc`;
+      if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
+      if (filtroDesde) url += `&creado_en=gte.${filtroDesde}`;
+      if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
+      
+      const resp = await fetch(url, { headers: HEADERS });
+      const data = await resp.json();
+      setDatos(data || []);
+    } catch (e) {}
+    setCargando(false);
+  };
+
+  // Agrupar por día
+  const porDia: Record<string, any> = {};
+  datos.forEach(d => {
+    const dia = new Date(d.creado_en).toLocaleDateString('es-CL');
+    if (!porDia[dia]) porDia[dia] = { dia, total: 0, ok: 0, diferencias: 0 };
+    porDia[dia].total++;
+    if (d.estado === 'Finalizado') porDia[dia].ok++;
+    if (d.estado === 'Con Diferencias') porDia[dia].diferencias++;
+  });
+  const datosBarra = Object.values(porDia);
 
   // KPIs
   const total = datos.length;
@@ -59,20 +65,9 @@ const AD03Dashboard: React.FC = () => {
   const totalCerradas = finalizadas + conDiferencias;
   const porcentajeDiferencias = totalCerradas > 0 ? ((conDiferencias / totalCerradas) * 100).toFixed(1) : '0';
 
-  // Datos para gráfico de barras
-  const porLocal: Record<string, any> = {};
-  datos.forEach(d => {
-    if (!porLocal[d.codigo_local]) porLocal[d.codigo_local] = { local: d.codigo_local, total: 0, finalizadas: 0, diferencias: 0, pendientes: 0 };
-    porLocal[d.codigo_local].total++;
-    if (d.estado === 'Finalizado') porLocal[d.codigo_local].finalizadas++;
-    if (d.estado === 'Con Diferencias') porLocal[d.codigo_local].diferencias++;
-    if (d.estado === 'Pendiente' || d.estado === 'En Proceso') porLocal[d.codigo_local].pendientes++;
-  });
-  const datosBarra = Object.values(porLocal);
-
-  // Datos para gráfico de torta
+  // Datos para torta
   const datosPie = [
-    { name: 'Finalizadas OK', value: finalizadas },
+    { name: 'OK', value: finalizadas },
     { name: 'Con Diferencias', value: conDiferencias },
     { name: 'Pendientes', value: pendientes },
   ].filter(d => d.value > 0);
@@ -101,17 +96,16 @@ const AD03Dashboard: React.FC = () => {
 
       <div className="ad03-charts">
         <div className="ad03-chart">
-          <h3>Auditorías por Local</h3>
+          <h3>Auditorías por Día</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={datosBarra}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis dataKey="local" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 11 }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="finalizadas" fill="#15803d" radius={[4,4,0,0]} name="OK" />
-              <Bar dataKey="diferencias" fill="#dc2626" radius={[4,4,0,0]} name="Diferencias" />
-              <Bar dataKey="pendientes" fill="#b45309" radius={[4,4,0,0]} name="Pendientes" />
+              <Bar dataKey="ok" fill="#15803d" radius={[4,4,0,0]} name="OK" />
+              <Bar dataKey="diferencias" fill="#dc2626" radius={[4,4,0,0]} name="Con Diferencias" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -131,17 +125,17 @@ const AD03Dashboard: React.FC = () => {
 
       <div className="ad03-tabla-container">
         <table className="ed03-tabla">
-          <thead><tr><th>Local</th><th>Total</th><th>OK</th><th>Diferencias</th><th>Pendientes</th><th>% Dif.</th></tr></thead>
+          <thead><tr><th>Día</th><th>Total</th><th>OK</th><th>Diferencias</th><th>% Dif.</th></tr></thead>
           <tbody>
-            {cargando ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
-              datosBarra.length === 0 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Sin datos</td></tr> :
+            {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
+              datosBarra.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Sin datos</td></tr> :
               datosBarra.map((d, i) => {
-                const totalLocal = d.finalizadas + d.diferencias;
-                const pct = totalLocal > 0 ? ((d.diferencias / totalLocal) * 100).toFixed(1) : '0';
+                const cerradas = d.ok + d.diferencias;
+                const pct = cerradas > 0 ? ((d.diferencias / cerradas) * 100).toFixed(1) : '0';
                 return (
                   <tr key={i}>
-                    <td className="ed03-ticket-id">{d.local}</td><td>{d.total}</td><td>{d.finalizadas}</td>
-                    <td style={{ color: '#dc2626', fontWeight: 600 }}>{d.diferencias}</td><td>{d.pendientes}</td>
+                    <td className="ed03-ticket-id">{d.dia}</td><td>{d.total}</td><td>{d.ok}</td>
+                    <td style={{ color: '#dc2626', fontWeight: 600 }}>{d.diferencias}</td>
                     <td style={{ fontWeight: 600, color: '#dc2626' }}>{pct}%</td>
                   </tr>
                 );
