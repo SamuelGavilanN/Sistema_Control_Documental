@@ -62,3 +62,10 @@
 .ad01-resumen-card strong { font-size: 18px; color: #1e293b; }
 .ad01-resumen-diff { background: #fef2f2; }
 .ad01-resumen-diff strong { color: #dc2626; }
+.ad01-btn-exportar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; background: #15803d; color: white;
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s;
+}
+.ad01-btn-exportar:hover { background: #166534; }
