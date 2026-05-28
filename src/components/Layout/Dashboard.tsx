@@ -5,14 +5,10 @@ interface DashboardProps {
   rol?: string;
 }
 
-const todasLasTransacciones = [
-  { id: 'ed', label: 'ED01 · Registro Empaque', desc: 'Registrar nuevos empaques y generar etiquetas', color: '#3b82f6' },
-  { id: 'ed-history', label: 'ED02 · Dashboard Producción', desc: 'Visualizar flujo de empaques y estadísticas', color: '#10b981' },
-  { id: 'ed-tickets', label: 'ED03 · BT Portico', desc: 'Bandeja de tickets del área Portico', color: '#f59e0b' },
+const transacciones = [
   { id: 'ad', label: 'AD01 · Gestión Auditoría', desc: 'Crear y gestionar tareas de auditoría', color: '#8b5cf6' },
   { id: 'ad-captura', label: 'AD02 · Captura Física', desc: 'Realizar capturas físicas de auditoría', color: '#ec4899' },
   { id: 'ad-dashboard', label: 'AD03 · Dashboard Auditoría', desc: 'KPIs y estadísticas de auditorías', color: '#06b6d4' },
-  { id: 'tk', label: 'TK01 · Crear Ticket', desc: 'Crear tickets de soporte', color: '#ef4444' },
 ];
 
 const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol }) => {
@@ -24,11 +20,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Solo mostrar AD para Auditor
-  const trans = rol === 'Auditor' 
-    ? todasLasTransacciones.filter(t => t.id.startsWith('ad'))
-    : todasLasTransacciones;
-
   return (
     <div style={{ background: 'white', borderRadius: '16px', padding: isMobile ? '16px' : '40px', border: '1px solid #f0f3f7' }}>
       <h1 style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 600, color: '#0f172a', marginBottom: '6px' }}>FASHIONSPARK</h1>
@@ -36,7 +27,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol }) => {
 
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {trans.map(t => (
+          {transacciones.map(t => (
             <div key={t.id} onClick={() => onModuleClick?.(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', background: '#f8fafd', borderRadius: '10px', border: '1px solid #eef0f5', cursor: 'pointer' }}>
               <div style={{ width: '4px', height: '36px', background: t.color, borderRadius: '2px', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -49,9 +40,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol }) => {
         </div>
       ) : (
         <>
-          <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>Selecciona una transacción en el menú lateral para comenzar.</p>
+          <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>Selecciona una transaccion en el menu lateral para comenzar.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {trans.map(t => (
+            {transacciones.map(t => (
               <div key={t.id} onClick={() => onModuleClick?.(t.id)} style={{ padding: '20px', background: '#f8fafd', borderRadius: '12px', border: '1px solid #eef0f5', cursor: 'pointer', transition: 'all 0.15s', borderLeft: `4px solid ${t.color}` }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }} onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafd'; }}>
                 <h3 style={{ fontSize: '14px', fontWeight: 600, color: t.color, margin: '0 0 6px' }}>{t.label}</h3>
