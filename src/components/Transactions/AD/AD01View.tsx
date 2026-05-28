@@ -147,13 +147,28 @@ const AD01View: React.FC = () => {
   };
 
   const handleEliminar = async (auditoriaId: string) => {
-    if (!confirm('¿Eliminar esta tarea y todos sus datos?')) return;
-    await supabase.from('ad_datos_sap').delete().eq('auditoria_id', auditoriaId);
-    await supabase.from('ad_capturas_skus').delete().in('caja_id', supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoriaId));
-    await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', auditoriaId);
-    await supabase.from('ad_auditorias').delete().eq('id', auditoriaId);
-    cargarAuditorias();
-  };
+  if (!confirm('¿Eliminar esta tarea y todos sus datos?')) return;
+  
+  // Obtener IDs de cajas primero
+  const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoriaId);
+  const cajaIds = cajas?.map((c: any) => c.id) || [];
+  
+  // Eliminar SKUs de cajas
+  if (cajaIds.length > 0) {
+    await supabase.from('ad_capturas_skus').delete().in('caja_id', cajaIds);
+  }
+  
+  // Eliminar cajas
+  await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', auditoriaId);
+  
+  // Eliminar datos SAP
+  await supabase.from('ad_datos_sap').delete().eq('auditoria_id', auditoriaId);
+  
+  // Eliminar auditoría
+  await supabase.from('ad_auditorias').delete().eq('id', auditoriaId);
+  
+  cargarAuditorias();
+};
 
   const verDetalle = async (auditoria: Auditoria) => {
     setAuditoriaDetalle(auditoria);
