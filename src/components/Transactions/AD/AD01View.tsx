@@ -171,18 +171,30 @@ const AD01View: React.FC = () => {
   const cargarDatosDetalle = async (auditoria: Auditoria) => {
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
     setDatosSAP(sap || []);
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoria.id);
-    const cajaIds = cajas?.map((c: any) => c.id) || [];
+    
+    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id, numero_caja').eq('auditoria_id', auditoria.id).order('numero_caja', { ascending: true });
+    const cajasMap: Record<string, number> = {};
+    (cajas || []).forEach((c: any) => { cajasMap[c.id] = c.numero_caja; });
+    const cajaIds = (cajas || []).map((c: any) => c.id);
+    
     let capturas: any[] = [];
     if (cajaIds.length > 0) {
-      const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
-      capturas = data || [];
+      const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds).order('capturado_en', { ascending: true });
+      capturas = (data || []).map(c => ({ ...c, numero_caja: cajasMap[c.caja_id] || '-' }));
     }
-    const detalle = (sap || []).map((s: any) => {
+
+    const detalle: any[] = [];
+    (sap || []).forEach((s: any) => {
       const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
-      const cantidadFisica = capturasSKU.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
-      return { sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: cantidadFisica, diferencia: (s.cantidad_sap || 0) - cantidadFisica, capturado: capturasSKU.length > 0 };
+      if (capturasSKU.length === 0) {
+        detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: 0, diferencia: s.cantidad_sap || 0, capturado: false, cajas: '-' });
+      } else {
+        capturasSKU.forEach((c: any) => {
+          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: c.cantidad_fisica || 0, diferencia: c.diferencia || 0, capturado: true, cajas: `Caja ${c.numero_caja}` });
+        });
+      }
     });
+
     setDatosDetalle(detalle);
     const { data: auditActual } = await supabase.from('ad_auditorias').select('*').eq('id', auditoria.id).single();
     if (auditActual) setAuditoriaDetalle(auditActual);
@@ -193,6 +205,7 @@ const AD01View: React.FC = () => {
     
     const datos = datosDetalle.map(d => ({
       'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
+      'CAJA': d.cajas,
       'ENTREGA': datosSAP.find(s => s.sku === d.sku)?.entrega || '',
       'ACTA': auditoriaDetalle.acta || '',
       'GUIA': auditoriaDetalle.guia || '',
@@ -207,13 +220,10 @@ const AD01View: React.FC = () => {
     }));
 
     const ws = XLSX.utils.json_to_sheet(datos);
-    
-    // Ajustar anchos de columna
     ws['!cols'] = [
-      { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+      { wch: 16 }, { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
       { wch: 25 }, { wch: 30 }, { wch: 16 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 18 }
     ];
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
     XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
@@ -277,7 +287,7 @@ const AD01View: React.FC = () => {
 
       {showDetalleModal && auditoriaDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '850px' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '900px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
               <h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -303,10 +313,11 @@ const AD01View: React.FC = () => {
               </div>
               <div className="ed03-tabla-container" style={{ maxHeight: '400px' }}>
                 <table className="ed03-tabla">
-                  <thead><tr><th>SKU</th><th>Descripción</th><th style={{ width: '70px' }}>SAP</th><th style={{ width: '70px' }}>Físico</th><th style={{ width: '60px' }}>Dif.</th><th style={{ width: '70px' }}>Estado</th></tr></thead>
+                  <thead><tr><th>Caja</th><th>SKU</th><th>Descripción</th><th style={{ width: '60px' }}>SAP</th><th style={{ width: '60px' }}>Físico</th><th style={{ width: '50px' }}>Dif.</th><th style={{ width: '60px' }}>Estado</th></tr></thead>
                   <tbody>
                     {datosDetalle.map((d, i) => (
                       <tr key={i} style={{ background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f8fafd' }}>
+                        <td style={{ fontSize: '11px', fontWeight: 600, color: '#1d4ed8' }}>{d.cajas}</td>
                         <td className="ed03-ticket-id">{d.sku}</td><td style={{ fontSize: '12px' }}>{d.denominacion}</td><td>{d.cantidad_sap}</td>
                         <td>{d.capturado ? d.cantidad_fisica : '-'}</td>
                         <td style={{ fontWeight: 600, color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8' }}>{d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : '-'}</td>
