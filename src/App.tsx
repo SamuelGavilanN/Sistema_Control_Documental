@@ -39,14 +39,15 @@ const App: React.FC = () => {
   }, [usuario]);
 
   const cargarPermisos = async (userId: string) => {
-    const { data } = await supabase.from('usuario_permisos').select('transaccion_id').eq('usuario_id', userId).eq('activo', true);
+  try {
+    const resp = await fetch(
+      `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_permisos?select=transaccion_id&usuario_id=eq.${userId}&activo=eq.true`,
+      { headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
+    );
+    const data = await resp.json();
     if (data && data.length > 0) setPermisos(data.map((p: any) => p.transaccion_id));
-  };
-
-  const handleLogin = (userData: any) => setUsuario(userData);
-  const handleLogout = () => {
-    auth.logout(); setUsuario(null); setActiveTab('dashboard'); setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true); setPermisos([]);
-  };
+  } catch (e) {}
+};
 
   if (!usuario) return <Login onLogin={handleLogin} />;
 
