@@ -36,19 +36,20 @@ const AD03Dashboard: React.FC = () => {
   };
 
   const cargarDatos = async () => {
-    setCargando(true);
-    try {
-      let url = `${API_URL}/ad_auditorias?select=*&order=creado_en.asc`;
-      if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
-      if (filtroDesde) url += `&creado_en=gte.${filtroDesde}T00:00:00`;
-      if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
-      
-      const resp = await fetch(url, { headers: HEADERS });
-      const data = await resp.json();
-      setDatos(data || []);
-    } catch (e) {}
-    setCargando(false);
-  };
+  setCargando(true);
+  try {
+    let url = `${API_URL}/ad_auditorias?select=*&order=creado_en.asc`;
+    
+    if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
+    if (filtroDesde) url += `&creado_en=gte.${filtroDesde}`;
+    if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
+    
+    const resp = await fetch(url, { headers: HEADERS });
+    const data = await resp.json();
+    setDatos(data || []);
+  } catch (e) {}
+  setCargando(false);
+};
 
   // KPIs
   const total = datos.length;
