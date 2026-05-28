@@ -34,9 +34,7 @@ const AD01View: React.FC = () => {
   const [mensaje, setMensaje] = useState('');
 
   useEffect(() => { cargarAuditorias(); cargarUsuarios(); }, []);
-
   useEffect(() => { const intervalo = setInterval(cargarAuditorias, 10000); return () => clearInterval(intervalo); }, []);
-
   useEffect(() => {
     if (!showDetalleModal || !auditoriaDetalle) return;
     const intervalo = setInterval(() => { verDetalleSilencioso(auditoriaDetalle); }, 5000);
@@ -47,138 +45,94 @@ const AD01View: React.FC = () => {
     const { data } = await supabase.from('usuarios').select('id, nombre, apellido, rol');
     if (data) { setUsuarios(data); const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
   };
-
   const cargarAuditorias = async () => {
     const { data } = await supabase.from('ad_auditorias').select('*').order('creado_en', { ascending: false });
-    if (data) setAuditorias(data);
-    setCargando(false);
+    if (data) setAuditorias(data); setCargando(false);
   };
-
   const obtenerCantidad = (item: any): number => {
-    const keys = Object.keys(item);
-    const keyCantidad = keys.find(k => k.toLowerCase().includes('cantidad'));
-    if (keyCantidad) return parseInt(String(item[keyCantidad]).trim()) || 0;
-    return 0;
+    const keys = Object.keys(item); const keyCantidad = keys.find(k => k.toLowerCase().includes('cantidad'));
+    if (keyCantidad) return parseInt(String(item[keyCantidad]).trim()) || 0; return 0;
   };
 
   const procesarArchivos = async () => {
     if (!archivoSAP || !archivoCorreo) { alert('Selecciona ambos archivos'); return; }
     setProcesando(true);
     try {
-      const dataSAP = await leerExcel(archivoSAP);
-      const dataCorreo = await leerExcel(archivoCorreo);
+      const dataSAP = await leerExcel(archivoSAP); const dataCorreo = await leerExcel(archivoCorreo);
       const mapaCorreo: Record<string, { acta: string; guia: string }> = {};
-      dataCorreo.forEach((row: any) => {
-        const despacho = String(row['Despacho HC'] || '').trim();
-        if (despacho) mapaCorreo[despacho] = { acta: String(row['Acta'] || '').trim(), guia: String(row['Guía'] || row['Guia'] || '').trim() };
-      });
+      dataCorreo.forEach((row: any) => { const d = String(row['Despacho HC'] || '').trim(); if (d) mapaCorreo[d] = { acta: String(row['Acta'] || '').trim(), guia: String(row['Guía'] || row['Guia'] || '').trim() }; });
       const grupos: Record<string, { nombre: string; entregas: Set<string>; items: any[] }> = {};
       dataSAP.forEach((row: any) => {
-        const codLocal = String(row['Destinat.'] || '').trim();
-        const nombreLocal = String(row['Nombre destinatario de mercancías'] || '').trim();
-        const entrega = String(row['Entrega'] || '').trim();
-        if (!codLocal) return;
-        if (!grupos[codLocal]) grupos[codLocal] = { nombre: nombreLocal, entregas: new Set(), items: [] };
-        grupos[codLocal].entregas.add(entrega);
-        grupos[codLocal].items.push(row);
+        const c = String(row['Destinat.'] || '').trim(); if (!c) return;
+        if (!grupos[c]) grupos[c] = { nombre: String(row['Nombre destinatario de mercancías'] || '').trim(), entregas: new Set(), items: [] };
+        grupos[c].entregas.add(String(row['Entrega'] || '').trim()); grupos[c].items.push(row);
       });
-      for (const [codLocal, grupo] of Object.entries(grupos)) {
-        let acta = ''; let guia = '';
-        for (const entrega of grupo.entregas) { if (mapaCorreo[entrega]) { acta = mapaCorreo[entrega].acta; guia = mapaCorreo[entrega].guia; break; } }
+      for (const [cod, g] of Object.entries(grupos)) {
+        let acta = '', guia = '';
+        for (const e of g.entregas) { if (mapaCorreo[e]) { acta = mapaCorreo[e].acta; guia = mapaCorreo[e].guia; break; } }
         const { data: tarea } = await supabase.rpc('generar_numero_auditoria');
-        const { data: auditoria } = await supabase.from('ad_auditorias').insert([{ numero_tarea: tarea, codigo_local: codLocal, nombre_local: grupo.nombre, acta, guia, estado: 'Pendiente', creado_por: auth.getUsuario()?.id }]).select('id').single();
-        if (!auditoria) continue;
-        const itemsInsert = grupo.items.map((item: any) => ({
-          auditoria_id: (auditoria as any).id, entrega: String(item['Entrega'] || '').trim(),
-          denominacion: String(item['Denominación'] || item['Denominacion'] || '').trim(),
-          codigo_local: codLocal, nombre_local: grupo.nombre, sku: String(item['Material'] || '').trim(), cantidad_sap: obtenerCantidad(item)
-        }));
-        await supabase.from('ad_datos_sap').insert(itemsInsert);
+        const { data: aud } = await supabase.from('ad_auditorias').insert([{ numero_tarea: tarea, codigo_local: cod, nombre_local: g.nombre, acta, guia, estado: 'Pendiente', creado_por: auth.getUsuario()?.id }]).select('id').single();
+        if (!aud) continue;
+        await supabase.from('ad_datos_sap').insert(g.items.map((item: any) => ({ auditoria_id: (aud as any).id, entrega: String(item['Entrega'] || '').trim(), denominacion: String(item['Denominación'] || item['Denominacion'] || '').trim(), codigo_local: cod, nombre_local: g.nombre, sku: String(item['Material'] || '').trim(), cantidad_sap: obtenerCantidad(item) })));
       }
-      setMensaje('Auditorías creadas exitosamente');
-      setNombreArchivoSAP(''); setNombreArchivoCorreo(''); setArchivoSAP(null); setArchivoCorreo(null);
-      setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 1500);
-      cargarAuditorias();
+      setMensaje('Auditorías creadas'); setNombreArchivoSAP(''); setNombreArchivoCorreo(''); setArchivoSAP(null); setArchivoCorreo(null);
+      setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 1500); cargarAuditorias();
     } catch (e: any) { alert('Error: ' + e.message); } finally { setProcesando(false); }
   };
 
-  const leerExcel = (file: File): Promise<any[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => { const data = new Uint8Array(e.target?.result as ArrayBuffer); const workbook = XLSX.read(data, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; resolve(XLSX.utils.sheet_to_json(sheet)); };
-      reader.onerror = reject; reader.readAsArrayBuffer(file);
-    });
+  const leerExcel = (file: File): Promise<any[]> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => { const data = new Uint8Array(e.target?.result as ArrayBuffer); const wb = XLSX.read(data, { type: 'array' }); resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])); };
+    reader.onerror = reject; reader.readAsArrayBuffer(file);
+  });
+
+  const handleAsignar = async (id: string, uid: string) => { await supabase.from('ad_auditorias').update({ usuario_asignado: uid || null }).eq('id', id); cargarAuditorias(); };
+  const handleReabrir = async (id: string) => { await supabase.from('ad_auditorias').update({ estado: 'En Proceso' }).eq('id', id); cargarAuditorias(); };
+
+  const handleEliminar = async (id: string) => {
+    if (!confirm('¿Eliminar esta tarea?')) return;
+    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', id);
+    const ids = cajas?.map((c: any) => c.id) || [];
+    if (ids.length > 0) await supabase.from('ad_capturas_skus').delete().in('caja_id', ids);
+    await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', id);
+    await supabase.from('ad_datos_sap').delete().eq('auditoria_id', id);
+    await supabase.from('ad_auditorias').delete().eq('id', id); cargarAuditorias();
   };
 
-  const handleAsignar = async (auditoriaId: string, usuarioId: string) => { await supabase.from('ad_auditorias').update({ usuario_asignado: usuarioId || null }).eq('id', auditoriaId); cargarAuditorias(); };
-  const handleReabrir = async (auditoriaId: string) => { await supabase.from('ad_auditorias').update({ estado: 'En Proceso' }).eq('id', auditoriaId); cargarAuditorias(); };
-
-  const handleEliminar = async (auditoriaId: string) => {
-    if (!confirm('¿Eliminar esta tarea y todos sus datos?')) return;
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoriaId);
-    const cajaIds = cajas?.map((c: any) => c.id) || [];
-    if (cajaIds.length > 0) await supabase.from('ad_capturas_skus').delete().in('caja_id', cajaIds);
-    await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', auditoriaId);
-    await supabase.from('ad_datos_sap').delete().eq('auditoria_id', auditoriaId);
-    await supabase.from('ad_auditorias').delete().eq('id', auditoriaId);
-    cargarAuditorias();
+  const handleLimpiarCaptura = async (id: string) => {
+    if (!confirm('¿Eliminar todas las capturas de esta tarea?')) return;
+    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', id);
+    const ids = cajas?.map((c: any) => c.id) || [];
+    if (ids.length > 0) await supabase.from('ad_capturas_skus').delete().in('caja_id', ids);
+    await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', id);
+    await supabase.from('ad_auditorias').update({ estado: 'Pendiente' }).eq('id', id); cargarAuditorias();
   };
 
-  const verDetalle = async (auditoria: Auditoria) => { setAuditoriaDetalle(auditoria); setShowDetalleModal(true); await cargarDatosDetalle(auditoria); };
-  const verDetalleSilencioso = async (auditoria: Auditoria) => { await cargarDatosDetalle(auditoria); };
+  const verDetalle = async (a: Auditoria) => { setAuditoriaDetalle(a); setShowDetalleModal(true); await cargarDatosDetalle(a); };
+  const verDetalleSilencioso = async (a: Auditoria) => { await cargarDatosDetalle(a); };
 
-  const cargarDatosDetalle = async (auditoria: Auditoria) => {
-    const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
-    setDatosSAP(sap || []);
-    
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id, numero_caja').eq('auditoria_id', auditoria.id).order('numero_caja', { ascending: true });
-    const cajasMap: Record<string, number> = {};
-    (cajas || []).forEach((c: any) => { cajasMap[c.id] = c.numero_caja; });
-    const cajaIds = (cajas || []).map((c: any) => c.id);
-    
+  const cargarDatosDetalle = async (a: Auditoria) => {
+    const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', a.id); setDatosSAP(sap || []);
+    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id, numero_caja').eq('auditoria_id', a.id).order('numero_caja', { ascending: true });
+    const cMap: Record<string, number> = {}; (cajas || []).forEach((c: any) => { cMap[c.id] = c.numero_caja; });
+    const cIds = (cajas || []).map((c: any) => c.id);
     let capturas: any[] = [];
-    if (cajaIds.length > 0) {
-      const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds).order('capturado_en', { ascending: true });
-      capturas = (data || []).map(c => ({ ...c, numero_caja: cajasMap[c.caja_id] || '-' }));
-    }
-
+    if (cIds.length > 0) { const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cIds).order('capturado_en', { ascending: true }); capturas = (data || []).map(c => ({ ...c, numero_caja: cMap[c.caja_id] || '-' })); }
     const detalle: any[] = [];
     (sap || []).forEach((s: any) => {
-      const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
-      const totalCajas = capturasSKU.length;
-      
-      if (totalCajas === 0) {
-        detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: 0, diferencia: s.cantidad_sap || 0, capturado: false, cajas: '-' });
-      } else {
-        const sapPorCaja = Math.round((s.cantidad_sap || 0) / totalCajas);
-        let fisicoAcumulado = 0;
-        capturasSKU.forEach((c: any, index: number) => {
-          fisicoAcumulado += c.cantidad_fisica || 0;
-          const esUltima = index === totalCajas - 1;
-          const diferencia = esUltima ? (s.cantidad_sap || 0) - fisicoAcumulado : 0;
-          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapPorCaja, cantidad_fisica: c.cantidad_fisica || 0, diferencia, capturado: true, cajas: `Caja ${c.numero_caja}` });
-        });
-      }
+      const csku = capturas.filter((c: any) => c.sku === s.sku); const sapTotal = s.cantidad_sap || 0;
+      if (csku.length === 0) { detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal, capturado: false, cajas: 'Pendiente' }); }
+      else { let fa = 0; csku.forEach((c: any, i: number) => { fa += c.cantidad_fisica || 0; detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: c.cantidad_fisica || 0, diferencia: i === csku.length - 1 ? sapTotal - fa : 0, capturado: true, cajas: `Caja ${c.numero_caja}` }); });
+        if (fa < sapTotal) detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal - fa, capturado: false, cajas: 'Pendiente' }); }
     });
-
     setDatosDetalle(detalle);
-    const { data: auditActual } = await supabase.from('ad_auditorias').select('*').eq('id', auditoria.id).single();
-    if (auditActual) setAuditoriaDetalle(auditActual);
+    const { data: aa } = await supabase.from('ad_auditorias').select('*').eq('id', a.id).single(); if (aa) setAuditoriaDetalle(aa);
   };
 
   const exportarExcel = () => {
     if (!auditoriaDetalle) return;
-    const datos = datosDetalle.map(d => ({
-      'TAREA AUDITORIA': auditoriaDetalle.numero_tarea, 'CAJA': d.cajas,
-      'ENTREGA': datosSAP.find(s => s.sku === d.sku)?.entrega || '', 'ACTA': auditoriaDetalle.acta || '', 'GUIA': auditoriaDetalle.guia || '',
-      'COD LOCAL': auditoriaDetalle.codigo_local, 'LOCAL': auditoriaDetalle.nombre_local, 'DESCRIPCION': d.denominacion, 'SKU': d.sku,
-      'SAP': d.cantidad_sap, 'FISICO': d.cantidad_fisica || 0, 'DIFERENCIA': d.diferencia || 0,
-      'ESTADO': d.capturado ? (d.diferencia === 0 ? 'OK' : 'CON DIFERENCIA') : 'PENDIENTE'
-    }));
-    const ws = XLSX.utils.json_to_sheet(datos);
-    ws['!cols'] = [{ wch: 16 }, { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 25 }, { wch: 30 }, { wch: 16 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 18 }];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
-    XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
+    const datos = datosDetalle.map(d => ({ 'TAREA AUDITORIA': auditoriaDetalle.numero_tarea, 'CAJA': d.cajas, 'ENTREGA': datosSAP.find(s => s.sku === d.sku)?.entrega || '', 'ACTA': auditoriaDetalle.acta || '', 'GUIA': auditoriaDetalle.guia || '', 'COD LOCAL': auditoriaDetalle.codigo_local, 'LOCAL': auditoriaDetalle.nombre_local, 'DESCRIPCION': d.denominacion, 'SKU': d.sku, 'SAP': d.cantidad_sap, 'FISICO': d.cantidad_fisica || 0, 'DIFERENCIA': d.diferencia || 0, 'ESTADO': d.capturado ? (d.diferencia === 0 ? 'OK' : 'CON DIFERENCIA') : 'PENDIENTE' }));
+    const ws = XLSX.utils.json_to_sheet(datos); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Auditoria'); XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
   };
 
   const getEstadoBadge = (e: string) => {
@@ -188,10 +142,9 @@ const AD01View: React.FC = () => {
   return (
     <div className="ad01-view">
       <div className="ad01-header"><h2>Gestión de Auditorías</h2><button className="ad01-btn-nueva" onClick={() => setShowCrearModal(true)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>Nueva Auditoría</button></div>
-
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
-          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '140px' }}>Acciones</th></tr></thead>
+          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '180px' }}>Acciones</th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
               auditorias.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Sin auditorías</td></tr> :
@@ -201,7 +154,12 @@ const AD01View: React.FC = () => {
                   <tr key={a.id}><td className="ed03-ticket-id">{a.numero_tarea}</td><td>{a.codigo_local} - {a.nombre_local}</td><td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
                     <td><select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} className="ad01-select-asignar"><option value="">Sin asignar</option>{usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}</select></td>
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td><td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
-                    <td><div className="ad01-acciones"><button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>{(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>}{a.estado === 'Pendiente' && <button className="ad01-btn-eliminar" onClick={() => handleEliminar(a.id)}>Eliminar</button>}</div></td>
+                    <td><div className="ad01-acciones">
+                      <button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>
+                      {(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>}
+                      {a.estado === 'Pendiente' && <button className="ad01-btn-eliminar" onClick={() => handleEliminar(a.id)}>Eliminar</button>}
+                      {(a.estado === 'En Proceso' || a.estado === 'Con Diferencias') && <button className="ad01-btn-limpiar" onClick={() => handleLimpiarCaptura(a.id)}>Limpiar</button>}
+                    </div></td>
                   </tr>
                 );
               })}
