@@ -13,7 +13,6 @@ import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
-import { supabase } from './lib/supabase';
 import './App.css';
 
 export type TabId = string;
@@ -39,15 +38,20 @@ const App: React.FC = () => {
   }, [usuario]);
 
   const cargarPermisos = async (userId: string) => {
-  try {
-    const resp = await fetch(
-      `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_permisos?select=transaccion_id&usuario_id=eq.${userId}&activo=eq.true`,
-      { headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
-    );
-    const data = await resp.json();
-    if (data && data.length > 0) setPermisos(data.map((p: any) => p.transaccion_id));
-  } catch (e) {}
-};
+    try {
+      const resp = await fetch(
+        `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_permisos?select=transaccion_id&usuario_id=eq.${userId}&activo=eq.true`,
+        { headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
+      );
+      const data = await resp.json();
+      if (data && data.length > 0) setPermisos(data.map((p: any) => p.transaccion_id));
+    } catch (e) {}
+  };
+
+  const handleLogin = (userData: any) => setUsuario(userData);
+  const handleLogout = () => {
+    auth.logout(); setUsuario(null); setActiveTab('dashboard'); setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true); setPermisos([]);
+  };
 
   if (!usuario) return <Login onLogin={handleLogin} />;
 
