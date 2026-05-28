@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import './AD03.css';
+
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
 
 const COLORS = ['#15803d', '#dc2626', '#b45309', '#1d4ed8'];
 
@@ -19,22 +21,28 @@ const AD03Dashboard: React.FC = () => {
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
 
   const cargarLocales = async () => {
-    const { data } = await supabase.from('ad_auditorias').select('codigo_local, nombre_local');
-    if (data) {
-      const unicos = [...new Set(data.map(d => d.codigo_local))];
-      setLocales(unicos);
-    }
+    try {
+      const resp = await fetch(`${API_URL}/ad_auditorias?select=codigo_local`, { headers: HEADERS });
+      const data = await resp.json();
+      if (data) {
+        const unicos = [...new Set(data.map((d: any) => d.codigo_local))];
+        setLocales(unicos as string[]);
+      }
+    } catch (e) {}
   };
 
   const cargarDatos = async () => {
     setCargando(true);
-    let query = supabase.from('ad_auditorias').select('*');
-    if (filtroLocal) query = query.eq('codigo_local', filtroLocal);
-    if (filtroDesde) query = query.gte('creado_en', filtroDesde + 'T00:00:00');
-    if (filtroHasta) query = query.lte('creado_en', filtroHasta + 'T23:59:59');
-    
-    const { data } = await query.order('creado_en', { ascending: true });
-    setDatos(data || []);
+    try {
+      let url = `${API_URL}/ad_auditorias?select=*&order=creado_en.asc`;
+      if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
+      if (filtroDesde) url += `&creado_en=gte.${filtroDesde}T00:00:00`;
+      if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
+      
+      const resp = await fetch(url, { headers: HEADERS });
+      const data = await resp.json();
+      setDatos(data || []);
+    } catch (e) {}
     setCargando(false);
   };
 
@@ -43,9 +51,10 @@ const AD03Dashboard: React.FC = () => {
   const finalizadas = datos.filter(d => d.estado === 'Finalizado').length;
   const conDiferencias = datos.filter(d => d.estado === 'Con Diferencias').length;
   const pendientes = datos.filter(d => d.estado === 'Pendiente' || d.estado === 'En Proceso').length;
-  const porcentajeDiferencias = total > 0 ? ((conDiferencias / (finalizadas + conDiferencias || 1)) * 100).toFixed(1) : '0';
+  const totalCerradas = finalizadas + conDiferencias;
+  const porcentajeDiferencias = totalCerradas > 0 ? ((conDiferencias / totalCerradas) * 100).toFixed(1) : '0';
 
-  // Datos para gráfico de barras: por local
+  // Datos para gráfico de barras
   const porLocal: Record<string, any> = {};
   datos.forEach(d => {
     if (!porLocal[d.codigo_local]) porLocal[d.codigo_local] = { local: d.codigo_local, total: 0, finalizadas: 0, diferencias: 0, pendientes: 0 };
