@@ -32,6 +32,21 @@ const AD01View: React.FC = () => {
 
   useEffect(() => { cargarAuditorias(); cargarUsuarios(); }, []);
 
+  // Polling cada 10 segundos
+  useEffect(() => {
+    const intervalo = setInterval(cargarAuditorias, 10000);
+    return () => clearInterval(intervalo);
+  }, []);
+
+  // Polling del detalle cada 5 segundos si está abierto
+  useEffect(() => {
+    if (!showDetalleModal || !auditoriaDetalle) return;
+    const intervalo = setInterval(() => {
+      verDetalleSilencioso(auditoriaDetalle);
+    }, 5000);
+    return () => clearInterval(intervalo);
+  }, [showDetalleModal, auditoriaDetalle]);
+
   const cargarUsuarios = async () => {
     const { data } = await supabase.from('usuarios').select('id, nombre, apellido, rol');
     if (data) {
@@ -43,7 +58,6 @@ const AD01View: React.FC = () => {
   };
 
   const cargarAuditorias = async () => {
-    setCargando(true);
     const { data } = await supabase.from('ad_auditorias').select('*').order('creado_en', { ascending: false });
     if (data) setAuditorias(data);
     setCargando(false);
@@ -95,8 +109,7 @@ const AD01View: React.FC = () => {
           auditoria_id: (auditoria as any).id,
           entrega: String(item['Entrega'] || '').trim(),
           denominacion: String(item['Denominación'] || item['Denominacion'] || '').trim(),
-          codigo_local: codLocal,
-          nombre_local: grupo.nombre,
+          codigo_local: codLocal, nombre_local: grupo.nombre,
           sku: String(item['Material'] || '').trim(),
           cantidad_sap: obtenerCantidad(item)
         }));
@@ -133,9 +146,29 @@ const AD01View: React.FC = () => {
     cargarAuditorias();
   };
 
+  const handleEliminar = async (auditoriaId: string) => {
+    if (!confirm('¿Eliminar esta tarea y todos sus datos?')) return;
+    await supabase.from('ad_datos_sap').delete().eq('auditoria_id', auditoriaId);
+    await supabase.from('ad_capturas_skus').delete().in('caja_id', supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoriaId));
+    await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', auditoriaId);
+    await supabase.from('ad_auditorias').delete().eq('id', auditoriaId);
+    cargarAuditorias();
+  };
+
   const verDetalle = async (auditoria: Auditoria) => {
     setAuditoriaDetalle(auditoria);
+    setShowDetalleModal(true);
+    await cargarDatosDetalle(auditoria);
+  };
+
+  const verDetalleSilencioso = async (auditoria: Auditoria) => {
+    await cargarDatosDetalle(auditoria);
+  };
+
+  const cargarDatosDetalle = async (auditoria: Auditoria) => {
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
+    
+    // Obtener capturas
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoria.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
     let capturas: any[] = [];
@@ -143,17 +176,23 @@ const AD01View: React.FC = () => {
       const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
       capturas = data || [];
     }
+
+    // Calcular diferencias correctamente
     const detalle = (sap || []).map((s: any) => {
       const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
       const cantidadFisica = capturasSKU.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
+      const diferencia = (s.cantidad_sap || 0) - cantidadFisica;
       return {
         sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0,
-        cantidad_fisica: cantidadFisica, diferencia: (s.cantidad_sap || 0) - cantidadFisica,
+        cantidad_fisica: cantidadFisica, diferencia: diferencia,
         capturado: capturasSKU.length > 0
       };
     });
     setDatosDetalle(detalle);
-    setShowDetalleModal(true);
+
+    // Actualizar estado de la auditoría en el modal
+    const { data: auditActual } = await supabase.from('ad_auditorias').select('*').eq('id', auditoria.id).single();
+    if (auditActual) setAuditoriaDetalle(auditActual);
   };
 
   const getEstadoBadge = (e: string) => {
@@ -172,7 +211,7 @@ const AD01View: React.FC = () => {
 
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
-          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '120px' }}>Acciones</th></tr></thead>
+          <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '140px' }}>Acciones</th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
               auditorias.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Sin auditorías</td></tr> :
@@ -190,10 +229,13 @@ const AD01View: React.FC = () => {
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td>
                     <td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '5px' }}>
                         <button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>
                         {(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && (
                           <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>
+                        )}
+                        {a.estado === 'Pendiente' && (
+                          <button className="ad01-btn-eliminar" onClick={() => handleEliminar(a.id)}>Eliminar</button>
                         )}
                       </div>
                     </td>
@@ -223,7 +265,12 @@ const AD01View: React.FC = () => {
           <div className="ed01-modal" style={{ maxWidth: '850px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', fontSize: '13px', flexWrap: 'wrap' }}><div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div><div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div><div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div></div>
+              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', fontSize: '13px', flexWrap: 'wrap' }}>
+                <div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div>
+                <div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div>
+                <div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div>
+                <div><strong>Estado:</strong> <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: getEstadoBadge(auditoriaDetalle.estado).bg, color: getEstadoBadge(auditoriaDetalle.estado).color }}>{auditoriaDetalle.estado}</span></div>
+              </div>
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Total SAP</span><br /><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_sap, 0)}</strong></div>
                 <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Total Físico</span><br /><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_fisica, 0)}</strong></div>
