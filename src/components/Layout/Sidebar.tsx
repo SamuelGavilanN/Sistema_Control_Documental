@@ -40,6 +40,13 @@ const menuSections: MenuSection[] = [
       { id: 'tk', label: 'TK01 Crear Ticket', type: 'item' },
       { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets', type: 'subitem' }
     ]
+  },
+  {
+    id: 'bd',
+    title: 'BD · Administración',
+    items: [
+      { id: 'bd-usuarios', label: 'BD01 Usuarios', type: 'item' }
+    ]
   }
 ];
 
@@ -47,9 +54,10 @@ interface SidebarProps {
   activeTab: string;
   onModuleClick: (moduleId: string) => void;
   rol?: string;
+  permisos?: string[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permisos }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
 
@@ -58,17 +66,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
     else setExpandedSections([...expandedSections, sectionId]);
   };
 
-  // Filtrar secciones por rol
-  const seccionesVisibles = rol === 'Auditor' 
-    ? menuSections.filter(s => s.id === 'ad')
-    : rol === 'Portico'
-    ? menuSections.filter(s => s.id === 'ed')
-    : menuSections;
-
   const filterMenuSections = () => {
-    if (!searchTerm.trim()) return seccionesVisibles;
+    if (!searchTerm.trim()) return menuSections;
     const term = searchTerm.toLowerCase();
-    return seccionesVisibles.map(section => {
+    return menuSections.map(section => {
       const filteredItems = section.items.filter(item =>
         item.label.toLowerCase().includes(term) || section.title.toLowerCase().includes(term) || item.id.toLowerCase().includes(term)
       );
@@ -82,10 +83,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
     if (searchTerm.trim()) setExpandedSections(filteredSections.map(s => s.id));
   }, [searchTerm]);
 
-  const puedeVer = (itemId: string) => {
-    if (itemId === 'ed-history' && rol === 'Portico') return false;
-    if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
-    return true;
+  // Verificar si un item está permitido
+  const itemPermitido = (itemId: string): boolean => {
+    // Si no hay permisos configurados, usar lógica por rol
+    if (!permisos || permisos.length === 0) {
+      if (itemId === 'ed-history' && rol === 'Portico') return false;
+      if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
+      if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
+      if (itemId === 'bd-usuarios' && rol !== 'Owner' && rol !== 'Admin') return false;
+      return true;
+    }
+    // Si hay permisos, usarlos
+    return permisos.includes(itemId);
   };
 
   return (
@@ -105,6 +114,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
         {filteredSections.length === 0 ? <div className="search-no-results">No se encontraron resultados</div> :
           filteredSections.map(section => {
             const isExpanded = expandedSections.includes(section.id);
+            // Verificar si la sección tiene al menos un item permitido
+            const itemsVisibles = section.items.filter(item => itemPermitido(item.id));
+            if (itemsVisibles.length === 0) return null;
             return (
               <div key={section.id} className="nav-section">
                 <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
@@ -114,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol }) => {
                 {isExpanded && (
                   <div className="nav-section-content">
                     {section.items.map(item => {
-                      if (!puedeVer(item.id)) return null;
+                      if (!itemPermitido(item.id)) return null;
                       return item.type === 'item' ? (
                         <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}><span className="nav-indicator"></span>{item.label}</div>
                       ) : (
