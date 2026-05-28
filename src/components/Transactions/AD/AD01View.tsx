@@ -27,23 +27,21 @@ const AD01View: React.FC = () => {
   const [datosDetalle, setDatosDetalle] = useState<any[]>([]);
   const [archivoSAP, setArchivoSAP] = useState<File | null>(null);
   const [archivoCorreo, setArchivoCorreo] = useState<File | null>(null);
+  const [nombreArchivoSAP, setNombreArchivoSAP] = useState('');
+  const [nombreArchivoCorreo, setNombreArchivoCorreo] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState('');
 
   useEffect(() => { cargarAuditorias(); cargarUsuarios(); }, []);
 
-  // Polling cada 10 segundos
   useEffect(() => {
     const intervalo = setInterval(cargarAuditorias, 10000);
     return () => clearInterval(intervalo);
   }, []);
 
-  // Polling del detalle cada 5 segundos si está abierto
   useEffect(() => {
     if (!showDetalleModal || !auditoriaDetalle) return;
-    const intervalo = setInterval(() => {
-      verDetalleSilencioso(auditoriaDetalle);
-    }, 5000);
+    const intervalo = setInterval(() => { verDetalleSilencioso(auditoriaDetalle); }, 5000);
     return () => clearInterval(intervalo);
   }, [showDetalleModal, auditoriaDetalle]);
 
@@ -116,7 +114,9 @@ const AD01View: React.FC = () => {
         await supabase.from('ad_datos_sap').insert(itemsInsert);
       }
       setMensaje('Auditorías creadas exitosamente');
-      setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
+      setNombreArchivoSAP(''); setNombreArchivoCorreo('');
+      setArchivoSAP(null); setArchivoCorreo(null);
+      setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 1500);
       cargarAuditorias();
     } catch (e: any) { alert('Error: ' + e.message); }
     finally { setProcesando(false); }
@@ -147,28 +147,15 @@ const AD01View: React.FC = () => {
   };
 
   const handleEliminar = async (auditoriaId: string) => {
-  if (!confirm('¿Eliminar esta tarea y todos sus datos?')) return;
-  
-  // Obtener IDs de cajas primero
-  const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoriaId);
-  const cajaIds = cajas?.map((c: any) => c.id) || [];
-  
-  // Eliminar SKUs de cajas
-  if (cajaIds.length > 0) {
-    await supabase.from('ad_capturas_skus').delete().in('caja_id', cajaIds);
-  }
-  
-  // Eliminar cajas
-  await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', auditoriaId);
-  
-  // Eliminar datos SAP
-  await supabase.from('ad_datos_sap').delete().eq('auditoria_id', auditoriaId);
-  
-  // Eliminar auditoría
-  await supabase.from('ad_auditorias').delete().eq('id', auditoriaId);
-  
-  cargarAuditorias();
-};
+    if (!confirm('¿Eliminar esta tarea y todos sus datos?')) return;
+    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoriaId);
+    const cajaIds = cajas?.map((c: any) => c.id) || [];
+    if (cajaIds.length > 0) await supabase.from('ad_capturas_skus').delete().in('caja_id', cajaIds);
+    await supabase.from('ad_capturas_cajas').delete().eq('auditoria_id', auditoriaId);
+    await supabase.from('ad_datos_sap').delete().eq('auditoria_id', auditoriaId);
+    await supabase.from('ad_auditorias').delete().eq('id', auditoriaId);
+    cargarAuditorias();
+  };
 
   const verDetalle = async (auditoria: Auditoria) => {
     setAuditoriaDetalle(auditoria);
@@ -182,8 +169,6 @@ const AD01View: React.FC = () => {
 
   const cargarDatosDetalle = async (auditoria: Auditoria) => {
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
-    
-    // Obtener capturas
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoria.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
     let capturas: any[] = [];
@@ -191,21 +176,12 @@ const AD01View: React.FC = () => {
       const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
       capturas = data || [];
     }
-
-    // Calcular diferencias correctamente
     const detalle = (sap || []).map((s: any) => {
       const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
       const cantidadFisica = capturasSKU.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
-      const diferencia = (s.cantidad_sap || 0) - cantidadFisica;
-      return {
-        sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0,
-        cantidad_fisica: cantidadFisica, diferencia: diferencia,
-        capturado: capturasSKU.length > 0
-      };
+      return { sku: s.sku, denominacion: s.denominacion, cantidad_sap: s.cantidad_sap || 0, cantidad_fisica: cantidadFisica, diferencia: (s.cantidad_sap || 0) - cantidadFisica, capturado: capturasSKU.length > 0 };
     });
     setDatosDetalle(detalle);
-
-    // Actualizar estado de la auditoría en el modal
     const { data: auditActual } = await supabase.from('ad_auditorias').select('*').eq('id', auditoria.id).single();
     if (auditActual) setAuditoriaDetalle(auditActual);
   };
@@ -218,7 +194,7 @@ const AD01View: React.FC = () => {
     <div className="ad01-view">
       <div className="ad01-header">
         <h2>Gestión de Auditorías</h2>
-        <button className="toolbar-btn toolbar-btn-primary" onClick={() => setShowCrearModal(true)}>
+        <button className="ad01-btn-nueva" onClick={() => setShowCrearModal(true)}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           Nueva Auditoría
         </button>
@@ -236,7 +212,7 @@ const AD01View: React.FC = () => {
                   <tr key={a.id}>
                     <td className="ed03-ticket-id">{a.numero_tarea}</td><td>{a.codigo_local} - {a.nombre_local}</td><td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
                     <td>
-                      <select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} style={{ padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white' }}>
+                      <select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} className="ad01-select-asignar">
                         <option value="">Sin asignar</option>
                         {usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
                       </select>
@@ -244,7 +220,7 @@ const AD01View: React.FC = () => {
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td>
                     <td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: '5px' }}>
+                      <div className="ad01-acciones">
                         <button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>
                         {(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && (
                           <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>
@@ -263,14 +239,43 @@ const AD01View: React.FC = () => {
 
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => setShowCrearModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>Nueva Auditoría</h2><button className="ed01-modal-close" onClick={() => setShowCrearModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div className="ed01-field"><label>Archivo BD SAP (.xlsx)</label><input type="file" accept=".xlsx,.xls" onChange={e => setArchivoSAP(e.target.files?.[0] || null)} /></div>
-              <div className="ed01-field"><label>Archivo Correo (.xlsx)</label><input type="file" accept=".xlsx,.xls" onChange={e => setArchivoCorreo(e.target.files?.[0] || null)} /></div>
-              {mensaje && <div style={{ padding: '10px', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '13px' }}>{mensaje}</div>}
+              <div className="ad01-upload-area">
+                <label className="ad01-upload-label">Archivo BD SAP (.xlsx)</label>
+                <div className="ad01-upload-box" onClick={() => document.getElementById('file-sap')?.click()}>
+                  <input id="file-sap" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoSAP(e.target.files?.[0] || null); setNombreArchivoSAP(e.target.files?.[0]?.name || ''); }} />
+                  {nombreArchivoSAP ? (
+                    <span className="ad01-upload-nombre">{nombreArchivoSAP}</span>
+                  ) : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                      <span>Seleccionar archivo</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="ad01-upload-area">
+                <label className="ad01-upload-label">Archivo Correo (.xlsx)</label>
+                <div className="ad01-upload-box" onClick={() => document.getElementById('file-correo')?.click()}>
+                  <input id="file-correo" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoCorreo(e.target.files?.[0] || null); setNombreArchivoCorreo(e.target.files?.[0]?.name || ''); }} />
+                  {nombreArchivoCorreo ? (
+                    <span className="ad01-upload-nombre">{nombreArchivoCorreo}</span>
+                  ) : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                      <span>Seleccionar archivo</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              {mensaje && <div className="ad01-mensaje">{mensaje}</div>}
             </div>
-            <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button></div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button>
+              <button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button>
+            </div>
           </div>
         </div>
       )}
@@ -280,17 +285,17 @@ const AD01View: React.FC = () => {
           <div className="ed01-modal" style={{ maxWidth: '850px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', fontSize: '13px', flexWrap: 'wrap' }}>
+              <div className="ad01-detalle-header">
                 <div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div>
                 <div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div>
                 <div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div>
                 <div><strong>Estado:</strong> <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: getEstadoBadge(auditoriaDetalle.estado).bg, color: getEstadoBadge(auditoriaDetalle.estado).color }}>{auditoriaDetalle.estado}</span></div>
               </div>
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Total SAP</span><br /><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_sap, 0)}</strong></div>
-                <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Total Físico</span><br /><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_fisica, 0)}</strong></div>
-                <div style={{ background: '#f8fafd', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#64748b' }}>Revisados</span><br /><strong>{datosDetalle.filter(d => d.capturado).length}/{datosDetalle.length}</strong></div>
-                <div style={{ background: '#fef2f2', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}><span style={{ fontSize: '11px', color: '#dc2626' }}>Con Diferencias</span><br /><strong style={{ color: '#dc2626' }}>{datosDetalle.filter(d => d.diferencia !== 0).length}</strong></div>
+              <div className="ad01-resumen-cards">
+                <div className="ad01-resumen-card"><span>Total SAP</span><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_sap, 0)}</strong></div>
+                <div className="ad01-resumen-card"><span>Total Físico</span><strong>{datosDetalle.reduce((s, d) => s + d.cantidad_fisica, 0)}</strong></div>
+                <div className="ad01-resumen-card"><span>Revisados</span><strong>{datosDetalle.filter(d => d.capturado).length}/{datosDetalle.length}</strong></div>
+                <div className="ad01-resumen-card ad01-resumen-diff"><span>Con Diferencias</span><strong>{datosDetalle.filter(d => d.diferencia !== 0).length}</strong></div>
               </div>
               <div className="ed03-tabla-container" style={{ maxHeight: '400px' }}>
                 <table className="ed03-tabla">
