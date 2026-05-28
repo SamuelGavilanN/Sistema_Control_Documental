@@ -25,6 +25,7 @@ const AD01View: React.FC = () => {
   const [showDetalleModal, setShowDetalleModal] = useState(false);
   const [auditoriaDetalle, setAuditoriaDetalle] = useState<any>(null);
   const [datosDetalle, setDatosDetalle] = useState<any[]>([]);
+  const [datosSAP, setDatosSAP] = useState<any[]>([]);
   const [archivoSAP, setArchivoSAP] = useState<File | null>(null);
   const [archivoCorreo, setArchivoCorreo] = useState<File | null>(null);
   const [nombreArchivoSAP, setNombreArchivoSAP] = useState('');
@@ -169,6 +170,7 @@ const AD01View: React.FC = () => {
 
   const cargarDatosDetalle = async (auditoria: Auditoria) => {
     const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', auditoria.id);
+    setDatosSAP(sap || []);
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', auditoria.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
     let capturas: any[] = [];
@@ -184,6 +186,37 @@ const AD01View: React.FC = () => {
     setDatosDetalle(detalle);
     const { data: auditActual } = await supabase.from('ad_auditorias').select('*').eq('id', auditoria.id).single();
     if (auditActual) setAuditoriaDetalle(auditActual);
+  };
+
+  const exportarExcel = () => {
+    if (!auditoriaDetalle) return;
+    
+    const datos = datosDetalle.map(d => ({
+      'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
+      'ENTREGA': datosSAP.find(s => s.sku === d.sku)?.entrega || '',
+      'ACTA': auditoriaDetalle.acta || '',
+      'GUIA': auditoriaDetalle.guia || '',
+      'COD LOCAL': auditoriaDetalle.codigo_local,
+      'LOCAL': auditoriaDetalle.nombre_local,
+      'DESCRIPCION': d.denominacion,
+      'SKU': d.sku,
+      'SAP': d.cantidad_sap,
+      'FISICO': d.cantidad_fisica || 0,
+      'DIFERENCIA': d.diferencia || 0,
+      'ESTADO': d.capturado ? (d.diferencia === 0 ? 'OK' : 'CON DIFERENCIA') : 'PENDIENTE'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(datos);
+    
+    // Ajustar anchos de columna
+    ws['!cols'] = [
+      { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+      { wch: 25 }, { wch: 30 }, { wch: 16 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 18 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
+    XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
   };
 
   const getEstadoBadge = (e: string) => {
@@ -211,23 +244,14 @@ const AD01View: React.FC = () => {
                 return (
                   <tr key={a.id}>
                     <td className="ed03-ticket-id">{a.numero_tarea}</td><td>{a.codigo_local} - {a.nombre_local}</td><td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
-                    <td>
-                      <select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} className="ad01-select-asignar">
-                        <option value="">Sin asignar</option>
-                        {usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
-                      </select>
-                    </td>
+                    <td><select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} className="ad01-select-asignar"><option value="">Sin asignar</option>{usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}</select></td>
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td>
                     <td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
                     <td>
                       <div className="ad01-acciones">
                         <button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>
-                        {(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && (
-                          <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>
-                        )}
-                        {a.estado === 'Pendiente' && (
-                          <button className="ad01-btn-eliminar" onClick={() => handleEliminar(a.id)}>Eliminar</button>
-                        )}
+                        {(a.estado === 'Finalizado' || a.estado === 'Con Diferencias') && <button className="ad01-btn-reabrir" onClick={() => handleReabrir(a.id)}>Reabrir</button>}
+                        {a.estado === 'Pendiente' && <button className="ad01-btn-eliminar" onClick={() => handleEliminar(a.id)}>Eliminar</button>}
                       </div>
                     </td>
                   </tr>
@@ -242,40 +266,11 @@ const AD01View: React.FC = () => {
           <div className="ed01-modal" style={{ maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header"><h2>Nueva Auditoría</h2><button className="ed01-modal-close" onClick={() => setShowCrearModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <div className="ad01-upload-area">
-                <label className="ad01-upload-label">Archivo BD SAP (.xlsx)</label>
-                <div className="ad01-upload-box" onClick={() => document.getElementById('file-sap')?.click()}>
-                  <input id="file-sap" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoSAP(e.target.files?.[0] || null); setNombreArchivoSAP(e.target.files?.[0]?.name || ''); }} />
-                  {nombreArchivoSAP ? (
-                    <span className="ad01-upload-nombre">{nombreArchivoSAP}</span>
-                  ) : (
-                    <>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-                      <span>Seleccionar archivo</span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="ad01-upload-area">
-                <label className="ad01-upload-label">Archivo Correo (.xlsx)</label>
-                <div className="ad01-upload-box" onClick={() => document.getElementById('file-correo')?.click()}>
-                  <input id="file-correo" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoCorreo(e.target.files?.[0] || null); setNombreArchivoCorreo(e.target.files?.[0]?.name || ''); }} />
-                  {nombreArchivoCorreo ? (
-                    <span className="ad01-upload-nombre">{nombreArchivoCorreo}</span>
-                  ) : (
-                    <>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-                      <span>Seleccionar archivo</span>
-                    </>
-                  )}
-                </div>
-              </div>
+              <div className="ad01-upload-area"><label className="ad01-upload-label">Archivo BD SAP (.xlsx)</label><div className="ad01-upload-box" onClick={() => document.getElementById('file-sap')?.click()}><input id="file-sap" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoSAP(e.target.files?.[0] || null); setNombreArchivoSAP(e.target.files?.[0]?.name || ''); }} />{nombreArchivoSAP ? <span className="ad01-upload-nombre">{nombreArchivoSAP}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}</div></div>
+              <div className="ad01-upload-area"><label className="ad01-upload-label">Archivo Correo (.xlsx)</label><div className="ad01-upload-box" onClick={() => document.getElementById('file-correo')?.click()}><input id="file-correo" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoCorreo(e.target.files?.[0] || null); setNombreArchivoCorreo(e.target.files?.[0]?.name || ''); }} />{nombreArchivoCorreo ? <span className="ad01-upload-nombre">{nombreArchivoCorreo}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}</div></div>
               {mensaje && <div className="ad01-mensaje">{mensaje}</div>}
             </div>
-            <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button>
-              <button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button>
-            </div>
+            <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button></div>
           </div>
         </div>
       )}
@@ -283,7 +278,16 @@ const AD01View: React.FC = () => {
       {showDetalleModal && auditoriaDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '850px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
+            <div className="ed01-modal-header">
+              <h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="ad01-btn-exportar" onClick={exportarExcel}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V10M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10V12C1 12.5523 1.44772 13 2 13H12C12.5523 13 13 12.5523 13 12V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  Exportar XLSX
+                </button>
+                <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
+              </div>
+            </div>
             <div className="ed01-modal-body">
               <div className="ad01-detalle-header">
                 <div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div>
