@@ -9,9 +9,11 @@ import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
 import AD01View from './components/Transactions/AD/AD01View';
 import AD02Captura from './components/Transactions/AD/AD02Captura';
 import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
+import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
+import { supabase } from './lib/supabase';
 import './App.css';
 
 export type TabId = string;
@@ -22,6 +24,7 @@ const App: React.FC = () => {
   const [openTabs, setOpenTabs] = useState<TabId[]>(['dashboard']);
   const [cargando, setCargando] = useState(true);
   const [tabsMontadas, setTabsMontadas] = useState<Set<string>>(new Set(['dashboard']));
+  const [permisos, setPermisos] = useState<string[]>([]);
 
   useEffect(() => {
     const usuarioGuardado = auth.getUsuario();
@@ -29,12 +32,20 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (usuario) { cargarLocales().finally(() => setCargando(false)); }
+    if (usuario) {
+      cargarLocales().finally(() => setCargando(false));
+      cargarPermisos(usuario.id);
+    }
   }, [usuario]);
+
+  const cargarPermisos = async (userId: string) => {
+    const { data } = await supabase.from('usuario_permisos').select('transaccion_id').eq('usuario_id', userId).eq('activo', true);
+    if (data && data.length > 0) setPermisos(data.map((p: any) => p.transaccion_id));
+  };
 
   const handleLogin = (userData: any) => setUsuario(userData);
   const handleLogout = () => {
-    auth.logout(); setUsuario(null); setActiveTab('dashboard'); setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true);
+    auth.logout(); setUsuario(null); setActiveTab('dashboard'); setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true); setPermisos([]);
   };
 
   if (!usuario) return <Login onLogin={handleLogin} />;
@@ -55,13 +66,11 @@ const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      <Sidebar activeTab={activeTab} onModuleClick={openModule} rol={usuario?.rol} />
+      <Sidebar activeTab={activeTab} onModuleClick={openModule} rol={usuario?.rol} permisos={permisos} />
       <div className="main-panel">
         <Header activeTab={activeTab} openTabs={openTabs} onTabClick={setActiveTab} onTabClose={closeTab} usuario={usuario} onLogout={handleLogout} onOpenModule={openModule} />
         <div className="workspace">
-          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
-            <Dashboard onModuleClick={openModule} rol={usuario?.rol} />
-          </div>
+          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}><Dashboard onModuleClick={openModule} rol={usuario?.rol} /></div>
           {tabsMontadas.has('ed') && <div style={{ display: activeTab === 'ed' ? 'block' : 'none' }}><ED01View key="ed01" /></div>}
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
@@ -69,7 +78,8 @@ const App: React.FC = () => {
           {tabsMontadas.has('ad') && <div style={{ display: activeTab === 'ad' ? 'block' : 'none' }}><AD01View key="ad01" /></div>}
           {tabsMontadas.has('ad-captura') && <div style={{ display: activeTab === 'ad-captura' ? 'block' : 'none' }}><AD02Captura key="ad02" /></div>}
           {tabsMontadas.has('ad-dashboard') && <div style={{ display: activeTab === 'ad-dashboard' ? 'block' : 'none' }}><AD03Dashboard key="ad03" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard'].includes(activeTab) && (
+          {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
