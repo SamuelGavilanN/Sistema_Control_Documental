@@ -37,14 +37,12 @@ const AD02Captura: React.FC = () => {
   const primerInputRef = useRef<HTMLInputElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Detectar cambios de tamaño
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Cargar tareas iniciales
   useEffect(() => {
     cargarMisTareas();
     return () => {
@@ -54,7 +52,6 @@ const AD02Captura: React.FC = () => {
     };
   }, []);
 
-  // Iniciar polling cuando NO hay tarea activa
   useEffect(() => {
     if (!tareaActiva) {
       if (pollingIntervalRef.current) {
@@ -418,9 +415,13 @@ const AD02Captura: React.FC = () => {
                 </thead>
                 <tbody>
                   {cargando ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td>
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td>
+                    </tr>
                   ) : misTareas.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No tienes tareas pendientes</td></tr>
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No tienes tareas pendientes</td>
+                    </tr>
                   ) : (
                     misTareas.map(t => (
                       <tr key={t.id}>
@@ -478,7 +479,7 @@ const AD02Captura: React.FC = () => {
                 Curva: <strong>{curvaActual[0].sku.substring(0, curvaActual[0].sku.length - 3)}XXX</strong> ({curvaActual.length} items)
               </div>
               <div className="ed03-tabla-container">
-                <table className="ed03-tabla" style={{ fontSize: isMobile ? '11px' : '13px' }}>
+                <table className="ed03-tabla">
                   <thead>
                     <tr>
                       <th>SKU</th>
