@@ -17,6 +17,7 @@ const AD03Dashboard: React.FC = () => {
   const [filtroDesde, setFiltroDesde] = useState('');
   const [filtroHasta, setFiltroHasta] = useState('');
   const [locales, setLocales] = useState<string[]>([]);
+  const [localesData, setLocalesData] = useState<{ codigo: string; nombre: string }[]>([]);
 
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
 
@@ -26,15 +27,16 @@ const AD03Dashboard: React.FC = () => {
   }, [filtroLocal, filtroDesde, filtroHasta]);
 
   const cargarLocales = async () => {
-    try {
-      const resp = await fetch(`${API_URL}/ad_auditorias?select=codigo_local`, { headers: HEADERS });
-      const data = await resp.json();
-      if (data) {
-        const unicos = [...new Set(data.map((d: any) => d.codigo_local))];
-        setLocales(unicos as string[]);
-      }
-    } catch (e) {}
-  };
+  try {
+    const resp = await fetch(`${API_URL}/ad_auditorias?select=codigo_local,nombre_local`, { headers: HEADERS });
+    const data = await resp.json();
+    if (data) {
+      const mapa = new Map<string, string>();
+      data.forEach((d: any) => { if (!mapa.has(d.codigo_local)) mapa.set(d.codigo_local, d.nombre_local); });
+      setLocalesData(Array.from(mapa.entries()).map(([cod, nom]) => ({ codigo: cod, nombre: nom })));
+    }
+  } catch (e) {}
+};
 
   const cargarDatos = async () => {
     setCargando(true);
