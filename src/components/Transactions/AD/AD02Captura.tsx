@@ -23,6 +23,11 @@ interface SKUItem {
   capturadoTotal?: number;
 }
 
+interface SapRow {
+  sku: string;
+  cantidad_sap: number;
+}
+
 const AD02Captura: React.FC = () => {
   const usuario = auth.getUsuario();
   const [misTareas, setMisTareas] = useState<Auditoria[]>([]);
@@ -205,22 +210,17 @@ const AD02Captura: React.FC = () => {
   const buscarCurva = () => {
     if (!busqueda.trim()) return;
     let skuBuscado = busqueda.trim();
-    // Limpiar prefijos comunes de códigos de barras EAN/GS1
     if (skuBuscado.length > 11) {
-      // Si es código de barras de 13/14 dígitos, el SKU está en los primeros 8-11 dígitos
       skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
     }
-    // Buscar SKU exacto
     let curva = todosLosSKUs.filter(s => s.sku === skuBuscado);
     
-    // Si no se encuentra, intentar buscar por prefijo (para curvas)
     if (curva.length === 0 && skuBuscado.length >= 8) {
       const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
       curva = todosLosSKUs.filter(s => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
     }
     
     if (curva.length === 0) {
-      // Preguntar si desea agregar SKU no encontrado en SAP
       const agregar = confirm(`SKU "${skuBuscado}" no encontrado en SAP.\n¿Deseas agregarlo manualmente como SKU físico sin respaldo en sistema?`);
       if (agregar) {
         const nuevoSKU: SKUItem = {
@@ -296,11 +296,9 @@ const AD02Captura: React.FC = () => {
       if (cajaError) throw cajaError;
 
       if (caja && caja.length > 0) {
-        // Separar SKUs que existen en SAP de los que no
-        const skusExistentes = skusConFisico.filter(s => s.id.startsWith('temp_') === false);
+        const skusExistentes = skusConFisico.filter(s => !s.id.startsWith('temp_'));
         const skusNuevos = skusConFisico.filter(s => s.id.startsWith('temp_'));
         
-        // Guardar SKUs existentes (con referencia a ad_datos_sap)
         if (skusExistentes.length > 0) {
           const insertSkusQuery = supabase
             .from('ad_capturas_skus')
@@ -318,7 +316,6 @@ const AD02Captura: React.FC = () => {
           if (skuError) throw skuError;
         }
         
-        // Guardar SKUs nuevos (no existen en SAP)
         if (skusNuevos.length > 0) {
           const insertNuevosQuery = supabase
             .from('ad_capturas_skus')
@@ -329,30 +326,12 @@ const AD02Captura: React.FC = () => {
                 cantidad_sap: 0,
                 cantidad_fisica: s.cantidad_fisica || 0,
                 diferencia: 0 - (s.cantidad_fisica || 0),
-                es_nuevo: true, // Campo opcional si existe en la tabla
                 denominacion: s.denominacion
               }))
             );
           
           const { error: nuevosError } = await insertNuevosQuery;
-          if (nuevosError) {
-            // Si la tabla no tiene el campo 'es_nuevo', intentar sin él
-            const insertSimpleQuery = supabase
-              .from('ad_capturas_skus')
-              .insert(
-                skusNuevos.map(s => ({
-                  caja_id: caja[0].id,
-                  sku: s.sku,
-                  cantidad_sap: 0,
-                  cantidad_fisica: s.cantidad_fisica || 0,
-                  diferencia: 0 - (s.cantidad_fisica || 0),
-                  denominacion: s.denominacion
-                }))
-              );
-            
-            const { error: simpleError } = await insertSimpleQuery;
-            if (simpleError) throw simpleError;
-          }
+          if (nuevosError) throw nuevosError;
         }
       }
 
@@ -400,25 +379,27 @@ const AD02Captura: React.FC = () => {
           agrupado[c.sku].fisico += c.cantidad_fisica || 0;
         });
         
-        // Verificar SKUs que existen en SAP
-        const sapQuery = supabase
+        // Query separada para SAP
+        const selectQuery = supabase
           .from('ad_datos_sap')
-          .select('sku, cantidad_sap')
-          .eq('auditoria_id', tareaActiva.id);
+          .select('sku, cantidad_sap');
         
-        const { data: sapData, error: sapError } = await sapQuery;
+        const eqQuery = selectQuery.eq('auditoria_id', tareaActiva.id);
+        const { data: sapData, error: sapError } = await eqQuery;
+        
         if (sapError) throw sapError;
         
-        if (sapData && sapData.length > 0) {
-          hayDiferencias = sapData.some((sap: any) => {
+        const sapList = (sapData || []) as SapRow[];
+        
+        if (sapList.length > 0) {
+          hayDiferencias = sapList.some(sap => {
             const capturado = agrupado[sap.sku];
             return capturado ? sap.cantidad_sap !== capturado.fisico : sap.cantidad_sap > 0;
           });
         }
         
-        // Verificar SKUs nuevos (físicos sin SAP)
         const skusNuevos = Object.keys(agrupado).filter(sku => {
-          return !(sapData || []).some((sap: any) => sap.sku === sku);
+          return !sapList.some(sap => sap.sku === sku);
         });
         if (skusNuevos.length > 0) {
           hayDiferencias = true;
