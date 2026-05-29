@@ -75,7 +75,7 @@ const App: React.FC = () => {
       <div className="main-panel">
         <Header activeTab={activeTab} openTabs={openTabs} onTabClick={setActiveTab} onTabClose={closeTab} usuario={usuario} onLogout={handleLogout} onOpenModule={openModule} />
         <div className="workspace">
-          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}><Dashboard onModuleClick={openModule} rol={usuario?.rol} /></div>
+          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}><Dashboard onModuleClick={openModule} rol={usuario?.rol} permisos={permisos} />
           {tabsMontadas.has('ed') && <div style={{ display: activeTab === 'ed' ? 'block' : 'none' }}><ED01View key="ed01" /></div>}
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
