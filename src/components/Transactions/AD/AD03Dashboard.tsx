@@ -86,7 +86,7 @@ const AD03Dashboard: React.FC = () => {
       <div className="ad03-filtros">
         <select value={filtroLocal} onChange={e => setFiltroLocal(e.target.value)}>
           <option value="">Todos los locales</option>
-          {locales.map(l => <option key={l} value={l}>{l}</option>)}
+          {localesData.map(l => <option key={l.codigo} value={l.codigo}>{l.codigo} - {l.nombre}</option>)}
         </select>
         <input type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} placeholder="Desde" />
         <input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} placeholder="Hasta" />
