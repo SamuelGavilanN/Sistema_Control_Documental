@@ -23,11 +23,6 @@ interface SKUItem {
   capturadoTotal?: number;
 }
 
-interface SapData {
-  sku: string;
-  cantidad_sap: number;
-}
-
 const AD02Captura: React.FC = () => {
   const usuario = auth.getUsuario();
   const [misTareas, setMisTareas] = useState<Auditoria[]>([]);
@@ -53,7 +48,6 @@ const AD02Captura: React.FC = () => {
   useEffect(() => {
     cargarMisTareas();
     return () => {
-      // Limpiar polling al desmontar
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
@@ -63,7 +57,6 @@ const AD02Captura: React.FC = () => {
   // Iniciar polling cuando NO hay tarea activa
   useEffect(() => {
     if (!tareaActiva) {
-      // Iniciar polling cada 10 segundos
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
@@ -71,7 +64,6 @@ const AD02Captura: React.FC = () => {
         cargarMisTareasSilencioso();
       }, 10000);
     } else {
-      // Detener polling cuando hay tarea activa
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -88,26 +80,24 @@ const AD02Captura: React.FC = () => {
   const cargarMisTareas = async (mostrarCargando: boolean = true) => {
     if (mostrarCargando) setCargando(true);
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from('ad_auditorias')
         .select('*')
         .eq('usuario_asignado', usuario?.id)
         .in('estado', ['Pendiente', 'En Proceso'])
         .order('creado_en', { ascending: false });
       
+      const { data, error } = await query;
+      
       if (error) throw error;
       
       if (data) {
         setMisTareas(data as Auditoria[]);
-        // Si la tarea activa ya no está en la lista (ej: fue reabierta pero desapareció),
-        // la actualizamos silenciosamente
         if (tareaActiva) {
           const tareaActualizada = (data as Auditoria[]).find(t => t.id === tareaActiva.id);
           if (tareaActualizada && tareaActualizada.estado !== tareaActiva.estado) {
-            // La tarea activa cambió de estado (ej: de Con Diferencias a En Proceso)
             setTareaActiva(tareaActualizada);
           } else if (!tareaActualizada) {
-            // La tarea activa ya no está disponible (quizás fue eliminada o completada)
             setTareaActiva(null);
             setCurvaActual([]);
             setTodosLosSKUs([]);
@@ -122,23 +112,22 @@ const AD02Captura: React.FC = () => {
 
   const cargarMisTareasSilencioso = async () => {
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from('ad_auditorias')
         .select('*')
         .eq('usuario_asignado', usuario?.id)
         .in('estado', ['Pendiente', 'En Proceso'])
         .order('creado_en', { ascending: false });
       
+      const { data, error } = await query;
+      
       if (error) throw error;
       
       if (data) {
         setMisTareas(data as Auditoria[]);
-        // Si la tarea activa ya no está en la lista (ej: fue reabierta pero desapareció),
-        // la actualizamos silenciosamente
         if (tareaActiva) {
           const tareaActualizada = (data as Auditoria[]).find(t => t.id === tareaActiva.id);
           if (!tareaActualizada) {
-            // La tarea activa ya no está disponible (quizás fue eliminada o completada)
             setTareaActiva(null);
             setCurvaActual([]);
             setTodosLosSKUs([]);
@@ -151,7 +140,6 @@ const AD02Captura: React.FC = () => {
   };
 
   const abrirTarea = async (tarea: Auditoria) => {
-    // Detener polling mientras se trabaja en una tarea
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
@@ -160,30 +148,33 @@ const AD02Captura: React.FC = () => {
     setTareaActiva(tarea);
     
     try {
-      const { data: sap, error: sapError } = await supabase
+      const sapQuery = supabase
         .from('ad_datos_sap')
         .select('*')
         .eq('auditoria_id', tarea.id)
         .order('sku');
       
+      const { data: sap, error: sapError } = await sapQuery;
       if (sapError) throw sapError;
       
-      const { data: cajas, error: cajasError } = await supabase
+      const cajasQuery = supabase
         .from('ad_capturas_cajas')
         .select('id')
         .eq('auditoria_id', tarea.id);
       
+      const { data: cajas, error: cajasError } = await cajasQuery;
       if (cajasError) throw cajasError;
       
       const cajaIds = cajas?.map((c: any) => c.id) || [];
       let capturasPrevias: any[] = [];
       
       if (cajaIds.length > 0) {
-        const { data: caps, error: capsError } = await supabase
+        const capturasQuery = supabase
           .from('ad_capturas_skus')
           .select('*')
           .in('caja_id', cajaIds);
         
+        const { data: caps, error: capsError } = await capturasQuery;
         if (capsError) throw capsError;
         capturasPrevias = caps || [];
       }
@@ -198,10 +189,12 @@ const AD02Captura: React.FC = () => {
       setCajaActual(cajaIds.length + 1);
       
       if (tarea.estado === 'Pendiente') {
-        await supabase
+        const updateQuery = supabase
           .from('ad_auditorias')
           .update({ estado: 'En Proceso' })
           .eq('id', tarea.id);
+        
+        await updateQuery;
         setTareaActiva(prev => prev ? { ...prev, estado: 'En Proceso' } : null);
       }
       
@@ -223,7 +216,6 @@ const AD02Captura: React.FC = () => {
       return;
     }
     setCurvaActual(curva.map(s => ({ ...s, cantidad_fisica: undefined, diferencia: undefined })));
-    // Enfocar primer input de cantidad después de buscar
     setTimeout(() => {
       const inputs = document.querySelectorAll('.ad02-input-cantidad');
       if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
@@ -248,7 +240,6 @@ const AD02Captura: React.FC = () => {
         const inputs = document.querySelectorAll('.ad02-input-cantidad');
         (inputs[nextIndex] as HTMLInputElement)?.focus();
       } else {
-        // Último campo: enfocar botón guardar
         (document.querySelector('.ad02-btn-guardar') as HTMLElement)?.focus();
       }
     }
@@ -263,7 +254,7 @@ const AD02Captura: React.FC = () => {
     }
 
     try {
-      const { data: caja, error: cajaError } = await supabase
+      const insertCajaQuery = supabase
         .from('ad_capturas_cajas')
         .insert([{
           auditoria_id: tareaActiva.id,
@@ -271,17 +262,17 @@ const AD02Captura: React.FC = () => {
           capturado_por: usuario?.id,
           estado: 'Capturada'
         }])
-        .select('id')
-        .single();
-
+        .select('id');
+      
+      const { data: caja, error: cajaError } = await insertCajaQuery;
       if (cajaError) throw cajaError;
 
-      if (caja) {
-        const { error: skuError } = await supabase
+      if (caja && caja.length > 0) {
+        const insertSkusQuery = supabase
           .from('ad_capturas_skus')
           .insert(
             skusConFisico.map(s => ({
-              caja_id: (caja as any).id,
+              caja_id: caja[0].id,
               sku: s.sku,
               cantidad_sap: s.cantidad_sap,
               cantidad_fisica: s.cantidad_fisica || 0,
@@ -289,15 +280,14 @@ const AD02Captura: React.FC = () => {
             }))
           );
         
+        const { error: skuError } = await insertSkusQuery;
         if (skuError) throw skuError;
       }
 
       setCajaActual(prev => prev + 1);
       setCurvaActual([]);
       setBusqueda('');
-      // Recargar la tarea para actualizar los totales capturados
       await abrirTarea(tareaActiva);
-      // Enfocar búsqueda para la siguiente curva
       setTimeout(() => busquedaRef.current?.focus(), 300);
     } catch (error: any) {
       console.error('Error guardando caja:', error);
@@ -312,22 +302,24 @@ const AD02Captura: React.FC = () => {
     if (!confirmar) return;
 
     try {
-      const { data: cajas, error: cajasError } = await supabase
+      const cajasQuery = supabase
         .from('ad_capturas_cajas')
         .select('id')
         .eq('auditoria_id', tareaActiva.id);
       
+      const { data: cajas, error: cajasError } = await cajasQuery;
       if (cajasError) throw cajasError;
       
       const cajaIds = cajas?.map((c: any) => c.id) || [];
       let hayDiferencias = false;
       
       if (cajaIds.length > 0) {
-        const { data: capturas, error: capturasError } = await supabase
+        const capturasQuery = supabase
           .from('ad_capturas_skus')
           .select('*')
           .in('caja_id', cajaIds);
         
+        const { data: capturas, error: capturasError } = await capturasQuery;
         if (capturasError) throw capturasError;
         
         const agrupado: Record<string, { sap: number; fisico: number }> = {};
@@ -336,17 +328,16 @@ const AD02Captura: React.FC = () => {
           agrupado[c.sku].fisico += c.cantidad_fisica || 0;
         });
         
-        // Verificar diferencias comparando con los datos SAP originales
-        const { data: sapData, error: sapError } = await supabase
+        const sapQuery = supabase
           .from('ad_datos_sap')
           .select('sku, cantidad_sap')
           .eq('auditoria_id', tareaActiva.id);
         
+        const { data: sapData, error: sapError } = await sapQuery;
         if (sapError) throw sapError;
         
         if (sapData && sapData.length > 0) {
-          const sapDataTyped = sapData as SapData[];
-          hayDiferencias = sapDataTyped.some(sap => {
+          hayDiferencias = sapData.some((sap: any) => {
             const capturado = agrupado[sap.sku];
             return capturado ? sap.cantidad_sap !== capturado.fisico : sap.cantidad_sap > 0;
           });
@@ -354,7 +345,7 @@ const AD02Captura: React.FC = () => {
       }
 
       const nuevoEstado = hayDiferencias ? 'Con Diferencias' : 'Finalizado';
-      const { error: updateError } = await supabase
+      const updateQuery = supabase
         .from('ad_auditorias')
         .update({ 
           estado: nuevoEstado, 
@@ -362,13 +353,13 @@ const AD02Captura: React.FC = () => {
         })
         .eq('id', tareaActiva.id);
       
+      const { error: updateError } = await updateQuery;
       if (updateError) throw updateError;
       
       alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
       setTareaActiva(null);
       setCurvaActual([]);
       setTodosLosSKUs([]);
-      // Recargar la lista de tareas después de finalizar
       await cargarMisTareas();
     } catch (error: any) {
       console.error('Error finalizando tarea:', error);
@@ -427,7 +418,7 @@ const AD02Captura: React.FC = () => {
                 </thead>
                 <tbody>
                   {cargando ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td>
                   ) : misTareas.length === 0 ? (
                     <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px' }}>No tienes tareas pendientes</td></tr>
                   ) : (
