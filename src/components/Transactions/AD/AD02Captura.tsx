@@ -23,6 +23,11 @@ interface SKUItem {
   capturadoTotal?: number;
 }
 
+interface SapData {
+  sku: string;
+  cantidad_sap: number;
+}
+
 const AD02Captura: React.FC = () => {
   const usuario = auth.getUsuario();
   const [misTareas, setMisTareas] = useState<Auditoria[]>([]);
@@ -82,48 +87,66 @@ const AD02Captura: React.FC = () => {
 
   const cargarMisTareas = async (mostrarCargando: boolean = true) => {
     if (mostrarCargando) setCargando(true);
-    const { data } = await supabase.from('ad_auditorias').select('*')
-      .eq('usuario_asignado', usuario?.id)
-      .in('estado', ['Pendiente', 'En Proceso'])
-      .order('creado_en', { ascending: false });
-    if (data) {
-      setMisTareas(data);
-      // Si la tarea activa ya no está en la lista (ej: fue reabierta pero desapareció),
-      // la actualizamos silenciosamente
-      if (tareaActiva) {
-        const tareaActualizada = data.find(t => t.id === tareaActiva.id);
-        if (tareaActualizada && tareaActualizada.estado !== tareaActiva.estado) {
-          // La tarea activa cambió de estado (ej: de Con Diferencias a En Proceso)
-          setTareaActiva(tareaActualizada);
-        } else if (!tareaActualizada) {
-          // La tarea activa ya no está disponible (quizás fue eliminada o completada)
-          setTareaActiva(null);
-          setCurvaActual([]);
-          setTodosLosSKUs([]);
+    try {
+      const { data, error } = await supabase
+        .from('ad_auditorias')
+        .select('*')
+        .eq('usuario_asignado', usuario?.id)
+        .in('estado', ['Pendiente', 'En Proceso'])
+        .order('creado_en', { ascending: false });
+      
+      if (error) throw error;
+      
+      if (data) {
+        setMisTareas(data as Auditoria[]);
+        // Si la tarea activa ya no está en la lista (ej: fue reabierta pero desapareció),
+        // la actualizamos silenciosamente
+        if (tareaActiva) {
+          const tareaActualizada = (data as Auditoria[]).find(t => t.id === tareaActiva.id);
+          if (tareaActualizada && tareaActualizada.estado !== tareaActiva.estado) {
+            // La tarea activa cambió de estado (ej: de Con Diferencias a En Proceso)
+            setTareaActiva(tareaActualizada);
+          } else if (!tareaActualizada) {
+            // La tarea activa ya no está disponible (quizás fue eliminada o completada)
+            setTareaActiva(null);
+            setCurvaActual([]);
+            setTodosLosSKUs([]);
+          }
         }
       }
+    } catch (error) {
+      console.error('Error cargando tareas:', error);
     }
     if (mostrarCargando) setCargando(false);
   };
 
   const cargarMisTareasSilencioso = async () => {
-    const { data } = await supabase.from('ad_auditorias').select('*')
-      .eq('usuario_asignado', usuario?.id)
-      .in('estado', ['Pendiente', 'En Proceso'])
-      .order('creado_en', { ascending: false });
-    if (data) {
-      setMisTareas(data);
-      // Si la tarea activa ya no está en la lista (ej: fue reabierta pero desapareció),
-      // la actualizamos silenciosamente
-      if (tareaActiva) {
-        const tareaActualizada = data.find(t => t.id === tareaActiva.id);
-        if (!tareaActualizada) {
-          // La tarea activa ya no está disponible (quizás fue eliminada o completada)
-          setTareaActiva(null);
-          setCurvaActual([]);
-          setTodosLosSKUs([]);
+    try {
+      const { data, error } = await supabase
+        .from('ad_auditorias')
+        .select('*')
+        .eq('usuario_asignado', usuario?.id)
+        .in('estado', ['Pendiente', 'En Proceso'])
+        .order('creado_en', { ascending: false });
+      
+      if (error) throw error;
+      
+      if (data) {
+        setMisTareas(data as Auditoria[]);
+        // Si la tarea activa ya no está en la lista (ej: fue reabierta pero desapareció),
+        // la actualizamos silenciosamente
+        if (tareaActiva) {
+          const tareaActualizada = (data as Auditoria[]).find(t => t.id === tareaActiva.id);
+          if (!tareaActualizada) {
+            // La tarea activa ya no está disponible (quizás fue eliminada o completada)
+            setTareaActiva(null);
+            setCurvaActual([]);
+            setTodosLosSKUs([]);
+          }
         }
       }
+    } catch (error) {
+      console.error('Error cargando tareas silenciosamente:', error);
     }
   };
 
@@ -135,26 +158,58 @@ const AD02Captura: React.FC = () => {
     }
 
     setTareaActiva(tarea);
-    const { data: sap } = await supabase.from('ad_datos_sap').select('*').eq('auditoria_id', tarea.id).order('sku');
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tarea.id);
-    const cajaIds = cajas?.map((c: any) => c.id) || [];
-    let capturasPrevias: any[] = [];
-    if (cajaIds.length > 0) {
-      const { data: caps } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
-      capturasPrevias = caps || [];
+    
+    try {
+      const { data: sap, error: sapError } = await supabase
+        .from('ad_datos_sap')
+        .select('*')
+        .eq('auditoria_id', tarea.id)
+        .order('sku');
+      
+      if (sapError) throw sapError;
+      
+      const { data: cajas, error: cajasError } = await supabase
+        .from('ad_capturas_cajas')
+        .select('id')
+        .eq('auditoria_id', tarea.id);
+      
+      if (cajasError) throw cajasError;
+      
+      const cajaIds = cajas?.map((c: any) => c.id) || [];
+      let capturasPrevias: any[] = [];
+      
+      if (cajaIds.length > 0) {
+        const { data: caps, error: capsError } = await supabase
+          .from('ad_capturas_skus')
+          .select('*')
+          .in('caja_id', cajaIds);
+        
+        if (capsError) throw capsError;
+        capturasPrevias = caps || [];
+      }
+      
+      if (sap) {
+        setTodosLosSKUs(sap.map((s: any) => {
+          const capturado = capturasPrevias.filter((c: any) => c.sku === s.sku).reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
+          return { ...s, cantidad_fisica: undefined, diferencia: undefined, capturadoTotal: capturado };
+        }));
+      }
+      
+      setCajaActual(cajaIds.length + 1);
+      
+      if (tarea.estado === 'Pendiente') {
+        await supabase
+          .from('ad_auditorias')
+          .update({ estado: 'En Proceso' })
+          .eq('id', tarea.id);
+        setTareaActiva(prev => prev ? { ...prev, estado: 'En Proceso' } : null);
+      }
+      
+      setTimeout(() => busquedaRef.current?.focus(), 300);
+    } catch (error) {
+      console.error('Error abriendo tarea:', error);
+      alert('Error al abrir la tarea');
     }
-    if (sap) {
-      setTodosLosSKUs(sap.map((s: any) => {
-        const capturado = capturasPrevias.filter((c: any) => c.sku === s.sku).reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
-        return { ...s, cantidad_fisica: undefined, diferencia: undefined, capturadoTotal: capturado };
-      }));
-    }
-    setCajaActual(cajaIds.length + 1);
-    if (tarea.estado === 'Pendiente') {
-      await supabase.from('ad_auditorias').update({ estado: 'En Proceso' }).eq('id', tarea.id);
-      setTareaActiva(prev => prev ? { ...prev, estado: 'En Proceso' } : null);
-    }
-    setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
   const buscarCurva = () => {
@@ -207,43 +262,47 @@ const AD02Captura: React.FC = () => {
       return;
     }
 
-    const { data: caja, error: cajaError } = await supabase.from('ad_capturas_cajas').insert([{
-      auditoria_id: tareaActiva.id,
-      numero_caja: cajaActual,
-      capturado_por: usuario?.id,
-      estado: 'Capturada'
-    }]).select('id').single();
+    try {
+      const { data: caja, error: cajaError } = await supabase
+        .from('ad_capturas_cajas')
+        .insert([{
+          auditoria_id: tareaActiva.id,
+          numero_caja: cajaActual,
+          capturado_por: usuario?.id,
+          estado: 'Capturada'
+        }])
+        .select('id')
+        .single();
 
-    if (cajaError) {
-      console.error('Error al crear caja:', cajaError);
-      alert('Error al guardar la caja: ' + cajaError.message);
-      return;
-    }
+      if (cajaError) throw cajaError;
 
-    if (caja) {
-      const { error: skuError } = await supabase.from('ad_capturas_skus').insert(
-        skusConFisico.map(s => ({
-          caja_id: (caja as any).id,
-          sku: s.sku,
-          cantidad_sap: s.cantidad_sap,
-          cantidad_fisica: s.cantidad_fisica || 0,
-          diferencia: (s.cantidad_sap || 0) - (s.capturadoTotal || 0) - (s.cantidad_fisica || 0)
-        }))
-      );
-      if (skuError) {
-        console.error('Error al guardar SKUs:', skuError);
-        alert('Error al guardar los SKUs: ' + skuError.message);
-        return;
+      if (caja) {
+        const { error: skuError } = await supabase
+          .from('ad_capturas_skus')
+          .insert(
+            skusConFisico.map(s => ({
+              caja_id: (caja as any).id,
+              sku: s.sku,
+              cantidad_sap: s.cantidad_sap,
+              cantidad_fisica: s.cantidad_fisica || 0,
+              diferencia: (s.cantidad_sap || 0) - (s.capturadoTotal || 0) - (s.cantidad_fisica || 0)
+            }))
+          );
+        
+        if (skuError) throw skuError;
       }
-    }
 
-    setCajaActual(prev => prev + 1);
-    setCurvaActual([]);
-    setBusqueda('');
-    // Recargar la tarea para actualizar los totales capturados
-    await abrirTarea(tareaActiva);
-    // Enfocar búsqueda para la siguiente curva
-    setTimeout(() => busquedaRef.current?.focus(), 300);
+      setCajaActual(prev => prev + 1);
+      setCurvaActual([]);
+      setBusqueda('');
+      // Recargar la tarea para actualizar los totales capturados
+      await abrirTarea(tareaActiva);
+      // Enfocar búsqueda para la siguiente curva
+      setTimeout(() => busquedaRef.current?.focus(), 300);
+    } catch (error: any) {
+      console.error('Error guardando caja:', error);
+      alert('Error al guardar la caja: ' + error.message);
+    }
   };
 
   const finalizarTarea = async () => {
@@ -252,39 +311,69 @@ const AD02Captura: React.FC = () => {
     const confirmar = confirm('¿Estás seguro de finalizar esta tarea?');
     if (!confirmar) return;
 
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
-    const cajaIds = cajas?.map((c: any) => c.id) || [];
-    let hayDiferencias = false;
-    
-    if (cajaIds.length > 0) {
-      const { data: capturas } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
-      const agrupado: Record<string, { sap: number; fisico: number }> = {};
-      (capturas || []).forEach((c: any) => {
-        if (!agrupado[c.sku]) agrupado[c.sku] = { sap: c.cantidad_sap, fisico: 0 };
-        agrupado[c.sku].fisico += c.cantidad_fisica || 0;
-      });
-      // Verificar diferencias comparando con los datos SAP originales
-      const { data: sapData } = await supabase.from('ad_datos_sap').select('sku, cantidad_sap').eq('auditoria_id', tareaActiva.id);
-      if (sapData) {
-        hayDiferencias = sapData.some(sap => {
-          const capturado = agrupado[sap.sku];
-          return capturado ? sap.cantidad_sap !== capturado.fisico : sap.cantidad_sap > 0;
+    try {
+      const { data: cajas, error: cajasError } = await supabase
+        .from('ad_capturas_cajas')
+        .select('id')
+        .eq('auditoria_id', tareaActiva.id);
+      
+      if (cajasError) throw cajasError;
+      
+      const cajaIds = cajas?.map((c: any) => c.id) || [];
+      let hayDiferencias = false;
+      
+      if (cajaIds.length > 0) {
+        const { data: capturas, error: capturasError } = await supabase
+          .from('ad_capturas_skus')
+          .select('*')
+          .in('caja_id', cajaIds);
+        
+        if (capturasError) throw capturasError;
+        
+        const agrupado: Record<string, { sap: number; fisico: number }> = {};
+        (capturas || []).forEach((c: any) => {
+          if (!agrupado[c.sku]) agrupado[c.sku] = { sap: c.cantidad_sap, fisico: 0 };
+          agrupado[c.sku].fisico += c.cantidad_fisica || 0;
         });
+        
+        // Verificar diferencias comparando con los datos SAP originales
+        const { data: sapData, error: sapError } = await supabase
+          .from('ad_datos_sap')
+          .select('sku, cantidad_sap')
+          .eq('auditoria_id', tareaActiva.id);
+        
+        if (sapError) throw sapError;
+        
+        if (sapData && sapData.length > 0) {
+          const sapDataTyped = sapData as SapData[];
+          hayDiferencias = sapDataTyped.some(sap => {
+            const capturado = agrupado[sap.sku];
+            return capturado ? sap.cantidad_sap !== capturado.fisico : sap.cantidad_sap > 0;
+          });
+        }
       }
-    }
 
-    const nuevoEstado = hayDiferencias ? 'Con Diferencias' : 'Finalizado';
-    await supabase.from('ad_auditorias').update({ 
-      estado: nuevoEstado, 
-      finalizado_en: new Date().toISOString() 
-    }).eq('id', tareaActiva.id);
-    
-    alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
-    setTareaActiva(null);
-    setCurvaActual([]);
-    setTodosLosSKUs([]);
-    // Recargar la lista de tareas después de finalizar
-    await cargarMisTareas();
+      const nuevoEstado = hayDiferencias ? 'Con Diferencias' : 'Finalizado';
+      const { error: updateError } = await supabase
+        .from('ad_auditorias')
+        .update({ 
+          estado: nuevoEstado, 
+          finalizado_en: new Date().toISOString() 
+        })
+        .eq('id', tareaActiva.id);
+      
+      if (updateError) throw updateError;
+      
+      alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
+      setTareaActiva(null);
+      setCurvaActual([]);
+      setTodosLosSKUs([]);
+      // Recargar la lista de tareas después de finalizar
+      await cargarMisTareas();
+    } catch (error: any) {
+      console.error('Error finalizando tarea:', error);
+      alert('Error al finalizar la tarea: ' + error.message);
+    }
   };
 
   const volverALista = async () => {
