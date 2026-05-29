@@ -121,9 +121,19 @@ const AD01View: React.FC = () => {
     const detalle: any[] = [];
     (sap || []).forEach((s: any) => {
       const csku = capturas.filter((c: any) => c.sku === s.sku); const sapTotal = s.cantidad_sap || 0;
-      if (csku.length === 0) { detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal, capturado: false, cajas: 'Pendiente' }); }
-      else { let fa = 0; csku.forEach((c: any, i: number) => { fa += c.cantidad_fisica || 0; detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: c.cantidad_fisica || 0, diferencia: i === csku.length - 1 ? sapTotal - fa : 0, capturado: true, cajas: `Caja ${c.numero_caja}` }); });
-        if (fa < sapTotal) detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal - fa, capturado: false, cajas: 'Pendiente' }); }
+      if (csku.length === 0) {
+        detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal, capturado: false, cajas: 'Pendiente' });
+      } else {
+        let fa = 0;
+        csku.forEach((c: any, i: number) => {
+          fa += c.cantidad_fisica || 0;
+          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: c.cantidad_fisica || 0, diferencia: i === csku.length - 1 ? sapTotal - fa : 0, capturado: true, cajas: `Caja ${c.numero_caja}` });
+        });
+        // Solo mostrar Pendiente si la tarea NO está finalizada
+        if (fa < sapTotal && a.estado !== 'Finalizado' && a.estado !== 'Con Diferencias') {
+          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal - fa, capturado: false, cajas: 'Pendiente' });
+        }
+      }
     });
     setDatosDetalle(detalle);
     const { data: aa } = await supabase.from('ad_auditorias').select('*').eq('id', a.id).single(); if (aa) setAuditoriaDetalle(aa);
