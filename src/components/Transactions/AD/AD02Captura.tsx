@@ -205,13 +205,44 @@ const AD02Captura: React.FC = () => {
   const buscarCurva = () => {
     if (!busqueda.trim()) return;
     let skuBuscado = busqueda.trim();
-    if (skuBuscado.length > 11) skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
-    const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
-    const curva = todosLosSKUs.filter(s => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
+    // Limpiar prefijos comunes de códigos de barras EAN/GS1
+    if (skuBuscado.length > 11) {
+      // Si es código de barras de 13/14 dígitos, el SKU está en los primeros 8-11 dígitos
+      skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
+    }
+    // Buscar SKU exacto
+    let curva = todosLosSKUs.filter(s => s.sku === skuBuscado);
+    
+    // Si no se encuentra, intentar buscar por prefijo (para curvas)
+    if (curva.length === 0 && skuBuscado.length >= 8) {
+      const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
+      curva = todosLosSKUs.filter(s => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
+    }
+    
     if (curva.length === 0) {
-      alert('SKU no encontrado');
+      // Preguntar si desea agregar SKU no encontrado en SAP
+      const agregar = confirm(`SKU "${skuBuscado}" no encontrado en SAP.\n¿Deseas agregarlo manualmente como SKU físico sin respaldo en sistema?`);
+      if (agregar) {
+        const nuevoSKU: SKUItem = {
+          id: `temp_${Date.now()}`,
+          sku: skuBuscado,
+          denominacion: 'SKU NO REGISTRADO EN SAP',
+          cantidad_sap: 0,
+          cantidad_fisica: undefined,
+          diferencia: undefined,
+          capturadoTotal: 0
+        };
+        setCurvaActual([nuevoSKU]);
+        setTimeout(() => {
+          const inputs = document.querySelectorAll('.ad02-input-cantidad');
+          if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
+        }, 200);
+      } else {
+        alert('SKU no encontrado');
+      }
       return;
     }
+    
     setCurvaActual(curva.map(s => ({ ...s, cantidad_fisica: undefined, diferencia: undefined })));
     setTimeout(() => {
       const inputs = document.querySelectorAll('.ad02-input-cantidad');
@@ -265,20 +296,64 @@ const AD02Captura: React.FC = () => {
       if (cajaError) throw cajaError;
 
       if (caja && caja.length > 0) {
-        const insertSkusQuery = supabase
-          .from('ad_capturas_skus')
-          .insert(
-            skusConFisico.map(s => ({
-              caja_id: caja[0].id,
-              sku: s.sku,
-              cantidad_sap: s.cantidad_sap,
-              cantidad_fisica: s.cantidad_fisica || 0,
-              diferencia: (s.cantidad_sap || 0) - (s.capturadoTotal || 0) - (s.cantidad_fisica || 0)
-            }))
-          );
+        // Separar SKUs que existen en SAP de los que no
+        const skusExistentes = skusConFisico.filter(s => s.id.startsWith('temp_') === false);
+        const skusNuevos = skusConFisico.filter(s => s.id.startsWith('temp_'));
         
-        const { error: skuError } = await insertSkusQuery;
-        if (skuError) throw skuError;
+        // Guardar SKUs existentes (con referencia a ad_datos_sap)
+        if (skusExistentes.length > 0) {
+          const insertSkusQuery = supabase
+            .from('ad_capturas_skus')
+            .insert(
+              skusExistentes.map(s => ({
+                caja_id: caja[0].id,
+                sku: s.sku,
+                cantidad_sap: s.cantidad_sap,
+                cantidad_fisica: s.cantidad_fisica || 0,
+                diferencia: (s.cantidad_sap || 0) - (s.capturadoTotal || 0) - (s.cantidad_fisica || 0)
+              }))
+            );
+          
+          const { error: skuError } = await insertSkusQuery;
+          if (skuError) throw skuError;
+        }
+        
+        // Guardar SKUs nuevos (no existen en SAP)
+        if (skusNuevos.length > 0) {
+          const insertNuevosQuery = supabase
+            .from('ad_capturas_skus')
+            .insert(
+              skusNuevos.map(s => ({
+                caja_id: caja[0].id,
+                sku: s.sku,
+                cantidad_sap: 0,
+                cantidad_fisica: s.cantidad_fisica || 0,
+                diferencia: 0 - (s.cantidad_fisica || 0),
+                es_nuevo: true, // Campo opcional si existe en la tabla
+                denominacion: s.denominacion
+              }))
+            );
+          
+          const { error: nuevosError } = await insertNuevosQuery;
+          if (nuevosError) {
+            // Si la tabla no tiene el campo 'es_nuevo', intentar sin él
+            const insertSimpleQuery = supabase
+              .from('ad_capturas_skus')
+              .insert(
+                skusNuevos.map(s => ({
+                  caja_id: caja[0].id,
+                  sku: s.sku,
+                  cantidad_sap: 0,
+                  cantidad_fisica: s.cantidad_fisica || 0,
+                  diferencia: 0 - (s.cantidad_fisica || 0),
+                  denominacion: s.denominacion
+                }))
+              );
+            
+            const { error: simpleError } = await insertSimpleQuery;
+            if (simpleError) throw simpleError;
+          }
+        }
       }
 
       setCajaActual(prev => prev + 1);
@@ -325,6 +400,7 @@ const AD02Captura: React.FC = () => {
           agrupado[c.sku].fisico += c.cantidad_fisica || 0;
         });
         
+        // Verificar SKUs que existen en SAP
         const sapQuery = supabase
           .from('ad_datos_sap')
           .select('sku, cantidad_sap')
@@ -338,6 +414,14 @@ const AD02Captura: React.FC = () => {
             const capturado = agrupado[sap.sku];
             return capturado ? sap.cantidad_sap !== capturado.fisico : sap.cantidad_sap > 0;
           });
+        }
+        
+        // Verificar SKUs nuevos (físicos sin SAP)
+        const skusNuevos = Object.keys(agrupado).filter(sku => {
+          return !(sapData || []).some((sap: any) => sap.sku === sku);
+        });
+        if (skusNuevos.length > 0) {
+          hayDiferencias = true;
         }
       }
 
@@ -476,7 +560,10 @@ const AD02Captura: React.FC = () => {
           {curvaActual.length > 0 && (
             <>
               <div className="ad02-curva-info" style={{ fontSize: isMobile ? '11px' : '13px' }}>
-                Curva: <strong>{curvaActual[0].sku.substring(0, curvaActual[0].sku.length - 3)}XXX</strong> ({curvaActual.length} items)
+                Curva: <strong>{curvaActual[0].sku.substring(0, Math.max(0, curvaActual[0].sku.length - 3))}XXX</strong> ({curvaActual.length} items)
+                {curvaActual.some(s => s.id.startsWith('temp_')) && (
+                  <span style={{ marginLeft: '12px', color: '#dc2626', fontSize: '11px' }}>⚠️ Incluye SKU(s) sin registro en SAP</span>
+                )}
               </div>
               <div className="ed03-tabla-container">
                 <table className="ed03-tabla">
@@ -492,7 +579,7 @@ const AD02Captura: React.FC = () => {
                   </thead>
                   <tbody>
                     {curvaActual.map((s, i) => (
-                      <tr key={s.id} style={{ background: s.diferencia !== undefined ? (s.diferencia === 0 ? '#dcfce7' : '#fef2f2') : 'transparent' }}>
+                      <tr key={s.id} style={{ background: s.id.startsWith('temp_') ? '#fef2f2' : (s.diferencia !== undefined ? (s.diferencia === 0 ? '#dcfce7' : '#fef2f2') : 'transparent') }}>
                         <td className="ed03-ticket-id" style={{ fontSize: isMobile ? '10px' : '13px' }}>{s.sku}</td>
                         <td style={{ fontSize: isMobile ? '10px' : '12px' }}>{s.denominacion}</td>
                         <td>{s.cantidad_sap}</td>
