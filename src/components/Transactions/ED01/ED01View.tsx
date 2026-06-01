@@ -1,161 +1,155 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
-import { auth } from '../../../lib/auth';
-import { locales, cargarLocales } from '../../../data/locales';
-import ED01Toolbar from './ED01Toolbar';
-import ED01Tabla from './ED01Tabla';
-import ED01Modal from './ED01Modal';
-import ObservacionModal from './ObservacionModal';
-import FiltroModal from './FiltroModal';
-import EtiquetaModal from './EtiquetaModal';
-import './ED01.css';
+import { locales } from '../../../data/locales';
 
-export interface ED01Row {
-  id: string;
-  estado: string;
-  numero_tarea: string;
-  numero_empaque: string;
-  codigo_local: string;
-  nombre_local: string;
-  cantidad_bultos: number;
-  cantidad_pallet: number;
-  observacion: string | null;
-  creado_por: string;
-  creado_en: string;
-  modificado_por: string | null;
-  modificado_en: string | null;
+interface ED01ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onGuardar: (datos: any) => void;
+  modo: 'nuevo' | 'editar' | 'cancelar' | 'ver';
+  registro: any;
 }
 
-const ED01View: React.FC = () => {
-  const usuario = auth.getUsuario();
-  const [registros, setRegistros] = useState<ED01Row[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [modoModal, setModoModal] = useState<'nuevo' | 'editar' | 'cancelar' | 'ver'>('nuevo');
-  const [registroSeleccionado, setRegistroSeleccionado] = useState<ED01Row | null>(null);
-  const [showObservacionModal, setShowObservacionModal] = useState(false);
-  const [observacionVer, setObservacionVer] = useState('');
-  const [showFiltroModal, setShowFiltroModal] = useState(false);
-  const [showEtiquetaModal, setShowEtiquetaModal] = useState(false);
-  const [filtros, setFiltros] = useState<any[]>([]);
-  const [ordenColumna, setOrdenColumna] = useState<string>('creado_en');
-  const [ordenDireccion, setOrdenDireccion] = useState<'asc' | 'desc'>('desc');
-  const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
+const ED01Modal: React.FC<ED01ModalProps> = ({ isOpen, onClose, onGuardar, modo, registro }) => {
+  const [numeroTarea, setNumeroTarea] = useState('');
+  const [codigoLocal, setCodigoLocal] = useState('');
+  const [nombreLocal, setNombreLocal] = useState('');
+  const [cantidadBultos, setCantidadBultos] = useState(0);
+  const [cantidadPallet, setCantidadPallet] = useState(0);
+  const [observacion, setObservacion] = useState('');
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    cargarLocales();
-    cargarUsuarios();
-    cargarRegistros(true);
-  }, []);
-
-  useEffect(() => {
-    const intervalo = setInterval(() => { cargarRegistros(false); }, 10000);
-    return () => clearInterval(intervalo);
-  }, [filtros, ordenColumna, ordenDireccion]);
-
-  const cargarUsuarios = async () => {
-    const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
-    if (data) { const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
-  };
-
-  const cargarRegistros = async (mostrarCargando: boolean = false) => {
-    try {
-      if (mostrarCargando) setCargando(true);
-      const { data, error } = await supabase.from('ed01_empaques').select('*').order(ordenColumna, { ascending: ordenDireccion === 'asc' });
-      if (error) throw error;
-      let datosFiltrados = data || [];
-      filtros.forEach((filtro: any) => {
-        const col = filtro.columna; const op = filtro.operador; const val = (filtro.valor || '').toLowerCase();
-        if (!col) return;
-        datosFiltrados = datosFiltrados.filter((item: any) => {
-          const itemVal = item[col];
-          if (op === 'vacio') return itemVal === null || itemVal === '' || itemVal === undefined;
-          if (op === 'no_vacio') return itemVal !== null && itemVal !== '' && itemVal !== undefined;
-          if (val === '') return true;
-          const itemStr = String(itemVal || '').toLowerCase();
-          if (op === 'igual') return itemStr === val; if (op === 'mayor') return Number(itemVal) > Number(val);
-          if (op === 'menor') return Number(itemVal) < Number(val); if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
-          if (op === 'menor_igual') return Number(itemVal) <= Number(val); if (op === 'contiene') return itemStr.includes(val);
-          if (op === 'no_contiene') return !itemStr.includes(val); return true;
-        });
-      });
-      setRegistros(datosFiltrados);
-    } catch (error) { console.error('Error:', error); }
-    finally { if (mostrarCargando) setCargando(false); }
-  };
-
-  const handleNuevo = () => { setModoModal('nuevo'); setRegistroSeleccionado(null); setShowModal(true); };
-  const handleEditar = () => {
-    if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
-    if (registroSeleccionado.estado === 'Cancelado') { alert('No se puede editar un registro cancelado'); return; }
-    setModoModal('editar'); setShowModal(true);
-  };
-  const handleCancelarRegistro = () => {
-    if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
-    if (registroSeleccionado.estado === 'Cancelado') { alert('El registro ya esta cancelado'); return; }
-    setModoModal('cancelar'); setShowModal(true);
-  };
-  const handleImprimirEtiqueta = () => {
-    if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
-    setShowEtiquetaModal(true);
-  };
-
-  const handleGuardar = async (datos: any) => {
-    try {
-      const user = auth.getUsuario();
-      if (modoModal === 'nuevo') {
-        const { data: idData, error: idError } = await supabase.rpc('generar_numero_empaque');
-        if (idError) throw idError;
-        const localData = locales.find(l => l.codigo_local === datos.codigo_local);
-        const { error: insertError } = await supabase.from('ed01_empaques').insert([{
-          numero_empaque: idData, numero_tarea: datos.numero_tarea,
-          codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '',
-          cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet,
-          observacion: datos.observacion || null, estado: 'Finalizado',
-          creado_por: user?.id, creado_en: new Date().toISOString()
-        }]);
-        if (insertError) throw insertError;
-        setShowModal(false); cargarRegistros(false);
-        setTimeout(() => {
-          setRegistroSeleccionado({ id: '', numero_empaque: idData, numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '', cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, creado_por: user?.id, ...datos } as any);
-          setTimeout(() => setShowEtiquetaModal(true), 300);
-        }, 500);
-      } else if (modoModal === 'editar') {
-        await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
-        await supabase.from('ed01_empaques').update({
-          numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: datos.nombre_local,
-          cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, observacion: datos.observacion,
-          estado: 'Finalizado', modificado_por: user?.id, modificado_en: new Date().toISOString()
-        }).eq('id', registroSeleccionado?.id);
-        setShowModal(false); cargarRegistros(false);
-        setTimeout(() => {
-          setRegistroSeleccionado({ ...registroSeleccionado!, ...datos } as any);
-          setTimeout(() => setShowEtiquetaModal(true), 300);
-        }, 500);
-      } else if (modoModal === 'cancelar') {
-        await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
-        await supabase.from('ed01_empaques').update({ estado: 'Cancelado', observacion: datos.observacion, modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
-        setShowModal(false); setRegistroSeleccionado(null); cargarRegistros(false);
+    if (isOpen) {
+      if (registro) {
+        setNumeroTarea(registro.numero_tarea || '');
+        setCodigoLocal(registro.codigo_local || '');
+        setNombreLocal(registro.nombre_local || '');
+        setCantidadBultos(registro.cantidad_bultos || 0);
+        setCantidadPallet(registro.cantidad_pallet || 0);
+        setObservacion(modo === 'editar' || modo === 'cancelar' ? '' : (registro.observacion || ''));
+      } else {
+        setNumeroTarea(''); setCodigoLocal(''); setNombreLocal('');
+        setCantidadBultos(0); setCantidadPallet(0); setObservacion('');
       }
-    } catch (error: any) { alert('Error: ' + error.message); }
+      setError('');
+      setGuardando(false);
+    }
+  }, [isOpen, registro, modo]);
+
+  const handleCodigoLocalChange = (codigo: string) => {
+    setCodigoLocal(codigo);
+    const local = locales.find(l => l.codigo_local.toUpperCase() === codigo.toUpperCase());
+    setNombreLocal(local?.nombre_local || '');
   };
 
-  const handleVerObservacion = (obs: string | null) => { setObservacionVer(obs || 'Sin observacion'); setShowObservacionModal(true); };
+  const soloLectura = modo === 'cancelar';
+  const titulo = modo === 'nuevo' ? 'Nuevo Empaque' : modo === 'editar' ? 'Editar Empaque' : 'Cancelar Empaque';
+  const requiereObservacion = modo === 'editar' || modo === 'cancelar';
 
-  const nombreCreadorEtiqueta = registroSeleccionado?.creado_por
-    ? (nombresUsuarios[registroSeleccionado.creado_por] || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim())
-    : `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
+  const handleGuardar = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (guardando) return;
+    setError('');
+
+    if (!numeroTarea) { setError('Numero de Tarea es requerido'); return; }
+    if (!numeroTarea.match(/^TSKORDPI\d{15}$/)) { setError('Formato invalido. Debe ser TSKORDPI + 15 digitos'); return; }
+    if (!codigoLocal) { setError('Codigo Local es requerido'); return; }
+    if (!nombreLocal) { setError('Codigo Local no encontrado'); return; }
+    if (cantidadBultos <= 0) { setError('Cantidad Bultos debe ser mayor a 0'); return; }
+    if (cantidadPallet <= 0) { setError('Cantidad Pallet debe ser mayor a 0'); return; }
+    if (requiereObservacion && !observacion.trim()) { setError('La observacion es obligatoria para esta accion'); return; }
+
+    setGuardando(true);
+    onGuardar({ numero_tarea: numeroTarea, codigo_local: codigoLocal, nombre_local: nombreLocal, cantidad_bultos: cantidadBultos, cantidad_pallet: cantidadPallet, observacion: observacion || null });
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <div className="ed01-view">
-      <ED01Toolbar onNuevo={handleNuevo} onEditar={handleEditar} onCancelar={handleCancelarRegistro} onImprimir={handleImprimirEtiqueta} onFiltro={() => setShowFiltroModal(true)} registroSeleccionado={!!registroSeleccionado} />
-      <ED01Tabla registros={registros} cargando={cargando} seleccionado={registroSeleccionado} onSeleccionar={setRegistroSeleccionado} onVerObservacion={handleVerObservacion} ordenColumna={ordenColumna} ordenDireccion={ordenDireccion} onOrdenar={(columna) => { if (ordenColumna === columna) setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc'); else { setOrdenColumna(columna); setOrdenDireccion('asc'); } }} nombresUsuarios={nombresUsuarios} />
-      <ED01Modal isOpen={showModal} onClose={() => setShowModal(false)} onGuardar={handleGuardar} modo={modoModal} registro={registroSeleccionado} />
-      <ObservacionModal isOpen={showObservacionModal} onClose={() => setShowObservacionModal(false)} observacion={observacionVer} />
-      <FiltroModal isOpen={showFiltroModal} onClose={() => setShowFiltroModal(false)} filtros={filtros} onAplicar={setFiltros} />
-      <EtiquetaModal isOpen={showEtiquetaModal} onClose={() => setShowEtiquetaModal(false)} registro={registroSeleccionado} nombreCreador={nombreCreadorEtiqueta} />
+    <div className="ed01-modal-overlay" onClick={handleOverlayClick}>
+      <div className="ed01-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ed01-modal-header">
+          <h2>{titulo}</h2>
+          <button className="ed01-modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <form onSubmit={handleGuardar}>
+          <div className="ed01-modal-body">
+            {modo === 'nuevo' && (
+              <div className="ed01-field">
+                <label>Numero Empaque</label>
+                <input type="text" value="(Se genera automaticamente)" disabled />
+              </div>
+            )}
+
+            {modo !== 'nuevo' && registro && (
+              <div className="ed01-field">
+                <label>Numero Empaque</label>
+                <input type="text" value={registro.numero_empaque || ''} disabled />
+              </div>
+            )}
+
+            <div className="ed01-field">
+              <label>Numero Tarea *</label>
+              <input type="text" value={numeroTarea} onChange={(e) => setNumeroTarea(e.target.value.toUpperCase())} placeholder="TSKORDPI125032500000161" disabled={soloLectura} maxLength={23} />
+              <small style={{ color: '#94a3b8', fontSize: '11px' }}>Formato: TSKORDPI + 15 digitos</small>
+            </div>
+
+            <div className="ed01-field">
+              <label>Codigo Local *</label>
+              <input type="text" value={codigoLocal} onChange={(e) => handleCodigoLocalChange(e.target.value.toUpperCase())} placeholder="Ej: T001" disabled={soloLectura} maxLength={4} />
+            </div>
+
+            <div className="ed01-field">
+              <label>Nombre Local</label>
+              <input type="text" value={nombreLocal} disabled placeholder="Auto-completado" />
+            </div>
+
+            <div className="ed01-row">
+              <div className="ed01-field">
+                <label>Cantidad Bultos *</label>
+                <input type="number" value={cantidadBultos || ''} onChange={(e) => setCantidadBultos(parseInt(e.target.value) || 0)} disabled={soloLectura} min="0" placeholder="0" />
+              </div>
+              <div className="ed01-field">
+                <label>Cantidad Pallet *</label>
+                <input type="number" value={cantidadPallet || ''} onChange={(e) => setCantidadPallet(parseInt(e.target.value) || 0)} disabled={soloLectura} min="0" placeholder="0" />
+              </div>
+            </div>
+
+            <div className="ed01-field">
+              <label>Observacion {requiereObservacion ? '*' : ''}</label>
+              <textarea value={observacion} onChange={(e) => setObservacion(e.target.value)} placeholder={requiereObservacion ? 'Observacion obligatoria para esta accion...' : 'Observacion opcional'} rows={3} />
+            </div>
+
+            {error && (
+              <div className="ed01-error">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                  <circle cx="8" cy="8" r="7" stroke="#dc2626" strokeWidth="1.5"/>
+                  <path d="M8 5V9" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round"/>
+                  <circle cx="8" cy="11.5" r="0.75" fill="#dc2626"/>
+                </svg>
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="ed01-modal-footer">
+            <button type="button" className="ed01-btn-cancel" onClick={onClose} disabled={guardando}>
+              Cancelar
+            </button>
+            <button type="submit" className="ed01-btn-save" disabled={guardando}>
+              {guardando ? 'Guardando...' : (modo === 'nuevo' ? 'Registrar e Imprimir' : modo === 'editar' ? 'Guardar e Imprimir' : 'Confirmar Cancelacion')}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
 
-export default ED01View;
+export default ED01Modal;
