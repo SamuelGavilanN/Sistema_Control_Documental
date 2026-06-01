@@ -26,6 +26,7 @@ const TRANSACCIONES = [
   { id: 'tk', label: 'TK01 Crear Ticket' },
   { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
+  { id: 'bd-locales', label: 'BD02 Locales' },
 ];
 
 const BD01Usuarios: React.FC = () => {
