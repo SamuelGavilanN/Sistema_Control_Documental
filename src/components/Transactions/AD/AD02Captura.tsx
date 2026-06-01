@@ -36,15 +36,6 @@ const AD02Captura: React.FC = () => {
   const busquedaRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { cargarMisTareas(); }, []);
-
-  // Polling cada 10 segundos para detectar tareas reabiertas
-  useEffect(() => {
-    const intervalo = setInterval(() => {
-      if (!tareaActiva) cargarMisTareas();
-    }, 10000);
-    return () => clearInterval(intervalo);
-  }, [tareaActiva]);
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -52,6 +43,7 @@ const AD02Captura: React.FC = () => {
   }, []);
 
   const cargarMisTareas = async () => {
+    setCargando(true);
     const { data } = await supabase.from('ad_auditorias').select('*')
       .eq('usuario_asignado', usuario?.id).in('estado', ['Pendiente', 'En Proceso'])
       .order('creado_en', { ascending: false });
@@ -136,35 +128,37 @@ const AD02Captura: React.FC = () => {
   };
 
   const finalizarTarea = async () => {
-  if (!tareaActiva) return;
-  
-  const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
-  const cajaIds = cajas?.map((c: any) => c.id) || [];
-  
-  // Obtener todos los SKU de SAP para esta auditoría
-  const { data: sap } = await supabase.from('ad_datos_sap').select('sku, cantidad_sap').eq('auditoria_id', tareaActiva.id);
-  
-  // Agrupar capturas por SKU
-  const agrupado: Record<string, { sap: number; fisico: number }> = {};
-  (sap || []).forEach((s: any) => { agrupado[s.sku] = { sap: s.cantidad_sap || 0, fisico: 0 }; });
-  
-  if (cajaIds.length > 0) {
-    const { data: capturas } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
-    (capturas || []).forEach((c: any) => {
-      if (agrupado[c.sku]) agrupado[c.sku].fisico += c.cantidad_fisica || 0;
-    });
-  }
-  
-  const hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
+    if (!tareaActiva) return;
+    
+    // Obtener cajas capturadas
+    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
+    const cajaIds = cajas?.map((c: any) => c.id) || [];
+    
+    // Obtener capturas
+    let capturas: any[] = [];
+    if (cajaIds.length > 0) {
+      const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
+      capturas = data || [];
+    }
 
-  await supabase.from('ad_auditorias').update({
-    estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
-    finalizado_en: new Date().toISOString()
-  }).eq('id', tareaActiva.id);
+    // Obtener todos los SKU de SAP
+    const { data: sap } = await supabase.from('ad_datos_sap').select('sku, cantidad_sap').eq('auditoria_id', tareaActiva.id);
 
-  alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
-  setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
-};
+    // Agrupar: todo lo que está en SAP se compara con lo capturado (si no hay captura, físico = 0)
+    const agrupado: Record<string, { sap: number; fisico: number }> = {};
+    (sap || []).forEach((s: any) => { agrupado[s.sku] = { sap: s.cantidad_sap, fisico: 0 }; });
+    capturas.forEach((c: any) => { if (agrupado[c.sku]) agrupado[c.sku].fisico += c.cantidad_fisica || 0; });
+
+    const hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
+
+    await supabase.from('ad_auditorias').update({
+      estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
+      finalizado_en: new Date().toISOString()
+    }).eq('id', tareaActiva.id);
+
+    alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
+    setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
+  };
 
   return (
     <div className="ad02-view">
