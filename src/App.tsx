@@ -6,6 +6,7 @@ import ED01View from './components/Transactions/ED01/ED01View';
 import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
 import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
 import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
+import TK02Dashboard from './components/Transactions/TK/TK02Dashboard';
 import AD01View from './components/Transactions/AD/AD01View';
 import AD02Captura from './components/Transactions/AD/AD02Captura';
 import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
