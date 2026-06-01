@@ -29,15 +29,20 @@ const ED02Dashboard: React.FC = () => {
     if (data) setUsuarios(data);
   };
 
-  const cargarDatos = async () => {
-    setCargando(true);
-    let query = supabase.from('ed01_empaques').select('*');
-    
-    if (filtros.usuario) query = query.eq('creado_por', filtros.usuario);
-    if (filtros.desde) query = query.gte('creado_en', filtros.desde + 'T00:00:00');
-    if (filtros.hasta) query = query.lte('creado_en', filtros.hasta + 'T23:59:59');
-    
-    const { data } = await query.order('creado_en', { ascending: true });
+      const cargarDatos = async () => {
+      setCargando(true);
+        try {
+          let url = `${API_URL}/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc`;
+          if (filtros.usuario) url += `&creado_por=eq.${filtros.usuario}`;
+          if (filtros.desde) url += `&creado_en=gte.${filtros.desde}`;
+          if (filtros.hasta) url += `&creado_en=lte.${filtros.hasta}T23:59:59`;
+          
+          const resp = await fetch(url, { headers: HEADERS });
+          const data = await resp.json();
+          setDatos(data || []);
+        } catch (e) {}
+        setCargando(false);
+      };
     
     if (data) {
       // Datos para gráfico de línea: cada empaque como punto (fecha/hora exacta)
