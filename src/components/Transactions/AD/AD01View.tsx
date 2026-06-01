@@ -35,11 +35,7 @@ const AD01View: React.FC = () => {
 
   useEffect(() => { cargarAuditorias(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(cargarAuditorias, 10000); return () => clearInterval(intervalo); }, []);
-  useEffect(() => {
-    if (!showDetalleModal || !auditoriaDetalle) return;
-    const intervalo = setInterval(() => { verDetalleSilencioso(auditoriaDetalle); }, 5000);
-    return () => clearInterval(intervalo);
-  }, [showDetalleModal, auditoriaDetalle]);
+  useEffect(() => { if (!showDetalleModal || !auditoriaDetalle) return; const intervalo = setInterval(() => { verDetalleSilencioso(auditoriaDetalle); }, 5000); return () => clearInterval(intervalo); }, [showDetalleModal, auditoriaDetalle]);
 
   const cargarUsuarios = async () => {
     const { data } = await supabase.from('usuarios').select('id, nombre, apellido, rol');
@@ -62,11 +58,7 @@ const AD01View: React.FC = () => {
       const mapaCorreo: Record<string, { acta: string; guia: string }> = {};
       dataCorreo.forEach((row: any) => { const d = String(row['Despacho HC'] || '').trim(); if (d) mapaCorreo[d] = { acta: String(row['Acta'] || '').trim(), guia: String(row['Guía'] || row['Guia'] || '').trim() }; });
       const grupos: Record<string, { nombre: string; entregas: Set<string>; items: any[] }> = {};
-      dataSAP.forEach((row: any) => {
-        const c = String(row['Destinat.'] || '').trim(); if (!c) return;
-        if (!grupos[c]) grupos[c] = { nombre: String(row['Nombre destinatario de mercancías'] || '').trim(), entregas: new Set(), items: [] };
-        grupos[c].entregas.add(String(row['Entrega'] || '').trim()); grupos[c].items.push(row);
-      });
+      dataSAP.forEach((row: any) => { const c = String(row['Destinat.'] || '').trim(); if (!c) return; if (!grupos[c]) grupos[c] = { nombre: String(row['Nombre destinatario de mercancías'] || '').trim(), entregas: new Set(), items: [] }; grupos[c].entregas.add(String(row['Entrega'] || '').trim()); grupos[c].items.push(row); });
       for (const [cod, g] of Object.entries(grupos)) {
         let acta = '', guia = '';
         for (const e of g.entregas) { if (mapaCorreo[e]) { acta = mapaCorreo[e].acta; guia = mapaCorreo[e].guia; break; } }
@@ -118,42 +110,36 @@ const AD01View: React.FC = () => {
     const cIds = (cajas || []).map((c: any) => c.id);
     let capturas: any[] = [];
     if (cIds.length > 0) { const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cIds).order('capturado_en', { ascending: true }); capturas = (data || []).map(c => ({ ...c, numero_caja: cMap[c.caja_id] || '-' })); }
+    
     const detalle: any[] = [];
-    
-    // Obtener estado actual de la auditoría
-    const { data: auditActual } = await supabase.from('ad_auditorias').select('*').eq('id', a.id).single();
-    const estadoActual = auditActual?.estado || a.estado;
-    const tareaFinalizada = estadoActual === 'Finalizado' || estadoActual === 'Con Diferencias';
-    
     (sap || []).forEach((s: any) => {
-      const csku = capturas.filter((c: any) => c.sku === s.sku); const sapTotal = s.cantidad_sap || 0;
+      const csku = capturas.filter((c: any) => c.sku === s.sku);
+      const sapTotal = s.cantidad_sap || 0;
+      
       if (csku.length === 0) {
-        // Si la tarea está finalizada, mostrar el SAP como diferencia (se toma como 0 físico)
-        if (tareaFinalizada) {
-          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal, capturado: false, cajas: 'Sin captura' });
-        } else {
-          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal, capturado: false, cajas: 'Pendiente' });
-        }
+        // Sin capturas: pendiente
+        detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal, capturado: false, cajas: 'Pendiente' });
       } else {
         let fa = 0;
         csku.forEach((c: any, i: number) => {
           fa += c.cantidad_fisica || 0;
-          const esUltima = i === csku.length - 1;
-          const dif = esUltima ? sapTotal - fa : 0;
-          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: c.cantidad_fisica || 0, diferencia: dif, capturado: true, cajas: `Caja ${c.numero_caja}` });
+          detalle.push({
+            sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal,
+            cantidad_fisica: c.cantidad_fisica || 0,
+            diferencia: i === csku.length - 1 ? sapTotal - fa : 0,
+            capturado: true,
+            cajas: `Caja ${c.numero_caja}`
+          });
         });
-        // Solo mostrar Pendiente si la tarea NO está finalizada y falta cantidad
-        if (fa < sapTotal && !tareaFinalizada) {
+        // Si la suma física no alcanza al SAP, mostrar pendiente
+        if (fa < sapTotal) {
           detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal - fa, capturado: false, cajas: 'Pendiente' });
-        }
-        // Si está finalizada y falta, mostrar la diferencia como "Sin captura"
-        if (fa < sapTotal && tareaFinalizada) {
-          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal - fa, capturado: false, cajas: 'Sin captura' });
         }
       }
     });
+
     setDatosDetalle(detalle);
-    if (auditActual) setAuditoriaDetalle(auditActual);
+    const { data: aa } = await supabase.from('ad_auditorias').select('*').eq('id', a.id).single(); if (aa) setAuditoriaDetalle(aa);
   };
 
   const exportarExcel = () => {
