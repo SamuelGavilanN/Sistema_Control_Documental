@@ -24,6 +24,8 @@ const moduleTitles: Record<string, string> = {
   'ad-dashboard': 'AD03 · Dashboard',
   'tk': 'TK01 · Crear Ticket',
   'tk-dashboard': 'TK02 · Dashboard',
+  'bd-usuarios': 'BD01 · Usuarios',
+  'bd-locales': 'BD02 · Locales',
 };
 
 interface Notificacion {
@@ -62,13 +64,11 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     return () => clearInterval(intervalo);
   }, [usuario]);
 
-  // Cerrar menús al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('.user-area') && !target.closest('.notif-area')) {
-        setShowUserMenu(false);
-        setShowNotifMenu(false);
+        setShowUserMenu(false); setShowNotifMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
