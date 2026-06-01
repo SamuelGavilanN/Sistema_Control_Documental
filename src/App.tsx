@@ -83,6 +83,7 @@ const App: React.FC = () => {
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
           {tabsMontadas.has('tk') && <div style={{ display: activeTab === 'tk' ? 'block' : 'none' }}><TK01CrearTicket key="tk01" /></div>}
+          {tabsMontadas.has('tk-dashboard') && <div style={{ display: activeTab === 'tk-dashboard' ? 'block' : 'none' }}><TK02Dashboard key="tk02" /></div>}
           {tabsMontadas.has('ad') && <div style={{ display: activeTab === 'ad' ? 'block' : 'none' }}><AD01View key="ad01" /></div>}
           {tabsMontadas.has('ad-captura') && <div style={{ display: activeTab === 'ad-captura' ? 'block' : 'none' }}><AD02Captura key="ad02" /></div>}
           {tabsMontadas.has('ad-dashboard') && <div style={{ display: activeTab === 'ad-dashboard' ? 'block' : 'none' }}><AD03Dashboard key="ad03" /></div>}
