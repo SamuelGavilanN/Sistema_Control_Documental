@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend
 } from 'recharts';
 import './ED02Dashboard.css';
+
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
 
 interface FiltrosDashboard {
   usuario: string;
@@ -19,53 +21,50 @@ const ED02Dashboard: React.FC = () => {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    cargarUsuarios();
-    cargarDatos();
-  }, []);
+  useEffect(() => { cargarUsuarios(); cargarDatos(); }, []);
 
   const cargarUsuarios = async () => {
-    const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
-    if (data) setUsuarios(data);
+    try {
+      const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
+      const data = await resp.json();
+      if (data) setUsuarios(data);
+    } catch (e) {}
   };
 
-      const cargarDatos = async () => {
-      setCargando(true);
-        try {
-          let url = `${API_URL}/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc`;
-          if (filtros.usuario) url += `&creado_por=eq.${filtros.usuario}`;
-          if (filtros.desde) url += `&creado_en=gte.${filtros.desde}`;
-          if (filtros.hasta) url += `&creado_en=lte.${filtros.hasta}T23:59:59`;
-          
-          const resp = await fetch(url, { headers: HEADERS });
-          const data = await resp.json();
-          setDatos(data || []);
-        } catch (e) {}
-        setCargando(false);
-      };
-    
-    if (data) {
-      // Datos para gráfico de línea: cada empaque como punto (fecha/hora exacta)
-      const puntosLinea = data.map((reg: any) => ({
-        fechaHora: new Date(reg.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
-        timestamp: new Date(reg.creado_en).getTime(),
-        bultos: reg.cantidad_bultos || 0,
-        empaque: reg.numero_empaque,
-        tienda: reg.codigo_local
-      }));
+  const cargarDatos = async () => {
+    setCargando(true);
+    try {
+      // Solo mostrar registros con estado Finalizado
+      let url = `${API_URL}/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc`;
+      if (filtros.usuario) url += `&creado_por=eq.${filtros.usuario}`;
+      if (filtros.desde) url += `&creado_en=gte.${filtros.desde}`;
+      if (filtros.hasta) url += `&creado_en=lte.${filtros.hasta}T23:59:59`;
+      
+      const resp = await fetch(url, { headers: HEADERS });
+      const data = await resp.json();
+      
+      if (data) {
+        // Datos para gráfico de línea: cada empaque como punto
+        const puntosLinea = data.map((reg: any) => ({
+          fechaHora: new Date(reg.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+          timestamp: new Date(reg.creado_en).getTime(),
+          bultos: reg.cantidad_bultos || 0,
+          empaque: reg.numero_empaque,
+          tienda: reg.codigo_local
+        }));
+        setDatosLinea(puntosLinea);
 
-      setDatosLinea(puntosLinea);
-
-      // Datos para gráfico de barras: agrupado por día
-      const agrupado: Record<string, any> = {};
-      data.forEach((reg: any) => {
-        const dia = new Date(reg.creado_en).toLocaleDateString('es-CL');
-        if (!agrupado[dia]) agrupado[dia] = { dia, tareas: 0, bultos: 0 };
-        agrupado[dia].tareas++;
-        agrupado[dia].bultos += reg.cantidad_bultos || 0;
-      });
-      setDatosBarra(Object.values(agrupado));
-    }
+        // Datos para gráfico de barras: agrupado por día
+        const agrupado: Record<string, any> = {};
+        data.forEach((reg: any) => {
+          const dia = new Date(reg.creado_en).toLocaleDateString('es-CL');
+          if (!agrupado[dia]) agrupado[dia] = { dia, tareas: 0, bultos: 0 };
+          agrupado[dia].tareas++;
+          agrupado[dia].bultos += reg.cantidad_bultos || 0;
+        });
+        setDatosBarra(Object.values(agrupado));
+      }
+    } catch (e) {}
     setCargando(false);
   };
 
@@ -91,7 +90,6 @@ const ED02Dashboard: React.FC = () => {
         <div className="ed02-card"><span>Total Bultos</span><strong>{totalBultos}</strong></div>
       </div>
 
-      {/* Gráfico de línea: Flujo de empaques en el tiempo */}
       <div className="ed02-chart">
         <h3>Flujo de Empaques por Fecha y Hora</h3>
         <ResponsiveContainer width="100%" height={350}>
@@ -106,7 +104,6 @@ const ED02Dashboard: React.FC = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* Gráfico de barras: Resumen por día */}
       <div className="ed02-chart">
         <h3>Tareas y Bultos por Dia</h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -122,7 +119,6 @@ const ED02Dashboard: React.FC = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* Tabla */}
       <div className="ed02-tabla-container">
         <table className="ed02-tabla">
           <thead><tr><th>Dia</th><th>Tareas</th><th>Bultos</th></tr></thead>
