@@ -45,7 +45,7 @@ const menuSections: MenuSection[] = [
     id: 'bd',
     title: 'BD · Administración',
     items: [
-      { id: 'bd-usuarios', label: 'BD01 Usuarios', type: 'item' }
+      { id: 'bd-usuarios', label: 'BD01 Usuarios', type: 'item' },
       { id: 'bd-locales', label: 'BD02 Locales', type: 'subitem' }
     ]
   }
@@ -84,17 +84,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     if (searchTerm.trim()) setExpandedSections(filteredSections.map(s => s.id));
   }, [searchTerm]);
 
-  // Verificar si un item está permitido
   const itemPermitido = (itemId: string): boolean => {
-    // Si no hay permisos configurados, usar lógica por rol
     if (!permisos || permisos.length === 0) {
       if (itemId === 'ed-history' && rol === 'Portico') return false;
       if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
       if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
-      if (itemId === 'bd-usuarios' && rol !== 'Owner' && rol !== 'Admin') return false;
+      if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin') return false;
       return true;
     }
-    // Si hay permisos, usarlos
     return permisos.includes(itemId);
   };
 
@@ -115,7 +112,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
         {filteredSections.length === 0 ? <div className="search-no-results">No se encontraron resultados</div> :
           filteredSections.map(section => {
             const isExpanded = expandedSections.includes(section.id);
-            // Verificar si la sección tiene al menos un item permitido
             const itemsVisibles = section.items.filter(item => itemPermitido(item.id));
             if (itemsVisibles.length === 0) return null;
             return (
