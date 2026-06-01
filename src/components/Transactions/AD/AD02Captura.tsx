@@ -129,11 +129,14 @@ const AD02Captura: React.FC = () => {
 
   const finalizarTarea = async () => {
     if (!tareaActiva) return;
-    
+
     // Obtener cajas capturadas
     const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
     const cajaIds = cajas?.map((c: any) => c.id) || [];
-    
+
+    // Obtener todos los SKU de SAP
+    const { data: sap } = await supabase.from('ad_datos_sap').select('sku, cantidad_sap').eq('auditoria_id', tareaActiva.id);
+
     // Obtener capturas
     let capturas: any[] = [];
     if (cajaIds.length > 0) {
@@ -141,13 +144,10 @@ const AD02Captura: React.FC = () => {
       capturas = data || [];
     }
 
-    // Obtener todos los SKU de SAP
-    const { data: sap } = await supabase.from('ad_datos_sap').select('sku, cantidad_sap').eq('auditoria_id', tareaActiva.id);
-
-    // Agrupar: todo lo que está en SAP se compara con lo capturado (si no hay captura, físico = 0)
+    // Agrupar: SAP vs Físico (si no hay captura, físico = 0)
     const agrupado: Record<string, { sap: number; fisico: number }> = {};
-    (sap || []).forEach((s: any) => { agrupado[s.sku] = { sap: s.cantidad_sap, fisico: 0 }; });
-    capturas.forEach((c: any) => { if (agrupado[c.sku]) agrupado[c.sku].fisico += c.cantidad_fisica || 0; });
+    (sap || []).forEach((s: any) => { agrupado[s.sku] = { sap: s.cantidad_sap || 0, fisico: 0 }; });
+    (capturas || []).forEach((c: any) => { if (agrupado[c.sku]) agrupado[c.sku].fisico += c.cantidad_fisica || 0; });
 
     const hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
 
@@ -227,13 +227,8 @@ const AD02Captura: React.FC = () => {
                         <td className="ed03-ticket-id" style={{ fontSize: isMobile ? '10px' : '13px' }}>{s.sku}</td>
                         <td style={{ fontSize: isMobile ? '10px' : '12px' }}>{s.denominacion}</td>
                         <td>{s.cantidad_sap}</td><td style={{ color: '#64748b' }}>{s.capturadoTotal || 0}</td>
-                        <td>
-                          <input type="number" className="ad02-input-cantidad"
-                            value={s.cantidad_fisica ?? ''}
-                            onChange={e => handleCantidadChange(s.id, parseInt(e.target.value) || 0, i)}
-                            onKeyDown={e => handleCantidadKeyDown(e, i)}
-                            style={{ width: isMobile ? '50px' : '70px', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '12px' : '14px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px' }} />
-                        </td>
+                        <td><input type="number" className="ad02-input-cantidad" value={s.cantidad_fisica ?? ''} onChange={e => handleCantidadChange(s.id, parseInt(e.target.value) || 0, i)} onKeyDown={e => handleCantidadKeyDown(e, i)}
+                          style={{ width: isMobile ? '50px' : '70px', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '12px' : '14px', textAlign: 'center', border: '1px solid #e2e8f0', borderRadius: '4px' }} /></td>
                         <td style={{ fontWeight: 600, color: s.diferencia !== undefined ? (s.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b', textAlign: 'center' }}>{s.diferencia !== undefined ? (s.diferencia === 0 ? 'OK' : s.diferencia) : '-'}</td>
                       </tr>
                     ))}
