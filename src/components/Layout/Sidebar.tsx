@@ -46,6 +46,7 @@ const menuSections: MenuSection[] = [
     title: 'BD · Administración',
     items: [
       { id: 'bd-usuarios', label: 'BD01 Usuarios', type: 'item' }
+      { id: 'bd-locales', label: 'BD02 Locales', type: 'subitem' }
     ]
   }
 ];
