@@ -136,23 +136,35 @@ const AD02Captura: React.FC = () => {
   };
 
   const finalizarTarea = async () => {
-    if (!tareaActiva) return;
-    const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
-    const cajaIds = cajas?.map((c: any) => c.id) || [];
-    let hayDiferencias = false;
-    if (cajaIds.length > 0) {
-      const { data: capturas } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
-      const agrupado: Record<string, { sap: number; fisico: number }> = {};
-      (capturas || []).forEach((c: any) => {
-        if (!agrupado[c.sku]) agrupado[c.sku] = { sap: c.cantidad_sap, fisico: 0 };
-        agrupado[c.sku].fisico += c.cantidad_fisica || 0;
-      });
-      hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
-    }
-    await supabase.from('ad_auditorias').update({ estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado', finalizado_en: new Date().toISOString() }).eq('id', tareaActiva.id);
-    alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
-    setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
-  };
+  if (!tareaActiva) return;
+  
+  const { data: cajas } = await supabase.from('ad_capturas_cajas').select('id').eq('auditoria_id', tareaActiva.id);
+  const cajaIds = cajas?.map((c: any) => c.id) || [];
+  
+  // Obtener todos los SKU de SAP para esta auditoría
+  const { data: sap } = await supabase.from('ad_datos_sap').select('sku, cantidad_sap').eq('auditoria_id', tareaActiva.id);
+  
+  // Agrupar capturas por SKU
+  const agrupado: Record<string, { sap: number; fisico: number }> = {};
+  (sap || []).forEach((s: any) => { agrupado[s.sku] = { sap: s.cantidad_sap || 0, fisico: 0 }; });
+  
+  if (cajaIds.length > 0) {
+    const { data: capturas } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cajaIds);
+    (capturas || []).forEach((c: any) => {
+      if (agrupado[c.sku]) agrupado[c.sku].fisico += c.cantidad_fisica || 0;
+    });
+  }
+  
+  const hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
+
+  await supabase.from('ad_auditorias').update({
+    estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado',
+    finalizado_en: new Date().toISOString()
+  }).eq('id', tareaActiva.id);
+
+  alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
+  setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
+};
 
   return (
     <div className="ad02-view">
