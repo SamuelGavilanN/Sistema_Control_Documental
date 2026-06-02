@@ -180,7 +180,6 @@ const RD01View: React.FC = () => {
       if (!error && data) return data as string;
     } catch (e) {}
 
-    // Fallback manual
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -250,6 +249,31 @@ const RD01View: React.FC = () => {
     return idPalletFinal;
   };
 
+  // Verifica suma total de pallets y actualiza estado/diferencia
+  const verificarYActualizarEstado = async (numeroSolicitud: string, totalBultos: number): Promise<{ sumaTotal: number; diferenciaTotal: number }> => {
+    const resp = await fetch(
+      `${API_URL}/rd01_devoluciones?select=cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
+      { headers: HEADERS }
+    );
+    const pallets = await resp.json();
+    
+    if (!pallets || pallets.length === 0) return { sumaTotal: 0, diferenciaTotal: 0 };
+    
+    const sumaTotal = pallets.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
+    const diferenciaTotal = totalBultos - sumaTotal;
+
+    if (diferenciaTotal !== 0) {
+      await fetch(`${API_URL}/rd01_devoluciones?numero_solicitud=eq.${numeroSolicitud}`, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'Con Diferencias', diferencia: diferenciaTotal }),
+      });
+    }
+    // Si no hay diferencia, se quedan como están (ya guardados como 'Finalizado')
+
+    return { sumaTotal, diferenciaTotal };
+  };
+
   const handleGuardar = async () => {
     setGuardando(true);
     setMensaje('');
@@ -262,7 +286,7 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // ===== MODO PARCIAL =====
+      // ===== MODO PARCIAL: Continuar guardando pallets =====
       if (guardadoParcial) {
         const solicitud = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(solicitud.color);
@@ -278,52 +302,20 @@ const RD01View: React.FC = () => {
         const faltante = solicitud.total_bultos - nuevoTotalGuardado;
         const esUltimoPallet = faltante <= 0;
 
-        if (esUltimoPallet) {
-          if (nuevoTotalGuardado !== solicitud.total_bultos) {
-            setDiferenciaPendiente({
-              cantidad: cantidadAhora,
-              total: solicitud.total_bultos,
-              diferencia: solicitud.total_bultos - nuevoTotalGuardado,
-              solicitud,
-              infoColor,
-              palletBase: palletBaseActual,
-              palletContador: palletContador + 1,
-            });
-            setShowDiferenciaModal(true);
-            setGuardando(false);
-            return;
-          }
-        }
-
         const nuevoPalletContador = palletContador + 1;
         await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
 
         if (esUltimoPallet) {
-          // Verificar suma total de todos los pallets de esta solicitud
-          const resp = await fetch(
-            `${API_URL}/rd01_devoluciones?select=cantidad_bultos&numero_solicitud=eq.${solicitud.numero_solicitud}`,
-            { headers: HEADERS }
+          // Verificar suma total de todos los pallets
+          const { sumaTotal, diferenciaTotal } = await verificarYActualizarEstado(
+            solicitud.numero_solicitud,
+            solicitud.total_bultos
           );
-          const palletsSolicitud = await resp.json();
 
-          if (palletsSolicitud && palletsSolicitud.length > 0) {
-            const sumaTotal = palletsSolicitud.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
-            const diferenciaTotal = solicitud.total_bultos - sumaTotal;
-
-            if (diferenciaTotal !== 0) {
-              await fetch(`${API_URL}/rd01_devoluciones?numero_solicitud=eq.${solicitud.numero_solicitud}`, {
-                method: 'PATCH',
-                headers: { ...HEADERS, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  estado: 'Con Diferencias', 
-                  diferencia: diferenciaTotal 
-                }),
-              });
-
-              setMensaje(`⚠️ Solicitud ${solicitud.numero_solicitud} completada con diferencias! Diferencia total: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
-            } else {
-              setMensaje(`✅ Solicitud ${solicitud.numero_solicitud} completada! Total: ${solicitud.total_bultos} bultos en ${nuevoPalletContador} pallets.`);
-            }
+          if (diferenciaTotal !== 0) {
+            setMensaje(`⚠️ Solicitud ${solicitud.numero_solicitud} completada con diferencias! Diferencia: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+          } else {
+            setMensaje(`✅ Solicitud ${solicitud.numero_solicitud} completada! Total: ${solicitud.total_bultos} bultos.`);
           }
 
           setGuardadoParcial(false);
@@ -354,6 +346,7 @@ const RD01View: React.FC = () => {
             return;
           }
         } else {
+          // Faltante: continuar
           setBultosGuardados(nuevoTotalGuardado);
           setPalletContador(nuevoPalletContador);
           
@@ -378,7 +371,7 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // ===== MODO NORMAL =====
+      // ===== MODO NORMAL: Primer guardado =====
       const error = validarSolicitudInicial(solicitudes[0]);
       if (error) {
         setMensaje('Error: ' + error);
@@ -393,10 +386,23 @@ const RD01View: React.FC = () => {
 
       const palletBase = await generarNumeroPallet();
 
-      if (bultosPorPallet === totalBultos) {
+      if (bultosPorPallet >= totalBultos) {
+        // Un solo pallet (cantidad >= total)
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
-        setMensaje(`Pallet ${palletBase}P01 guardado correctamente.`);
 
+        // Verificar suma vs total
+        const { diferenciaTotal } = await verificarYActualizarEstado(
+          solicitud.numero_solicitud,
+          solicitud.total_bultos
+        );
+
+        if (diferenciaTotal !== 0) {
+          setMensaje(`⚠️ Pallet guardado con diferencias! Diferencia: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+        } else {
+          setMensaje(`✅ Pallet ${palletBase}P01 guardado correctamente.`);
+        }
+
+        // Pasar a siguiente solicitud o cerrar
         if (solicitudes.length > 1) {
           setTimeout(() => {
             setMensaje('');
@@ -405,36 +411,22 @@ const RD01View: React.FC = () => {
             setGuardando(false);
             cargarRegistros();
             setTimeout(() => {
-              if (cantidadInputRefs.current[1]) {
-                cantidadInputRefs.current[1]?.focus();
-              }
+              if (cantidadInputRefs.current[1]) cantidadInputRefs.current[1]?.focus();
             }, 200);
-          }, 1000);
+          }, 1500);
           return;
         } else {
           setTimeout(() => {
             setShowCrearModal(false);
             setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
             setMensaje('');
-          }, 1500);
+          }, 2000);
           setGuardando(false);
           await cargarRegistros();
           return;
         }
-      } else if (bultosPorPallet > totalBultos) {
-        setDiferenciaPendiente({
-          cantidad: bultosPorPallet,
-          total: totalBultos,
-          diferencia: totalBultos - bultosPorPallet,
-          solicitud,
-          infoColor,
-          palletBase,
-          palletContador: 1,
-        });
-        setShowDiferenciaModal(true);
-        setGuardando(false);
-        return;
       } else {
+        // Múltiples pallets (cantidad < total)
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
         
         const faltante = totalBultos - bultosPorPallet;
@@ -482,26 +474,18 @@ const RD01View: React.FC = () => {
 
       const { cantidad, solicitud, infoColor, palletBase, palletContador, diferencia } = diferenciaPendiente;
 
-      const idPallet = await guardarUnPallet(
-        solicitud, infoColor, palletBase, palletContador,
-        cantidad, user.id, 'Con Diferencias', diferencia
-      );
-
-      // Actualizar observación del pallet
-      await fetch(`${API_URL}/rd01_devoluciones?id_pallet=eq.${idPallet}`, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ observacion: observacionDiferencia }),
-      });
-
-      // Actualizar todos los pallets de esta solicitud a "Con Diferencias"
+      // Actualizar el pallet ya guardado (si existe) o guardar nuevo
       await fetch(`${API_URL}/rd01_devoluciones?numero_solicitud=eq.${solicitud.numero_solicitud}`, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'Con Diferencias', diferencia: diferencia }),
+        body: JSON.stringify({ 
+          estado: 'Con Diferencias', 
+          diferencia: diferencia,
+          observacion: observacionDiferencia 
+        }),
       });
 
-      setMensaje(`Pallet ${idPallet} guardado con diferencias (${diferencia > 0 ? '+' : ''}${diferencia} bultos).`);
+      setMensaje(`Pallet guardado con diferencias (${diferencia > 0 ? '+' : ''}${diferencia} bultos).`);
       setShowDiferenciaModal(false);
       setDiferenciaPendiente(null);
       setObservacionDiferencia('');
@@ -656,23 +640,9 @@ const RD01View: React.FC = () => {
                 const eb = getEstadoBadge(reg.estado);
                 return (
                   <tr key={reg.id} style={{ background: reg.estado === 'Con Diferencias' ? '#fff5f5' : 'transparent' }}>
-                    <td style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#1d4ed8', fontWeight: 600 }}>
-                      {reg.id_pallet}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span style={{
-                        padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600,
-                        background: '#eef2ff', color: '#1d4ed8',
-                      }}>
-                        {reg.pallet_actual} de {reg.total_pallets_solicitud}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div className="rd01-color-badge" style={{ background: reg.color_hex || '#ccc' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 500 }}>{reg.color}</span>
-                      </div>
-                    </td>
+                    <td style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#1d4ed8', fontWeight: 600 }}>{reg.id_pallet}</td>
+                    <td style={{ textAlign: 'center' }}><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#eef2ff', color: '#1d4ed8' }}>{reg.pallet_actual} de {reg.total_pallets_solicitud}</span></td>
+                    <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="rd01-color-badge" style={{ background: reg.color_hex || '#ccc' }} /><span style={{ fontSize: '12px', fontWeight: 500 }}>{reg.color}</span></div></td>
                     <td>{reg.codigo_local}</td>
                     <td style={{ whiteSpace: 'normal', wordBreak: 'normal', minWidth: '150px' }}>{reg.nombre_local}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{reg.numero_solicitud}</td>
@@ -681,35 +651,11 @@ const RD01View: React.FC = () => {
                     <td style={{ textAlign: 'center' }}>{reg.total_bultos}</td>
                     <td style={{ textAlign: 'center' }}>
                       {reg.diferencia !== null && reg.diferencia !== 0 ? (
-                        <span style={{
-                          fontWeight: 700,
-                          color: reg.diferencia > 0 ? '#15803d' : '#dc2626',
-                          fontSize: '13px',
-                        }}>
-                          {reg.diferencia > 0 ? '+' : ''}{reg.diferencia}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>-</span>
-                      )}
+                        <span style={{ fontWeight: 700, color: reg.diferencia > 0 ? '#15803d' : '#dc2626', fontSize: '13px' }}>{reg.diferencia > 0 ? '+' : ''}{reg.diferencia}</span>
+                      ) : (<span style={{ color: '#94a3b8' }}>-</span>)}
                     </td>
-                    <td>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600,
-                        background: eb.bg, color: eb.color,
-                      }}>
-                        {reg.estado}
-                      </span>
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <span className="rd01-tipo-badge" style={{ 
-                        background: (reg.color_hex || '#ccc') + '20', 
-                        color: reg.color_hex || '#333', 
-                        border: `1px solid ${(reg.color_hex || '#ccc')}40`,
-                        fontSize: '11px'
-                      }}>
-                        {reg.tipo_devolucion}
-                      </span>
-                    </td>
+                    <td><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: eb.bg, color: eb.color }}>{reg.estado}</span></td>
+                    <td style={{ whiteSpace: 'nowrap' }}><span className="rd01-tipo-badge" style={{ background: (reg.color_hex || '#ccc') + '20', color: reg.color_hex || '#333', border: `1px solid ${(reg.color_hex || '#ccc')}40`, fontSize: '11px' }}>{reg.tipo_devolucion}</span></td>
                     <td style={{ whiteSpace: 'nowrap' }}>{reg.almacen_destino}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[reg.creado_por] || reg.creado_por}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(reg.creado_en).toLocaleDateString('es-CL')}</td>
@@ -719,9 +665,7 @@ const RD01View: React.FC = () => {
                     <td>
                       <div className="rd01-acciones" style={{ whiteSpace: 'nowrap' }}>
                         <button className="rd01-btn-detalle" onClick={() => verDetalle(reg)}>Detalle</button>
-                        {reg.estado !== 'Cancelado' && (
-                          <button className="rd01-btn-cancelar" onClick={() => handleCancelar(reg)}>Cancelar</button>
-                        )}
+                        {reg.estado !== 'Cancelado' && (<button className="rd01-btn-cancelar" onClick={() => handleCancelar(reg)}>Cancelar</button>)}
                       </div>
                     </td>
                   </tr>
@@ -737,34 +681,18 @@ const RD01View: React.FC = () => {
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '1200px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
-              <h2>
-                {guardadoParcial 
-                  ? `Continuando: ${solicitudes[solicitudActualIndex]?.numero_solicitud} - P${String(palletContador + 1).padStart(2, '0')}`
-                  : 'Nuevo Ingreso Devolución'}
-              </h2>
-              <button className="ed01-modal-close" onClick={() => {
-                if (guardadoParcial && !confirm('¿Salir sin completar?')) return;
-                setShowCrearModal(false);
-                setGuardadoParcial(false);
-                cargarRegistros();
-              }} disabled={guardando}>×</button>
+              <h2>{guardadoParcial ? `Continuando: ${solicitudes[solicitudActualIndex]?.numero_solicitud} - P${String(palletContador + 1).padStart(2, '0')}` : 'Nuevo Ingreso Devolución'}</h2>
+              <button className="ed01-modal-close" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>×</button>
             </div>
-            
             <div className="ed01-modal-body">
               {guardadoParcial && (
                 <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '12px', fontSize: '13px', color: '#1e40af' }}>
-                  <strong>{solicitudes[solicitudActualIndex]?.numero_solicitud}:</strong>{' '}
-                  {bultosGuardados} de {solicitudes[solicitudActualIndex]?.total_bultos} bultos.{' '}
-                  <strong>Faltan: {solicitudes[solicitudActualIndex]?.total_bultos - bultosGuardados} bultos.</strong>
+                  <strong>{solicitudes[solicitudActualIndex]?.numero_solicitud}:</strong> {bultosGuardados} de {solicitudes[solicitudActualIndex]?.total_bultos} bultos. <strong>Faltan: {solicitudes[solicitudActualIndex]?.total_bultos - bultosGuardados} bultos.</strong>
                 </div>
               )}
-
               {!guardadoParcial && (
-                <div className="rd01-pallet-info">
-                  <span>Completa los datos. Si la cantidad no coincide con el total, se podrá guardar con diferencias.</span>
-                </div>
+                <div className="rd01-pallet-info"><span>Completa los datos. Si la suma no coincide con el total, se marcará con diferencias automáticamente.</span></div>
               )}
-
               <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
                 <table className="ed03-tabla" style={{ minWidth: '950px' }}>
                   <thead>
@@ -784,54 +712,30 @@ const RD01View: React.FC = () => {
                     {solicitudes.map((sol, index) => {
                       const isDisabled = guardadoParcial && index !== solicitudActualIndex;
                       const isActual = guardadoParcial && index === solicitudActualIndex;
-                      
                       let progreso = '';
-                      if (index === solicitudActualIndex && guardadoParcial) {
-                        progreso = `${bultosGuardados}/${sol.total_bultos}`;
-                      }
-                      
+                      if (index === solicitudActualIndex && guardadoParcial) progreso = `${bultosGuardados}/${sol.total_bultos}`;
                       return (
                         <tr key={index} style={{ opacity: isDisabled ? 0.4 : 1, background: isActual ? '#fef9e7' : 'transparent' }}>
-                          <td>
-                            <select ref={(el) => { colorSelectRefs.current[index] = el; }} value={sol.color} onChange={e => handleSolicitudChange(index, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }}>
-                              <option value="">Seleccionar...</option>
-                              {coloresTipos.map(c => (<option key={c.id} value={c.color}>{c.color}</option>))}
-                            </select>
-                          </td>
+                          <td><select ref={(el) => { colorSelectRefs.current[index] = el; }} value={sol.color} onChange={e => handleSolicitudChange(index, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }}><option value="">Seleccionar...</option>{coloresTipos.map(c => (<option key={c.id} value={c.color}>{c.color}</option>))}</select></td>
                           <td><input type="text" value={sol.codigo_local} onChange={e => handleCodigoLocalChange(index, e.target.value)} placeholder="D001" maxLength={4} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
                           <td><input type="text" value={sol.nombre_local} disabled placeholder="Auto" style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }} /></td>
                           <td><input type="text" value={sol.numero_solicitud} onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)} placeholder="2060563" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
                           <td><input type="text" value={sol.numero_guia} onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)} placeholder="264" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td>
-                            <input type="number" ref={(el) => { cantidadInputRefs.current[index] = el; }} className="rd01-input-cantidad" value={sol.cantidad_bultos || ''} onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)} min="0" placeholder={isActual ? `Máx: ${sol.total_bultos - bultosGuardados}` : '0'} disabled={isDisabled} style={{ width: '100%', padding: '10px', fontSize: '14px', border: `1px solid ${isActual ? '#f59e0b' : '#e2e8f0'}`, borderRadius: '6px', background: isDisabled ? '#f1f5f9' : (isActual ? '#fffdf5' : 'white') }} />
-                          </td>
+                          <td><input type="number" ref={(el) => { cantidadInputRefs.current[index] = el; }} className="rd01-input-cantidad" value={sol.cantidad_bultos || ''} onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)} min="0" placeholder={isActual ? `Máx: ${sol.total_bultos - bultosGuardados}` : '0'} disabled={isDisabled} style={{ width: '100%', padding: '10px', fontSize: '14px', border: `1px solid ${isActual ? '#f59e0b' : '#e2e8f0'}`, borderRadius: '6px', background: isDisabled ? '#f1f5f9' : (isActual ? '#fffdf5' : 'white') }} /></td>
                           <td><input type="number" value={sol.total_bultos || ''} onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)} min="0" placeholder="0" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td style={{ textAlign: 'center' }}>
-                            {progreso && (<span style={{ display: 'inline-block', padding: '4px 10px', background: '#fef3c7', borderRadius: '6px', fontWeight: 600, color: '#92400e', fontSize: '13px' }}>{progreso}</span>)}
-                          </td>
-                          <td>
-                            {solicitudes.length > 1 && !guardadoParcial && (
-                              <button onClick={() => eliminarSolicitud(index)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', fontSize: '18px', cursor: 'pointer' }} title="Eliminar fila">×</button>
-                            )}
-                          </td>
+                          <td style={{ textAlign: 'center' }}>{progreso && (<span style={{ display: 'inline-block', padding: '4px 10px', background: '#fef3c7', borderRadius: '6px', fontWeight: 600, color: '#92400e', fontSize: '13px' }}>{progreso}</span>)}</td>
+                          <td>{solicitudes.length > 1 && !guardadoParcial && (<button onClick={() => eliminarSolicitud(index)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', fontSize: '18px', cursor: 'pointer' }} title="Eliminar fila">×</button>)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-
-              {!guardadoParcial && (
-                <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>+ Agregar fila</button>
-              )}
-
+              {!guardadoParcial && (<button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>+ Agregar fila</button>)}
               {mensaje && (
-                <div style={{ marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')), color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')), border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`, fontWeight: 500 }}>
-                  {mensaje}
-                </div>
+                <div style={{ marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')), color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')), border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`, fontWeight: 500 }}>{mensaje}</div>
               )}
             </div>
-
             <div className="ed01-modal-footer">
               <button className="ed01-btn-cancel" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>{guardadoParcial ? 'Salir' : 'Cancelar'}</button>
               <button className="ed01-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando ? 'Guardando...' : (guardadoParcial ? `Guardar P${String(palletContador + 1).padStart(2, '0')}` : 'Iniciar Registro')}</button>
@@ -852,14 +756,11 @@ const RD01View: React.FC = () => {
                 <p style={{ fontSize: '14px', color: '#1e293b', margin: '0 0 8px' }}><strong>Cantidad ingresada:</strong> {diferenciaPendiente.cantidad} bultos</p>
                 <p style={{ fontSize: '16px', fontWeight: 700, margin: '8px 0 0' }}><span style={{ color: diferenciaPendiente.diferencia > 0 ? '#15803d' : '#dc2626' }}>Diferencia: {diferenciaPendiente.diferencia > 0 ? '+' : ''}{diferenciaPendiente.diferencia} bultos</span></p>
               </div>
-              <div className="ed01-field">
-                <label>Observación *</label>
-                <textarea value={observacionDiferencia} onChange={e => setObservacionDiferencia(e.target.value)} rows={3} placeholder="Explica el motivo de la diferencia..." style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }} />
-              </div>
+              <div className="ed01-field"><label>Observación *</label><textarea value={observacionDiferencia} onChange={e => setObservacionDiferencia(e.target.value)} rows={3} placeholder="Explica el motivo de la diferencia..." style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }} /></div>
             </div>
             <div className="ed01-modal-footer">
               <button className="ed01-btn-cancel" onClick={() => { setShowDiferenciaModal(false); setDiferenciaPendiente(null); setObservacionDiferencia(''); }}>Cancelar</button>
-              <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={handleGuardarConDiferencia} disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar con Diferencias'}</button>
+              <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={handleGuardarConDiferencia} disabled={guardando}>{guardando ? 'Guardando...' : 'Confirmar Diferencia'}</button>
             </div>
           </div>
         </div>
