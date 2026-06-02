@@ -130,6 +130,11 @@ const RD01View: React.FC = () => {
     return coloresTipos.find(c => c.color === colorNombre) || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
+  const getColorHex = (colorNombre: string): string => {
+    const found = coloresTipos.find(c => c.color === colorNombre);
+    return found?.color_hex || '#ccc';
+  };
+
   const handleCodigoLocalChange = (index: number, codigo: string) => {
     const nuevas = [...solicitudes];
     nuevas[index].codigo_local = codigo.toUpperCase();
@@ -184,7 +189,6 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  // GUARDAR UN PALLET - Simple y directo
   const guardarPallet = async (
     solicitud: Solicitud,
     infoColor: any,
@@ -195,12 +199,8 @@ const RD01View: React.FC = () => {
     cantidadesPrevias: number
   ) => {
     const idPallet = `${palletBase}P${String(numPallet).padStart(2, '0')}`;
-    
-    // Calcular diferencia simple
     const sumaTotal = cantidadesPrevias + cantidad;
     const diferenciaTotal = solicitud.total_bultos - sumaTotal;
-    
-    // Determinar estado
     const estado = diferenciaTotal === 0 ? 'Finalizado' : 'Con Diferencias';
     const diferencia = diferenciaTotal === 0 ? null : diferenciaTotal;
 
@@ -242,28 +242,24 @@ const RD01View: React.FC = () => {
       const user = auth.getUsuario();
       if (!user) { setMensaje('Error: Usuario no autenticado'); setGuardando(false); return; }
 
-      // ===== MODO PARCIAL =====
       if (guardadoParcial) {
         const sol = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(sol.color);
         const cant = sol.cantidad_bultos;
         
-        if (cant <= 0) { setMensaje('Error: Ingresa cantidad'); setGuardando(false); return; }
+        if (cant <= 0) { setMensaje('Error: Ingresa la cantidad de bultos para este pallet'); setGuardando(false); return; }
 
         const nuevoPalletNum = palletContador + 1;
-        const { idPallet, estado, diferencia } = await guardarPallet(
-          sol, infoColor, palletBaseActual, nuevoPalletNum, cant, user.id, bultosGuardados
-        );
+        const { estado, diferencia } = await guardarPallet(sol, infoColor, palletBaseActual, nuevoPalletNum, cant, user.id, bultosGuardados);
 
         const nuevoTotal = bultosGuardados + cant;
         const faltante = sol.total_bultos - nuevoTotal;
 
         if (faltante <= 0) {
-          // COMPLETADO
           if (estado === 'Con Diferencias') {
-            setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} - Diferencia: ${diferencia > 0 ? '+' : ''}${diferencia} bultos.`);
+            setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada con diferencias! Diferencia: ${diferencia > 0 ? '+' : ''}${diferencia} bultos.`);
           } else {
-            setMensaje(`✅ Solicitud ${sol.numero_solicitud} completada! ${sol.total_bultos} bultos.`);
+            setMensaje(`✅ Solicitud ${sol.numero_solicitud} completada! Total: ${sol.total_bultos} bultos.`);
           }
           setGuardadoParcial(false);
           setPalletBaseActual('');
@@ -284,13 +280,12 @@ const RD01View: React.FC = () => {
             return;
           }
         } else {
-          // FALTANTE
           setBultosGuardados(nuevoTotal);
           setPalletContador(nuevoPalletNum);
           const nuevas = [...solicitudes];
           nuevas[solicitudActualIndex] = { ...nuevas[solicitudActualIndex], cantidad_bultos: 0 };
           setSolicitudes(nuevas);
-          setMensaje(`Pallet P${String(nuevoPalletNum).padStart(2, '0')} (${cant} bultos). Faltan ${faltante}.`);
+          setMensaje(`Pallet P${String(nuevoPalletNum).padStart(2, '0')} guardado (${cant} bultos). Faltan ${faltante} bultos.`);
           setTimeout(() => cantidadInputRefs.current[solicitudActualIndex]?.focus(), 200);
         }
         setGuardando(false);
@@ -298,47 +293,46 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // ===== MODO NORMAL =====
-      const err = validarSolicitudInicial(solicitudes[0]);
-      if (err) { setMensaje('Error: ' + err); setGuardando(false); return; }
+      const error = validarSolicitudInicial(solicitudes[0]);
+      if (error) { setMensaje('Error: ' + error); setGuardando(false); return; }
 
       const sol = solicitudes[0];
       const infoColor = getInfoColor(sol.color);
       const palletBase = await generarNumeroPallet();
+      const bultos = sol.cantidad_bultos;
+      const total = sol.total_bultos;
 
-      const { idPallet, estado, diferencia } = await guardarPallet(
-        sol, infoColor, palletBase, 1, sol.cantidad_bultos, user.id, 0
-      );
+      if (bultos >= total) {
+        const { idPallet, estado, diferencia } = await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
+        
+        if (estado === 'Con Diferencias') {
+          setMensaje(`⚠️ Pallet guardado con diferencias! Diferencia: ${diferencia > 0 ? '+' : ''}${diferencia} bultos.`);
+        } else {
+          setMensaje(`✅ Pallet ${idPallet} guardado correctamente.`);
+        }
 
-      if (estado === 'Con Diferencias') {
-        setMensaje(`⚠️ Pallet guardado. Diferencia: ${diferencia > 0 ? '+' : ''}${diferencia} bultos.`);
-      } else if (sol.cantidad_bultos < sol.total_bultos) {
-        // Múltiples pallets
+        if (solicitudes.length > 1) {
+          setTimeout(() => { setMensaje(''); setSolicitudActualIndex(1); setGuardadoParcial(false); setGuardando(false); cargarRegistros(); setTimeout(() => cantidadInputRefs.current[1]?.focus(), 200); }, 1500);
+          return;
+        } else {
+          setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setMensaje(''); }, 2000);
+          setGuardando(false);
+          await cargarRegistros();
+          return;
+        }
+      } else {
+        await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
+        const faltante = total - bultos;
         setGuardadoParcial(true);
         setSolicitudActualIndex(0);
         setPalletBaseActual(palletBase);
-        setBultosGuardados(sol.cantidad_bultos);
+        setBultosGuardados(bultos);
         setPalletContador(1);
         const nuevas = [...solicitudes];
         nuevas[0] = { ...nuevas[0], cantidad_bultos: 0 };
         setSolicitudes(nuevas);
-        setMensaje(`Pallet P01 (${sol.cantidad_bultos} bultos). Faltan ${sol.total_bultos - sol.cantidad_bultos}.`);
+        setMensaje(`Pallet P01 guardado (${bultos} bultos). Faltan ${faltante} bultos.`);
         setTimeout(() => cantidadInputRefs.current[0]?.focus(), 200);
-      } else {
-        setMensaje(`✅ Pallet ${idPallet} guardado.`);
-      }
-
-      // Si es un solo pallet y no hay más solicitudes, cerrar
-      if ((sol.cantidad_bultos >= sol.total_bultos || estado === 'Con Diferencias') && solicitudes.length === 1) {
-        setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setMensaje(''); }, 2000);
-      } else if ((sol.cantidad_bultos >= sol.total_bultos || estado === 'Con Diferencias') && solicitudes.length > 1) {
-        setTimeout(() => {
-          setMensaje('');
-          setSolicitudActualIndex(1);
-          setGuardadoParcial(false);
-          cargarRegistros();
-          setTimeout(() => cantidadInputRefs.current[1]?.focus(), 200);
-        }, 1500);
       }
 
       setGuardando(false);
@@ -401,125 +395,236 @@ const RD01View: React.FC = () => {
 
   const registrosTabla = getRegistrosParaTabla();
 
+  const getEstadoBadge = (estado: string) => {
+    switch (estado) {
+      case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' };
+      case 'Con Diferencias': return { color: '#dc2626', bg: '#fef2f2' };
+      case 'Cancelado': return { color: '#64748b', bg: '#f1f5f9' };
+      default: return { color: '#64748b', bg: '#f1f5f9' };
+    }
+  };
+
   return (
     <div className="rd01-view">
       <div className="rd01-header">
         <h2>Recepción Devolución - Ingreso</h2>
-        <button className="rd01-btn-nueva" onClick={abrirModalCrear}>+ Nuevo Ingreso</button>
+        <button className="rd01-btn-nueva" onClick={abrirModalCrear}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Nuevo Ingreso
+        </button>
       </div>
 
+      {/* TABLA PRINCIPAL */}
       <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
         <table className="ed03-tabla" style={{ minWidth: '2100px' }}>
           <thead>
             <tr>
-              <th>ID Pallet</th><th>Pallet</th><th>Color</th><th>Cod Local</th><th>Local</th>
-              <th>N° Solicitud</th><th>N° Guía</th><th>Cant. Bultos</th><th>Total Bultos</th>
-              <th>Diferencia</th><th>Estado</th><th>Tipo Devolución</th><th>Almacén Destino</th>
-              <th>Creado Por</th><th>Creado En</th><th>Modificado Por</th><th>Modificado En</th>
-              <th>Obs.</th><th>Acciones</th>
+              <th style={{ minWidth: '190px' }}>ID Pallet</th>
+              <th style={{ minWidth: '80px' }}>Pallet</th>
+              <th style={{ minWidth: '100px' }}>Color</th>
+              <th style={{ minWidth: '85px' }}>Cod Local</th>
+              <th style={{ minWidth: '150px' }}>Local</th>
+              <th style={{ minWidth: '110px' }}>N° Solicitud</th>
+              <th style={{ minWidth: '100px' }}>N° Guía</th>
+              <th style={{ minWidth: '90px' }}>Cant. Bultos</th>
+              <th style={{ minWidth: '90px' }}>Total Bultos</th>
+              <th style={{ minWidth: '80px' }}>Diferencia</th>
+              <th style={{ minWidth: '110px' }}>Estado</th>
+              <th style={{ minWidth: '200px' }}>Tipo Devolución</th>
+              <th style={{ minWidth: '130px' }}>Almacén Destino</th>
+              <th style={{ minWidth: '130px' }}>Creado Por</th>
+              <th style={{ minWidth: '110px' }}>Creado En</th>
+              <th style={{ minWidth: '130px' }}>Modificado Por</th>
+              <th style={{ minWidth: '110px' }}>Modificado En</th>
+              <th style={{ minWidth: '90px' }}>Obs.</th>
+              <th style={{ minWidth: '140px' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {cargando ? <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
-             registrosTabla.length === 0 ? <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr> :
-             registrosTabla.map((reg: any) => (
-              <tr key={reg.id} style={{ background: reg.estado === 'Con Diferencias' ? '#fff5f5' : 'transparent' }}>
-                <td style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#1d4ed8', fontWeight: 600 }}>{reg.id_pallet}</td>
-                <td style={{ textAlign: 'center' }}><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#eef2ff', color: '#1d4ed8' }}>{reg.pallet_actual} de {reg.total_pallets_solicitud}</span></td>
-                <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="rd01-color-badge" style={{ background: reg.color_hex || '#ccc' }} /><span>{reg.color}</span></div></td>
-                <td>{reg.codigo_local}</td>
-                <td style={{ whiteSpace: 'normal', minWidth: '150px' }}>{reg.nombre_local}</td>
-                <td>{reg.numero_solicitud}</td><td>{reg.numero_guia}</td>
-                <td style={{ textAlign: 'center' }}>{reg.cantidad_bultos}</td>
-                <td style={{ textAlign: 'center' }}>{reg.total_bultos}</td>
-                <td style={{ textAlign: 'center' }}>
-                  {reg.diferencia !== null && reg.diferencia !== 0 ? (
-                    <span style={{ fontWeight: 700, color: reg.diferencia > 0 ? '#15803d' : '#dc2626' }}>{reg.diferencia > 0 ? '+' : ''}{reg.diferencia}</span>
-                  ) : '-'}
-                </td>
-                <td><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: reg.estado === 'Finalizado' ? '#dcfce7' : reg.estado === 'Con Diferencias' ? '#fef2f2' : '#f1f5f9', color: reg.estado === 'Finalizado' ? '#15803d' : reg.estado === 'Con Diferencias' ? '#dc2626' : '#64748b' }}>{reg.estado}</span></td>
-                <td>{reg.tipo_devolucion}</td><td>{reg.almacen_destino}</td>
-                <td>{nombresUsuarios[reg.creado_por] || reg.creado_por}</td>
-                <td>{new Date(reg.creado_en).toLocaleDateString('es-CL')}</td>
-                <td>{reg.modificado_por ? (nombresUsuarios[reg.modificado_por] || reg.modificado_por) : '-'}</td>
-                <td>{reg.modificado_en ? new Date(reg.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
-                <td>{reg.observacion ? 'Si' : 'No'}</td>
-                <td>
-                  <button className="rd01-btn-detalle" onClick={() => verDetalle(reg)}>Detalle</button>
-                  {reg.estado !== 'Cancelado' && <button className="rd01-btn-cancelar" onClick={() => handleCancelar(reg)}>Cancelar</button>}
-                </td>
-              </tr>
-            ))}
+            {cargando ? (
+              <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
+            ) : registrosTabla.length === 0 ? (
+              <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
+            ) : (
+              registrosTabla.map((reg: any, i: number) => {
+                const eb = getEstadoBadge(reg.estado);
+                return (
+                  <tr key={reg.id} style={{ background: reg.estado === 'Con Diferencias' ? '#fff5f5' : 'transparent' }}>
+                    <td style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#1d4ed8', fontWeight: 600 }}>{reg.id_pallet}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#eef2ff', color: '#1d4ed8' }}>{reg.pallet_actual} de {reg.total_pallets_solicitud}</span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div className="rd01-color-badge" style={{ background: reg.color_hex || '#ccc' }} />
+                        <span style={{ fontSize: '12px', fontWeight: 500 }}>{reg.color}</span>
+                      </div>
+                    </td>
+                    <td>{reg.codigo_local}</td>
+                    <td style={{ whiteSpace: 'normal', wordBreak: 'normal', minWidth: '150px' }}>{reg.nombre_local}</td>
+                    <td className="ed03-ticket-id" style={{ whiteSpace: 'nowrap' }}>{reg.numero_solicitud}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{reg.numero_guia}</td>
+                    <td style={{ textAlign: 'center' }}>{reg.cantidad_bultos}</td>
+                    <td style={{ textAlign: 'center' }}>{reg.total_bultos}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {reg.diferencia !== null && reg.diferencia !== 0 ? (
+                        <span style={{ fontWeight: 700, color: reg.diferencia > 0 ? '#15803d' : '#dc2626', fontSize: '13px' }}>{reg.diferencia > 0 ? '+' : ''}{reg.diferencia}</span>
+                      ) : (<span style={{ color: '#94a3b8' }}>-</span>)}
+                    </td>
+                    <td>
+                      <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: eb.bg, color: eb.color }}>{reg.estado}</span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span className="rd01-tipo-badge" style={{ background: (reg.color_hex || '#ccc') + '20', color: reg.color_hex || '#333', border: `1px solid ${(reg.color_hex || '#ccc')}40`, fontSize: '11px' }}>{reg.tipo_devolucion}</span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{reg.almacen_destino}</td>
+                    <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[reg.creado_por] || reg.creado_por}</td>
+                    <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{new Date(reg.creado_en).toLocaleDateString('es-CL')}</td>
+                    <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{reg.modificado_por ? (nombresUsuarios[reg.modificado_por] || reg.modificado_por) : '-'}</td>
+                    <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{reg.modificado_en ? new Date(reg.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
+                    <td style={{ textAlign: 'center' }}>{reg.observacion ? 'Si' : 'No'}</td>
+                    <td>
+                      <div className="rd01-acciones" style={{ whiteSpace: 'nowrap' }}>
+                        <button className="rd01-btn-detalle" onClick={() => verDetalle(reg)}>Detalle</button>
+                        {reg.estado !== 'Cancelado' && (<button className="rd01-btn-cancelar" onClick={() => handleCancelar(reg)}>Cancelar</button>)}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
+      {/* MODAL CREAR */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '1200px' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '1200px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
-              <h2>{guardadoParcial ? `Continuando - P${String(palletContador + 1).padStart(2, '0')}` : 'Nuevo Ingreso'}</h2>
-              <button className="ed01-modal-close" onClick={() => { setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }}>×</button>
+              <h2>{guardadoParcial ? `Continuando: ${solicitudes[solicitudActualIndex]?.numero_solicitud} - Pallet P${String(palletContador + 1).padStart(2, '0')}` : 'Nuevo Ingreso Devolución'}</h2>
+              <button className="ed01-modal-close" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>×</button>
             </div>
+            
             <div className="ed01-modal-body">
               {guardadoParcial && (
-                <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
-                  Guardado: {bultosGuardados} de {solicitudes[solicitudActualIndex]?.total_bultos}. Faltan: {solicitudes[solicitudActualIndex]?.total_bultos - bultosGuardados}
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '12px', fontSize: '13px', color: '#1e40af' }}>
+                  <strong>{solicitudes[solicitudActualIndex]?.numero_solicitud}:</strong> Guardado: {bultosGuardados} de {solicitudes[solicitudActualIndex]?.total_bultos} bultos. <strong>Faltan: {solicitudes[solicitudActualIndex]?.total_bultos - bultosGuardados} bultos.</strong>
                 </div>
               )}
-              <div className="ed03-tabla-container" style={{ maxHeight: '400px', overflowX: 'auto' }}>
+
+              {!guardadoParcial && (
+                <div className="rd01-pallet-info">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/></svg>
+                  <span>ID Pallet se genera automáticamente. Si la cantidad no coincide con el total, se marcará con diferencias.</span>
+                </div>
+              )}
+
+              <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
                 <table className="ed03-tabla" style={{ minWidth: '950px' }}>
-                  <thead><tr><th>Color</th><th>Cod Local</th><th>Local</th><th>N° Solicitud</th><th>N° Guía</th><th>Cant. Bultos</th><th>Total Bultos</th><th>Progreso</th><th></th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '150px' }}>Color *</th>
+                      <th style={{ minWidth: '100px' }}>Cod Local *</th>
+                      <th style={{ minWidth: '160px' }}>Local</th>
+                      <th style={{ minWidth: '130px' }}>N° Solicitud *</th>
+                      <th style={{ minWidth: '120px' }}>N° Guía *</th>
+                      <th style={{ minWidth: '110px' }}>Cant. Bultos *</th>
+                      <th style={{ minWidth: '110px' }}>Total Bultos *</th>
+                      <th style={{ minWidth: '80px' }}>Progreso</th>
+                      <th style={{ width: '40px' }}></th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    {solicitudes.map((sol, i) => {
-                      const isDisabled = guardadoParcial && i !== solicitudActualIndex;
+                    {solicitudes.map((sol, index) => {
+                      const isDisabled = guardadoParcial && index !== solicitudActualIndex;
+                      const isActual = guardadoParcial && index === solicitudActualIndex;
+                      let progreso = '';
+                      if (index === solicitudActualIndex && guardadoParcial) progreso = `${bultosGuardados}/${sol.total_bultos}`;
+                      
                       return (
-                        <tr key={i} style={{ opacity: isDisabled ? 0.4 : 1 }}>
-                          <td><select ref={el => colorSelectRefs.current[i] = el} value={sol.color} onChange={e => handleSolicitudChange(i, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }}><option value="">Seleccionar...</option>{coloresTipos.map(c => <option key={c.id} value={c.color}>{c.color}</option>)}</select></td>
-                          <td><input value={sol.codigo_local} onChange={e => handleCodigoLocalChange(i, e.target.value)} placeholder="D001" maxLength={4} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }} /></td>
-                          <td><input value={sol.nombre_local} disabled placeholder="Auto" style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd' }} /></td>
-                          <td><input value={sol.numero_solicitud} onChange={e => handleSolicitudChange(i, 'numero_solicitud', e.target.value)} placeholder="2060563" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }} /></td>
-                          <td><input value={sol.numero_guia} onChange={e => handleSolicitudChange(i, 'numero_guia', e.target.value)} placeholder="264" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }} /></td>
-                          <td><input type="number" ref={el => cantidadInputRefs.current[i] = el} value={sol.cantidad_bultos || ''} onChange={e => handleSolicitudChange(i, 'cantidad_bultos', parseInt(e.target.value) || 0)} placeholder="0" disabled={isDisabled} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }} /></td>
-                          <td><input type="number" value={sol.total_bultos || ''} onChange={e => handleSolicitudChange(i, 'total_bultos', parseInt(e.target.value) || 0)} placeholder="0" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }} /></td>
-                          <td style={{ textAlign: 'center' }}>{guardadoParcial && i === solicitudActualIndex ? `${bultosGuardados}/${sol.total_bultos}` : ''}</td>
-                          <td>{solicitudes.length > 1 && !guardadoParcial && <button onClick={() => eliminarSolicitud(i)} style={{ width: '28px', height: '28px', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', cursor: 'pointer' }}>×</button>}</td>
+                        <tr key={index} style={{ opacity: isDisabled ? 0.4 : 1, background: isActual ? '#fef9e7' : 'transparent' }}>
+                          <td>
+                            <select ref={(el) => { colorSelectRefs.current[index] = el; }} value={sol.color} onChange={e => handleSolicitudChange(index, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }}>
+                              <option value="">Seleccionar...</option>
+                              {coloresTipos.map(c => (<option key={c.id} value={c.color}>{c.color}</option>))}
+                            </select>
+                          </td>
+                          <td><input type="text" value={sol.codigo_local} onChange={e => handleCodigoLocalChange(index, e.target.value)} placeholder="D001" maxLength={4} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
+                          <td><input type="text" value={sol.nombre_local} disabled placeholder="Auto" style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }} /></td>
+                          <td><input type="text" value={sol.numero_solicitud} onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)} placeholder="2060563" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
+                          <td><input type="text" value={sol.numero_guia} onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)} placeholder="264" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
+                          <td>
+                            <input type="number" ref={(el) => { cantidadInputRefs.current[index] = el; }} className="rd01-input-cantidad" value={sol.cantidad_bultos || ''} onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)} min="0" placeholder={isActual ? `Máx: ${sol.total_bultos - bultosGuardados}` : '0'} disabled={isDisabled} style={{ width: '100%', padding: '10px', fontSize: '14px', border: `1px solid ${isActual ? '#f59e0b' : '#e2e8f0'}`, borderRadius: '6px', background: isDisabled ? '#f1f5f9' : (isActual ? '#fffdf5' : 'white') }} />
+                          </td>
+                          <td><input type="number" value={sol.total_bultos || ''} onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)} min="0" placeholder="0" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
+                          <td style={{ textAlign: 'center' }}>
+                            {progreso && (<span style={{ display: 'inline-block', padding: '4px 10px', background: '#fef3c7', borderRadius: '6px', fontWeight: 600, color: '#92400e', fontSize: '13px' }}>{progreso}</span>)}
+                          </td>
+                          <td>
+                            {solicitudes.length > 1 && !guardadoParcial && (
+                              <button onClick={() => eliminarSolicitud(index)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', fontSize: '18px', cursor: 'pointer' }} title="Eliminar fila">×</button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-              {!guardadoParcial && <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>+ Agregar fila</button>}
-              {mensaje && <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('✅') ? '#dcfce7' : mensaje.includes('⚠️') ? '#fef3c7' : mensaje.includes('Error') ? '#fef2f2' : '#eff6ff', color: mensaje.includes('✅') ? '#15803d' : mensaje.includes('⚠️') ? '#92400e' : '#1e40af' }}>{mensaje}</div>}
+
+              {!guardadoParcial && (
+                <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>+ Agregar fila</button>
+              )}
+
+              {mensaje && (
+                <div style={{ marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')), color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')), border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`, fontWeight: 500 }}>
+                  {mensaje}
+                </div>
+              )}
             </div>
+
             <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => { setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }}>Cancelar</button>
-              <button className="ed01-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando ? 'Guardando...' : guardadoParcial ? `Guardar P${String(palletContador + 1).padStart(2, '0')}` : 'Iniciar Registro'}</button>
+              <button className="ed01-btn-cancel" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>
+                {guardadoParcial ? 'Salir' : 'Cancelar'}
+              </button>
+              <button className="ed01-btn-save" onClick={handleGuardar} disabled={guardando}>
+                {guardando ? 'Guardando...' : (guardadoParcial ? `Guardar P${String(palletContador + 1).padStart(2, '0')}` : 'Iniciar Registro')}
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL DETALLE */}
       {showDetalleModal && registroDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header"><h2>Detalle</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
+            <div className="ed01-modal-header"><h2>Detalle Devolución</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
             <div className="ed01-modal-body">
-              <p><strong>ID:</strong> {registroDetalle.id_pallet}</p>
-              <p><strong>Color:</strong> {registroDetalle.color} | <strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</p>
-              <p><strong>Solicitud:</strong> {registroDetalle.numero_solicitud} | <strong>Guía:</strong> {registroDetalle.numero_guia}</p>
-              <p><strong>Cantidad:</strong> {registroDetalle.cantidad_bultos} | <strong>Total:</strong> {registroDetalle.total_bultos}</p>
-              {registroDetalle.diferencia && <p><strong>Diferencia:</strong> {registroDetalle.diferencia}</p>}
-              <p><strong>Estado:</strong> {registroDetalle.estado}</p>
-              <RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} />
+              <div className="rd01-detalle-info">
+                <div className="rd01-detalle-row"><div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div></div>
+                <div className="rd01-detalle-row"><div><strong>Color:</strong> {registroDetalle.color}</div><div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div></div>
+                <div className="rd01-detalle-row"><div><strong>Solicitud:</strong> {registroDetalle.numero_solicitud}</div><div><strong>Guía:</strong> {registroDetalle.numero_guia}</div></div>
+                <div className="rd01-detalle-row"><div><strong>Cant. Bultos:</strong> {registroDetalle.cantidad_bultos}</div><div><strong>Total Bultos:</strong> {registroDetalle.total_bultos}</div></div>
+                {registroDetalle.diferencia !== null && registroDetalle.diferencia !== 0 && (
+                  <div className="rd01-detalle-row"><div><strong>Diferencia:</strong> <span style={{ color: registroDetalle.diferencia > 0 ? '#15803d' : '#dc2626', fontWeight: 700 }}>{registroDetalle.diferencia > 0 ? '+' : ''}{registroDetalle.diferencia}</span></div></div>
+                )}
+                <div className="rd01-detalle-row"><div><strong>Estado:</strong> {registroDetalle.estado}</div><div><strong>Tipo:</strong> {registroDetalle.tipo_devolucion}</div></div>
+                <div className="rd01-detalle-row"><div><strong>Almacén:</strong> {registroDetalle.almacen_destino}</div><div><strong>Creado:</strong> {new Date(registroDetalle.creado_en).toLocaleString('es-CL')}</div></div>
+              </div>
+              <div className="rd01-detalle-pallets"><h4>Pallets de esta Solicitud</h4><RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} /></div>
               {registroDetalle.estado !== 'Cancelado' && (
-                <div style={{ marginTop: '16px' }}><label>Observación</label><textarea value={observacion} onChange={e => setObservacion(e.target.value)} rows={2} style={{ width: '100%' }} /></div>
+                <div className="ed01-field" style={{ marginTop: '16px' }}><label>Observación (para cancelar)</label><textarea value={observacion} onChange={e => setObservacion(e.target.value)} rows={2} placeholder="Motivo de cancelación..." /></div>
               )}
             </div>
             <div className="ed01-modal-footer">
               <button className="ed01-btn-cancel" onClick={() => setShowDetalleModal(false)}>Cerrar</button>
-              {registroDetalle.estado !== 'Cancelado' && <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => handleCancelar(registroDetalle)}>Cancelar</button>}
+              {registroDetalle.estado !== 'Cancelado' && (
+                <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => handleCancelar(registroDetalle)}>Cancelar Devolución</button>
+              )}
             </div>
           </div>
         </div>
@@ -534,7 +639,16 @@ const RDDetallePallets: React.FC<{ numeroSolicitud: string }> = ({ numeroSolicit
     fetch(`${API_URL}/rd01_devoluciones?select=id_pallet&numero_solicitud=eq.${numeroSolicitud}&order=id_pallet`, { headers: HEADERS })
       .then(r => r.json()).then(d => { if (d) setPallets(d.map((x: any) => x.id_pallet)); });
   }, [numeroSolicitud]);
-  return <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>{pallets.map((p, i) => <div key={i} className="rd01-pallet-mini">{p}</div>)}</div>;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+      {pallets.map((p: string, i: number) => (
+        <div key={i} className="rd01-pallet-mini">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="#1d4ed8" strokeWidth="1.5"/><path d="M4 5H10M4 8H10M4 11H7" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          {p}
+        </div>
+      ))}
+    </div>
+  );
 };
 
 export default RD01View;
