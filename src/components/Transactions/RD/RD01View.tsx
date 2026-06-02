@@ -1,6 +1,6 @@
 // src/components/Transactions/RD/RD01View.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import { locales, cargarLocales } from '../../../data/locales';
@@ -65,12 +65,9 @@ const RD01View: React.FC = () => {
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([{ ...ESTADO_INICIAL_SOLICITUD }]);
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [modoEdicion, setModoEdicion] = useState(false);
-  const [registroAEditar, setRegistroAEditar] = useState<RD01Registro | null>(null);
   const [observacion, setObservacion] = useState('');
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
-  // Cargar datos iniciales
   useEffect(() => {
     cargarLocales();
     cargarColoresTipos();
@@ -78,7 +75,6 @@ const RD01View: React.FC = () => {
     cargarRegistros();
   }, []);
 
-  // Recargar cada 10 segundos
   useEffect(() => {
     const intervalo = setInterval(cargarRegistros, 10000);
     return () => clearInterval(intervalo);
@@ -107,13 +103,11 @@ const RD01View: React.FC = () => {
     setCargando(false);
   };
 
-  // Obtener tipo devolución y almacén desde el color
   const getInfoColor = (color: string) => {
     const found = coloresTipos.find(c => c.color === color);
     return found || { tipo_devolucion: '', almacen_destino: '' };
   };
 
-  // Manejar cambio de código local
   const handleCodigoLocalChange = (index: number, codigo: string) => {
     const nuevas = [...solicitudes];
     nuevas[index].codigo_local = codigo.toUpperCase();
@@ -122,32 +116,27 @@ const RD01View: React.FC = () => {
     setSolicitudes(nuevas);
   };
 
-  // Manejar cambio de campos en solicitud
   const handleSolicitudChange = (index: number, campo: keyof Solicitud, valor: any) => {
     const nuevas = [...solicitudes];
     (nuevas[index] as any)[campo] = valor;
     setSolicitudes(nuevas);
   };
 
-  // Agregar nueva solicitud
   const agregarSolicitud = () => {
     setSolicitudes([...solicitudes, { ...ESTADO_INICIAL_SOLICITUD }]);
   };
 
-  // Eliminar solicitud
   const eliminarSolicitud = (index: number) => {
     if (solicitudes.length === 1) return;
     setSolicitudes(solicitudes.filter((_, i) => i !== index));
   };
 
-  // Generar número de pallet
   const generarNumeroPallet = async (): Promise<string> => {
     const { data, error } = await supabase.rpc('generar_numero_devolucion');
     if (error) throw error;
     return data as string;
   };
 
-  // Validar solicitud
   const validarSolicitud = (s: Solicitud): string | null => {
     if (!s.color) return 'Selecciona un color';
     if (!s.codigo_local) return 'Ingresa código de local';
@@ -160,13 +149,11 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  // Guardar (crear)
   const handleGuardar = async () => {
-    // Validar todas las solicitudes
     for (let i = 0; i < solicitudes.length; i++) {
       const error = validarSolicitud(solicitudes[i]);
       if (error) {
-        setMensaje(`Error en solicitud #${i + 1}: ${error}`);
+        setMensaje(`Error en fila #${i + 1}: ${error}`);
         setTimeout(() => setMensaje(''), 4000);
         return;
       }
@@ -177,31 +164,19 @@ const RD01View: React.FC = () => {
 
     try {
       const user = auth.getUsuario();
-      const registrosCreados: any[] = [];
 
       for (const solicitud of solicitudes) {
         const infoColor = getInfoColor(solicitud.color);
-        
-        // Determinar cuántos pallets necesita esta solicitud
         const bultosPorPallet = solicitud.cantidad_bultos;
         const totalBultos = solicitud.total_bultos;
         const cantidadPallets = Math.ceil(totalBultos / bultosPorPallet);
 
-        // Generar pallets
-        const palletsGenerados: string[] = [];
-        
-        for (let p = 0; p < cantidadPallets; p++) {
-          const numeroPallet = await generarNumeroPallet();
-          palletsGenerados.push(numeroPallet);
-        }
+        // Generar pallet base
+        const palletBase = await generarNumeroPallet();
 
         // Insertar registros para cada pallet
         for (let p = 0; p < cantidadPallets; p++) {
-          const palletBase = palletsGenerados[0]; // Mismo base, diferente P
-          const palletId = `${palletBase}P${String(p + 1).padStart(2, '0')}`;
-          
-          // Si es el primer pallet de esta solicitud, actualizar el base
-          const idPalletFinal = p === 0 ? palletBase : palletId;
+          const idPalletFinal = p === 0 ? palletBase : `${palletBase}P${String(p + 1).padStart(2, '0')}`;
 
           await supabase.from('rd01_devoluciones').insert([{
             id_pallet: idPalletFinal,
@@ -219,19 +194,6 @@ const RD01View: React.FC = () => {
             creado_en: new Date().toISOString(),
           }]);
         }
-
-        // Actualizar P01, P02... en los demás registros
-        if (cantidadPallets > 1) {
-          for (let p = 0; p < cantidadPallets; p++) {
-            const palletId = `${palletsGenerados[0]}P${String(p + 1).padStart(2, '0')}`;
-            // Actualizar el id_pallet para reflejar el P correspondiente
-            await supabase
-              .from('rd01_devoluciones')
-              .update({ id_pallet: palletId })
-              .eq('id_pallet', p === 0 ? palletsGenerados[0] : palletId)
-              .eq('numero_solicitud', solicitud.numero_solicitud);
-          }
-        }
       }
 
       setMensaje('Devoluciones registradas correctamente');
@@ -248,16 +210,14 @@ const RD01View: React.FC = () => {
     }
   };
 
-  // Cancelar registro
   const handleCancelar = async (registro: RD01Registro) => {
     if (!confirm('¿Cancelar este registro?')) return;
     const user = auth.getUsuario();
-    // Cancelar todos los pallets de la misma solicitud
     const { data: relacionados } = await supabase
       .from('rd01_devoluciones')
       .select('id')
       .eq('numero_solicitud', registro.numero_solicitud);
-    
+
     if (relacionados) {
       for (const r of relacionados) {
         await supabase
@@ -275,14 +235,12 @@ const RD01View: React.FC = () => {
     cargarRegistros();
   };
 
-  // Ver detalle
   const verDetalle = (registro: RD01Registro) => {
     setRegistroDetalle(registro);
     setObservacion('');
     setShowDetalleModal(true);
   };
 
-  // Calcular estadísticas agrupadas
   const getRegistrosAgrupados = () => {
     const grupos: Record<string, {
       solicitud: string;
@@ -332,47 +290,22 @@ const RD01View: React.FC = () => {
     return Object.values(grupos);
   };
 
-  // Obtener pallets relacionados para detalle
-  const getPalletsRelacionados = async (numeroSolicitud: string) => {
-    const { data } = await supabase
-      .from('rd01_devoluciones')
-      .select('id_pallet')
-      .eq('numero_solicitud', numeroSolicitud)
-      .order('id_pallet');
-    return data?.map(r => r.id_pallet) || [];
-  };
-
-  // Botón para exportar (placeholder - se implementará después)
-  const handleExportar = () => {
-    alert('Funcionalidad de exportación en desarrollo');
-  };
-
   return (
     <div className="rd01-view">
       <div className="rd01-header">
         <h2>Recepción Devolución - Ingreso</h2>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="rd01-btn-nueva" onClick={handleExportar}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Exportar
-          </button>
-          <button className="rd01-btn-nueva" onClick={() => {
-            setModoEdicion(false);
-            setRegistroAEditar(null);
-            setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
-            setShowCrearModal(true);
-          }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Nuevo Ingreso
-          </button>
-        </div>
+        <button className="rd01-btn-nueva" onClick={() => {
+          setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
+          setShowCrearModal(true);
+        }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Nuevo Ingreso
+        </button>
       </div>
 
-      {/* Tabla de registros */}
+      {/* Tabla principal */}
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
           <thead>
@@ -411,9 +344,7 @@ const RD01View: React.FC = () => {
                   <td>{grupo.guia}</td>
                   <td>{grupo.cantidadBultos}</td>
                   <td>{grupo.totalBultos}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    {grupo.pallets.length === 1 ? '1' : grupo.pallets.length}
-                  </td>
+                  <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td>
                     <span className="rd01-tipo-badge" style={{ background: grupo.color + '20', color: grupo.color, border: `1px solid ${grupo.color}40` }}>
@@ -453,10 +384,10 @@ const RD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal Crear */}
+      {/* Modal Crear - Tipo TABLA */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '800px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '1100px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
               <h2>Nuevo Ingreso Devolución</h2>
               <button className="ed01-modal-close" onClick={() => setShowCrearModal(false)} disabled={guardando}>×</button>
@@ -467,130 +398,142 @@ const RD01View: React.FC = () => {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <span>ID Pallet se genera automáticamente. Múltiples pallets si cantidad excede el total.</span>
+                <span>ID Pallet se genera automáticamente. Si la cantidad de bultos es menor al total, se generan múltiples pallets.</span>
               </div>
 
-              <div className="rd01-solicitudes-list">
-                {solicitudes.map((sol, index) => (
-                  <div key={index} className="rd01-solicitud-card">
-                    <div className="rd01-solicitud-header">
-                      <span>Solicitud #{index + 1}</span>
-                      {solicitudes.length > 1 && (
-                        <button
-                          className="rd01-btn-eliminar-solicitud"
-                          onClick={() => eliminarSolicitud(index)}
-                          title="Eliminar solicitud"
-                        >×</button>
-                      )}
-                    </div>
-
-                    <div className="rd01-solicitud-row">
-                      <div className="ed01-field">
-                        <label>Color *</label>
-                        <select
-                          value={sol.color}
-                          onChange={e => handleSolicitudChange(index, 'color', e.target.value)}
-                          style={{ width: '100%' }}
-                        >
-                          <option value="">Seleccionar...</option>
-                          {coloresTipos.map(c => (
-                            <option key={c.id} value={c.color}>
-                              {c.color} - {c.tipo_devolucion} ({c.almacen_destino})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="ed01-field">
-                        <label>Codigo Local *</label>
-                        <input
-                          type="text"
-                          value={sol.codigo_local}
-                          onChange={e => handleCodigoLocalChange(index, e.target.value)}
-                          placeholder="Ej: T001"
-                          maxLength={4}
-                        />
-                      </div>
-
-                      <div className="ed01-field">
-                        <label>Nombre Local</label>
-                        <input type="text" value={sol.nombre_local} disabled placeholder="Auto-completado" />
-                      </div>
-                    </div>
-
-                    <div className="rd01-solicitud-row" style={{ marginTop: '10px' }}>
-                      <div className="ed01-field">
-                        <label>Numero Solicitud *</label>
-                        <input
-                          type="text"
-                          value={sol.numero_solicitud}
-                          onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)}
-                          placeholder="Ej: SOL-001"
-                        />
-                      </div>
-
-                      <div className="ed01-field">
-                        <label>Numero Guia *</label>
-                        <input
-                          type="text"
-                          value={sol.numero_guia}
-                          onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)}
-                          placeholder="Ej: GUI-12345"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="rd01-solicitud-row" style={{ marginTop: '10px' }}>
-                      <div className="ed01-field">
-                        <label>Cantidad Bultos (por pallet) *</label>
-                        <input
-                          type="number"
-                          value={sol.cantidad_bultos || ''}
-                          onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)}
-                          min="0"
-                          placeholder="0"
-                        />
-                        <small style={{ color: '#94a3b8', fontSize: '11px' }}>
-                          Bultos que caben en un pallet
-                        </small>
-                      </div>
-
-                      <div className="ed01-field">
-                        <label>Total Bultos (solicitud) *</label>
-                        <input
-                          type="number"
-                          value={sol.total_bultos || ''}
-                          onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)}
-                          min="0"
-                          placeholder="0"
-                        />
-                        <small style={{ color: '#94a3b8', fontSize: '11px' }}>
-                          Total de bultos de la solicitud
-                        </small>
-                      </div>
-
-                      <div className="ed01-field">
-                        <label>Pallets necesarios</label>
-                        <div style={{
-                          padding: '10px', background: '#eef2ff', borderRadius: '6px',
-                          textAlign: 'center', fontWeight: 600, color: '#1d4ed8',
-                          fontSize: '16px',
-                        }}>
-                          {sol.cantidad_bultos > 0 && sol.total_bultos > 0
-                            ? Math.ceil(sol.total_bultos / sol.cantidad_bultos)
-                            : '-'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              {/* Tabla editable */}
+              <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px' }}>
+                <table className="ed03-tabla" style={{ minWidth: '900px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '120px' }}>Color *</th>
+                      <th style={{ width: '90px' }}>Cod Local *</th>
+                      <th style={{ width: '120px' }}>Local</th>
+                      <th style={{ width: '120px' }}>N° Solicitud *</th>
+                      <th style={{ width: '120px' }}>N° Guía *</th>
+                      <th style={{ width: '100px' }}>Cant. Bultos *</th>
+                      <th style={{ width: '100px' }}>Total Bultos *</th>
+                      <th style={{ width: '80px' }}>Pallets</th>
+                      <th style={{ width: '50px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {solicitudes.map((sol, index) => {
+                      const palletsNecesarios = sol.cantidad_bultos > 0 && sol.total_bultos > 0
+                        ? Math.ceil(sol.total_bultos / sol.cantidad_bultos)
+                        : 0;
+                      
+                      return (
+                        <tr key={index}>
+                          <td>
+                            <select
+                              value={sol.color}
+                              onChange={e => handleSolicitudChange(index, 'color', e.target.value)}
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                            >
+                              <option value="">Seleccionar...</option>
+                              {coloresTipos.map(c => (
+                                <option key={c.id} value={c.color}>{c.color}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sol.codigo_local}
+                              onChange={e => handleCodigoLocalChange(index, e.target.value)}
+                              placeholder="T001"
+                              maxLength={4}
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sol.nombre_local}
+                              disabled
+                              placeholder="Auto"
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px', background: '#f8fafd', color: '#64748b' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sol.numero_solicitud}
+                              onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)}
+                              placeholder="SOL-001"
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sol.numero_guia}
+                              onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)}
+                              placeholder="GUI-12345"
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={sol.cantidad_bultos || ''}
+                              onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)}
+                              min="0"
+                              placeholder="0"
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={sol.total_bultos || ''}
+                              onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)}
+                              min="0"
+                              placeholder="0"
+                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '4px 10px',
+                              background: '#eef2ff',
+                              borderRadius: '6px',
+                              fontWeight: 600,
+                              color: '#1d4ed8',
+                              fontSize: '13px',
+                              minWidth: '30px'
+                            }}>
+                              {palletsNecesarios || '-'}
+                            </span>
+                          </td>
+                          <td>
+                            {solicitudes.length > 1 && (
+                              <button
+                                onClick={() => eliminarSolicitud(index)}
+                                style={{
+                                  width: '28px', height: '28px',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px',
+                                  color: '#ef4444', fontSize: '16px', cursor: 'pointer'
+                                }}
+                                title="Eliminar fila"
+                              >×</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                Agregar otra solicitud
+                Agregar fila
               </button>
 
               {mensaje && (
