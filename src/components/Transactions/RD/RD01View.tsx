@@ -10,6 +10,7 @@ import './RD01.css';
 interface ColorTipo {
   id: string;
   color: string;
+  color_hex: string;
   tipo_devolucion: string;
   almacen_destino: string;
 }
@@ -28,6 +29,7 @@ interface RD01Registro {
   id: string;
   id_pallet: string;
   color: string;
+  color_hex: string;
   codigo_local: string;
   nombre_local: string;
   numero_solicitud: string;
@@ -103,9 +105,16 @@ const RD01View: React.FC = () => {
     setCargando(false);
   };
 
+  // Obtener info completa del color (hex, tipo, almacén)
   const getInfoColor = (color: string) => {
     const found = coloresTipos.find(c => c.color === color);
-    return found || { tipo_devolucion: '', almacen_destino: '' };
+    return found || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
+  };
+
+  // Mapear nombre de color a hex para el badge
+  const getColorHex = (colorNombre: string): string => {
+    const found = coloresTipos.find(c => c.color === colorNombre);
+    return found?.color_hex || '#ccc';
   };
 
   const handleCodigoLocalChange = (index: number, codigo: string) => {
@@ -181,6 +190,7 @@ const RD01View: React.FC = () => {
           await supabase.from('rd01_devoluciones').insert([{
             id_pallet: idPalletFinal,
             color: solicitud.color,
+            color_hex: infoColor.color_hex,
             codigo_local: solicitud.codigo_local,
             nombre_local: solicitud.nombre_local,
             numero_solicitud: solicitud.numero_solicitud,
@@ -241,10 +251,12 @@ const RD01View: React.FC = () => {
     setShowDetalleModal(true);
   };
 
+  // Agrupar registros por número de solicitud para la tabla principal
   const getRegistrosAgrupados = () => {
     const grupos: Record<string, {
       solicitud: string;
       color: string;
+      color_hex: string;
       codigo_local: string;
       nombre_local: string;
       guia: string;
@@ -267,6 +279,7 @@ const RD01View: React.FC = () => {
         grupos[key] = {
           solicitud: r.numero_solicitud,
           color: r.color,
+          color_hex: r.color_hex,
           codigo_local: r.codigo_local,
           nombre_local: r.nombre_local,
           guia: r.numero_guia,
@@ -317,6 +330,7 @@ const RD01View: React.FC = () => {
               <th>N° Guía</th>
               <th>Cant. Bultos</th>
               <th>Total Bultos</th>
+              <th>ID Pallet</th>
               <th>Cant. Pallet</th>
               <th>Total Pallet</th>
               <th>Tipo Devolución</th>
@@ -329,14 +343,17 @@ const RD01View: React.FC = () => {
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan={15} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
+              <tr><td colSpan={16} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
             ) : getRegistrosAgrupados().length === 0 ? (
-              <tr><td colSpan={15} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
+              <tr><td colSpan={16} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
             ) : (
               getRegistrosAgrupados().map((grupo, i) => (
                 <tr key={i}>
                   <td>
-                    <div className="rd01-color-badge" style={{ background: grupo.color || '#ccc' }} title={grupo.color} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className="rd01-color-badge" style={{ background: grupo.color_hex || getColorHex(grupo.color) }} />
+                      <span style={{ fontSize: '12px' }}>{grupo.color}</span>
+                    </div>
                   </td>
                   <td>{grupo.codigo_local}</td>
                   <td>{grupo.nombre_local}</td>
@@ -344,10 +361,23 @@ const RD01View: React.FC = () => {
                   <td>{grupo.guia}</td>
                   <td>{grupo.cantidadBultos}</td>
                   <td>{grupo.totalBultos}</td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {grupo.pallets.map((p, idx) => (
+                        <span key={idx} style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: '#1d4ed8', fontWeight: 600 }}>
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td>
-                    <span className="rd01-tipo-badge" style={{ background: grupo.color + '20', color: grupo.color, border: `1px solid ${grupo.color}40` }}>
+                    <span className="rd01-tipo-badge" style={{ 
+                      background: (grupo.color_hex || getColorHex(grupo.color)) + '20', 
+                      color: grupo.color_hex || getColorHex(grupo.color), 
+                      border: `1px solid ${(grupo.color_hex || getColorHex(grupo.color))}40` 
+                    }}>
                       {grupo.tipo_devolucion}
                     </span>
                   </td>
@@ -423,6 +453,8 @@ const RD01View: React.FC = () => {
                         ? Math.ceil(sol.total_bultos / sol.cantidad_bultos)
                         : 0;
                       
+                      const colorHex = getColorHex(sol.color);
+                      
                       return (
                         <tr key={index}>
                           <td>
@@ -433,9 +465,17 @@ const RD01View: React.FC = () => {
                             >
                               <option value="">Seleccionar...</option>
                               {coloresTipos.map(c => (
-                                <option key={c.id} value={c.color}>{c.color}</option>
+                                <option key={c.id} value={c.color}>
+                                  {c.color} - {c.tipo_devolucion}
+                                </option>
                               ))}
                             </select>
+                            {sol.color && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: colorHex, border: '1px solid rgba(0,0,0,0.2)' }} />
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>{getInfoColor(sol.color).almacen_destino}</span>
+                              </div>
+                            )}
                           </td>
                           <td>
                             <input
@@ -570,7 +610,14 @@ const RD01View: React.FC = () => {
             <div className="ed01-modal-body">
               <div className="rd01-detalle-info">
                 <div className="rd01-detalle-row">
-                  <div><strong>Color:</strong> <span className="rd01-color-badge" style={{ background: registroDetalle.color, display: 'inline-block', verticalAlign: 'middle' }} /> {registroDetalle.color}</div>
+                  <div>
+                    <strong>Color:</strong>
+                    <span className="rd01-color-badge" style={{ 
+                      background: registroDetalle.color_hex || getColorHex(registroDetalle.color),
+                      display: 'inline-block', verticalAlign: 'middle', marginLeft: '6px'
+                    }} />
+                    {' '}{registroDetalle.color}
+                  </div>
                   <div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div>
                 </div>
                 <div className="rd01-detalle-row">
