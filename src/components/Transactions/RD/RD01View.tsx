@@ -254,14 +254,10 @@ const RD01View: React.FC = () => {
 
         const nuevoTotalGuardado = bultosGuardados + cantidadAhora;
         const faltante = solicitud.total_bultos - nuevoTotalGuardado;
-
-        // ¿Es el último pallet? (faltante <= 0)
         const esUltimoPallet = faltante <= 0;
 
         if (esUltimoPallet) {
-          // Verificar si hay diferencia
           if (nuevoTotalGuardado !== solicitud.total_bultos) {
-            // Mostrar modal de diferencia
             setDiferenciaPendiente({
               cantidad: cantidadAhora,
               total: solicitud.total_bultos,
@@ -277,23 +273,22 @@ const RD01View: React.FC = () => {
           }
         }
 
-        // Guardar este pallet
         const nuevoPalletContador = palletContador + 1;
         await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
 
         if (esUltimoPallet) {
-          // COMPLETADO - Verificar suma total de todos los pallets de esta solicitud
-          const { data: palletsSolicitud } = await supabase
+          const resp = await supabase
             .from('rd01_devoluciones')
             .select('cantidad_bultos')
-            .eq('numero_solicitud', solicitud.numero_solicitud);
+            .eq('numero_solicitud', solicitud.numero_solicitud) as { data: { cantidad_bultos: number }[] | null; error: any };
+          
+          const palletsSolicitud = resp.data;
 
           if (palletsSolicitud) {
             const sumaTotal = palletsSolicitud.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
             const diferenciaTotal = solicitud.total_bultos - sumaTotal;
 
             if (diferenciaTotal !== 0) {
-              // Actualizar TODOS los pallets de esta solicitud a "Con Diferencias"
               await supabase
                 .from('rd01_devoluciones')
                 .update({ 
@@ -308,13 +303,11 @@ const RD01View: React.FC = () => {
             }
           }
 
-          // Limpiar estado parcial
           setGuardadoParcial(false);
           setPalletBaseActual('');
           setBultosGuardados(0);
           setPalletContador(1);
 
-          // Pasar a siguiente solicitud o cerrar
           const siguienteIndex = solicitudActualIndex + 1;
           if (siguienteIndex < solicitudes.length) {
             setSolicitudActualIndex(siguienteIndex);
@@ -338,7 +331,6 @@ const RD01View: React.FC = () => {
             return;
           }
         } else {
-          // FALTANTE: Continuar
           setBultosGuardados(nuevoTotalGuardado);
           setPalletContador(nuevoPalletContador);
           
@@ -379,7 +371,6 @@ const RD01View: React.FC = () => {
       const palletBase = await generarNumeroPallet();
 
       if (bultosPorPallet === totalBultos) {
-        // EXACTO: Un solo pallet
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
         setMensaje(`Pallet ${palletBase}P01 guardado correctamente.`);
 
@@ -408,7 +399,6 @@ const RD01View: React.FC = () => {
           return;
         }
       } else if (bultosPorPallet > totalBultos) {
-        // EXCEDE: mostrar modal de diferencia
         setDiferenciaPendiente({
           cantidad: bultosPorPallet,
           total: totalBultos,
@@ -422,7 +412,6 @@ const RD01View: React.FC = () => {
         setGuardando(false);
         return;
       } else {
-        // FALTANTE: Múltiples pallets - guardar P01
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
         
         const faltante = totalBultos - bultosPorPallet;
@@ -470,7 +459,6 @@ const RD01View: React.FC = () => {
 
       const { cantidad, solicitud, infoColor, palletBase, palletContador, diferencia } = diferenciaPendiente;
 
-      // Guardar este pallet con diferencias
       const idPallet = await guardarUnPallet(
         solicitud,
         infoColor,
@@ -482,13 +470,11 @@ const RD01View: React.FC = () => {
         diferencia
       );
 
-      // Actualizar observación
       await supabase
         .from('rd01_devoluciones')
         .update({ observacion: observacionDiferencia })
         .eq('id_pallet', idPallet);
 
-      // Actualizar TODOS los pallets de esta solicitud a "Con Diferencias"
       await supabase
         .from('rd01_devoluciones')
         .update({ 
@@ -860,9 +846,9 @@ const RD01View: React.FC = () => {
               {mensaje && (
                 <div style={{
                   marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px',
-                  background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('completada') || mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')),
-                  color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('completada') || mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')),
-                  border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('completada') || mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`,
+                  background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')),
+                  color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')),
+                  border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`,
                   fontWeight: 500,
                 }}>
                   {mensaje}
