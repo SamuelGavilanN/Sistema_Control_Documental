@@ -189,7 +189,7 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  const guardarPallet = async (
+   const guardarPallet = async (
     solicitud: Solicitud,
     infoColor: any,
     palletBase: string,
@@ -200,7 +200,7 @@ const RD01View: React.FC = () => {
   ) => {
     const idPallet = `${palletBase}P${String(numPallet).padStart(2, '0')}`;
     const sumaTotal = cantidadesPrevias + cantidad;
-    const diferenciaTotal = solicitud.total_bultos - sumaTotal;
+    const diferenciaTotal = sumaTotal - solicitud.total_bultos;  // ← CORREGIDO
     const estado = diferenciaTotal === 0 ? 'Finalizado' : 'Con Diferencias';
     const diferencia = diferenciaTotal === 0 ? null : diferenciaTotal;
 
