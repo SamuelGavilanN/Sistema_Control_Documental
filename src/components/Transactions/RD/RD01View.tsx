@@ -91,15 +91,17 @@ const RD01View: React.FC = () => {
   };
 
   const cargarColoresTipos = async () => {
-    const { data } = await supabase.from('rd_colores_tipos').select('*').eq('activo', true).order('color');
+    const { data, error } = await supabase.from('rd_colores_tipos').select('*').eq('activo', true).order('color');
+    console.log('Colores cargados:', data, error);
     if (data) setColoresTipos(data);
   };
 
   const cargarRegistros = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('rd01_devoluciones')
       .select('*')
       .order('creado_en', { ascending: false });
+    console.log('Registros cargados:', data?.length, error);
     if (data) setRegistros(data);
     setCargando(false);
   };
@@ -132,8 +134,21 @@ const RD01View: React.FC = () => {
   };
 
   const generarNumeroPallet = async (): Promise<string> => {
+    // Intentar usar la función RPC
     const { data, error } = await supabase.rpc('generar_numero_devolucion');
-    if (error) throw error;
+    
+    if (error) {
+      console.error('Error al generar número:', error);
+      // Fallback: generar manualmente
+      const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '').slice(0, 8); // DDMMYYYY
+      const fechaFormateada = fecha.slice(6, 8) + fecha.slice(4, 6) + fecha.slice(0, 4);
+      const { count } = await supabase
+        .from('rd01_devoluciones')
+        .select('*', { count: 'exact', head: true });
+      const correlativo = (count || 0) + 1;
+      return `DEV${fechaFormateada}${String(correlativo).padStart(6, '0')}`;
+    }
+    
     return data as string;
   };
 
@@ -150,10 +165,11 @@ const RD01View: React.FC = () => {
   };
 
   const handleGuardar = async () => {
+    // Validar
     for (let i = 0; i < solicitudes.length; i++) {
       const error = validarSolicitud(solicitudes[i]);
       if (error) {
-        setMensaje(`Error en fila #${i + 1}: ${error}`);
+        setMensaje('Error: ' + error);
         setTimeout(() => setMensaje(''), 4000);
         return;
       }
@@ -164,19 +180,32 @@ const RD01View: React.FC = () => {
 
     try {
       const user = auth.getUsuario();
+      if (!user) {
+        setMensaje('Error: Usuario no autenticado');
+        setGuardando(false);
+        return;
+      }
 
-      for (const solicitud of solicitudes) {
+      console.log('Iniciando guardado para', solicitudes.length, 'solicitudes');
+
+      for (let i = 0; i < solicitudes.length; i++) {
+        const solicitud = solicitudes[i];
         const infoColor = getInfoColor(solicitud.color);
         const bultosPorPallet = solicitud.cantidad_bultos;
         const totalBultos = solicitud.total_bultos;
         const cantidadPallets = Math.ceil(totalBultos / bultosPorPallet);
 
-        const palletBase = await generarNumeroPallet();
+        console.log(`Solicitud ${i+1}: ${cantidadPallets} pallets necesarios`);
 
+        // Generar pallet base para esta solicitud
+        const palletBase = await generarNumeroPallet();
+        console.log(`Pallet base generado: ${palletBase}`);
+
+        // Insertar cada pallet
         for (let p = 0; p < cantidadPallets; p++) {
           const idPalletFinal = `${palletBase}P${String(p + 1).padStart(2, '0')}`;
-
-          await supabase.from('rd01_devoluciones').insert([{
+          
+          const datosInsertar = {
             id_pallet: idPalletFinal,
             color: solicitud.color,
             color_hex: infoColor.color_hex,
@@ -189,9 +218,23 @@ const RD01View: React.FC = () => {
             tipo_devolucion: infoColor.tipo_devolucion,
             almacen_destino: infoColor.almacen_destino,
             estado: 'Finalizado',
-            creado_por: user?.id,
+            creado_por: user.id,
             creado_en: new Date().toISOString(),
-          }]);
+          };
+
+          console.log('Insertando:', datosInsertar);
+
+          const { data, error } = await supabase
+            .from('rd01_devoluciones')
+            .insert([datosInsertar])
+            .select();
+
+          if (error) {
+            console.error('Error al insertar:', error);
+            throw new Error(`Error al guardar: ${error.message} (${error.code})`);
+          }
+
+          console.log('Insertado correctamente:', data);
         }
       }
 
@@ -201,9 +244,11 @@ const RD01View: React.FC = () => {
         setShowCrearModal(false);
         setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
       }, 1500);
-      cargarRegistros();
+      
+      await cargarRegistros();
     } catch (error: any) {
-      setMensaje('Error: ' + error.message);
+      console.error('Error completo:', error);
+      setMensaje('Error: ' + (error.message || 'Error desconocido'));
     } finally {
       setGuardando(false);
     }
@@ -391,9 +436,6 @@ const RD01View: React.FC = () => {
             
             <div className="ed01-modal-body">
               <div className="rd01-pallet-info">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
                 <span>ID Pallet se genera automáticamente. Si cantidad bultos &lt; total bultos, se generan múltiples pallets.</span>
               </div>
 
@@ -401,15 +443,15 @@ const RD01View: React.FC = () => {
                 <table className="ed03-tabla" style={{ minWidth: '850px' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '130px' }}>Color *</th>
-                      <th style={{ width: '90px' }}>Cod Local *</th>
-                      <th style={{ width: '130px' }}>Local</th>
-                      <th style={{ width: '120px' }}>N° Solicitud *</th>
-                      <th style={{ width: '110px' }}>N° Guía *</th>
-                      <th style={{ width: '100px' }}>Cant. Bultos *</th>
-                      <th style={{ width: '100px' }}>Total Bultos *</th>
-                      <th style={{ width: '70px' }}>Pallets</th>
-                      <th style={{ width: '40px' }}></th>
+                      <th>Color *</th>
+                      <th>Cod Local *</th>
+                      <th>Local</th>
+                      <th>N° Solicitud *</th>
+                      <th>N° Guía *</th>
+                      <th>Cant. Bultos *</th>
+                      <th>Total Bultos *</th>
+                      <th>Pallets</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -417,8 +459,6 @@ const RD01View: React.FC = () => {
                       const palletsNecesarios = sol.cantidad_bultos > 0 && sol.total_bultos > 0
                         ? Math.ceil(sol.total_bultos / sol.cantidad_bultos)
                         : 0;
-                      
-                      const infoColor = getInfoColor(sol.color);
                       
                       return (
                         <tr key={index}>
@@ -526,10 +566,7 @@ const RD01View: React.FC = () => {
               </div>
 
               <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                Agregar fila
+                + Agregar fila
               </button>
 
               {mensaje && (
@@ -565,9 +602,7 @@ const RD01View: React.FC = () => {
             </div>
             <div className="ed01-modal-body">
               <div className="rd01-detalle-info">
-                <div className="rd01-detalle-row">
-                  <div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div>
-                </div>
+                <div className="rd01-detalle-row"><div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div></div>
                 <div className="rd01-detalle-row">
                   <div><strong>Color:</strong> {registroDetalle.color}</div>
                   <div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div>
@@ -581,15 +616,12 @@ const RD01View: React.FC = () => {
                   <div><strong>Total Bultos:</strong> {registroDetalle.total_bultos}</div>
                 </div>
                 <div className="rd01-detalle-row">
-                  <div><strong>Tipo Devolución:</strong> {registroDetalle.tipo_devolucion}</div>
-                  <div><strong>Almacén Destino:</strong> {registroDetalle.almacen_destino}</div>
+                  <div><strong>Tipo:</strong> {registroDetalle.tipo_devolucion}</div>
+                  <div><strong>Almacén:</strong> {registroDetalle.almacen_destino}</div>
                 </div>
                 <div className="rd01-detalle-row">
                   <div><strong>Estado:</strong> {registroDetalle.estado}</div>
                   <div><strong>Creado:</strong> {new Date(registroDetalle.creado_en).toLocaleString('es-CL')}</div>
-                </div>
-                <div className="rd01-detalle-row">
-                  <div><strong>Creado por:</strong> {nombresUsuarios[registroDetalle.creado_por] || registroDetalle.creado_por}</div>
                 </div>
               </div>
 
@@ -643,13 +675,7 @@ const RDDetallePallets: React.FC<{ numeroSolicitud: string }> = ({ numeroSolicit
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
       {pallets.map((p, i) => (
-        <div key={i} className="rd01-pallet-mini">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="1" width="12" height="12" rx="2" stroke="#1d4ed8" strokeWidth="1.5"/>
-            <path d="M4 5H10M4 8H10M4 11H7" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          {p}
-        </div>
+        <div key={i} className="rd01-pallet-mini">{p}</div>
       ))}
     </div>
   );
