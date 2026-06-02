@@ -788,4 +788,239 @@ const RD01View: React.FC = () => {
                             </select>
                           </td>
                           <td>
-                            <input type="text" value={sol.codigo_local} onChange={e => handleCodigoLocalChange(index
+                            <input type="text" value={sol.codigo_local} onChange={e => handleCodigoLocalChange(index, e.target.value)} placeholder="D001" maxLength={4} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} />
+                          </td>
+                          <td>
+                            <input type="text" value={sol.nombre_local} disabled placeholder="Auto" style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }} />
+                          </td>
+                          <td>
+                            <input type="text" value={sol.numero_solicitud} onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)} placeholder="2060563" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} />
+                          </td>
+                          <td>
+                            <input type="text" value={sol.numero_guia} onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)} placeholder="264" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              ref={(el) => { cantidadInputRefs.current[index] = el; }}
+                              className="rd01-input-cantidad"
+                              value={sol.cantidad_bultos || ''}
+                              onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)}
+                              min="0"
+                              placeholder={isActual ? `Máx: ${sol.total_bultos - bultosGuardados}` : '0'}
+                              disabled={isDisabled}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: `1px solid ${isActual ? '#f59e0b' : '#e2e8f0'}`, borderRadius: '6px', background: isDisabled ? '#f1f5f9' : (isActual ? '#fffdf5' : 'white') }}
+                            />
+                          </td>
+                          <td>
+                            <input type="number" value={sol.total_bultos || ''} onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)} min="0" placeholder="0" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} />
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {progreso && (
+                              <span style={{ display: 'inline-block', padding: '4px 10px', background: '#fef3c7', borderRadius: '6px', fontWeight: 600, color: '#92400e', fontSize: '13px' }}>
+                                {progreso}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {solicitudes.length > 1 && !guardadoParcial && (
+                              <button onClick={() => eliminarSolicitud(index)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', fontSize: '18px', cursor: 'pointer' }} title="Eliminar fila">×</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {!guardadoParcial && (
+                <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>
+                  + Agregar fila
+                </button>
+              )}
+
+              {mensaje && (
+                <div style={{
+                  marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px',
+                  background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('completada') ? '#dcfce7' : '#eff6ff'),
+                  color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('completada') ? '#15803d' : '#1e40af'),
+                  border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('completada') ? '#bbf7d0' : '#bfdbfe')}`,
+                  fontWeight: 500,
+                }}>
+                  {mensaje}
+                </div>
+              )}
+            </div>
+
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => {
+                if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return;
+                setShowCrearModal(false);
+                setGuardadoParcial(false);
+                cargarRegistros();
+              }} disabled={guardando}>
+                {guardadoParcial ? 'Salir' : 'Cancelar'}
+              </button>
+              <button className="ed01-btn-save" onClick={handleGuardar} disabled={guardando}>
+                {guardando ? 'Guardando...' : (guardadoParcial ? `Guardar P${String(palletContador + 1).padStart(2, '0')}` : 'Iniciar Registro')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DIFERENCIA */}
+      {showDiferenciaModal && diferenciaPendiente && (
+        <div className="ed01-modal-overlay" onClick={() => setShowDiferenciaModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>⚠️ Diferencia Detectada</h2>
+              <button className="ed01-modal-close" onClick={() => setShowDiferenciaModal(false)}>×</button>
+            </div>
+            <div className="ed01-modal-body">
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '14px', color: '#1e293b', margin: '0 0 8px' }}>
+                  <strong>Solicitud:</strong> {diferenciaPendiente.solicitud.numero_solicitud}
+                </p>
+                <p style={{ fontSize: '14px', color: '#1e293b', margin: '0 0 8px' }}>
+                  <strong>Total esperado:</strong> {diferenciaPendiente.total} bultos
+                </p>
+                <p style={{ fontSize: '14px', color: '#1e293b', margin: '0 0 8px' }}>
+                  <strong>Cantidad ingresada:</strong> {diferenciaPendiente.cantidad} bultos
+                </p>
+                <p style={{ fontSize: '16px', fontWeight: 700, margin: '8px 0 0' }}>
+                  <span style={{ color: diferenciaPendiente.diferencia > 0 ? '#15803d' : '#dc2626' }}>
+                    Diferencia: {diferenciaPendiente.diferencia > 0 ? '+' : ''}{diferenciaPendiente.diferencia} bultos
+                  </span>
+                </p>
+              </div>
+
+              <div className="ed01-field">
+                <label>Observación * (obligatorio para guardar con diferencias)</label>
+                <textarea
+                  value={observacionDiferencia}
+                  onChange={e => setObservacionDiferencia(e.target.value)}
+                  rows={3}
+                  placeholder="Explica el motivo de la diferencia..."
+                  style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }}
+                />
+              </div>
+
+              {mensaje && (
+                <div style={{ padding: '10px', borderRadius: '8px', fontSize: '13px', background: '#fef2f2', color: '#dc2626', marginTop: '8px' }}>
+                  {mensaje}
+                </div>
+              )}
+            </div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => {
+                setShowDiferenciaModal(false);
+                setDiferenciaPendiente(null);
+                setObservacionDiferencia('');
+              }}>
+                Cancelar
+              </button>
+              <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={handleGuardarConDiferencia} disabled={guardando}>
+                {guardando ? 'Guardando...' : 'Guardar con Diferencias'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLE */}
+      {showDetalleModal && registroDetalle && (
+        <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>Detalle Devolución</h2>
+              <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
+            </div>
+            <div className="ed01-modal-body">
+              <div className="rd01-detalle-info">
+                <div className="rd01-detalle-row"><div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div></div>
+                <div className="rd01-detalle-row">
+                  <div><strong>Color:</strong> {registroDetalle.color}</div>
+                  <div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div>
+                </div>
+                <div className="rd01-detalle-row">
+                  <div><strong>Solicitud:</strong> {registroDetalle.numero_solicitud}</div>
+                  <div><strong>Guía:</strong> {registroDetalle.numero_guia}</div>
+                </div>
+                <div className="rd01-detalle-row">
+                  <div><strong>Cant. Bultos:</strong> {registroDetalle.cantidad_bultos}</div>
+                  <div><strong>Total Bultos:</strong> {registroDetalle.total_bultos}</div>
+                </div>
+                {registroDetalle.diferencia !== null && registroDetalle.diferencia !== 0 && (
+                  <div className="rd01-detalle-row">
+                    <div>
+                      <strong>Diferencia:</strong>{' '}
+                      <span style={{ color: registroDetalle.diferencia > 0 ? '#15803d' : '#dc2626', fontWeight: 700 }}>
+                        {registroDetalle.diferencia > 0 ? '+' : ''}{registroDetalle.diferencia}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div className="rd01-detalle-row">
+                  <div><strong>Estado:</strong> {registroDetalle.estado}</div>
+                  <div><strong>Tipo:</strong> {registroDetalle.tipo_devolucion}</div>
+                </div>
+                <div className="rd01-detalle-row">
+                  <div><strong>Almacén:</strong> {registroDetalle.almacen_destino}</div>
+                  <div><strong>Creado:</strong> {new Date(registroDetalle.creado_en).toLocaleString('es-CL')}</div>
+                </div>
+              </div>
+
+              <div className="rd01-detalle-pallets">
+                <h4>Pallets de esta Solicitud</h4>
+                <RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} />
+              </div>
+
+              {registroDetalle.estado !== 'Cancelado' && (
+                <div className="ed01-field" style={{ marginTop: '16px' }}>
+                  <label>Observación (para cancelar)</label>
+                  <textarea value={observacion} onChange={e => setObservacion(e.target.value)} rows={2} placeholder="Motivo de cancelación..." />
+                </div>
+              )}
+            </div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => setShowDetalleModal(false)}>Cerrar</button>
+              {registroDetalle.estado !== 'Cancelado' && (
+                <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => handleCancelar(registroDetalle)}>
+                  Cancelar Devolución
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RDDetallePallets: React.FC<{ numeroSolicitud: string }> = ({ numeroSolicitud }) => {
+  const [pallets, setPallets] = useState<string[]>([]);
+
+  useEffect(() => {
+    const cargar = async () => {
+      const { data } = await supabase
+        .from('rd01_devoluciones')
+        .select('id_pallet')
+        .eq('numero_solicitud', numeroSolicitud)
+        .order('id_pallet');
+      if (data) setPallets(data.map(r => r.id_pallet));
+    };
+    cargar();
+  }, [numeroSolicitud]);
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+      {pallets.map((p, i) => (
+        <div key={i} className="rd01-pallet-mini">{p}</div>
+      ))}
+    </div>
+  );
+};
+
+export default RD01View;
