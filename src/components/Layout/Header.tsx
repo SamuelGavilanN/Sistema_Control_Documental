@@ -14,6 +14,7 @@ interface HeaderProps {
   onOpenModule?: (moduleId: string) => void;
 }
 
+
 const moduleTitles: Record<string, string> = {
   'dashboard': 'Ventana de Trabajo',
   'ed': 'ED01 · Reg Empaque',
@@ -26,6 +27,10 @@ const moduleTitles: Record<string, string> = {
   'tk-dashboard': 'TK02 · Dashboard',
   'bd-usuarios': 'BD01 · Usuarios',
   'bd-locales': 'BD02 · Locales',
+  'rd': 'RD01 · Ingreso Devolución',
+  'rd-salida': 'RD02 · Salida Devolución',
+  'rd-informe': 'RD03 · Informe',
+  'rd-dashboard': 'RD04 · Dashboard Devolución',
 };
 
 interface Notificacion {
