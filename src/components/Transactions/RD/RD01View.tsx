@@ -1,6 +1,6 @@
 // src/components/Transactions/RD/RD01View.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import { locales, cargarLocales } from '../../../data/locales';
@@ -69,6 +69,9 @@ const RD01View: React.FC = () => {
   const [observacion, setObservacion] = useState('');
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
+  // Refs para los selects de color
+  const colorSelectRefs = useRef<(HTMLSelectElement | null)[]>([]);
+
   useEffect(() => {
     cargarLocales();
     cargarColoresTipos();
@@ -124,6 +127,13 @@ const RD01View: React.FC = () => {
 
   const agregarSolicitud = () => {
     setSolicitudes([...solicitudes, { ...ESTADO_INICIAL_SOLICITUD }]);
+    // Enfocar el selector de color de la nueva fila
+    setTimeout(() => {
+      const nuevoIndex = solicitudes.length;
+      if (colorSelectRefs.current[nuevoIndex]) {
+        colorSelectRefs.current[nuevoIndex]?.focus();
+      }
+    }, 100);
   };
 
   const eliminarSolicitud = (index: number) => {
@@ -306,6 +316,12 @@ const RD01View: React.FC = () => {
         <button className="rd01-btn-nueva" onClick={() => {
           setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
           setShowCrearModal(true);
+          // Enfocar el primer select al abrir el modal
+          setTimeout(() => {
+            if (colorSelectRefs.current[0]) {
+              colorSelectRefs.current[0]?.focus();
+            }
+          }, 200);
         }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -314,7 +330,7 @@ const RD01View: React.FC = () => {
         </button>
       </div>
 
-      {/* TABLA PRINCIPAL - Textos sin whiteSpace nowrap en Local para que no se corten */}
+      {/* TABLA PRINCIPAL */}
       <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
         <table className="ed03-tabla" style={{ minWidth: '2000px' }}>
           <thead>
@@ -363,7 +379,6 @@ const RD01View: React.FC = () => {
                     </div>
                   </td>
                   <td>{grupo.codigo_local}</td>
-                  {/* CORREGIDO: sin whiteSpace nowrap, con wordBreak normal para que no corte */}
                   <td style={{ whiteSpace: 'normal', wordBreak: 'normal', minWidth: '150px' }}>{grupo.nombre_local}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{grupo.solicitud}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{grupo.guia}</td>
@@ -408,7 +423,7 @@ const RD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* MODAL CREAR - Más ancho (1200px) */}
+      {/* MODAL CREAR */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '1200px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
@@ -447,6 +462,7 @@ const RD01View: React.FC = () => {
                         <tr key={index}>
                           <td>
                             <select
+                              ref={(el) => { colorSelectRefs.current[index] = el; }}
                               value={sol.color}
                               onChange={e => handleSolicitudChange(index, 'color', e.target.value)}
                               style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: 'white' }}
@@ -575,7 +591,7 @@ const RD01View: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Detalle */}
+      {/* MODAL DETALLE */}
       {showDetalleModal && registroDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
