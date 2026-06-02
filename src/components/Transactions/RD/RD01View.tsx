@@ -428,7 +428,7 @@ const RD01View: React.FC = () => {
       {/* Modal Crear */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '1000px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '1200px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
               <h2>Nuevo Ingreso Devolución</h2>
               <button className="ed01-modal-close" onClick={() => setShowCrearModal(false)} disabled={guardando}>×</button>
