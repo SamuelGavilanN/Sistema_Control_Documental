@@ -105,13 +105,11 @@ const RD01View: React.FC = () => {
     setCargando(false);
   };
 
-  // Obtener info completa del color (hex, tipo, almacén)
   const getInfoColor = (color: string) => {
     const found = coloresTipos.find(c => c.color === color);
     return found || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
-  // Mapear nombre de color a hex para el badge
   const getColorHex = (colorNombre: string): string => {
     const found = coloresTipos.find(c => c.color === colorNombre);
     return found?.color_hex || '#ccc';
@@ -180,12 +178,12 @@ const RD01View: React.FC = () => {
         const totalBultos = solicitud.total_bultos;
         const cantidadPallets = Math.ceil(totalBultos / bultosPorPallet);
 
-        // Generar pallet base
+        // Generar pallet base (sin P) - esto da el correlativo único
         const palletBase = await generarNumeroPallet();
 
-        // Insertar registros para cada pallet
+        // Insertar registros para cada pallet CON P01, P02, etc.
         for (let p = 0; p < cantidadPallets; p++) {
-          const idPalletFinal = p === 0 ? palletBase : `${palletBase}P${String(p + 1).padStart(2, '0')}`;
+          const idPalletFinal = `${palletBase}P${String(p + 1).padStart(2, '0')}`;
 
           await supabase.from('rd01_devoluciones').insert([{
             id_pallet: idPalletFinal,
@@ -251,7 +249,7 @@ const RD01View: React.FC = () => {
     setShowDetalleModal(true);
   };
 
-  // Agrupar registros por número de solicitud para la tabla principal
+  // Agrupar registros por número de solicitud
   const getRegistrosAgrupados = () => {
     const grupos: Record<string, {
       solicitud: string;
@@ -318,49 +316,39 @@ const RD01View: React.FC = () => {
         </button>
       </div>
 
-      {/* Tabla principal */}
-      <div className="ed03-tabla-container">
-        <table className="ed03-tabla">
+      {/* Tabla principal con scroll horizontal */}
+      <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
+        <table className="ed03-tabla" style={{ minWidth: '1600px' }}>
           <thead>
             <tr>
-              <th>Color</th>
-              <th>Cod Local</th>
-              <th>Local</th>
-              <th>N° Solicitud</th>
-              <th>N° Guía</th>
-              <th>Cant. Bultos</th>
-              <th>Total Bultos</th>
-              <th>ID Pallet</th>
-              <th>Cant. Pallet</th>
-              <th>Total Pallet</th>
-              <th>Tipo Devolución</th>
-              <th>Almacén Destino</th>
-              <th>Creado Por</th>
-              <th>Creado En</th>
-              <th>Estado</th>
+              <th style={{ width: '90px' }}>ID Pallet</th>
+              <th style={{ width: '80px' }}>Color</th>
+              <th style={{ width: '80px' }}>Cod Local</th>
+              <th style={{ width: '130px' }}>Local</th>
+              <th style={{ width: '110px' }}>N° Solicitud</th>
+              <th style={{ width: '100px' }}>N° Guía</th>
+              <th style={{ width: '90px' }}>Cant. Bultos</th>
+              <th style={{ width: '90px' }}>Total Bultos</th>
+              <th style={{ width: '90px' }}>Cant. Pallet</th>
+              <th style={{ width: '90px' }}>Total Pallet</th>
+              <th style={{ width: '180px' }}>Tipo Devolución</th>
+              <th style={{ width: '120px' }}>Almacén Destino</th>
+              <th style={{ width: '130px' }}>Creado Por</th>
+              <th style={{ width: '130px' }}>Creado En</th>
+              <th style={{ width: '130px' }}>Modificado Por</th>
+              <th style={{ width: '130px' }}>Modificado En</th>
+              <th style={{ width: '100px' }}>Observación</th>
               <th style={{ width: '140px' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan={16} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
+              <tr><td colSpan={18} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
             ) : getRegistrosAgrupados().length === 0 ? (
-              <tr><td colSpan={16} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
+              <tr><td colSpan={18} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
             ) : (
               getRegistrosAgrupados().map((grupo, i) => (
                 <tr key={i}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div className="rd01-color-badge" style={{ background: grupo.color_hex || getColorHex(grupo.color) }} />
-                      <span style={{ fontSize: '12px' }}>{grupo.color}</span>
-                    </div>
-                  </td>
-                  <td>{grupo.codigo_local}</td>
-                  <td>{grupo.nombre_local}</td>
-                  <td className="ed03-ticket-id">{grupo.solicitud}</td>
-                  <td>{grupo.guia}</td>
-                  <td>{grupo.cantidadBultos}</td>
-                  <td>{grupo.totalBultos}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {grupo.pallets.map((p, idx) => (
@@ -370,13 +358,26 @@ const RD01View: React.FC = () => {
                       ))}
                     </div>
                   </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className="rd01-color-badge" style={{ background: grupo.color_hex || getColorHex(grupo.color) }} />
+                      <span style={{ fontSize: '11px' }}>{grupo.color}</span>
+                    </div>
+                  </td>
+                  <td>{grupo.codigo_local}</td>
+                  <td>{grupo.nombre_local}</td>
+                  <td className="ed03-ticket-id">{grupo.solicitud}</td>
+                  <td>{grupo.guia}</td>
+                  <td>{grupo.cantidadBultos}</td>
+                  <td>{grupo.totalBultos}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td>
                     <span className="rd01-tipo-badge" style={{ 
                       background: (grupo.color_hex || getColorHex(grupo.color)) + '20', 
                       color: grupo.color_hex || getColorHex(grupo.color), 
-                      border: `1px solid ${(grupo.color_hex || getColorHex(grupo.color))}40` 
+                      border: `1px solid ${(grupo.color_hex || getColorHex(grupo.color))}40`,
+                      fontSize: '11px'
                     }}>
                       {grupo.tipo_devolucion}
                     </span>
@@ -384,15 +385,9 @@ const RD01View: React.FC = () => {
                   <td>{grupo.almacen_destino}</td>
                   <td className="ed01-usuario">{nombresUsuarios[grupo.creado_por] || grupo.creado_por}</td>
                   <td className="ed01-mono">{new Date(grupo.creado_en).toLocaleDateString('es-CL')}</td>
-                  <td>
-                    <span style={{
-                      padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600,
-                      background: grupo.estado === 'Finalizado' ? '#dcfce7' : '#fef2f2',
-                      color: grupo.estado === 'Finalizado' ? '#15803d' : '#dc2626',
-                    }}>
-                      {grupo.estado}
-                    </span>
-                  </td>
+                  <td className="ed01-usuario">{grupo.modificado_por ? (nombresUsuarios[grupo.modificado_por] || grupo.modificado_por) : '-'}</td>
+                  <td className="ed01-mono">{grupo.modificado_en ? new Date(grupo.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
+                  <td>{grupo.observacion ? 'Si' : 'No'}</td>
                   <td>
                     <div className="rd01-acciones">
                       <button className="rd01-btn-detalle" onClick={() => {
@@ -428,19 +423,19 @@ const RD01View: React.FC = () => {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <span>ID Pallet se genera automáticamente. Si la cantidad de bultos es menor al total, se generan múltiples pallets.</span>
+                <span>ID Pallet se genera automáticamente con formato DEV[FECHA][CORRELATIVO]P01. Si la cantidad de bultos es menor al total, se generan múltiples pallets (P01, P02...).</span>
               </div>
 
               {/* Tabla editable */}
-              <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px' }}>
+              <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
                 <table className="ed03-tabla" style={{ minWidth: '900px' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '120px' }}>Color *</th>
+                      <th style={{ width: '130px' }}>Color *</th>
                       <th style={{ width: '90px' }}>Cod Local *</th>
-                      <th style={{ width: '120px' }}>Local</th>
+                      <th style={{ width: '130px' }}>Local</th>
                       <th style={{ width: '120px' }}>N° Solicitud *</th>
-                      <th style={{ width: '120px' }}>N° Guía *</th>
+                      <th style={{ width: '110px' }}>N° Guía *</th>
                       <th style={{ width: '100px' }}>Cant. Bultos *</th>
                       <th style={{ width: '100px' }}>Total Bultos *</th>
                       <th style={{ width: '80px' }}>Pallets</th>
@@ -611,6 +606,11 @@ const RD01View: React.FC = () => {
               <div className="rd01-detalle-info">
                 <div className="rd01-detalle-row">
                   <div>
+                    <strong>ID Pallet:</strong> {registroDetalle.id_pallet}
+                  </div>
+                </div>
+                <div className="rd01-detalle-row">
+                  <div>
                     <strong>Color:</strong>
                     <span className="rd01-color-badge" style={{ 
                       background: registroDetalle.color_hex || getColorHex(registroDetalle.color),
@@ -642,7 +642,7 @@ const RD01View: React.FC = () => {
               </div>
 
               <div className="rd01-detalle-pallets">
-                <h4>Pallets Asociados</h4>
+                <h4>Pallets Asociados a esta Solicitud</h4>
                 <RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} />
               </div>
 
