@@ -249,27 +249,32 @@ const RD01View: React.FC = () => {
     return idPalletFinal;
   };
 
-  // Verifica suma total de pallets y actualiza estado/diferencia
-  const verificarYActualizarEstado = async (numeroSolicitud: string, totalBultos: number): Promise<{ sumaTotal: number; diferenciaTotal: number }> => {
+  // Verifica suma total y actualiza CADA pallet individualmente
+  const verificarYActualizarEstado = async (numeroSolicitud: string, totalBultos: number) => {
     const resp = await fetch(
-      `${API_URL}/rd01_devoluciones?select=cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
+      `${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
       { headers: HEADERS }
     );
     const pallets = await resp.json();
     
-    if (!pallets || pallets.length === 0) return { sumaTotal: 0, diferenciaTotal: 0 };
+    if (!pallets || pallets.length === 0) return;
     
     const sumaTotal = pallets.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
     const diferenciaTotal = totalBultos - sumaTotal;
+    const nuevoEstado = diferenciaTotal !== 0 ? 'Con Diferencias' : 'Finalizado';
+    const nuevaDiferencia = diferenciaTotal !== 0 ? diferenciaTotal : null;
 
-    if (diferenciaTotal !== 0) {
-      await fetch(`${API_URL}/rd01_devoluciones?numero_solicitud=eq.${numeroSolicitud}`, {
+    // Actualizar CADA pallet
+    for (const pallet of pallets) {
+      await fetch(`${API_URL}/rd01_devoluciones?id=eq.${pallet.id}`, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'Con Diferencias', diferencia: diferenciaTotal }),
+        body: JSON.stringify({ 
+          estado: nuevoEstado, 
+          diferencia: nuevaDiferencia 
+        }),
       });
     }
-    // Si no hay diferencia, se quedan como están (ya guardados como 'Finalizado')
 
     return { sumaTotal, diferenciaTotal };
   };
@@ -286,7 +291,7 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // ===== MODO PARCIAL: Continuar guardando pallets =====
+      // ===== MODO PARCIAL =====
       if (guardadoParcial) {
         const solicitud = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(solicitud.color);
@@ -306,14 +311,14 @@ const RD01View: React.FC = () => {
         await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
 
         if (esUltimoPallet) {
-          // Verificar suma total de todos los pallets
-          const { sumaTotal, diferenciaTotal } = await verificarYActualizarEstado(
+          // Verificar y actualizar estado de todos los pallets
+          const resultado = await verificarYActualizarEstado(
             solicitud.numero_solicitud,
             solicitud.total_bultos
           );
 
-          if (diferenciaTotal !== 0) {
-            setMensaje(`⚠️ Solicitud ${solicitud.numero_solicitud} completada con diferencias! Diferencia: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+          if (resultado && resultado.diferenciaTotal !== 0) {
+            setMensaje(`⚠️ Solicitud ${solicitud.numero_solicitud} completada con diferencias! Diferencia: ${resultado.diferenciaTotal > 0 ? '+' : ''}${resultado.diferenciaTotal} bultos.`);
           } else {
             setMensaje(`✅ Solicitud ${solicitud.numero_solicitud} completada! Total: ${solicitud.total_bultos} bultos.`);
           }
@@ -346,7 +351,6 @@ const RD01View: React.FC = () => {
             return;
           }
         } else {
-          // Faltante: continuar
           setBultosGuardados(nuevoTotalGuardado);
           setPalletContador(nuevoPalletContador);
           
@@ -371,7 +375,7 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // ===== MODO NORMAL: Primer guardado =====
+      // ===== MODO NORMAL =====
       const error = validarSolicitudInicial(solicitudes[0]);
       if (error) {
         setMensaje('Error: ' + error);
@@ -387,22 +391,21 @@ const RD01View: React.FC = () => {
       const palletBase = await generarNumeroPallet();
 
       if (bultosPorPallet >= totalBultos) {
-        // Un solo pallet (cantidad >= total)
+        // Un solo pallet
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
 
         // Verificar suma vs total
-        const { diferenciaTotal } = await verificarYActualizarEstado(
+        const resultado = await verificarYActualizarEstado(
           solicitud.numero_solicitud,
           solicitud.total_bultos
         );
 
-        if (diferenciaTotal !== 0) {
-          setMensaje(`⚠️ Pallet guardado con diferencias! Diferencia: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+        if (resultado && resultado.diferenciaTotal !== 0) {
+          setMensaje(`⚠️ Pallet guardado con diferencias! Diferencia: ${resultado.diferenciaTotal > 0 ? '+' : ''}${resultado.diferenciaTotal} bultos.`);
         } else {
           setMensaje(`✅ Pallet ${palletBase}P01 guardado correctamente.`);
         }
 
-        // Pasar a siguiente solicitud o cerrar
         if (solicitudes.length > 1) {
           setTimeout(() => {
             setMensaje('');
@@ -426,7 +429,7 @@ const RD01View: React.FC = () => {
           return;
         }
       } else {
-        // Múltiples pallets (cantidad < total)
+        // Múltiples pallets
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
         
         const faltante = totalBultos - bultosPorPallet;
@@ -472,20 +475,31 @@ const RD01View: React.FC = () => {
       const user = auth.getUsuario();
       if (!user) return;
 
-      const { cantidad, solicitud, infoColor, palletBase, palletContador, diferencia } = diferenciaPendiente;
+      const { solicitud, diferencia } = diferenciaPendiente;
 
-      // Actualizar el pallet ya guardado (si existe) o guardar nuevo
-      await fetch(`${API_URL}/rd01_devoluciones?numero_solicitud=eq.${solicitud.numero_solicitud}`, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          estado: 'Con Diferencias', 
-          diferencia: diferencia,
-          observacion: observacionDiferencia 
-        }),
-      });
+      // Obtener todos los pallets de esta solicitud
+      const resp = await fetch(
+        `${API_URL}/rd01_devoluciones?select=id&numero_solicitud=eq.${solicitud.numero_solicitud}`,
+        { headers: HEADERS }
+      );
+      const pallets = await resp.json();
 
-      setMensaje(`Pallet guardado con diferencias (${diferencia > 0 ? '+' : ''}${diferencia} bultos).`);
+      // Actualizar cada pallet
+      if (pallets && pallets.length > 0) {
+        for (const pallet of pallets) {
+          await fetch(`${API_URL}/rd01_devoluciones?id=eq.${pallet.id}`, {
+            method: 'PATCH',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              estado: 'Con Diferencias', 
+              diferencia: diferencia,
+              observacion: observacionDiferencia 
+            }),
+          });
+        }
+      }
+
+      setMensaje(`Pallet(s) actualizado(s) con diferencias (${diferencia > 0 ? '+' : ''}${diferencia} bultos).`);
       setShowDiferenciaModal(false);
       setDiferenciaPendiente(null);
       setObservacionDiferencia('');
@@ -691,7 +705,7 @@ const RD01View: React.FC = () => {
                 </div>
               )}
               {!guardadoParcial && (
-                <div className="rd01-pallet-info"><span>Completa los datos. Si la suma no coincide con el total, se marcará con diferencias automáticamente.</span></div>
+                <div className="rd01-pallet-info"><span>Completa los datos. La diferencia se calculará automáticamente al guardar.</span></div>
               )}
               <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
                 <table className="ed03-tabla" style={{ minWidth: '950px' }}>
