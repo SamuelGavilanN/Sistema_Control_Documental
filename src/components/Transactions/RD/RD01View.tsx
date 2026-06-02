@@ -91,17 +91,15 @@ const RD01View: React.FC = () => {
   };
 
   const cargarColoresTipos = async () => {
-    const { data, error } = await supabase.from('rd_colores_tipos').select('*').eq('activo', true).order('color');
-    console.log('Colores cargados:', data, error);
+    const { data } = await supabase.from('rd_colores_tipos').select('*').eq('activo', true).order('color');
     if (data) setColoresTipos(data);
   };
 
   const cargarRegistros = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('rd01_devoluciones')
       .select('*')
       .order('creado_en', { ascending: false });
-    console.log('Registros cargados:', data?.length, error);
     if (data) setRegistros(data);
     setCargando(false);
   };
@@ -134,14 +132,14 @@ const RD01View: React.FC = () => {
   };
 
   const generarNumeroPallet = async (): Promise<string> => {
-    // Intentar usar la función RPC
     const { data, error } = await supabase.rpc('generar_numero_devolucion');
     
     if (error) {
-      console.error('Error al generar número:', error);
-      // Fallback: generar manualmente
-      const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '').slice(0, 8); // DDMMYYYY
-      const fechaFormateada = fecha.slice(6, 8) + fecha.slice(4, 6) + fecha.slice(0, 4);
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      const fechaFormateada = `${dd}${mm}${yyyy}`;
       const { count } = await supabase
         .from('rd01_devoluciones')
         .select('*', { count: 'exact', head: true });
@@ -165,7 +163,6 @@ const RD01View: React.FC = () => {
   };
 
   const handleGuardar = async () => {
-    // Validar
     for (let i = 0; i < solicitudes.length; i++) {
       const error = validarSolicitud(solicitudes[i]);
       if (error) {
@@ -186,8 +183,6 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      console.log('Iniciando guardado para', solicitudes.length, 'solicitudes');
-
       for (let i = 0; i < solicitudes.length; i++) {
         const solicitud = solicitudes[i];
         const infoColor = getInfoColor(solicitud.color);
@@ -195,46 +190,33 @@ const RD01View: React.FC = () => {
         const totalBultos = solicitud.total_bultos;
         const cantidadPallets = Math.ceil(totalBultos / bultosPorPallet);
 
-        console.log(`Solicitud ${i+1}: ${cantidadPallets} pallets necesarios`);
-
-        // Generar pallet base para esta solicitud
         const palletBase = await generarNumeroPallet();
-        console.log(`Pallet base generado: ${palletBase}`);
 
-        // Insertar cada pallet
         for (let p = 0; p < cantidadPallets; p++) {
           const idPalletFinal = `${palletBase}P${String(p + 1).padStart(2, '0')}`;
           
-          const datosInsertar = {
-            id_pallet: idPalletFinal,
-            color: solicitud.color,
-            color_hex: infoColor.color_hex,
-            codigo_local: solicitud.codigo_local,
-            nombre_local: solicitud.nombre_local,
-            numero_solicitud: solicitud.numero_solicitud,
-            numero_guia: solicitud.numero_guia,
-            cantidad_bultos: bultosPorPallet,
-            total_bultos: totalBultos,
-            tipo_devolucion: infoColor.tipo_devolucion,
-            almacen_destino: infoColor.almacen_destino,
-            estado: 'Finalizado',
-            creado_por: user.id,
-            creado_en: new Date().toISOString(),
-          };
-
-          console.log('Insertando:', datosInsertar);
-
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('rd01_devoluciones')
-            .insert([datosInsertar])
-            .select();
+            .insert([{
+              id_pallet: idPalletFinal,
+              color: solicitud.color,
+              color_hex: infoColor.color_hex,
+              codigo_local: solicitud.codigo_local,
+              nombre_local: solicitud.nombre_local,
+              numero_solicitud: solicitud.numero_solicitud,
+              numero_guia: solicitud.numero_guia,
+              cantidad_bultos: bultosPorPallet,
+              total_bultos: totalBultos,
+              tipo_devolucion: infoColor.tipo_devolucion,
+              almacen_destino: infoColor.almacen_destino,
+              estado: 'Finalizado',
+              creado_por: user.id,
+              creado_en: new Date().toISOString(),
+            }]);
 
           if (error) {
-            console.error('Error al insertar:', error);
-            throw new Error(`Error al guardar: ${error.message} (${error.code})`);
+            throw new Error(`Error al guardar: ${error.message}`);
           }
-
-          console.log('Insertado correctamente:', data);
         }
       }
 
@@ -245,9 +227,8 @@ const RD01View: React.FC = () => {
         setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
       }, 1500);
       
-      await cargarRegistros();
+      cargarRegistros();
     } catch (error: any) {
-      console.error('Error completo:', error);
       setMensaje('Error: ' + (error.message || 'Error desconocido'));
     } finally {
       setGuardando(false);
@@ -333,28 +314,29 @@ const RD01View: React.FC = () => {
         </button>
       </div>
 
+      {/* TABLA PRINCIPAL - Textos sin whiteSpace nowrap en Local para que no se corten */}
       <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
-        <table className="ed03-tabla" style={{ minWidth: '1800px' }}>
+        <table className="ed03-tabla" style={{ minWidth: '2000px' }}>
           <thead>
             <tr>
-              <th>ID Pallet</th>
-              <th>Color</th>
-              <th>Cod Local</th>
-              <th>Local</th>
-              <th>N° Solicitud</th>
-              <th>N° Guía</th>
-              <th>Cant. Bultos</th>
-              <th>Total Bultos</th>
-              <th>Cant. Pallet</th>
-              <th>Total Pallet</th>
-              <th>Tipo Devolución</th>
-              <th>Almacén Destino</th>
-              <th>Creado Por</th>
-              <th>Creado En</th>
-              <th>Modificado Por</th>
-              <th>Modificado En</th>
-              <th>Observación</th>
-              <th>Acciones</th>
+              <th style={{ minWidth: '170px' }}>ID Pallet</th>
+              <th style={{ minWidth: '100px' }}>Color</th>
+              <th style={{ minWidth: '85px' }}>Cod Local</th>
+              <th style={{ minWidth: '150px' }}>Local</th>
+              <th style={{ minWidth: '110px' }}>N° Solicitud</th>
+              <th style={{ minWidth: '100px' }}>N° Guía</th>
+              <th style={{ minWidth: '90px' }}>Cant. Bultos</th>
+              <th style={{ minWidth: '90px' }}>Total Bultos</th>
+              <th style={{ minWidth: '85px' }}>Cant. Pallet</th>
+              <th style={{ minWidth: '85px' }}>Total Pallet</th>
+              <th style={{ minWidth: '200px' }}>Tipo Devolución</th>
+              <th style={{ minWidth: '130px' }}>Almacén Destino</th>
+              <th style={{ minWidth: '130px' }}>Creado Por</th>
+              <th style={{ minWidth: '110px' }}>Creado En</th>
+              <th style={{ minWidth: '130px' }}>Modificado Por</th>
+              <th style={{ minWidth: '110px' }}>Modificado En</th>
+              <th style={{ minWidth: '90px' }}>Observación</th>
+              <th style={{ minWidth: '140px' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -368,21 +350,22 @@ const RD01View: React.FC = () => {
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {grupo.pallets.map((p: string, idx: number) => (
-                        <span key={idx} style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: '#1d4ed8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <span key={idx} style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: '#1d4ed8', fontWeight: 600 }}>
                           {p}
                         </span>
                       ))}
                     </div>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <div className="rd01-color-badge" style={{ background: grupo.color_hex || '#ccc' }} />
                       <span style={{ fontSize: '12px', fontWeight: 500 }}>{grupo.color}</span>
                     </div>
                   </td>
                   <td>{grupo.codigo_local}</td>
-                  <td>{grupo.nombre_local}</td>
-                  <td className="ed03-ticket-id" style={{ whiteSpace: 'nowrap' }}>{grupo.solicitud}</td>
+                  {/* CORREGIDO: sin whiteSpace nowrap, con wordBreak normal para que no corte */}
+                  <td style={{ whiteSpace: 'normal', wordBreak: 'normal', minWidth: '150px' }}>{grupo.nombre_local}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{grupo.solicitud}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{grupo.guia}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.cantidadBultos}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.totalBultos}</td>
@@ -399,10 +382,10 @@ const RD01View: React.FC = () => {
                     </span>
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>{grupo.almacen_destino}</td>
-                  <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[grupo.creado_por] || grupo.creado_por}</td>
-                  <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{new Date(grupo.creado_en).toLocaleDateString('es-CL')}</td>
-                  <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{grupo.modificado_por ? (nombresUsuarios[grupo.modificado_por] || grupo.modificado_por) : '-'}</td>
-                  <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{grupo.modificado_en ? new Date(grupo.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[grupo.creado_por] || grupo.creado_por}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{new Date(grupo.creado_en).toLocaleDateString('es-CL')}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{grupo.modificado_por ? (nombresUsuarios[grupo.modificado_por] || grupo.modificado_por) : '-'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{grupo.modificado_en ? new Date(grupo.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.observacion ? 'Si' : 'No'}</td>
                   <td>
                     <div className="rd01-acciones" style={{ whiteSpace: 'nowrap' }}>
@@ -425,7 +408,7 @@ const RD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal Crear */}
+      {/* MODAL CREAR - Más ancho (1200px) */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '1200px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
@@ -440,18 +423,18 @@ const RD01View: React.FC = () => {
               </div>
 
               <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
-                <table className="ed03-tabla" style={{ minWidth: '850px' }}>
+                <table className="ed03-tabla" style={{ minWidth: '950px' }}>
                   <thead>
                     <tr>
-                      <th>Color *</th>
-                      <th>Cod Local *</th>
-                      <th>Local</th>
-                      <th>N° Solicitud *</th>
-                      <th>N° Guía *</th>
-                      <th>Cant. Bultos *</th>
-                      <th>Total Bultos *</th>
-                      <th>Pallets</th>
-                      <th></th>
+                      <th style={{ minWidth: '150px' }}>Color *</th>
+                      <th style={{ minWidth: '100px' }}>Cod Local *</th>
+                      <th style={{ minWidth: '160px' }}>Local</th>
+                      <th style={{ minWidth: '130px' }}>N° Solicitud *</th>
+                      <th style={{ minWidth: '120px' }}>N° Guía *</th>
+                      <th style={{ minWidth: '110px' }}>Cant. Bultos *</th>
+                      <th style={{ minWidth: '110px' }}>Total Bultos *</th>
+                      <th style={{ minWidth: '80px' }}>Pallets</th>
+                      <th style={{ width: '40px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -466,7 +449,7 @@ const RD01View: React.FC = () => {
                             <select
                               value={sol.color}
                               onChange={e => handleSolicitudChange(index, 'color', e.target.value)}
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px', background: 'white' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: 'white' }}
                             >
                               <option value="">Seleccionar...</option>
                               {coloresTipos.map(c => (
@@ -481,7 +464,7 @@ const RD01View: React.FC = () => {
                               onChange={e => handleCodigoLocalChange(index, e.target.value)}
                               placeholder="D001"
                               maxLength={4}
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -490,7 +473,7 @@ const RD01View: React.FC = () => {
                               value={sol.nombre_local}
                               disabled
                               placeholder="Auto"
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }}
                             />
                           </td>
                           <td>
@@ -499,7 +482,7 @@ const RD01View: React.FC = () => {
                               value={sol.numero_solicitud}
                               onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)}
                               placeholder="2060563"
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -508,7 +491,7 @@ const RD01View: React.FC = () => {
                               value={sol.numero_guia}
                               onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)}
                               placeholder="264"
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -518,7 +501,7 @@ const RD01View: React.FC = () => {
                               onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)}
                               min="0"
                               placeholder="0"
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -528,7 +511,7 @@ const RD01View: React.FC = () => {
                               onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)}
                               min="0"
                               placeholder="0"
-                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
+                              style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td style={{ textAlign: 'center' }}>
