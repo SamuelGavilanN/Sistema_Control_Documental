@@ -6,7 +6,6 @@ import { auth } from '../../../lib/auth';
 import { locales, cargarLocales } from '../../../data/locales';
 import './RD01.css';
 
-// Tipos
 interface ColorTipo {
   id: string;
   color: string;
@@ -92,7 +91,7 @@ const RD01View: React.FC = () => {
   };
 
   const cargarColoresTipos = async () => {
-    const { data } = await supabase.from('rd_colores_tipos').select('*').order('color');
+    const { data } = await supabase.from('rd_colores_tipos').select('*').eq('activo', true).order('color');
     if (data) setColoresTipos(data);
   };
 
@@ -105,14 +104,8 @@ const RD01View: React.FC = () => {
     setCargando(false);
   };
 
-  const getInfoColor = (color: string) => {
-    const found = coloresTipos.find(c => c.color === color);
-    return found || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
-  };
-
-  const getColorHex = (colorNombre: string): string => {
-    const found = coloresTipos.find(c => c.color === colorNombre);
-    return found?.color_hex || '#ccc';
+  const getInfoColor = (colorNombre: string) => {
+    return coloresTipos.find(c => c.color === colorNombre) || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
   const handleCodigoLocalChange = (index: number, codigo: string) => {
@@ -178,10 +171,8 @@ const RD01View: React.FC = () => {
         const totalBultos = solicitud.total_bultos;
         const cantidadPallets = Math.ceil(totalBultos / bultosPorPallet);
 
-        // Generar pallet base (sin P) - esto da el correlativo único
         const palletBase = await generarNumeroPallet();
 
-        // Insertar registros para cada pallet CON P01, P02, etc.
         for (let p = 0; p < cantidadPallets; p++) {
           const idPalletFinal = `${palletBase}P${String(p + 1).padStart(2, '0')}`;
 
@@ -249,27 +240,8 @@ const RD01View: React.FC = () => {
     setShowDetalleModal(true);
   };
 
-  // Agrupar registros por número de solicitud
   const getRegistrosAgrupados = () => {
-    const grupos: Record<string, {
-      solicitud: string;
-      color: string;
-      color_hex: string;
-      codigo_local: string;
-      nombre_local: string;
-      guia: string;
-      tipo_devolucion: string;
-      almacen_destino: string;
-      estado: string;
-      creado_por: string;
-      creado_en: string;
-      modificado_por: string | null;
-      modificado_en: string | null;
-      observacion: string | null;
-      pallets: string[];
-      cantidadBultos: number;
-      totalBultos: number;
-    }> = {};
+    const grupos: Record<string, any> = {};
 
     registros.forEach(r => {
       const key = r.numero_solicitud;
@@ -316,29 +288,28 @@ const RD01View: React.FC = () => {
         </button>
       </div>
 
-      {/* Tabla principal con scroll horizontal */}
       <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
-        <table className="ed03-tabla" style={{ minWidth: '1600px' }}>
+        <table className="ed03-tabla" style={{ minWidth: '1800px' }}>
           <thead>
             <tr>
-              <th style={{ width: '90px' }}>ID Pallet</th>
-              <th style={{ width: '80px' }}>Color</th>
-              <th style={{ width: '80px' }}>Cod Local</th>
-              <th style={{ width: '130px' }}>Local</th>
-              <th style={{ width: '110px' }}>N° Solicitud</th>
-              <th style={{ width: '100px' }}>N° Guía</th>
-              <th style={{ width: '90px' }}>Cant. Bultos</th>
-              <th style={{ width: '90px' }}>Total Bultos</th>
-              <th style={{ width: '90px' }}>Cant. Pallet</th>
-              <th style={{ width: '90px' }}>Total Pallet</th>
-              <th style={{ width: '180px' }}>Tipo Devolución</th>
-              <th style={{ width: '120px' }}>Almacén Destino</th>
-              <th style={{ width: '130px' }}>Creado Por</th>
-              <th style={{ width: '130px' }}>Creado En</th>
-              <th style={{ width: '130px' }}>Modificado Por</th>
-              <th style={{ width: '130px' }}>Modificado En</th>
-              <th style={{ width: '100px' }}>Observación</th>
-              <th style={{ width: '140px' }}>Acciones</th>
+              <th>ID Pallet</th>
+              <th>Color</th>
+              <th>Cod Local</th>
+              <th>Local</th>
+              <th>N° Solicitud</th>
+              <th>N° Guía</th>
+              <th>Cant. Bultos</th>
+              <th>Total Bultos</th>
+              <th>Cant. Pallet</th>
+              <th>Total Pallet</th>
+              <th>Tipo Devolución</th>
+              <th>Almacén Destino</th>
+              <th>Creado Por</th>
+              <th>Creado En</th>
+              <th>Modificado Por</th>
+              <th>Modificado En</th>
+              <th>Observación</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -347,49 +318,49 @@ const RD01View: React.FC = () => {
             ) : getRegistrosAgrupados().length === 0 ? (
               <tr><td colSpan={18} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
             ) : (
-              getRegistrosAgrupados().map((grupo, i) => (
+              getRegistrosAgrupados().map((grupo: any, i: number) => (
                 <tr key={i}>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      {grupo.pallets.map((p, idx) => (
-                        <span key={idx} style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: '#1d4ed8', fontWeight: 600 }}>
+                      {grupo.pallets.map((p: string, idx: number) => (
+                        <span key={idx} style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: '#1d4ed8', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {p}
                         </span>
                       ))}
                     </div>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div className="rd01-color-badge" style={{ background: grupo.color_hex || getColorHex(grupo.color) }} />
-                      <span style={{ fontSize: '11px' }}>{grupo.color}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                      <div className="rd01-color-badge" style={{ background: grupo.color_hex || '#ccc' }} />
+                      <span style={{ fontSize: '12px', fontWeight: 500 }}>{grupo.color}</span>
                     </div>
                   </td>
                   <td>{grupo.codigo_local}</td>
                   <td>{grupo.nombre_local}</td>
-                  <td className="ed03-ticket-id">{grupo.solicitud}</td>
-                  <td>{grupo.guia}</td>
-                  <td>{grupo.cantidadBultos}</td>
-                  <td>{grupo.totalBultos}</td>
+                  <td className="ed03-ticket-id" style={{ whiteSpace: 'nowrap' }}>{grupo.solicitud}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{grupo.guia}</td>
+                  <td style={{ textAlign: 'center' }}>{grupo.cantidadBultos}</td>
+                  <td style={{ textAlign: 'center' }}>{grupo.totalBultos}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
                   <td style={{ textAlign: 'center' }}>{grupo.pallets.length}</td>
-                  <td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
                     <span className="rd01-tipo-badge" style={{ 
-                      background: (grupo.color_hex || getColorHex(grupo.color)) + '20', 
-                      color: grupo.color_hex || getColorHex(grupo.color), 
-                      border: `1px solid ${(grupo.color_hex || getColorHex(grupo.color))}40`,
+                      background: (grupo.color_hex || '#ccc') + '20', 
+                      color: grupo.color_hex || '#333', 
+                      border: `1px solid ${(grupo.color_hex || '#ccc')}40`,
                       fontSize: '11px'
                     }}>
                       {grupo.tipo_devolucion}
                     </span>
                   </td>
-                  <td>{grupo.almacen_destino}</td>
-                  <td className="ed01-usuario">{nombresUsuarios[grupo.creado_por] || grupo.creado_por}</td>
-                  <td className="ed01-mono">{new Date(grupo.creado_en).toLocaleDateString('es-CL')}</td>
-                  <td className="ed01-usuario">{grupo.modificado_por ? (nombresUsuarios[grupo.modificado_por] || grupo.modificado_por) : '-'}</td>
-                  <td className="ed01-mono">{grupo.modificado_en ? new Date(grupo.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
-                  <td>{grupo.observacion ? 'Si' : 'No'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{grupo.almacen_destino}</td>
+                  <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[grupo.creado_por] || grupo.creado_por}</td>
+                  <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{new Date(grupo.creado_en).toLocaleDateString('es-CL')}</td>
+                  <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{grupo.modificado_por ? (nombresUsuarios[grupo.modificado_por] || grupo.modificado_por) : '-'}</td>
+                  <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{grupo.modificado_en ? new Date(grupo.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
+                  <td style={{ textAlign: 'center' }}>{grupo.observacion ? 'Si' : 'No'}</td>
                   <td>
-                    <div className="rd01-acciones">
+                    <div className="rd01-acciones" style={{ whiteSpace: 'nowrap' }}>
                       <button className="rd01-btn-detalle" onClick={() => {
                         const reg = registros.find(r => r.numero_solicitud === grupo.solicitud);
                         if (reg) verDetalle(reg);
@@ -409,10 +380,10 @@ const RD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal Crear - Tipo TABLA */}
+      {/* Modal Crear */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '1100px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '1000px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
               <h2>Nuevo Ingreso Devolución</h2>
               <button className="ed01-modal-close" onClick={() => setShowCrearModal(false)} disabled={guardando}>×</button>
@@ -423,12 +394,11 @@ const RD01View: React.FC = () => {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <span>ID Pallet se genera automáticamente con formato DEV[FECHA][CORRELATIVO]P01. Si la cantidad de bultos es menor al total, se generan múltiples pallets (P01, P02...).</span>
+                <span>ID Pallet se genera automáticamente. Si cantidad bultos &lt; total bultos, se generan múltiples pallets.</span>
               </div>
 
-              {/* Tabla editable */}
               <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
-                <table className="ed03-tabla" style={{ minWidth: '900px' }}>
+                <table className="ed03-tabla" style={{ minWidth: '850px' }}>
                   <thead>
                     <tr>
                       <th style={{ width: '130px' }}>Color *</th>
@@ -438,8 +408,8 @@ const RD01View: React.FC = () => {
                       <th style={{ width: '110px' }}>N° Guía *</th>
                       <th style={{ width: '100px' }}>Cant. Bultos *</th>
                       <th style={{ width: '100px' }}>Total Bultos *</th>
-                      <th style={{ width: '80px' }}>Pallets</th>
-                      <th style={{ width: '50px' }}></th>
+                      <th style={{ width: '70px' }}>Pallets</th>
+                      <th style={{ width: '40px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -448,7 +418,7 @@ const RD01View: React.FC = () => {
                         ? Math.ceil(sol.total_bultos / sol.cantidad_bultos)
                         : 0;
                       
-                      const colorHex = getColorHex(sol.color);
+                      const infoColor = getInfoColor(sol.color);
                       
                       return (
                         <tr key={index}>
@@ -456,30 +426,22 @@ const RD01View: React.FC = () => {
                             <select
                               value={sol.color}
                               onChange={e => handleSolicitudChange(index, 'color', e.target.value)}
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px', background: 'white' }}
                             >
                               <option value="">Seleccionar...</option>
                               {coloresTipos.map(c => (
-                                <option key={c.id} value={c.color}>
-                                  {c.color} - {c.tipo_devolucion}
-                                </option>
+                                <option key={c.id} value={c.color}>{c.color}</option>
                               ))}
                             </select>
-                            {sol.color && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: colorHex, border: '1px solid rgba(0,0,0,0.2)' }} />
-                                <span style={{ fontSize: '10px', color: '#64748b' }}>{getInfoColor(sol.color).almacen_destino}</span>
-                              </div>
-                            )}
                           </td>
                           <td>
                             <input
                               type="text"
                               value={sol.codigo_local}
                               onChange={e => handleCodigoLocalChange(index, e.target.value)}
-                              placeholder="T001"
+                              placeholder="D001"
                               maxLength={4}
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -488,7 +450,7 @@ const RD01View: React.FC = () => {
                               value={sol.nombre_local}
                               disabled
                               placeholder="Auto"
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px', background: '#f8fafd', color: '#64748b' }}
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }}
                             />
                           </td>
                           <td>
@@ -496,8 +458,8 @@ const RD01View: React.FC = () => {
                               type="text"
                               value={sol.numero_solicitud}
                               onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)}
-                              placeholder="SOL-001"
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                              placeholder="2060563"
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -505,8 +467,8 @@ const RD01View: React.FC = () => {
                               type="text"
                               value={sol.numero_guia}
                               onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)}
-                              placeholder="GUI-12345"
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                              placeholder="264"
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -516,7 +478,7 @@ const RD01View: React.FC = () => {
                               onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)}
                               min="0"
                               placeholder="0"
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td>
@@ -526,19 +488,18 @@ const RD01View: React.FC = () => {
                               onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)}
                               min="0"
                               placeholder="0"
-                              style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '4px' }}
+                              style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                             />
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <span style={{
                               display: 'inline-block',
-                              padding: '4px 10px',
+                              padding: '6px 12px',
                               background: '#eef2ff',
                               borderRadius: '6px',
                               fontWeight: 600,
                               color: '#1d4ed8',
-                              fontSize: '13px',
-                              minWidth: '30px'
+                              fontSize: '14px',
                             }}>
                               {palletsNecesarios || '-'}
                             </span>
@@ -551,7 +512,7 @@ const RD01View: React.FC = () => {
                                   width: '28px', height: '28px',
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px',
-                                  color: '#ef4444', fontSize: '16px', cursor: 'pointer'
+                                  color: '#ef4444', fontSize: '18px', cursor: 'pointer'
                                 }}
                                 title="Eliminar fila"
                               >×</button>
@@ -597,7 +558,7 @@ const RD01View: React.FC = () => {
       {/* Modal Detalle */}
       {showDetalleModal && registroDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '650px' }} onClick={e => e.stopPropagation()}>
+          <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
             <div className="ed01-modal-header">
               <h2>Detalle Devolución</h2>
               <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
@@ -605,19 +566,10 @@ const RD01View: React.FC = () => {
             <div className="ed01-modal-body">
               <div className="rd01-detalle-info">
                 <div className="rd01-detalle-row">
-                  <div>
-                    <strong>ID Pallet:</strong> {registroDetalle.id_pallet}
-                  </div>
+                  <div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div>
                 </div>
                 <div className="rd01-detalle-row">
-                  <div>
-                    <strong>Color:</strong>
-                    <span className="rd01-color-badge" style={{ 
-                      background: registroDetalle.color_hex || getColorHex(registroDetalle.color),
-                      display: 'inline-block', verticalAlign: 'middle', marginLeft: '6px'
-                    }} />
-                    {' '}{registroDetalle.color}
-                  </div>
+                  <div><strong>Color:</strong> {registroDetalle.color}</div>
                   <div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div>
                 </div>
                 <div className="rd01-detalle-row">
@@ -642,7 +594,7 @@ const RD01View: React.FC = () => {
               </div>
 
               <div className="rd01-detalle-pallets">
-                <h4>Pallets Asociados a esta Solicitud</h4>
+                <h4>Pallets de esta Solicitud</h4>
                 <RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} />
               </div>
 
@@ -673,7 +625,6 @@ const RD01View: React.FC = () => {
   );
 };
 
-// Componente para cargar pallets en el detalle
 const RDDetallePallets: React.FC<{ numeroSolicitud: string }> = ({ numeroSolicitud }) => {
   const [pallets, setPallets] = useState<string[]>([]);
 
