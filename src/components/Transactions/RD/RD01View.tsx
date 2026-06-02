@@ -276,13 +276,15 @@ const RD01View: React.FC = () => {
         const nuevoPalletContador = palletContador + 1;
         await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
 
-        if (esUltimoPallet) {
-          const resp = await supabase
+                if (esUltimoPallet) {
+          // COMPLETADO - Verificar suma total de todos los pallets de esta solicitud
+          const query = supabase
             .from('rd01_devoluciones')
             .select('cantidad_bultos')
-            .eq('numero_solicitud', solicitud.numero_solicitud) as { data: { cantidad_bultos: number }[] | null; error: any };
+            .eq('numero_solicitud', solicitud.numero_solicitud);
           
-          const palletsSolicitud = resp.data;
+          const resp: any = await query;
+          const palletsSolicitud = resp.data as { cantidad_bultos: number }[] | null;
 
           if (palletsSolicitud) {
             const sumaTotal = palletsSolicitud.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
