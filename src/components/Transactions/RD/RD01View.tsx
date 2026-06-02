@@ -75,14 +75,12 @@ const RD01View: React.FC = () => {
   const colorSelectRefs = useRef<(HTMLSelectElement | null)[]>([]);
   const cantidadInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Estados para guardado parcial
   const [guardadoParcial, setGuardadoParcial] = useState(false);
   const [solicitudActualIndex, setSolicitudActualIndex] = useState(0);
   const [palletBaseActual, setPalletBaseActual] = useState('');
   const [bultosGuardados, setBultosGuardados] = useState(0);
   const [palletContador, setPalletContador] = useState(1);
 
-  // Estado para diferencia pendiente
   const [diferenciaPendiente, setDiferenciaPendiente] = useState<{
     cantidad: number;
     total: number;
@@ -242,7 +240,7 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // MODO PARCIAL: Continuar guardando pallets
+      // ===== MODO PARCIAL: Continuar guardando pallets =====
       if (guardadoParcial) {
         const solicitud = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(solicitud.color);
@@ -257,39 +255,66 @@ const RD01View: React.FC = () => {
         const nuevoTotalGuardado = bultosGuardados + cantidadAhora;
         const faltante = solicitud.total_bultos - nuevoTotalGuardado;
 
-        // Si hay diferencia (excede o falta)
-        if (nuevoTotalGuardado !== solicitud.total_bultos && faltante < 0) {
-          // EXCEDE: mostrar modal de diferencia
-          setDiferenciaPendiente({
-            cantidad: cantidadAhora,
-            total: solicitud.total_bultos,
-            diferencia: faltante, // negativo
-            solicitud,
-            infoColor,
-            palletBase: palletBaseActual,
-            palletContador: palletContador + 1,
-          });
-          setShowDiferenciaModal(true);
-          setGuardando(false);
-          return;
+        // ¿Es el último pallet? (faltante <= 0)
+        const esUltimoPallet = faltante <= 0;
+
+        if (esUltimoPallet) {
+          // Verificar si hay diferencia
+          if (nuevoTotalGuardado !== solicitud.total_bultos) {
+            // Mostrar modal de diferencia
+            setDiferenciaPendiente({
+              cantidad: cantidadAhora,
+              total: solicitud.total_bultos,
+              diferencia: solicitud.total_bultos - nuevoTotalGuardado,
+              solicitud,
+              infoColor,
+              palletBase: palletBaseActual,
+              palletContador: palletContador + 1,
+            });
+            setShowDiferenciaModal(true);
+            setGuardando(false);
+            return;
+          }
         }
 
-        if (nuevoTotalGuardado !== solicitud.total_bultos && faltante > 0 && cantidadAhora === faltante) {
-          // Justo completa - guardar normal
-        }
+        // Guardar este pallet
+        const nuevoPalletContador = palletContador + 1;
+        await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
 
-        if (nuevoTotalGuardado === solicitud.total_bultos) {
-          // COMPLETADO EXACTO
-          const nuevoPalletContador = palletContador + 1;
-          await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
+        if (esUltimoPallet) {
+          // COMPLETADO - Verificar suma total de todos los pallets de esta solicitud
+          const { data: palletsSolicitud } = await supabase
+            .from('rd01_devoluciones')
+            .select('cantidad_bultos')
+            .eq('numero_solicitud', solicitud.numero_solicitud);
 
-          setMensaje(`¡Solicitud ${solicitud.numero_solicitud} completada! Total: ${solicitud.total_bultos} bultos.`);
-          
+          if (palletsSolicitud) {
+            const sumaTotal = palletsSolicitud.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
+            const diferenciaTotal = solicitud.total_bultos - sumaTotal;
+
+            if (diferenciaTotal !== 0) {
+              // Actualizar TODOS los pallets de esta solicitud a "Con Diferencias"
+              await supabase
+                .from('rd01_devoluciones')
+                .update({ 
+                  estado: 'Con Diferencias', 
+                  diferencia: diferenciaTotal 
+                })
+                .eq('numero_solicitud', solicitud.numero_solicitud);
+
+              setMensaje(`⚠️ Solicitud ${solicitud.numero_solicitud} completada con diferencias! Diferencia total: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+            } else {
+              setMensaje(`✅ Solicitud ${solicitud.numero_solicitud} completada! Total: ${solicitud.total_bultos} bultos en ${nuevoPalletContador} pallets.`);
+            }
+          }
+
+          // Limpiar estado parcial
           setGuardadoParcial(false);
           setPalletBaseActual('');
           setBultosGuardados(0);
           setPalletContador(1);
 
+          // Pasar a siguiente solicitud o cerrar
           const siguienteIndex = solicitudActualIndex + 1;
           if (siguienteIndex < solicitudes.length) {
             setSolicitudActualIndex(siguienteIndex);
@@ -307,16 +332,13 @@ const RD01View: React.FC = () => {
               setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
               setSolicitudActualIndex(0);
               setMensaje('');
-            }, 2000);
+            }, 2500);
             setGuardando(false);
             await cargarRegistros();
             return;
           }
-        } else if (faltante > 0) {
-          // FALTANTE NORMAL
-          const nuevoPalletContador = palletContador + 1;
-          await guardarUnPallet(solicitud, infoColor, palletBaseActual, nuevoPalletContador, cantidadAhora, user.id);
-
+        } else {
+          // FALTANTE: Continuar
           setBultosGuardados(nuevoTotalGuardado);
           setPalletContador(nuevoPalletContador);
           
@@ -341,7 +363,7 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // MODO NORMAL: Primer guardado
+      // ===== MODO NORMAL: Primer guardado =====
       const error = validarSolicitudInicial(solicitudes[0]);
       if (error) {
         setMensaje('Error: ' + error);
@@ -390,7 +412,7 @@ const RD01View: React.FC = () => {
         setDiferenciaPendiente({
           cantidad: bultosPorPallet,
           total: totalBultos,
-          diferencia: totalBultos - bultosPorPallet, // negativo
+          diferencia: totalBultos - bultosPorPallet,
           solicitud,
           infoColor,
           palletBase,
@@ -400,7 +422,7 @@ const RD01View: React.FC = () => {
         setGuardando(false);
         return;
       } else {
-        // FALTANTE: Múltiples pallets
+        // FALTANTE: Múltiples pallets - guardar P01
         await guardarUnPallet(solicitud, infoColor, palletBase, 1, bultosPorPallet, user.id);
         
         const faltante = totalBultos - bultosPorPallet;
@@ -435,7 +457,6 @@ const RD01View: React.FC = () => {
     }
   };
 
-  // Guardar con diferencia (desde el modal de diferencia)
   const handleGuardarConDiferencia = async () => {
     if (!diferenciaPendiente || !observacionDiferencia.trim()) {
       setMensaje('Debes ingresar una observación para guardar con diferencias');
@@ -449,7 +470,8 @@ const RD01View: React.FC = () => {
 
       const { cantidad, solicitud, infoColor, palletBase, palletContador, diferencia } = diferenciaPendiente;
 
-      await guardarUnPallet(
+      // Guardar este pallet con diferencias
+      const idPallet = await guardarUnPallet(
         solicitud,
         infoColor,
         palletBase,
@@ -460,44 +482,38 @@ const RD01View: React.FC = () => {
         diferencia
       );
 
-      // Actualizar observación del registro
-      const idPallet = `${palletBase}P${String(palletContador).padStart(2, '0')}`;
+      // Actualizar observación
       await supabase
         .from('rd01_devoluciones')
         .update({ observacion: observacionDiferencia })
         .eq('id_pallet', idPallet);
 
-      setMensaje(`Pallet ${idPallet} guardado con diferencias (${diferencia > 0 ? '+' : ''}${diferencia}).`);
+      // Actualizar TODOS los pallets de esta solicitud a "Con Diferencias"
+      await supabase
+        .from('rd01_devoluciones')
+        .update({ 
+          estado: 'Con Diferencias', 
+          diferencia: diferencia 
+        })
+        .eq('numero_solicitud', solicitud.numero_solicitud);
+
+      setMensaje(`Pallet ${idPallet} guardado con diferencias (${diferencia > 0 ? '+' : ''}${diferencia} bultos).`);
       setShowDiferenciaModal(false);
       setDiferenciaPendiente(null);
       setObservacionDiferencia('');
+      setGuardadoParcial(false);
+      setPalletBaseActual('');
+      setBultosGuardados(0);
+      setPalletContador(1);
 
-      // Si hay más solicitudes, pasar a la siguiente
       const siguienteIndex = solicitudActualIndex + 1;
-      if (!guardadoParcial && siguienteIndex < solicitudes.length) {
+      if (siguienteIndex < solicitudes.length) {
         setSolicitudActualIndex(siguienteIndex);
-        setGuardadoParcial(false);
         setTimeout(() => {
           if (cantidadInputRefs.current[siguienteIndex]) {
             cantidadInputRefs.current[siguienteIndex]?.focus();
           }
         }, 300);
-      } else if (guardadoParcial) {
-        // Seguir en modo parcial
-        setGuardadoParcial(false);
-        setPalletBaseActual('');
-        setBultosGuardados(0);
-        setPalletContador(1);
-        if (siguienteIndex < solicitudes.length) {
-          setSolicitudActualIndex(siguienteIndex);
-        } else {
-          setTimeout(() => {
-            setShowCrearModal(false);
-            setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
-            setSolicitudActualIndex(0);
-            setMensaje('');
-          }, 2000);
-        }
       } else {
         setTimeout(() => {
           setShowCrearModal(false);
@@ -614,7 +630,7 @@ const RD01View: React.FC = () => {
               <th style={{ minWidth: '90px' }}>Cant. Bultos</th>
               <th style={{ minWidth: '90px' }}>Total Bultos</th>
               <th style={{ minWidth: '80px' }}>Diferencia</th>
-              <th style={{ minWidth: '100px' }}>Estado</th>
+              <th style={{ minWidth: '110px' }}>Estado</th>
               <th style={{ minWidth: '200px' }}>Tipo Devolución</th>
               <th style={{ minWidth: '130px' }}>Almacén Destino</th>
               <th style={{ minWidth: '130px' }}>Creado Por</th>
@@ -722,9 +738,10 @@ const RD01View: React.FC = () => {
                   : 'Nuevo Ingreso Devolución'}
               </h2>
               <button className="ed01-modal-close" onClick={() => {
-                if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return;
+                if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets? Los pallets ya guardados se conservan.')) return;
                 setShowCrearModal(false);
                 setGuardadoParcial(false);
+                cargarRegistros();
               }} disabled={guardando}>×</button>
             </div>
             
@@ -843,9 +860,9 @@ const RD01View: React.FC = () => {
               {mensaje && (
                 <div style={{
                   marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px',
-                  background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('completada') ? '#dcfce7' : '#eff6ff'),
-                  color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('completada') ? '#15803d' : '#1e40af'),
-                  border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('completada') ? '#bbf7d0' : '#bfdbfe')}`,
+                  background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('completada') || mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')),
+                  color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('completada') || mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')),
+                  border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('completada') || mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`,
                   fontWeight: 500,
                 }}>
                   {mensaje}
@@ -855,7 +872,7 @@ const RD01View: React.FC = () => {
 
             <div className="ed01-modal-footer">
               <button className="ed01-btn-cancel" onClick={() => {
-                if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return;
+                if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets? Los pallets ya guardados se conservan.')) return;
                 setShowCrearModal(false);
                 setGuardadoParcial(false);
                 cargarRegistros();
