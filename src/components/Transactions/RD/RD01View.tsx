@@ -79,6 +79,7 @@ const RD01View: React.FC = () => {
   const colorSelectRefs = useRef<(HTMLSelectElement | null)[]>([]);
   const cantidadInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Guardado parcial por solicitud
   const [guardadoParcial, setGuardadoParcial] = useState(false);
   const [solicitudActualIndex, setSolicitudActualIndex] = useState(0);
   const [palletBaseActual, setPalletBaseActual] = useState('');
@@ -189,7 +190,7 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  // Guardar pallet con diferencia calculada
+  // Guardar un solo pallet
   const guardarPallet = async (
     solicitud: Solicitud,
     infoColor: any,
@@ -207,15 +208,12 @@ const RD01View: React.FC = () => {
     let diferencia: number | null;
     
     if (diferenciaTotal === 0) {
-      // Suma exacta
       estado = 'Finalizado';
       diferencia = null;
     } else if (diferenciaTotal < 0) {
-      // Falta: Pendiente con diferencia negativa
       estado = 'Pendiente';
       diferencia = diferenciaTotal;
     } else {
-      // Sobra: Con Diferencias con diferencia positiva
       estado = 'Con Diferencias';
       diferencia = diferenciaTotal;
     }
@@ -250,7 +248,7 @@ const RD01View: React.FC = () => {
     return { idPallet, estado, diferencia: diferenciaTotal };
   };
 
-  // Actualizar estado de todos los pallets al completar una solicitud
+  // Actualizar estado de todos los pallets de una solicitud
   const actualizarEstadoSolicitud = async (numeroSolicitud: string, totalBultos: number) => {
     const resp = await fetch(
       `${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
@@ -288,6 +286,35 @@ const RD01View: React.FC = () => {
     return { sumaTotal, diferenciaTotal };
   };
 
+  // Procesar una solicitud (puede generar 1 o varios pallets)
+  const procesarSolicitud = async (solicitud: Solicitud, userId: string): Promise<string> => {
+    const infoColor = getInfoColor(solicitud.color);
+    const palletBase = await generarNumeroPallet();
+    const bultos = solicitud.cantidad_bultos;
+    const total = solicitud.total_bultos;
+
+    if (bultos >= total) {
+      // Un solo pallet
+      await guardarPallet(solicitud, infoColor, palletBase, 1, bultos, userId, 0);
+      await actualizarEstadoSolicitud(solicitud.numero_solicitud, total);
+      return `Pallet ${palletBase}P01 guardado.`;
+    } else {
+      // Múltiples pallets: guardar todos de una vez
+      let bultosAcumulados = 0;
+      let numPallet = 0;
+      
+      while (bultosAcumulados < total) {
+        numPallet++;
+        const cantidadEstePallet = numPallet === 1 ? bultos : Math.min(bultos, total - bultosAcumulados);
+        await guardarPallet(solicitud, infoColor, palletBase, numPallet, cantidadEstePallet, userId, bultosAcumulados);
+        bultosAcumulados += cantidadEstePallet;
+      }
+      
+      await actualizarEstadoSolicitud(solicitud.numero_solicitud, total);
+      return `Solicitud ${solicitud.numero_solicitud}: ${numPallet} pallets guardados.`;
+    }
+  };
+
   const handleGuardar = async () => {
     setGuardando(true);
     setMensaje('');
@@ -296,7 +323,7 @@ const RD01View: React.FC = () => {
       const user = auth.getUsuario();
       if (!user) { setMensaje('Error: Usuario no autenticado'); setGuardando(false); return; }
 
-      // ===== MODO PARCIAL =====
+      // ===== MODO PARCIAL: Continuar guardando pallets de la solicitud actual =====
       if (guardadoParcial) {
         const sol = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(sol.color);
@@ -311,15 +338,13 @@ const RD01View: React.FC = () => {
         const faltante = sol.total_bultos - nuevoTotal;
 
         if (faltante <= 0) {
-          // COMPLETADO: recalcular estado de todos los pallets
+          // COMPLETADO: recalcular estado
           const { diferenciaTotal } = await actualizarEstadoSolicitud(sol.numero_solicitud, sol.total_bultos);
           
-          if (diferenciaTotal !== 0) {
-            if (diferenciaTotal < 0) {
-              setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada. Pendiente: ${diferenciaTotal} bultos.`);
-            } else {
-              setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada con diferencias! Sobran: +${diferenciaTotal} bultos.`);
-            }
+          if (diferenciaTotal < 0) {
+            setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada. Pendiente: ${diferenciaTotal} bultos.`);
+          } else if (diferenciaTotal > 0) {
+            setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada con diferencias! Sobran: +${diferenciaTotal} bultos.`);
           } else {
             setMensaje(`✅ Solicitud ${sol.numero_solicitud} completada! Total: ${sol.total_bultos} bultos.`);
           }
@@ -343,7 +368,7 @@ const RD01View: React.FC = () => {
             return;
           }
         } else {
-          // FALTANTE: continuar
+          // FALTANTE
           setBultosGuardados(nuevoTotal);
           setPalletContador(nuevoPalletNum);
           const nuevas = [...solicitudes];
@@ -357,52 +382,72 @@ const RD01View: React.FC = () => {
         return;
       }
 
-      // ===== MODO NORMAL =====
-      const error = validarSolicitudInicial(solicitudes[0]);
-      if (error) { setMensaje('Error: ' + error); setGuardando(false); return; }
-
-      const sol = solicitudes[0];
-      const infoColor = getInfoColor(sol.color);
-      const palletBase = await generarNumeroPallet();
-      const bultos = sol.cantidad_bultos;
-      const total = sol.total_bultos;
-
-      if (bultos >= total) {
-        // Un solo pallet
-        const { idPallet, estado, diferencia } = await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
-        
-        if (diferencia < 0) {
-          setMensaje(`⚠️ Pallet guardado. Pendiente: ${diferencia} bultos.`);
-        } else if (diferencia > 0) {
-          setMensaje(`⚠️ Pallet guardado con diferencias! Sobran: +${diferencia} bultos.`);
-        } else {
-          setMensaje(`✅ Pallet ${idPallet} guardado correctamente.`);
-        }
-
-        if (solicitudes.length > 1) {
-          setTimeout(() => { setMensaje(''); setSolicitudActualIndex(1); setGuardadoParcial(false); setGuardando(false); cargarRegistros(); setTimeout(() => cantidadInputRefs.current[1]?.focus(), 200); }, 1500);
-          return;
-        } else {
-          setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setMensaje(''); }, 2000);
+      // ===== MODO NORMAL: Procesar TODAS las solicitudes =====
+      // Validar todas primero
+      for (let i = 0; i < solicitudes.length; i++) {
+        const error = validarSolicitudInicial(solicitudes[i]);
+        if (error) {
+          setMensaje(`Error en fila #${i + 1}: ${error}`);
           setGuardando(false);
-          await cargarRegistros();
           return;
         }
-      } else {
-        // Múltiples pallets
-        const { estado, diferencia } = await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
-        const faltante = total - bultos;
-        setGuardadoParcial(true);
-        setSolicitudActualIndex(0);
-        setPalletBaseActual(palletBase);
-        setBultosGuardados(bultos);
-        setPalletContador(1);
-        const nuevas = [...solicitudes];
-        nuevas[0] = { ...nuevas[0], cantidad_bultos: 0 };
-        setSolicitudes(nuevas);
-        setMensaje(`Pallet P01 guardado (${bultos} bultos). Faltan ${faltante} bultos.`);
-        setTimeout(() => cantidadInputRefs.current[0]?.focus(), 200);
       }
+
+      // Procesar cada solicitud
+      const resultados: string[] = [];
+      for (let i = 0; i < solicitudes.length; i++) {
+        const sol = solicitudes[i];
+        const bultos = sol.cantidad_bultos;
+        const total = sol.total_bultos;
+
+        if (bultos >= total) {
+          // Un solo pallet - procesar ahora
+          const resultado = await procesarSolicitud(sol, user.id);
+          resultados.push(resultado);
+        } else if (bultos < total) {
+          // Múltiples pallets - iniciar guardado parcial con esta solicitud
+          const infoColor = getInfoColor(sol.color);
+          const palletBase = await generarNumeroPallet();
+          
+          await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
+          resultados.push(`Pallet ${palletBase}P01 guardado (${bultos} bultos).`);
+
+          // Si es la última solicitud, activar modo parcial
+          if (i === solicitudes.length - 1) {
+            const faltante = total - bultos;
+            setGuardadoParcial(true);
+            setSolicitudActualIndex(i);
+            setPalletBaseActual(palletBase);
+            setBultosGuardados(bultos);
+            setPalletContador(1);
+            const nuevas = [...solicitudes];
+            nuevas[i] = { ...nuevas[i], cantidad_bultos: 0 };
+            setSolicitudes(nuevas);
+            setMensaje(`Pallet P01 guardado (${bultos} bultos). Faltan ${faltante} bultos.`);
+            setGuardando(false);
+            await cargarRegistros();
+            setTimeout(() => cantidadInputRefs.current[i]?.focus(), 200);
+            return;
+          } else {
+            // Hay más solicitudes después, completar esta con múltiples pallets
+            await procesarSolicitud(sol, user.id);
+          }
+        }
+      }
+
+      // Todas las solicitudes procesadas
+      setMensaje(`✅ ${resultados.length} solicitud(es) procesada(s) correctamente.`);
+      
+      setTimeout(() => {
+        setShowCrearModal(false);
+        setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
+        setSolicitudActualIndex(0);
+        setGuardadoParcial(false);
+        setPalletBaseActual('');
+        setBultosGuardados(0);
+        setPalletContador(1);
+        setMensaje('');
+      }, 2000);
 
       setGuardando(false);
       await cargarRegistros();
@@ -619,108 +664,4 @@ const RD01View: React.FC = () => {
                       return (
                         <tr key={index} style={{ opacity: isDisabled ? 0.4 : 1, background: isActual ? '#fef9e7' : 'transparent' }}>
                           <td>
-                            <select ref={(el) => { colorSelectRefs.current[index] = el; }} value={sol.color} onChange={e => handleSolicitudChange(index, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }}>
-                              <option value="">Seleccionar...</option>
-                              {coloresTipos.map(c => (<option key={c.id} value={c.color}>{c.color}</option>))}
-                            </select>
-                          </td>
-                          <td><input type="text" value={sol.codigo_local} onChange={e => handleCodigoLocalChange(index, e.target.value)} placeholder="D001" maxLength={4} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td><input type="text" value={sol.nombre_local} disabled placeholder="Auto" style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }} /></td>
-                          <td><input type="text" value={sol.numero_solicitud} onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)} placeholder="2060563" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td><input type="text" value={sol.numero_guia} onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)} placeholder="264" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td>
-                            <input type="number" ref={(el) => { cantidadInputRefs.current[index] = el; }} className="rd01-input-cantidad" value={sol.cantidad_bultos || ''} onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)} min="0" placeholder={isActual ? `Máx: ${sol.total_bultos - bultosGuardados}` : '0'} disabled={isDisabled} style={{ width: '100%', padding: '10px', fontSize: '14px', border: `1px solid ${isActual ? '#f59e0b' : '#e2e8f0'}`, borderRadius: '6px', background: isDisabled ? '#f1f5f9' : (isActual ? '#fffdf5' : 'white') }} />
-                          </td>
-                          <td><input type="number" value={sol.total_bultos || ''} onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)} min="0" placeholder="0" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td style={{ textAlign: 'center' }}>
-                            {progreso && (<span style={{ display: 'inline-block', padding: '4px 10px', background: '#fef3c7', borderRadius: '6px', fontWeight: 600, color: '#92400e', fontSize: '13px' }}>{progreso}</span>)}
-                          </td>
-                          <td>
-                            {solicitudes.length > 1 && !guardadoParcial && (
-                              <button onClick={() => eliminarSolicitud(index)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', fontSize: '18px', cursor: 'pointer' }} title="Eliminar fila">×</button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {!guardadoParcial && (
-                <button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>+ Agregar fila</button>
-              )}
-
-              {mensaje && (
-                <div style={{ marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')), color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')), border: `1px solid ${mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))}`, fontWeight: 500 }}>
-                  {mensaje}
-                </div>
-              )}
-            </div>
-
-            <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>
-                {guardadoParcial ? 'Salir' : 'Cancelar'}
-              </button>
-              <button className="ed01-btn-save" onClick={handleGuardar} disabled={guardando}>
-                {guardando ? 'Guardando...' : (guardadoParcial ? `Guardar P${String(palletContador + 1).padStart(2, '0')}` : 'Iniciar Registro')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DETALLE */}
-      {showDetalleModal && registroDetalle && (
-        <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header"><h2>Detalle Devolución</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
-            <div className="ed01-modal-body">
-              <div className="rd01-detalle-info">
-                <div className="rd01-detalle-row"><div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Color:</strong> {registroDetalle.color}</div><div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Solicitud:</strong> {registroDetalle.numero_solicitud}</div><div><strong>Guía:</strong> {registroDetalle.numero_guia}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Cant. Bultos:</strong> {registroDetalle.cantidad_bultos}</div><div><strong>Total Bultos:</strong> {registroDetalle.total_bultos}</div></div>
-                {registroDetalle.diferencia !== null && registroDetalle.diferencia !== 0 && (
-                  <div className="rd01-detalle-row"><div><strong>Diferencia:</strong> <span style={{ color: registroDetalle.diferencia > 0 ? '#dc2626' : '#b45309', fontWeight: 700 }}>{registroDetalle.diferencia > 0 ? '+' : ''}{registroDetalle.diferencia}</span></div></div>
-                )}
-                <div className="rd01-detalle-row"><div><strong>Estado:</strong> {registroDetalle.estado}</div><div><strong>Tipo:</strong> {registroDetalle.tipo_devolucion}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Almacén:</strong> {registroDetalle.almacen_destino}</div><div><strong>Creado:</strong> {new Date(registroDetalle.creado_en).toLocaleString('es-CL')}</div></div>
-              </div>
-              <div className="rd01-detalle-pallets"><h4>Pallets de esta Solicitud</h4><RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} /></div>
-              {registroDetalle.estado !== 'Cancelado' && (
-                <div className="ed01-field" style={{ marginTop: '16px' }}><label>Observación (para cancelar)</label><textarea value={observacion} onChange={e => setObservacion(e.target.value)} rows={2} placeholder="Motivo de cancelación..." /></div>
-              )}
-            </div>
-            <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => setShowDetalleModal(false)}>Cerrar</button>
-              {registroDetalle.estado !== 'Cancelado' && (
-                <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => handleCancelar(registroDetalle)}>Cancelar Devolución</button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const RDDetallePallets: React.FC<{ numeroSolicitud: string }> = ({ numeroSolicitud }) => {
-  const [pallets, setPallets] = useState<string[]>([]);
-  useEffect(() => {
-    fetch(`${API_URL}/rd01_devoluciones?select=id_pallet&numero_solicitud=eq.${numeroSolicitud}&order=id_pallet`, { headers: HEADERS })
-      .then(r => r.json()).then(d => { if (d) setPallets(d.map((x: any) => x.id_pallet)); });
-  }, [numeroSolicitud]);
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-      {pallets.map((p: string, i: number) => (
-        <div key={i} className="rd01-pallet-mini">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="#1d4ed8" strokeWidth="1.5"/><path d="M4 5H10M4 8H10M4 11H7" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          {p}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-export default RD01View;
+                            <select ref={(el) => { colorSelectRefs.current[index] = el; }} value={sol.color} onChange={e => handleSolicitudChange(index, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e
