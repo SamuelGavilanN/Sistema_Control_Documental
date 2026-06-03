@@ -4,12 +4,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import { locales, cargarLocales } from '../../../data/locales';
+import RD01Tabla from './RD01Tabla';
+import RD01ModalCrear from './RD01ModalCrear';
+import RD01ModalDetalle from './RD01ModalDetalle';
 import './RD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS = { 
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' 
+const HEADERS = {
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
 interface ColorTipo {
@@ -30,50 +33,23 @@ interface Solicitud {
   total_bultos: number;
 }
 
-interface RD01Registro {
-  id: string;
-  id_pallet: string;
-  color: string;
-  color_hex: string;
-  codigo_local: string;
-  nombre_local: string;
-  numero_solicitud: string;
-  numero_guia: string;
-  cantidad_bultos: number;
-  total_bultos: number;
-  tipo_devolucion: string;
-  almacen_destino: string;
-  estado: string;
-  diferencia: number | null;
-  creado_por: string;
-  creado_en: string;
-  modificado_por: string | null;
-  modificado_en: string | null;
-  observacion: string | null;
-}
-
 const ESTADO_INICIAL_SOLICITUD: Solicitud = {
-  color: '',
-  codigo_local: '',
-  nombre_local: '',
-  numero_solicitud: '',
-  numero_guia: '',
-  cantidad_bultos: 0,
-  total_bultos: 0,
+  color: '', codigo_local: '', nombre_local: '',
+  numero_solicitud: '', numero_guia: '',
+  cantidad_bultos: 0, total_bultos: 0,
 };
 
 const RD01View: React.FC = () => {
   const usuario = auth.getUsuario();
-  const [registros, setRegistros] = useState<RD01Registro[]>([]);
+  const [registros, setRegistros] = useState<any[]>([]);
   const [coloresTipos, setColoresTipos] = useState<ColorTipo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [showDetalleModal, setShowDetalleModal] = useState(false);
-  const [registroDetalle, setRegistroDetalle] = useState<RD01Registro | null>(null);
+  const [registroDetalle, setRegistroDetalle] = useState<any>(null);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([{ ...ESTADO_INICIAL_SOLICITUD }]);
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [observacion, setObservacion] = useState('');
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
   const colorSelectRefs = useRef<(HTMLSelectElement | null)[]>([]);
@@ -85,27 +61,14 @@ const RD01View: React.FC = () => {
   const [bultosGuardados, setBultosGuardados] = useState(0);
   const [palletContador, setPalletContador] = useState(1);
 
-  useEffect(() => {
-    cargarLocales();
-    cargarColoresTipos();
-    cargarUsuarios();
-    cargarRegistros();
-  }, []);
-
-  useEffect(() => {
-    const intervalo = setInterval(cargarRegistros, 10000);
-    return () => clearInterval(intervalo);
-  }, []);
+  useEffect(() => { cargarLocales(); cargarColoresTipos(); cargarUsuarios(); cargarRegistros(); }, []);
+  useEffect(() => { const intervalo = setInterval(cargarRegistros, 10000); return () => clearInterval(intervalo); }, []);
 
   const cargarUsuarios = async () => {
     try {
       const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
       const data = await resp.json();
-      if (data) {
-        const m: Record<string, string> = {};
-        data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
-        setNombresUsuarios(m);
-      }
+      if (data) { const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = u.nombre + ' ' + u.apellido; }); setNombresUsuarios(m); }
     } catch (e) {}
   };
 
@@ -130,11 +93,6 @@ const RD01View: React.FC = () => {
     return coloresTipos.find(c => c.color === colorNombre) || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
-  const getColorHex = (colorNombre: string): string => {
-    const found = coloresTipos.find(c => c.color === colorNombre);
-    return found?.color_hex || '#ccc';
-  };
-
   const handleCodigoLocalChange = (index: number, codigo: string) => {
     const nuevas = [...solicitudes];
     nuevas[index].codigo_local = codigo.toUpperCase();
@@ -151,10 +109,7 @@ const RD01View: React.FC = () => {
 
   const agregarSolicitud = () => {
     setSolicitudes([...solicitudes, { ...ESTADO_INICIAL_SOLICITUD }]);
-    setTimeout(() => {
-      const nuevoIndex = solicitudes.length;
-      if (colorSelectRefs.current[nuevoIndex]) colorSelectRefs.current[nuevoIndex]?.focus();
-    }, 100);
+    setTimeout(() => { const idx = solicitudes.length; if (colorSelectRefs.current[idx]) colorSelectRefs.current[idx]?.focus(); }, 100);
   };
 
   const eliminarSolicitud = (index: number) => {
@@ -163,19 +118,15 @@ const RD01View: React.FC = () => {
   };
 
   const generarNumeroPallet = async (): Promise<string> => {
-    try {
-      const { data, error } = await supabase.rpc('generar_numero_devolucion');
-      if (!error && data) return data as string;
-    } catch (e) {}
+    try { const { data, error } = await supabase.rpc('generar_numero_devolucion'); if (!error && data) return data as string; } catch (e) {}
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const yyyy = now.getFullYear();
-    const fechaFormateada = `${dd}${mm}${yyyy}`;
+    const fecha = dd + mm + yyyy;
     const resp = await fetch(`${API_URL}/rd01_devoluciones?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
     const data = await resp.json();
-    const correlativo = (data?.length || 0) + 1;
-    return `DEV${fechaFormateada}${String(correlativo).padStart(6, '0')}`;
+    return 'DEV' + fecha + String((data?.length || 0) + 1).padStart(6, '0');
   };
 
   const validarSolicitudInicial = (s: Solicitud): string | null => {
@@ -189,239 +140,122 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  const guardarPallet = async (
-    solicitud: Solicitud,
-    infoColor: any,
-    palletBase: string,
-    numPallet: number,
-    cantidad: number,
-    userId: string,
-    cantidadesPrevias: number
-  ) => {
-    const idPallet = `${palletBase}P${String(numPallet).padStart(2, '0')}`;
-    const sumaTotal = cantidadesPrevias + cantidad;
-    const diferenciaTotal = sumaTotal - solicitud.total_bultos;
-    
-    let estado: string;
-    let diferencia: number | null;
-    
-    if (diferenciaTotal === 0) {
-      estado = 'Finalizado';
-      diferencia = null;
-    } else if (diferenciaTotal < 0) {
-      estado = 'Pendiente';
-      diferencia = diferenciaTotal;
-    } else {
-      estado = 'Con Diferencias';
-      diferencia = diferenciaTotal;
-    }
+  const guardarPallet = async (sol: Solicitud, infoColor: any, palletBase: string, numPallet: number, cantidad: number, userId: string, cantPrevias: number) => {
+    const idPallet = palletBase + 'P' + String(numPallet).padStart(2, '0');
+    const sumaTotal = cantPrevias + cantidad;
+    const dif = sumaTotal - sol.total_bultos;
+    let estado = 'Finalizado'; let diferencia: number | null = null;
+    if (dif < 0) { estado = 'Pendiente'; diferencia = dif; }
+    else if (dif > 0) { estado = 'Con Diferencias'; diferencia = dif; }
 
     const resp = await fetch(`${API_URL}/rd01_devoluciones`, {
       method: 'POST',
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id_pallet: idPallet,
-        color: solicitud.color,
-        color_hex: infoColor.color_hex,
-        codigo_local: solicitud.codigo_local,
-        nombre_local: solicitud.nombre_local,
-        numero_solicitud: solicitud.numero_solicitud,
-        numero_guia: solicitud.numero_guia,
-        cantidad_bultos: cantidad,
-        total_bultos: solicitud.total_bultos,
-        tipo_devolucion: infoColor.tipo_devolucion,
-        almacen_destino: infoColor.almacen_destino,
-        estado: estado,
-        diferencia: diferencia,
-        creado_por: userId,
-        creado_en: new Date().toISOString(),
+        id_pallet: idPallet, color: sol.color, color_hex: infoColor.color_hex,
+        codigo_local: sol.codigo_local, nombre_local: sol.nombre_local,
+        numero_solicitud: sol.numero_solicitud, numero_guia: sol.numero_guia,
+        cantidad_bultos: cantidad, total_bultos: sol.total_bultos,
+        tipo_devolucion: infoColor.tipo_devolucion, almacen_destino: infoColor.almacen_destino,
+        estado, diferencia, creado_por: userId, creado_en: new Date().toISOString(),
       }),
     });
-
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.message || 'Error al guardar');
-    }
-
-    return { idPallet, estado, diferencia: diferenciaTotal };
+    if (!resp.ok) { const err = await resp.json(); throw new Error(err.message || 'Error al guardar'); }
+    return { idPallet, estado, diferencia: dif };
   };
 
   const actualizarEstadoSolicitud = async (numeroSolicitud: string, totalBultos: number) => {
-    const resp = await fetch(
-      `${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
-      { headers: HEADERS }
-    );
+    const resp = await fetch(`${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`, { headers: HEADERS });
     const pallets = await resp.json();
-    
-    if (!pallets || pallets.length === 0) return { sumaTotal: 0, diferenciaTotal: 0 };
-    
-    const sumaTotal = pallets.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
-    const diferenciaTotal = sumaTotal - totalBultos;
-    
-    let estado: string;
-    let diferencia: number | null;
-    
-    if (diferenciaTotal === 0) {
-      estado = 'Finalizado';
-      diferencia = null;
-    } else if (diferenciaTotal < 0) {
-      estado = 'Pendiente';
-      diferencia = diferenciaTotal;
-    } else {
-      estado = 'Con Diferencias';
-      diferencia = diferenciaTotal;
+    if (!pallets || pallets.length === 0) return;
+    const sumaTotal = pallets.reduce((s: number, p: any) => s + (p.cantidad_bultos || 0), 0);
+    const dif = sumaTotal - totalBultos;
+    let estado = 'Finalizado'; let diferencia: number | null = null;
+    if (dif < 0) { estado = 'Pendiente'; diferencia = dif; }
+    else if (dif > 0) { estado = 'Con Diferencias'; diferencia = dif; }
+    for (const p of pallets) {
+      await fetch(`${API_URL}/rd01_devoluciones?id=eq.${p.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado, diferencia }) });
     }
-
-    for (const pallet of pallets) {
-      await fetch(`${API_URL}/rd01_devoluciones?id=eq.${pallet.id}`, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado, diferencia }),
-      });
-    }
-
-    return { sumaTotal, diferenciaTotal };
   };
 
   const handleGuardar = async () => {
-    setGuardando(true);
-    setMensaje('');
-
+    setGuardando(true); setMensaje('');
     try {
       const user = auth.getUsuario();
       if (!user) { setMensaje('Error: Usuario no autenticado'); setGuardando(false); return; }
 
+      // MODO PARCIAL
       if (guardadoParcial) {
         const sol = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(sol.color);
         const cant = sol.cantidad_bultos;
-        
-        if (cant <= 0) { setMensaje('Error: Ingresa la cantidad de bultos para este pallet'); setGuardando(false); return; }
-
-        const nuevoPalletNum = palletContador + 1;
-        await guardarPallet(sol, infoColor, palletBaseActual, nuevoPalletNum, cant, user.id, bultosGuardados);
-
+        if (cant <= 0) { setMensaje('Error: Ingresa la cantidad'); setGuardando(false); return; }
+        const nuevoNum = palletContador + 1;
+        await guardarPallet(sol, infoColor, palletBaseActual, nuevoNum, cant, user.id, bultosGuardados);
         const nuevoTotal = bultosGuardados + cant;
         const faltante = sol.total_bultos - nuevoTotal;
-
         if (faltante <= 0) {
-          const { diferenciaTotal } = await actualizarEstadoSolicitud(sol.numero_solicitud, sol.total_bultos);
-          
-          if (diferenciaTotal < 0) {
-            setMensaje('⚠️ Solicitud ' + sol.numero_solicitud + ' completada. Pendiente: ' + diferenciaTotal + ' bultos.');
-          } else if (diferenciaTotal > 0) {
-            setMensaje('⚠️ Solicitud ' + sol.numero_solicitud + ' completada con diferencias! Sobran: +' + diferenciaTotal + ' bultos.');
-          } else {
-            setMensaje('✅ Solicitud ' + sol.numero_solicitud + ' completada! Total: ' + sol.total_bultos + ' bultos.');
-          }
-
-          setGuardadoParcial(false);
-          setPalletBaseActual('');
-          setBultosGuardados(0);
-          setPalletContador(1);
-          
+          await actualizarEstadoSolicitud(sol.numero_solicitud, sol.total_bultos);
+          setMensaje('✅ Solicitud ' + sol.numero_solicitud + ' completada!');
+          setGuardadoParcial(false); setPalletBaseActual(''); setBultosGuardados(0); setPalletContador(1);
           const sig = solicitudActualIndex + 1;
-          if (sig < solicitudes.length) {
-            setSolicitudActualIndex(sig);
-            setGuardando(false);
-            await cargarRegistros();
-            setTimeout(() => cantidadInputRefs.current[sig]?.focus(), 300);
-            return;
-          } else {
-            setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500);
-            setGuardando(false);
-            await cargarRegistros();
-            return;
-          }
+          if (sig < solicitudes.length) { setSolicitudActualIndex(sig); setGuardando(false); await cargarRegistros(); setTimeout(() => cantidadInputRefs.current[sig]?.focus(), 300); return; }
+          else { setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500); setGuardando(false); await cargarRegistros(); return; }
         } else {
-          setBultosGuardados(nuevoTotal);
-          setPalletContador(nuevoPalletNum);
-          const nuevas = [...solicitudes];
-          nuevas[solicitudActualIndex] = { ...nuevas[solicitudActualIndex], cantidad_bultos: 0 };
-          setSolicitudes(nuevas);
-          setMensaje('Pallet P' + String(nuevoPalletNum).padStart(2, '0') + ' guardado (' + cant + ' bultos). Faltan ' + faltante + ' bultos.');
+          setBultosGuardados(nuevoTotal); setPalletContador(nuevoNum);
+          const nuevas = [...solicitudes]; nuevas[solicitudActualIndex] = { ...nuevas[solicitudActualIndex], cantidad_bultos: 0 }; setSolicitudes(nuevas);
+          setMensaje('Pallet P' + String(nuevoNum).padStart(2, '0') + ' (' + cant + ' bultos). Faltan ' + faltante + '.');
           setTimeout(() => cantidadInputRefs.current[solicitudActualIndex]?.focus(), 200);
         }
-        setGuardando(false);
-        await cargarRegistros();
-        return;
+        setGuardando(false); await cargarRegistros(); return;
       }
 
-      // MODO NORMAL: Procesar todas las solicitudes
+      // MODO NORMAL: Validar todas
       for (let i = 0; i < solicitudes.length; i++) {
-        const error = validarSolicitudInicial(solicitudes[i]);
-        if (error) {
-          setMensaje('Error en fila #' + (i + 1) + ': ' + error);
-          setGuardando(false);
-          return;
-        }
+        const err = validarSolicitudInicial(solicitudes[i]);
+        if (err) { setMensaje('Error en fila #' + (i + 1) + ': ' + err); setGuardando(false); return; }
       }
 
+      // Generar UN SOLO palletBase para todo el modal
+      const palletBase = await generarNumeroPallet();
+
+      // Procesar todas las solicitudes con el mismo palletBase
       for (let i = 0; i < solicitudes.length; i++) {
         const sol = solicitudes[i];
         const infoColor = getInfoColor(sol.color);
         const bultos = sol.cantidad_bultos;
         const total = sol.total_bultos;
-
         if (bultos >= total) {
-          const palletBase = await generarNumeroPallet();
-          await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
-          await actualizarEstadoSolicitud(sol.numero_solicitud, total);
+          await guardarPallet(sol, infoColor, palletBase, i + 1, bultos, user.id, 0);
         } else {
-          const palletBase = await generarNumeroPallet();
-          let bultosAcumulados = 0;
-          let numPallet = 0;
-          
-          while (bultosAcumulados < total) {
-            numPallet++;
-            const cantidadEstePallet = numPallet === 1 ? bultos : Math.min(bultos, total - bultosAcumulados);
-            await guardarPallet(sol, infoColor, palletBase, numPallet, cantidadEstePallet, user.id, bultosAcumulados);
-            bultosAcumulados += cantidadEstePallet;
+          let acum = 0; let num = 0;
+          while (acum < total) {
+            num++;
+            const cantEste = num === 1 ? bultos : Math.min(bultos, total - acum);
+            await guardarPallet(sol, infoColor, palletBase, i + 1, cantEste, user.id, acum);
+            acum += cantEste;
           }
-          
-          await actualizarEstadoSolicitud(sol.numero_solicitud, total);
         }
+        await actualizarEstadoSolicitud(sol.numero_solicitud, total);
       }
 
-      setMensaje('✅ ' + solicitudes.length + ' solicitud(es) procesada(s) correctamente.');
-      
-      setTimeout(() => {
-        setShowCrearModal(false);
-        setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
-        setSolicitudActualIndex(0);
-        setMensaje('');
-      }, 2000);
-
-      setGuardando(false);
-      await cargarRegistros();
-    } catch (error: any) {
-      setMensaje('Error: ' + (error.message || 'Error desconocido'));
-      setGuardando(false);
-    }
+      setMensaje('✅ ' + solicitudes.length + ' solicitud(es) procesada(s).');
+      setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2000);
+      setGuardando(false); await cargarRegistros();
+    } catch (error: any) { setMensaje('Error: ' + (error.message || 'Error desconocido')); setGuardando(false); }
   };
 
-  const handleCancelar = async (registro: RD01Registro) => {
+  const handleCancelar = async (registro: any, obs?: string) => {
     if (!confirm('¿Cancelar este registro?')) return;
     const user = auth.getUsuario();
     await fetch(`${API_URL}/rd01_devoluciones?id=eq.${registro.id}`, {
-      method: 'PATCH',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        estado: 'Cancelado',
-        observacion: observacion || 'Cancelado por usuario',
-        modificado_por: user?.id,
-        modificado_en: new Date().toISOString(),
-      }),
+      method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: 'Cancelado', observacion: obs || 'Cancelado por usuario', modificado_por: user?.id, modificado_en: new Date().toISOString() }),
     });
-    setShowDetalleModal(false);
-    cargarRegistros();
+    setShowDetalleModal(false); cargarRegistros();
   };
 
-  const verDetalle = (registro: RD01Registro) => {
-    setRegistroDetalle(registro);
-    setObservacion('');
-    setShowDetalleModal(true);
-  };
+  const verDetalle = (registro: any) => { setRegistroDetalle(registro); setShowDetalleModal(true); };
 
   const getRegistrosParaTabla = () => {
     const conteo: Record<string, { total: number; pallets: string[] }> = {};
@@ -440,26 +274,15 @@ const RD01View: React.FC = () => {
 
   const abrirModalCrear = () => {
     setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
-    setGuardadoParcial(false);
-    setSolicitudActualIndex(0);
-    setPalletBaseActual('');
-    setBultosGuardados(0);
-    setPalletContador(1);
-    setMensaje('');
-    setShowCrearModal(true);
+    setGuardadoParcial(false); setSolicitudActualIndex(0);
+    setPalletBaseActual(''); setBultosGuardados(0); setPalletContador(1);
+    setMensaje(''); setShowCrearModal(true);
     setTimeout(() => colorSelectRefs.current[0]?.focus(), 200);
   };
 
-  const registrosTabla = getRegistrosParaTabla();
-
-  const getEstadoBadge = (estado: string) => {
-    switch (estado) {
-      case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' };
-      case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
-      case 'Con Diferencias': return { color: '#dc2626', bg: '#fef2f2' };
-      case 'Cancelado': return { color: '#64748b', bg: '#f1f5f9' };
-      default: return { color: '#64748b', bg: '#f1f5f9' };
-    }
+  const handleCloseModal = () => {
+    if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return;
+    setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros();
   };
 
   return (
@@ -467,226 +290,45 @@ const RD01View: React.FC = () => {
       <div className="rd01-header">
         <h2>Recepción Devolución - Ingreso</h2>
         <button className="rd01-btn-nueva" onClick={abrirModalCrear}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           Nuevo Ingreso
         </button>
       </div>
 
-      <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
-        <table className="ed03-tabla" style={{ minWidth: '2100px' }}>
-          <thead>
-            <tr>
-              <th style={{ minWidth: '190px' }}>ID Pallet</th>
-              <th style={{ minWidth: '80px' }}>Pallet</th>
-              <th style={{ minWidth: '100px' }}>Color</th>
-              <th style={{ minWidth: '85px' }}>Cod Local</th>
-              <th style={{ minWidth: '150px' }}>Local</th>
-              <th style={{ minWidth: '110px' }}>N° Solicitud</th>
-              <th style={{ minWidth: '100px' }}>N° Guía</th>
-              <th style={{ minWidth: '90px' }}>Cant. Bultos</th>
-              <th style={{ minWidth: '90px' }}>Total Bultos</th>
-              <th style={{ minWidth: '80px' }}>Diferencia</th>
-              <th style={{ minWidth: '110px' }}>Estado</th>
-              <th style={{ minWidth: '200px' }}>Tipo Devolución</th>
-              <th style={{ minWidth: '130px' }}>Almacén Destino</th>
-              <th style={{ minWidth: '130px' }}>Creado Por</th>
-              <th style={{ minWidth: '110px' }}>Creado En</th>
-              <th style={{ minWidth: '130px' }}>Modificado Por</th>
-              <th style={{ minWidth: '110px' }}>Modificado En</th>
-              <th style={{ minWidth: '90px' }}>Obs.</th>
-              <th style={{ minWidth: '140px' }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cargando ? (
-              <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
-            ) : registrosTabla.length === 0 ? (
-              <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
-            ) : (
-              registrosTabla.map((reg: any, i: number) => {
-                const eb = getEstadoBadge(reg.estado);
-                const tipoBadgeStyle: React.CSSProperties = {
-                  background: (reg.color_hex || '#ccc') + '20',
-                  color: reg.color_hex || '#333',
-                  border: '1px solid ' + (reg.color_hex || '#ccc') + '40',
-                  fontSize: '11px',
-                };
-                return (
-                  <tr key={reg.id} style={{ background: reg.estado === 'Con Diferencias' ? '#fff5f5' : reg.estado === 'Pendiente' ? '#fffdf5' : 'transparent' }}>
-                    <td style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#1d4ed8', fontWeight: 600 }}>{reg.id_pallet}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#eef2ff', color: '#1d4ed8' }}>{reg.pallet_actual} de {reg.total_pallets_solicitud}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div className="rd01-color-badge" style={{ background: reg.color_hex || '#ccc' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 500 }}>{reg.color}</span>
-                      </div>
-                    </td>
-                    <td>{reg.codigo_local}</td>
-                    <td style={{ whiteSpace: 'normal', wordBreak: 'normal', minWidth: '150px' }}>{reg.nombre_local}</td>
-                    <td className="ed03-ticket-id" style={{ whiteSpace: 'nowrap' }}>{reg.numero_solicitud}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{reg.numero_guia}</td>
-                    <td style={{ textAlign: 'center' }}>{reg.cantidad_bultos}</td>
-                    <td style={{ textAlign: 'center' }}>{reg.total_bultos}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      {reg.diferencia !== null && reg.diferencia !== 0 ? (
-                        <span style={{ fontWeight: 700, color: reg.diferencia > 0 ? '#dc2626' : '#b45309', fontSize: '13px' }}>
-                          {reg.diferencia > 0 ? '+' : ''}{reg.diferencia}
-                        </span>
-                      ) : (<span style={{ color: '#94a3b8' }}>-</span>)}
-                    </td>
-                    <td>
-                      <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: eb.bg, color: eb.color }}>{reg.estado}</span>
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <span className="rd01-tipo-badge" style={tipoBadgeStyle}>{reg.tipo_devolucion}</span>
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{reg.almacen_destino}</td>
-                    <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[reg.creado_por] || reg.creado_por}</td>
-                    <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{new Date(reg.creado_en).toLocaleDateString('es-CL')}</td>
-                    <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{reg.modificado_por ? (nombresUsuarios[reg.modificado_por] || reg.modificado_por) : '-'}</td>
-                    <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{reg.modificado_en ? new Date(reg.modificado_en).toLocaleDateString('es-CL') : '-'}</td>
-                    <td style={{ textAlign: 'center' }}>{reg.observacion ? 'Si' : 'No'}</td>
-                    <td>
-                      <div className="rd01-acciones" style={{ whiteSpace: 'nowrap' }}>
-                        <button className="rd01-btn-detalle" onClick={() => verDetalle(reg)}>Detalle</button>
-                        {reg.estado !== 'Cancelado' && (<button className="rd01-btn-cancelar" onClick={() => handleCancelar(reg)}>Cancelar</button>)}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <RD01Tabla
+        registros={getRegistrosParaTabla()}
+        cargando={cargando}
+        nombresUsuarios={nombresUsuarios}
+        onVerDetalle={verDetalle}
+        onCancelar={(reg) => handleCancelar(reg)}
+      />
 
-      {showCrearModal && (
-        <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '1200px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header">
-              <h2>{guardadoParcial ? 'Continuando: ' + (solicitudes[solicitudActualIndex]?.numero_solicitud || '') + ' - Pallet P' + String(palletContador + 1).padStart(2, '0') : 'Nuevo Ingreso Devolución'}</h2>
-              <button className="ed01-modal-close" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>×</button>
-            </div>
-            <div className="ed01-modal-body">
-              {guardadoParcial && (
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '12px', fontSize: '13px', color: '#1e40af' }}>
-                  <strong>{solicitudes[solicitudActualIndex]?.numero_solicitud}:</strong> Guardado: {bultosGuardados} de {solicitudes[solicitudActualIndex]?.total_bultos} bultos. <strong>Faltan: {solicitudes[solicitudActualIndex]?.total_bultos - bultosGuardados} bultos.</strong>
-                </div>
-              )}
-              {!guardadoParcial && (
-                <div className="rd01-pallet-info">
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/></svg>
-                  <span>ID Pallet se genera automáticamente. Si faltan bultos queda Pendiente, si sobran Con Diferencias.</span>
-                </div>
-              )}
-              <div className="ed03-tabla-container" style={{ maxHeight: '400px', marginBottom: '12px', overflowX: 'auto' }}>
-                <table className="ed03-tabla" style={{ minWidth: '950px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ minWidth: '150px' }}>Color *</th>
-                      <th style={{ minWidth: '100px' }}>Cod Local *</th>
-                      <th style={{ minWidth: '160px' }}>Local</th>
-                      <th style={{ minWidth: '130px' }}>N° Solicitud *</th>
-                      <th style={{ minWidth: '120px' }}>N° Guía *</th>
-                      <th style={{ minWidth: '110px' }}>Cant. Bultos *</th>
-                      <th style={{ minWidth: '110px' }}>Total Bultos *</th>
-                      <th style={{ minWidth: '80px' }}>Progreso</th>
-                      <th style={{ width: '40px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {solicitudes.map((sol, index) => {
-                      const isDisabled = guardadoParcial && index !== solicitudActualIndex;
-                      const isActual = guardadoParcial && index === solicitudActualIndex;
-                      let progreso = '';
-                      if (index === solicitudActualIndex && guardadoParcial) progreso = bultosGuardados + '/' + sol.total_bultos;
-                      return (
-                        <tr key={index} style={{ opacity: isDisabled ? 0.4 : 1, background: isActual ? '#fef9e7' : 'transparent' }}>
-                          <td>
-                            <select ref={(el) => { colorSelectRefs.current[index] = el; }} value={sol.color} onChange={e => handleSolicitudChange(index, 'color', e.target.value)} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }}>
-                              <option value="">Seleccionar...</option>
-                              {coloresTipos.map(c => (<option key={c.id} value={c.color}>{c.color}</option>))}
-                            </select>
-                          </td>
-                          <td><input type="text" value={sol.codigo_local} onChange={e => handleCodigoLocalChange(index, e.target.value)} placeholder="D001" maxLength={4} disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td><input type="text" value={sol.nombre_local} disabled placeholder="Auto" style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafd', color: '#64748b' }} /></td>
-                          <td><input type="text" value={sol.numero_solicitud} onChange={e => handleSolicitudChange(index, 'numero_solicitud', e.target.value)} placeholder="2060563" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td><input type="text" value={sol.numero_guia} onChange={e => handleSolicitudChange(index, 'numero_guia', e.target.value)} placeholder="264" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td><input type="number" ref={(el) => { cantidadInputRefs.current[index] = el; }} className="rd01-input-cantidad" value={sol.cantidad_bultos || ''} onChange={e => handleSolicitudChange(index, 'cantidad_bultos', parseInt(e.target.value) || 0)} min="0" placeholder={isActual ? 'Máx: ' + (sol.total_bultos - bultosGuardados) : '0'} disabled={isDisabled} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid ' + (isActual ? '#f59e0b' : '#e2e8f0'), borderRadius: '6px', background: isDisabled ? '#f1f5f9' : (isActual ? '#fffdf5' : 'white') }} /></td>
-                          <td><input type="number" value={sol.total_bultos || ''} onChange={e => handleSolicitudChange(index, 'total_bultos', parseInt(e.target.value) || 0)} min="0" placeholder="0" disabled={isDisabled || guardadoParcial} style={{ width: '100%', padding: '10px', fontSize: '14px', border: '1px solid #e2e8f0', borderRadius: '6px', background: (isDisabled || guardadoParcial) ? '#f1f5f9' : 'white' }} /></td>
-                          <td style={{ textAlign: 'center' }}>{progreso && (<span style={{ display: 'inline-block', padding: '4px 10px', background: '#fef3c7', borderRadius: '6px', fontWeight: 600, color: '#92400e', fontSize: '13px' }}>{progreso}</span>)}</td>
-                          <td>{solicitudes.length > 1 && !guardadoParcial && (<button onClick={() => eliminarSolicitud(index)} style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', color: '#ef4444', fontSize: '18px', cursor: 'pointer' }} title="Eliminar fila">×</button>)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {!guardadoParcial && (<button className="rd01-btn-agregar-solicitud" onClick={agregarSolicitud}>+ Agregar fila</button>)}
-              {mensaje && (
-                <div style={{ marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')), color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')), border: '1px solid ' + (mensaje.includes('Error') ? '#fecaca' : (mensaje.includes('✅') ? '#bbf7d0' : (mensaje.includes('⚠️') ? '#fde68a' : '#bfdbfe'))), fontWeight: 500 }}>{mensaje}</div>
-              )}
-            </div>
-            <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => { if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return; setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros(); }} disabled={guardando}>{guardadoParcial ? 'Salir' : 'Cancelar'}</button>
-              <button className="ed01-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando ? 'Guardando...' : (guardadoParcial ? 'Guardar P' + String(palletContador + 1).padStart(2, '0') : 'Iniciar Registro')}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RD01ModalCrear
+        isOpen={showCrearModal}
+        guardando={guardando}
+        guardadoParcial={guardadoParcial}
+        solicitudes={solicitudes}
+        solicitudActualIndex={solicitudActualIndex}
+        palletContador={palletContador}
+        bultosGuardados={bultosGuardados}
+        coloresTipos={coloresTipos}
+        mensaje={mensaje}
+        colorSelectRefs={colorSelectRefs}
+        cantidadInputRefs={cantidadInputRefs}
+        onSolicitudChange={handleSolicitudChange}
+        onCodigoLocalChange={handleCodigoLocalChange}
+        onAgregarSolicitud={agregarSolicitud}
+        onEliminarSolicitud={eliminarSolicitud}
+        onGuardar={handleGuardar}
+        onClose={handleCloseModal}
+      />
 
-      {showDetalleModal && registroDetalle && (
-        <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header"><h2>Detalle Devolución</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
-            <div className="ed01-modal-body">
-              <div className="rd01-detalle-info">
-                <div className="rd01-detalle-row"><div><strong>ID Pallet:</strong> {registroDetalle.id_pallet}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Color:</strong> {registroDetalle.color}</div><div><strong>Local:</strong> {registroDetalle.codigo_local} - {registroDetalle.nombre_local}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Solicitud:</strong> {registroDetalle.numero_solicitud}</div><div><strong>Guía:</strong> {registroDetalle.numero_guia}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Cant. Bultos:</strong> {registroDetalle.cantidad_bultos}</div><div><strong>Total Bultos:</strong> {registroDetalle.total_bultos}</div></div>
-                {registroDetalle.diferencia !== null && registroDetalle.diferencia !== 0 && (
-                  <div className="rd01-detalle-row"><div><strong>Diferencia:</strong> <span style={{ color: registroDetalle.diferencia > 0 ? '#dc2626' : '#b45309', fontWeight: 700 }}>{registroDetalle.diferencia > 0 ? '+' : ''}{registroDetalle.diferencia}</span></div></div>
-                )}
-                <div className="rd01-detalle-row"><div><strong>Estado:</strong> {registroDetalle.estado}</div><div><strong>Tipo:</strong> {registroDetalle.tipo_devolucion}</div></div>
-                <div className="rd01-detalle-row"><div><strong>Almacén:</strong> {registroDetalle.almacen_destino}</div><div><strong>Creado:</strong> {new Date(registroDetalle.creado_en).toLocaleString('es-CL')}</div></div>
-              </div>
-              <div className="rd01-detalle-pallets"><h4>Pallets de esta Solicitud</h4><RDDetallePallets numeroSolicitud={registroDetalle.numero_solicitud} /></div>
-              {registroDetalle.estado !== 'Cancelado' && (
-                <div className="ed01-field" style={{ marginTop: '16px' }}><label>Observación (para cancelar)</label><textarea value={observacion} onChange={e => setObservacion(e.target.value)} rows={2} placeholder="Motivo de cancelación..." /></div>
-              )}
-            </div>
-            <div className="ed01-modal-footer">
-              <button className="ed01-btn-cancel" onClick={() => setShowDetalleModal(false)}>Cerrar</button>
-              {registroDetalle.estado !== 'Cancelado' && (
-                <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => handleCancelar(registroDetalle)}>Cancelar Devolución</button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const RDDetallePallets: React.FC<{ numeroSolicitud: string }> = ({ numeroSolicitud }) => {
-  const [pallets, setPallets] = useState<string[]>([]);
-  useEffect(() => {
-    fetch(`${API_URL}/rd01_devoluciones?select=id_pallet&numero_solicitud=eq.${numeroSolicitud}&order=id_pallet`, { headers: HEADERS })
-      .then(r => r.json()).then(d => { if (d) setPallets(d.map((x: any) => x.id_pallet)); });
-  }, [numeroSolicitud]);
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-      {pallets.map((p: string, i: number) => (
-        <div key={i} className="rd01-pallet-mini">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="#1d4ed8" strokeWidth="1.5"/><path d="M4 5H10M4 8H10M4 11H7" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          {p}
-        </div>
-      ))}
+      <RD01ModalDetalle
+        isOpen={showDetalleModal}
+        registro={registroDetalle}
+        onClose={() => setShowDetalleModal(false)}
+        onCancelar={handleCancelar}
+      />
     </div>
   );
 };
