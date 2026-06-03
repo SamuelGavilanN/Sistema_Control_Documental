@@ -189,16 +189,36 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  // Guardar pallet sin calcular diferencia (se calcula al final)
+  // Guardar pallet con diferencia calculada
   const guardarPallet = async (
     solicitud: Solicitud,
     infoColor: any,
     palletBase: string,
     numPallet: number,
     cantidad: number,
-    userId: string
+    userId: string,
+    cantidadesPrevias: number
   ) => {
     const idPallet = `${palletBase}P${String(numPallet).padStart(2, '0')}`;
+    const sumaTotal = cantidadesPrevias + cantidad;
+    const diferenciaTotal = sumaTotal - solicitud.total_bultos;
+    
+    let estado: string;
+    let diferencia: number | null;
+    
+    if (diferenciaTotal === 0) {
+      // Suma exacta
+      estado = 'Finalizado';
+      diferencia = null;
+    } else if (diferenciaTotal < 0) {
+      // Falta: Pendiente con diferencia negativa
+      estado = 'Pendiente';
+      diferencia = diferenciaTotal;
+    } else {
+      // Sobra: Con Diferencias con diferencia positiva
+      estado = 'Con Diferencias';
+      diferencia = diferenciaTotal;
+    }
 
     const resp = await fetch(`${API_URL}/rd01_devoluciones`, {
       method: 'POST',
@@ -215,8 +235,8 @@ const RD01View: React.FC = () => {
         total_bultos: solicitud.total_bultos,
         tipo_devolucion: infoColor.tipo_devolucion,
         almacen_destino: infoColor.almacen_destino,
-        estado: 'Pendiente',
-        diferencia: null,
+        estado: estado,
+        diferencia: diferencia,
         creado_por: userId,
         creado_en: new Date().toISOString(),
       }),
@@ -227,10 +247,10 @@ const RD01View: React.FC = () => {
       throw new Error(err.message || 'Error al guardar');
     }
 
-    return idPallet;
+    return { idPallet, estado, diferencia: diferenciaTotal };
   };
 
-  // Recalcular estado y diferencia para todos los pallets de una solicitud
+  // Actualizar estado de todos los pallets al completar una solicitud
   const actualizarEstadoSolicitud = async (numeroSolicitud: string, totalBultos: number) => {
     const resp = await fetch(
       `${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
@@ -242,10 +262,21 @@ const RD01View: React.FC = () => {
     
     const sumaTotal = pallets.reduce((sum: number, p: any) => sum + (p.cantidad_bultos || 0), 0);
     const diferenciaTotal = sumaTotal - totalBultos;
-    const estado = diferenciaTotal === 0 ? 'Finalizado' : 'Con Diferencias';
-    const diferencia = diferenciaTotal === 0 ? null : diferenciaTotal;
+    
+    let estado: string;
+    let diferencia: number | null;
+    
+    if (diferenciaTotal === 0) {
+      estado = 'Finalizado';
+      diferencia = null;
+    } else if (diferenciaTotal < 0) {
+      estado = 'Pendiente';
+      diferencia = diferenciaTotal;
+    } else {
+      estado = 'Con Diferencias';
+      diferencia = diferenciaTotal;
+    }
 
-    // Actualizar cada pallet individualmente
     for (const pallet of pallets) {
       await fetch(`${API_URL}/rd01_devoluciones?id=eq.${pallet.id}`, {
         method: 'PATCH',
@@ -274,17 +305,21 @@ const RD01View: React.FC = () => {
         if (cant <= 0) { setMensaje('Error: Ingresa la cantidad de bultos para este pallet'); setGuardando(false); return; }
 
         const nuevoPalletNum = palletContador + 1;
-        await guardarPallet(sol, infoColor, palletBaseActual, nuevoPalletNum, cant, user.id);
+        await guardarPallet(sol, infoColor, palletBaseActual, nuevoPalletNum, cant, user.id, bultosGuardados);
 
         const nuevoTotal = bultosGuardados + cant;
         const faltante = sol.total_bultos - nuevoTotal;
 
         if (faltante <= 0) {
-          // COMPLETADO: actualizar estado de todos los pallets
+          // COMPLETADO: recalcular estado de todos los pallets
           const { diferenciaTotal } = await actualizarEstadoSolicitud(sol.numero_solicitud, sol.total_bultos);
           
           if (diferenciaTotal !== 0) {
-            setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada con diferencias! Diferencia: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+            if (diferenciaTotal < 0) {
+              setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada. Pendiente: ${diferenciaTotal} bultos.`);
+            } else {
+              setMensaje(`⚠️ Solicitud ${sol.numero_solicitud} completada con diferencias! Sobran: +${diferenciaTotal} bultos.`);
+            }
           } else {
             setMensaje(`✅ Solicitud ${sol.numero_solicitud} completada! Total: ${sol.total_bultos} bultos.`);
           }
@@ -308,7 +343,7 @@ const RD01View: React.FC = () => {
             return;
           }
         } else {
-          // FALTANTE
+          // FALTANTE: continuar
           setBultosGuardados(nuevoTotal);
           setPalletContador(nuevoPalletNum);
           const nuevas = [...solicitudes];
@@ -334,14 +369,14 @@ const RD01View: React.FC = () => {
 
       if (bultos >= total) {
         // Un solo pallet
-        await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id);
+        const { idPallet, estado, diferencia } = await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
         
-        const { diferenciaTotal } = await actualizarEstadoSolicitud(sol.numero_solicitud, total);
-        
-        if (diferenciaTotal !== 0) {
-          setMensaje(`⚠️ Pallet guardado con diferencias! Diferencia: ${diferenciaTotal > 0 ? '+' : ''}${diferenciaTotal} bultos.`);
+        if (diferencia < 0) {
+          setMensaje(`⚠️ Pallet guardado. Pendiente: ${diferencia} bultos.`);
+        } else if (diferencia > 0) {
+          setMensaje(`⚠️ Pallet guardado con diferencias! Sobran: +${diferencia} bultos.`);
         } else {
-          setMensaje(`✅ Pallet ${palletBase}P01 guardado correctamente.`);
+          setMensaje(`✅ Pallet ${idPallet} guardado correctamente.`);
         }
 
         if (solicitudes.length > 1) {
@@ -355,7 +390,7 @@ const RD01View: React.FC = () => {
         }
       } else {
         // Múltiples pallets
-        await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id);
+        const { estado, diferencia } = await guardarPallet(sol, infoColor, palletBase, 1, bultos, user.id, 0);
         const faltante = total - bultos;
         setGuardadoParcial(true);
         setSolicitudActualIndex(0);
@@ -432,9 +467,9 @@ const RD01View: React.FC = () => {
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
       case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' };
+      case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
       case 'Con Diferencias': return { color: '#dc2626', bg: '#fef2f2' };
       case 'Cancelado': return { color: '#64748b', bg: '#f1f5f9' };
-      case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
       default: return { color: '#64748b', bg: '#f1f5f9' };
     }
   };
@@ -505,7 +540,9 @@ const RD01View: React.FC = () => {
                     <td style={{ textAlign: 'center' }}>{reg.total_bultos}</td>
                     <td style={{ textAlign: 'center' }}>
                       {reg.diferencia !== null && reg.diferencia !== 0 ? (
-                        <span style={{ fontWeight: 700, color: reg.diferencia > 0 ? '#15803d' : '#dc2626', fontSize: '13px' }}>{reg.diferencia > 0 ? '+' : ''}{reg.diferencia}</span>
+                        <span style={{ fontWeight: 700, color: reg.diferencia > 0 ? '#dc2626' : '#b45309', fontSize: '13px' }}>
+                          {reg.diferencia > 0 ? '+' : ''}{reg.diferencia}
+                        </span>
                       ) : (<span style={{ color: '#94a3b8' }}>-</span>)}
                     </td>
                     <td>
@@ -553,7 +590,7 @@ const RD01View: React.FC = () => {
               {!guardadoParcial && (
                 <div className="rd01-pallet-info">
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2V16M2 9H16" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"/></svg>
-                  <span>ID Pallet se genera automáticamente. Si la cantidad no coincide con el total, se marcará con diferencias al completar.</span>
+                  <span>ID Pallet se genera automáticamente. Si faltan bultos queda Pendiente, si sobran Con Diferencias.</span>
                 </div>
               )}
 
@@ -645,7 +682,7 @@ const RD01View: React.FC = () => {
                 <div className="rd01-detalle-row"><div><strong>Solicitud:</strong> {registroDetalle.numero_solicitud}</div><div><strong>Guía:</strong> {registroDetalle.numero_guia}</div></div>
                 <div className="rd01-detalle-row"><div><strong>Cant. Bultos:</strong> {registroDetalle.cantidad_bultos}</div><div><strong>Total Bultos:</strong> {registroDetalle.total_bultos}</div></div>
                 {registroDetalle.diferencia !== null && registroDetalle.diferencia !== 0 && (
-                  <div className="rd01-detalle-row"><div><strong>Diferencia:</strong> <span style={{ color: registroDetalle.diferencia > 0 ? '#15803d' : '#dc2626', fontWeight: 700 }}>{registroDetalle.diferencia > 0 ? '+' : ''}{registroDetalle.diferencia}</span></div></div>
+                  <div className="rd01-detalle-row"><div><strong>Diferencia:</strong> <span style={{ color: registroDetalle.diferencia > 0 ? '#dc2626' : '#b45309', fontWeight: 700 }}>{registroDetalle.diferencia > 0 ? '+' : ''}{registroDetalle.diferencia}</span></div></div>
                 )}
                 <div className="rd01-detalle-row"><div><strong>Estado:</strong> {registroDetalle.estado}</div><div><strong>Tipo:</strong> {registroDetalle.tipo_devolucion}</div></div>
                 <div className="rd01-detalle-row"><div><strong>Almacén:</strong> {registroDetalle.almacen_destino}</div><div><strong>Creado:</strong> {new Date(registroDetalle.creado_en).toLocaleString('es-CL')}</div></div>
