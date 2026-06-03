@@ -27,7 +27,6 @@ const RD01Tabla: React.FC<RD01TablaProps> = ({ registros, cargando, nombresUsuar
         <thead>
           <tr>
             <th style={{ minWidth: '190px' }}>ID Pallet</th>
-            <th style={{ minWidth: '80px' }}>Pallet</th>
             <th style={{ minWidth: '100px' }}>Color</th>
             <th style={{ minWidth: '85px' }}>Cod Local</th>
             <th style={{ minWidth: '150px' }}>Local</th>
@@ -49,9 +48,9 @@ const RD01Tabla: React.FC<RD01TablaProps> = ({ registros, cargando, nombresUsuar
         </thead>
         <tbody>
           {cargando ? (
-            <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
+            <tr><td colSpan={18} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
           ) : registros.length === 0 ? (
-            <tr><td colSpan={19} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
+            <tr><td colSpan={18} style={{ textAlign: 'center', padding: '40px' }}>Sin registros</td></tr>
           ) : (
             registros.map((reg: any, i: number) => {
               const eb = getEstadoBadge(reg.estado);
@@ -64,9 +63,6 @@ const RD01Tabla: React.FC<RD01TablaProps> = ({ registros, cargando, nombresUsuar
               return (
                 <tr key={reg.id} style={{ background: reg.estado === 'Con Diferencias' ? '#fff5f5' : reg.estado === 'Pendiente' ? '#fffdf5' : 'transparent' }}>
                   <td style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#1d4ed8', fontWeight: 600 }}>{reg.id_pallet}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: '#eef2ff', color: '#1d4ed8' }}>{reg.pallet_actual} de {reg.total_pallets_solicitud}</span>
-                  </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <div className="rd01-color-badge" style={{ background: reg.color_hex || '#ccc' }} />
