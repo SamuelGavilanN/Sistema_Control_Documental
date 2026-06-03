@@ -140,9 +140,9 @@ const RD01View: React.FC = () => {
     return null;
   };
 
-  const guardarPallet = async (sol: Solicitud, infoColor: any, palletBase: string, numPallet: number, cantidad: number, userId: string, cantPrevias: number) => {
-    const idPallet = palletBase + 'P' + String(numPallet).padStart(2, '0');
-    const sumaTotal = cantPrevias + cantidad;
+  // Guardar un registro SIN sufijo P01, P02 - mismo ID para todo el contenedor
+  const guardarRegistro = async (sol: Solicitud, infoColor: any, idPallet: string, cantidad: number, userId: string) => {
+    const sumaTotal = cantidad; // Se calculará después con actualizarEstadoSolicitud
     const dif = sumaTotal - sol.total_bultos;
     let estado = 'Finalizado'; let diferencia: number | null = null;
     if (dif < 0) { estado = 'Pendiente'; diferencia = dif; }
@@ -152,29 +152,46 @@ const RD01View: React.FC = () => {
       method: 'POST',
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id_pallet: idPallet, color: sol.color, color_hex: infoColor.color_hex,
-        codigo_local: sol.codigo_local, nombre_local: sol.nombre_local,
-        numero_solicitud: sol.numero_solicitud, numero_guia: sol.numero_guia,
-        cantidad_bultos: cantidad, total_bultos: sol.total_bultos,
-        tipo_devolucion: infoColor.tipo_devolucion, almacen_destino: infoColor.almacen_destino,
-        estado, diferencia, creado_por: userId, creado_en: new Date().toISOString(),
+        id_pallet: idPallet,
+        color: sol.color,
+        color_hex: infoColor.color_hex,
+        codigo_local: sol.codigo_local,
+        nombre_local: sol.nombre_local,
+        numero_solicitud: sol.numero_solicitud,
+        numero_guia: sol.numero_guia,
+        cantidad_bultos: cantidad,
+        total_bultos: sol.total_bultos,
+        tipo_devolucion: infoColor.tipo_devolucion,
+        almacen_destino: infoColor.almacen_destino,
+        estado: estado,
+        diferencia: diferencia,
+        creado_por: userId,
+        creado_en: new Date().toISOString(),
       }),
     });
     if (!resp.ok) { const err = await resp.json(); throw new Error(err.message || 'Error al guardar'); }
-    return { idPallet, estado, diferencia: dif };
   };
 
   const actualizarEstadoSolicitud = async (numeroSolicitud: string, totalBultos: number) => {
-    const resp = await fetch(`${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`, { headers: HEADERS });
+    const resp = await fetch(
+      `${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
+      { headers: HEADERS }
+    );
     const pallets = await resp.json();
     if (!pallets || pallets.length === 0) return;
+    
     const sumaTotal = pallets.reduce((s: number, p: any) => s + (p.cantidad_bultos || 0), 0);
     const dif = sumaTotal - totalBultos;
     let estado = 'Finalizado'; let diferencia: number | null = null;
     if (dif < 0) { estado = 'Pendiente'; diferencia = dif; }
     else if (dif > 0) { estado = 'Con Diferencias'; diferencia = dif; }
+    
     for (const p of pallets) {
-      await fetch(`${API_URL}/rd01_devoluciones?id=eq.${p.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado, diferencia }) });
+      await fetch(`${API_URL}/rd01_devoluciones?id=eq.${p.id}`, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado, diferencia }),
+      });
     }
   };
 
@@ -184,65 +201,92 @@ const RD01View: React.FC = () => {
       const user = auth.getUsuario();
       if (!user) { setMensaje('Error: Usuario no autenticado'); setGuardando(false); return; }
 
-      // MODO PARCIAL
+      // MODO PARCIAL: Continuar con la solicitud actual
       if (guardadoParcial) {
         const sol = solicitudes[solicitudActualIndex];
         const infoColor = getInfoColor(sol.color);
         const cant = sol.cantidad_bultos;
         if (cant <= 0) { setMensaje('Error: Ingresa la cantidad'); setGuardando(false); return; }
-        const nuevoNum = palletContador + 1;
-        await guardarPallet(sol, infoColor, palletBaseActual, nuevoNum, cant, user.id, bultosGuardados);
+
+        await guardarRegistro(sol, infoColor, palletBaseActual, cant, user.id);
+
         const nuevoTotal = bultosGuardados + cant;
         const faltante = sol.total_bultos - nuevoTotal;
+
         if (faltante <= 0) {
           await actualizarEstadoSolicitud(sol.numero_solicitud, sol.total_bultos);
           setMensaje('✅ Solicitud ' + sol.numero_solicitud + ' completada!');
           setGuardadoParcial(false); setPalletBaseActual(''); setBultosGuardados(0); setPalletContador(1);
+          
           const sig = solicitudActualIndex + 1;
-          if (sig < solicitudes.length) { setSolicitudActualIndex(sig); setGuardando(false); await cargarRegistros(); setTimeout(() => cantidadInputRefs.current[sig]?.focus(), 300); return; }
-          else { setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500); setGuardando(false); await cargarRegistros(); return; }
+          if (sig < solicitudes.length) {
+            setSolicitudActualIndex(sig);
+            setGuardando(false);
+            await cargarRegistros();
+            setTimeout(() => cantidadInputRefs.current[sig]?.focus(), 300);
+            return;
+          } else {
+            setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500);
+            setGuardando(false);
+            await cargarRegistros();
+            return;
+          }
         } else {
-          setBultosGuardados(nuevoTotal); setPalletContador(nuevoNum);
-          const nuevas = [...solicitudes]; nuevas[solicitudActualIndex] = { ...nuevas[solicitudActualIndex], cantidad_bultos: 0 }; setSolicitudes(nuevas);
-          setMensaje('Pallet P' + String(nuevoNum).padStart(2, '0') + ' (' + cant + ' bultos). Faltan ' + faltante + '.');
+          setBultosGuardados(nuevoTotal);
+          setPalletContador(palletContador + 1);
+          const nuevas = [...solicitudes];
+          nuevas[solicitudActualIndex] = { ...nuevas[solicitudActualIndex], cantidad_bultos: 0 };
+          setSolicitudes(nuevas);
+          setMensaje('Pallet guardado (' + cant + ' bultos). Faltan ' + faltante + ' bultos.');
           setTimeout(() => cantidadInputRefs.current[solicitudActualIndex]?.focus(), 200);
         }
-        setGuardando(false); await cargarRegistros(); return;
+        setGuardando(false);
+        await cargarRegistros();
+        return;
       }
 
-      // MODO NORMAL: Validar todas
+      // MODO NORMAL: Validar todas las filas
       for (let i = 0; i < solicitudes.length; i++) {
         const err = validarSolicitudInicial(solicitudes[i]);
         if (err) { setMensaje('Error en fila #' + (i + 1) + ': ' + err); setGuardando(false); return; }
       }
 
-      // Generar UN SOLO palletBase para todo el modal
-      const palletBase = await generarNumeroPallet();
+      // Generar UN SOLO ID Pallet para todo el contenedor
+      const idPallet = await generarNumeroPallet();
 
-      // Procesar todas las solicitudes con el mismo palletBase
+      // Guardar cada solicitud con el MISMO idPallet
       for (let i = 0; i < solicitudes.length; i++) {
         const sol = solicitudes[i];
         const infoColor = getInfoColor(sol.color);
         const bultos = sol.cantidad_bultos;
         const total = sol.total_bultos;
+
         if (bultos >= total) {
-          await guardarPallet(sol, infoColor, palletBase, i + 1, bultos, user.id, 0);
+          // Un solo registro para esta solicitud
+          await guardarRegistro(sol, infoColor, idPallet, bultos, user.id);
         } else {
-          let acum = 0; let num = 0;
-          while (acum < total) {
-            num++;
-            const cantEste = num === 1 ? bultos : Math.min(bultos, total - acum);
-            await guardarPallet(sol, infoColor, palletBase, i + 1, cantEste, user.id, acum);
-            acum += cantEste;
+          // Múltiples registros para esta solicitud (mismo ID pallet)
+          const palletBase = idPallet;
+          let bultosAcumulados = 0;
+          
+          while (bultosAcumulados < total) {
+            const cantidadEste = Math.min(bultos, total - bultosAcumulados);
+            await guardarRegistro(sol, infoColor, palletBase, cantidadEste, user.id);
+            bultosAcumulados += cantidadEste;
           }
         }
+        // Actualizar estado después de guardar todos los registros de esta solicitud
         await actualizarEstadoSolicitud(sol.numero_solicitud, total);
       }
 
-      setMensaje('✅ ' + solicitudes.length + ' solicitud(es) procesada(s).');
-      setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2000);
-      setGuardando(false); await cargarRegistros();
-    } catch (error: any) { setMensaje('Error: ' + (error.message || 'Error desconocido')); setGuardando(false); }
+      setMensaje('✅ ' + solicitudes.length + ' solicitud(es) procesada(s) en pallet ' + idPallet + '.');
+      setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500);
+      setGuardando(false);
+      await cargarRegistros();
+    } catch (error: any) {
+      setMensaje('Error: ' + (error.message || 'Error desconocido'));
+      setGuardando(false);
+    }
   };
 
   const handleCancelar = async (registro: any, obs?: string) => {
