@@ -1,3 +1,5 @@
+// src/components/Transactions/AD/AD01View.tsx
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
@@ -131,10 +133,7 @@ const AD01View: React.FC = () => {
             cajas: `Caja ${c.numero_caja}`
           });
         });
-        // Si la suma física no alcanza al SAP, mostrar pendiente
-        if (fa < sapTotal) {
-          detalle.push({ sku: s.sku, denominacion: s.denominacion, cantidad_sap: sapTotal, cantidad_fisica: 0, diferencia: sapTotal - fa, capturado: false, cajas: 'Pendiente' });
-        }
+        // CORREGIDO: Solo mostrar pendiente si NO hay capturas (csku.length === 0)
       }
     });
 
