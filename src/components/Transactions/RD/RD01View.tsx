@@ -48,6 +48,10 @@ const RD01View: React.FC = () => {
   const [guardando, setGuardando] = useState(false);
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
+  // Control de edición
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [ordenEditando, setOrdenEditando] = useState<any>(null);
+
   const [ordenPendiente, setOrdenPendiente] = useState(false);
   const [bultosRegistrados, setBultosRegistrados] = useState(0);
 
@@ -97,17 +101,17 @@ const RD01View: React.FC = () => {
     return coloresTipos.find(c => c.color === colorNombre) || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
-  const verificarSolicitud = async (numeroSolicitud: string): Promise<{
+  const verificarSolicitud = async (numeroSolicitud: string, excluirId?: string): Promise<{
     existe: boolean;
     completada: boolean;
     bultosRegistrados: number;
     totalBultos: number;
     datosPrevios: any;
   }> => {
-    const resp = await fetch(
-      `${API_URL}/rd01_ordenes?select=*&numero_solicitud=eq.${numeroSolicitud}&estado=neq.Cancelado&order=creado_en.asc`,
-      { headers: HEADERS }
-    );
+    let url = `${API_URL}/rd01_ordenes?select=*&numero_solicitud=eq.${numeroSolicitud}&estado=neq.Cancelado&order=creado_en.asc`;
+    if (excluirId) url += '&id=neq.' + excluirId;
+    
+    const resp = await fetch(url, { headers: HEADERS });
     const ordenesSolicitud = await resp.json();
 
     if (!ordenesSolicitud || ordenesSolicitud.length === 0) {
@@ -138,7 +142,7 @@ const RD01View: React.FC = () => {
     const nuevoForm = { ...form, numero_solicitud: valor };
     setForm(nuevoForm);
 
-    if (valor.trim().length > 2) {
+    if (valor.trim().length > 2 && !modoEdicion) {
       const verificacion = await verificarSolicitud(valor.trim());
 
       if (verificacion.existe) {
@@ -159,7 +163,7 @@ const RD01View: React.FC = () => {
           });
           setOrdenPendiente(true);
           setBultosRegistrados(verificacion.bultosRegistrados);
-          setMensaje('📋 Solicitud existente encontrada. Faltan ' + (verificacion.totalBultos - verificacion.bultosRegistrados) + ' bultos. Complete la cantidad.');
+          setMensaje('📋 Solicitud existente encontrada. Faltan ' + (verificacion.totalBultos - verificacion.bultosRegistrados) + ' bultos.');
           setTipoMensaje('info');
         }
       } else {
@@ -179,18 +183,20 @@ const RD01View: React.FC = () => {
     if (form.cantidad_bultos <= 0) return 'Cantidad debe ser mayor a 0';
     if (form.total_bultos <= 0) return 'Total debe ser mayor a 0';
 
-    const nuevaCantidad = bultosRegistrados + form.cantidad_bultos;
-    if (nuevaCantidad > form.total_bultos) {
-      return 'La cantidad (' + nuevaCantidad + ') excede el total (' + form.total_bultos + '). Máximo permitido: ' + (form.total_bultos - bultosRegistrados);
+    if (!modoEdicion) {
+      const nuevaCantidad = bultosRegistrados + form.cantidad_bultos;
+      if (nuevaCantidad > form.total_bultos) {
+        return 'La cantidad excede el total. Máximo: ' + (form.total_bultos - bultosRegistrados);
+      }
     }
     return null;
   };
 
   const handleGuardar = async () => {
-    if (!ordenPendiente) {
+    if (!modoEdicion && !ordenPendiente && form.numero_solicitud.trim()) {
       const verificacion = await verificarSolicitud(form.numero_solicitud.trim());
       if (verificacion.completada) {
-        setMensaje('⚠️ La solicitud ' + form.numero_solicitud + ' ya fue completada por otro usuario.');
+        setMensaje('⚠️ La solicitud ' + form.numero_solicitud + ' ya fue completada.');
         setTipoMensaje('warning');
         return;
       }
@@ -205,61 +211,95 @@ const RD01View: React.FC = () => {
       if (!user) { setMensaje('Error: Usuario no autenticado'); setTipoMensaje('error'); setGuardando(false); return; }
 
       const infoColor = getInfoColor(form.color);
-      const nuevaCantidad = bultosRegistrados + form.cantidad_bultos;
-      const diferenciaTotal = nuevaCantidad - form.total_bultos;
 
-      let estado = 'Finalizado';
-      let diferencia: number | null = null;
-      if (diferenciaTotal < 0) { estado = 'Pendiente'; diferencia = diferenciaTotal; }
-      else if (diferenciaTotal > 0) { estado = 'Con Diferencias'; diferencia = diferenciaTotal; }
+      if (modoEdicion && ordenEditando) {
+        // MODO EDICIÓN - Actualizar orden existente
+        const nuevaCantidad = form.cantidad_bultos;
+        const diferenciaTotal = nuevaCantidad - form.total_bultos;
+        let estado = 'Finalizado';
+        let diferencia: number | null = null;
+        if (diferenciaTotal < 0) { estado = 'Pendiente'; diferencia = diferenciaTotal; }
+        else if (diferenciaTotal > 0) { estado = 'Con Diferencias'; diferencia = diferenciaTotal; }
 
-      await fetch(`${API_URL}/rd01_ordenes`, {
-        method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          color: form.color,
-          color_hex: infoColor.color_hex,
-          codigo_local: form.codigo_local,
-          nombre_local: form.nombre_local,
-          numero_solicitud: form.numero_solicitud,
-          numero_guia: form.numero_guia,
-          cantidad_bultos: form.cantidad_bultos,
-          total_bultos: form.total_bultos,
-          tipo_devolucion: infoColor.tipo_devolucion,
-          almacen_destino: infoColor.almacen_destino,
-          estado: estado,
-          diferencia: diferencia,
-          creado_por: user.id,
-          creado_en: new Date().toISOString(),
-        }),
-      });
+        await fetch(`${API_URL}/rd01_ordenes?id=eq.${ordenEditando.id}`, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            color: form.color,
+            color_hex: infoColor.color_hex,
+            codigo_local: form.codigo_local,
+            nombre_local: form.nombre_local,
+            numero_solicitud: form.numero_solicitud,
+            numero_guia: form.numero_guia,
+            cantidad_bultos: nuevaCantidad,
+            total_bultos: form.total_bultos,
+            tipo_devolucion: infoColor.tipo_devolucion,
+            almacen_destino: infoColor.almacen_destino,
+            estado: estado,
+            diferencia: diferencia,
+            modificado_por: user.id,
+            modificado_en: new Date().toISOString(),
+          }),
+        });
 
-      await actualizarEstadoSolicitud(form.numero_solicitud, form.total_bultos);
-
-      const faltante = form.total_bultos - nuevaCantidad;
-
-      if (faltante > 0) {
-        // NO CERRAR MODAL - Solo limpiar cantidad
-        setMensaje('✅ Registro guardado. Faltan ' + faltante + ' bultos para completar la solicitud ' + form.numero_solicitud + '.');
+        await actualizarEstadoSolicitud(form.numero_solicitud, form.total_bultos);
+        setMensaje('✅ Orden actualizada correctamente.');
         setTipoMensaje('success');
-        setOrdenPendiente(true);
-        setBultosRegistrados(nuevaCantidad);
-        setForm({ ...form, cantidad_bultos: 0 });
-        setTimeout(() => cantidadInputRef.current?.focus(), 200);
-      } else {
-        // COMPLETADO - NO CERRAR MODAL, solo limpiar para nueva orden
-        if (diferenciaTotal !== 0) {
-          setMensaje('⚠️ Solicitud ' + form.numero_solicitud + ' completada con diferencias (' + (diferenciaTotal > 0 ? '+' : '') + diferenciaTotal + '). Puede registrar una nueva orden.');
-          setTipoMensaje('warning');
-        } else {
-          setMensaje('✅ Solicitud ' + form.numero_solicitud + ' registrada correctamente. Puede registrar una nueva orden.');
-          setTipoMensaje('success');
-        }
-        // Limpiar formulario para nueva orden
+
+        // Salir de modo edición
+        setModoEdicion(false);
+        setOrdenEditando(null);
         setForm({ ...ESTADO_INICIAL });
-        setOrdenPendiente(false);
-        setBultosRegistrados(0);
         setTimeout(() => solicitudInputRef.current?.focus(), 300);
+      } else {
+        // MODO NUEVO - Crear orden
+        const nuevaCantidad = bultosRegistrados + form.cantidad_bultos;
+        const diferenciaTotal = nuevaCantidad - form.total_bultos;
+        let estado = 'Finalizado';
+        let diferencia: number | null = null;
+        if (diferenciaTotal < 0) { estado = 'Pendiente'; diferencia = diferenciaTotal; }
+        else if (diferenciaTotal > 0) { estado = 'Con Diferencias'; diferencia = diferenciaTotal; }
+
+        await fetch(`${API_URL}/rd01_ordenes`, {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            color: form.color,
+            color_hex: infoColor.color_hex,
+            codigo_local: form.codigo_local,
+            nombre_local: form.nombre_local,
+            numero_solicitud: form.numero_solicitud,
+            numero_guia: form.numero_guia,
+            cantidad_bultos: form.cantidad_bultos,
+            total_bultos: form.total_bultos,
+            tipo_devolucion: infoColor.tipo_devolucion,
+            almacen_destino: infoColor.almacen_destino,
+            estado: estado,
+            diferencia: diferencia,
+            creado_por: user.id,
+            creado_en: new Date().toISOString(),
+          }),
+        });
+
+        await actualizarEstadoSolicitud(form.numero_solicitud, form.total_bultos);
+
+        const faltante = form.total_bultos - nuevaCantidad;
+
+        if (faltante > 0) {
+          setMensaje('✅ Registro guardado. Faltan ' + faltante + ' bultos.');
+          setTipoMensaje('success');
+          setOrdenPendiente(true);
+          setBultosRegistrados(nuevaCantidad);
+          setForm({ ...form, cantidad_bultos: 0 });
+          setTimeout(() => cantidadInputRef.current?.focus(), 200);
+        } else {
+          setMensaje('✅ Solicitud ' + form.numero_solicitud + ' registrada correctamente.');
+          setTipoMensaje('success');
+          setForm({ ...ESTADO_INICIAL });
+          setOrdenPendiente(false);
+          setBultosRegistrados(0);
+          setTimeout(() => solicitudInputRef.current?.focus(), 300);
+        }
       }
 
       cargarOrdenes(false);
@@ -294,14 +334,42 @@ const RD01View: React.FC = () => {
     }
   };
 
-  const handleCancelar = async (orden: any, obs?: string) => {
-    if (!confirm('¿Cancelar esta orden?')) return;
+  // EDITAR orden
+  const handleEditar = (orden: any) => {
+    if (orden.estado === 'Cancelado') {
+      setMensaje('No se puede editar una orden cancelada.');
+      setTipoMensaje('warning');
+      return;
+    }
+    setModoEdicion(true);
+    setOrdenEditando(orden);
+    setForm({
+      color: orden.color,
+      codigo_local: orden.codigo_local,
+      nombre_local: orden.nombre_local,
+      numero_solicitud: orden.numero_solicitud,
+      numero_guia: orden.numero_guia,
+      cantidad_bultos: orden.cantidad_bultos,
+      total_bultos: orden.total_bultos,
+    });
+    setOrdenPendiente(false);
+    setBultosRegistrados(0);
+    setMensaje('✏️ Modo edición: modifique los datos y guarde.');
+    setTipoMensaje('info');
+    setShowCrearModal(true);
+    setTimeout(() => cantidadInputRef.current?.focus(), 200);
+  };
+
+  // ELIMINAR orden
+  const handleEliminar = async (orden: any) => {
+    if (!confirm('¿Eliminar esta orden permanentemente? Esta acción no se puede deshacer.')) return;
     const user = auth.getUsuario();
     await fetch(`${API_URL}/rd01_ordenes?id=eq.${orden.id}`, {
-      method: 'PATCH',
+      method: 'DELETE',
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: 'Cancelado', observacion: obs || 'Cancelado por usuario', modificado_por: user?.id, modificado_en: new Date().toISOString() }),
     });
+    // Recalcular estado de la solicitud
+    await actualizarEstadoSolicitud(orden.numero_solicitud, orden.total_bultos);
     setShowDetalleModal(false);
     cargarOrdenes(false);
   };
@@ -309,6 +377,8 @@ const RD01View: React.FC = () => {
   const verDetalle = (orden: any) => { setOrdenDetalle(orden); setShowDetalleModal(true); };
 
   const abrirModalCrear = () => {
+    setModoEdicion(false);
+    setOrdenEditando(null);
     setForm({ ...ESTADO_INICIAL });
     setOrdenPendiente(false);
     setBultosRegistrados(0);
@@ -319,8 +389,11 @@ const RD01View: React.FC = () => {
   };
 
   const handleCloseModal = () => {
-    if (ordenPendiente && !confirm('¿Salir sin completar la solicitud? La orden quedará Pendiente.')) return;
+    if (modoEdicion && !confirm('¿Salir sin guardar los cambios?')) return;
+    if (!modoEdicion && ordenPendiente && !confirm('¿Salir sin completar la solicitud? La orden quedará Pendiente.')) return;
     setShowCrearModal(false);
+    setModoEdicion(false);
+    setOrdenEditando(null);
     setOrdenPendiente(false);
     cargarOrdenes(false);
   };
@@ -349,12 +422,14 @@ const RD01View: React.FC = () => {
         cargando={cargando}
         nombresUsuarios={nombresUsuarios}
         onVerDetalle={verDetalle}
-        onCancelar={(orden) => handleCancelar(orden)}
+        onEditar={handleEditar}
+        onEliminar={handleEliminar}
       />
 
       <RD01ModalCrear
         isOpen={showCrearModal}
         guardando={guardando}
+        modoEdicion={modoEdicion}
         ordenPendiente={ordenPendiente}
         form={form}
         bultosRegistrados={bultosRegistrados}
@@ -376,7 +451,8 @@ const RD01View: React.FC = () => {
         isOpen={showDetalleModal}
         orden={ordenDetalle}
         onClose={() => setShowDetalleModal(false)}
-        onCancelar={handleCancelar}
+        onEliminar={handleEliminar}
+        onEditar={handleEditar}
       />
     </div>
   );
