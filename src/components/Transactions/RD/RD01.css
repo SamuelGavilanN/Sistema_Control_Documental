@@ -119,3 +119,55 @@
   max-height: none !important;
   overflow-y: auto;
 }
+/* Al final del RD01.css existente */
+
+.rd01-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.rd01-tabla-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.rd01-tabla-wrapper .ed03-tabla-container {
+  flex: 1;
+  max-height: none !important;
+  overflow-y: auto;
+}
+
+.rd01-btn-editar {
+  padding: 5px 12px;
+  background: #b45309;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rd01-btn-editar:hover {
+  background: #92400e;
+}
+
+.rd01-btn-eliminar {
+  padding: 5px 12px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rd01-btn-eliminar:hover {
+  background: #b91c1c;
+}
