@@ -1,6 +1,6 @@
 // src/components/Transactions/RD/RD01View.tsx
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
 import { locales, cargarLocales } from '../../../data/locales';
 import RD01Tabla from './RD01Tabla';
@@ -14,7 +14,7 @@ const HEADERS = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
-const POLLING_INTERVAL = 5000; // 5 segundos
+const POLLING_INTERVAL = 5000;
 
 interface ColorTipo {
   id: string;
@@ -48,7 +48,6 @@ const RD01View: React.FC = () => {
   const [guardando, setGuardando] = useState(false);
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
-  // Control de fraccionamiento
   const [ordenPendiente, setOrdenPendiente] = useState(false);
   const [bultosRegistrados, setBultosRegistrados] = useState(0);
 
@@ -61,16 +60,11 @@ const RD01View: React.FC = () => {
 
   const iniciarPolling = () => {
     detenerPolling();
-    pollingRef.current = setInterval(() => {
-      cargarOrdenes(false);
-    }, POLLING_INTERVAL);
+    pollingRef.current = setInterval(() => { cargarOrdenes(false); }, POLLING_INTERVAL);
   };
 
   const detenerPolling = () => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
+    if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
   };
 
   const cargarUsuarios = async () => {
@@ -103,7 +97,6 @@ const RD01View: React.FC = () => {
     return coloresTipos.find(c => c.color === colorNombre) || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
-  // Verificar si una solicitud ya existe y su estado
   const verificarSolicitud = async (numeroSolicitud: string): Promise<{
     existe: boolean;
     completada: boolean;
@@ -123,7 +116,7 @@ const RD01View: React.FC = () => {
 
     const sumaBultos = ordenesSolicitud.reduce((s: number, o: any) => s + (o.cantidad_bultos || 0), 0);
     const totalBultos = ordenesSolicitud[0].total_bultos;
-    const datosPrevios = ordenesSolicitud[0]; // Tomar datos de la primera orden
+    const datosPrevios = ordenesSolicitud[0];
 
     return {
       existe: true,
@@ -141,20 +134,18 @@ const RD01View: React.FC = () => {
     setForm(nuevo);
   };
 
-  // Cuando se cambia el número de solicitud, verificar si ya existe
   const handleSolicitudChange = async (valor: string) => {
     const nuevoForm = { ...form, numero_solicitud: valor };
     setForm(nuevoForm);
 
     if (valor.trim().length > 2) {
       const verificacion = await verificarSolicitud(valor.trim());
-      
+
       if (verificacion.existe) {
         if (verificacion.completada) {
           setMensaje('⚠️ La solicitud ' + valor + ' ya está completa. No se puede ingresar nuevamente.');
           setTipoMensaje('warning');
         } else {
-          // Solicitud existe pero está incompleta - precargar datos
           const datos = verificacion.datosPrevios;
           setForm({
             ...form,
@@ -187,8 +178,7 @@ const RD01View: React.FC = () => {
     if (!form.numero_guia.trim()) return 'Ingresa número de guía';
     if (form.cantidad_bultos <= 0) return 'Cantidad debe ser mayor a 0';
     if (form.total_bultos <= 0) return 'Total debe ser mayor a 0';
-    
-    // Verificar que no exceda el total
+
     const nuevaCantidad = bultosRegistrados + form.cantidad_bultos;
     if (nuevaCantidad > form.total_bultos) {
       return 'La cantidad (' + nuevaCantidad + ') excede el total (' + form.total_bultos + '). Máximo permitido: ' + (form.total_bultos - bultosRegistrados);
@@ -197,7 +187,6 @@ const RD01View: React.FC = () => {
   };
 
   const handleGuardar = async () => {
-    // Verificar nuevamente que la solicitud no esté completa
     if (!ordenPendiente) {
       const verificacion = await verificarSolicitud(form.numero_solicitud.trim());
       if (verificacion.completada) {
@@ -224,7 +213,6 @@ const RD01View: React.FC = () => {
       if (diferenciaTotal < 0) { estado = 'Pendiente'; diferencia = diferenciaTotal; }
       else if (diferenciaTotal > 0) { estado = 'Con Diferencias'; diferencia = diferenciaTotal; }
 
-      // Guardar orden
       await fetch(`${API_URL}/rd01_ordenes`, {
         method: 'POST',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -246,12 +234,12 @@ const RD01View: React.FC = () => {
         }),
       });
 
-      // Actualizar todas las órdenes de esta solicitud
       await actualizarEstadoSolicitud(form.numero_solicitud, form.total_bultos);
 
       const faltante = form.total_bultos - nuevaCantidad;
 
       if (faltante > 0) {
+        // NO CERRAR MODAL - Solo limpiar cantidad
         setMensaje('✅ Registro guardado. Faltan ' + faltante + ' bultos para completar la solicitud ' + form.numero_solicitud + '.');
         setTipoMensaje('success');
         setOrdenPendiente(true);
@@ -259,20 +247,19 @@ const RD01View: React.FC = () => {
         setForm({ ...form, cantidad_bultos: 0 });
         setTimeout(() => cantidadInputRef.current?.focus(), 200);
       } else {
+        // COMPLETADO - NO CERRAR MODAL, solo limpiar para nueva orden
         if (diferenciaTotal !== 0) {
-          setMensaje('⚠️ Solicitud ' + form.numero_solicitud + ' registrada con diferencias (' + (diferenciaTotal > 0 ? '+' : '') + diferenciaTotal + ').');
+          setMensaje('⚠️ Solicitud ' + form.numero_solicitud + ' completada con diferencias (' + (diferenciaTotal > 0 ? '+' : '') + diferenciaTotal + '). Puede registrar una nueva orden.');
           setTipoMensaje('warning');
         } else {
-          setMensaje('✅ Solicitud ' + form.numero_solicitud + ' registrada correctamente.');
+          setMensaje('✅ Solicitud ' + form.numero_solicitud + ' registrada correctamente. Puede registrar una nueva orden.');
           setTipoMensaje('success');
         }
-        setTimeout(() => {
-          setShowCrearModal(false);
-          setForm({ ...ESTADO_INICIAL });
-          setOrdenPendiente(false);
-          setBultosRegistrados(0);
-          setMensaje('');
-        }, 2000);
+        // Limpiar formulario para nueva orden
+        setForm({ ...ESTADO_INICIAL });
+        setOrdenPendiente(false);
+        setBultosRegistrados(0);
+        setTimeout(() => solicitudInputRef.current?.focus(), 300);
       }
 
       cargarOrdenes(false);
@@ -328,7 +315,7 @@ const RD01View: React.FC = () => {
     setMensaje('');
     setTipoMensaje('info');
     setShowCrearModal(true);
-    setTimeout(() => colorSelectRef.current?.focus(), 200);
+    setTimeout(() => solicitudInputRef.current?.focus(), 200);
   };
 
   const handleCloseModal = () => {
