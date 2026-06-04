@@ -1,17 +1,16 @@
 // src/components/Transactions/RD/RD01ModalDetalle.tsx
 
-import React, { useState } from 'react';
+import React from 'react';
 
 interface RD01ModalDetalleProps {
   isOpen: boolean;
   orden: any;
   onClose: () => void;
-  onCancelar: (orden: any, observacion: string) => void;
+  onEliminar: (orden: any) => void;
+  onEditar: (orden: any) => void;
 }
 
-const RD01ModalDetalle: React.FC<RD01ModalDetalleProps> = ({ isOpen, orden, onClose, onCancelar }) => {
-  const [observacion, setObservacion] = useState('');
-
+const RD01ModalDetalle: React.FC<RD01ModalDetalleProps> = ({ isOpen, orden, onClose, onEliminar, onEditar }) => {
   if (!isOpen || !orden) return null;
 
   return (
@@ -32,19 +31,15 @@ const RD01ModalDetalle: React.FC<RD01ModalDetalleProps> = ({ isOpen, orden, onCl
             )}
             <div className="rd01-detalle-row"><div><strong>Estado:</strong> {orden.estado}</div><div><strong>Tipo:</strong> {orden.tipo_devolucion}</div></div>
             <div className="rd01-detalle-row"><div><strong>Almacén:</strong> {orden.almacen_destino}</div><div><strong>Creado:</strong> {new Date(orden.creado_en).toLocaleString('es-CL')}</div></div>
+            {orden.modificado_en && (
+              <div className="rd01-detalle-row"><div><strong>Modificado:</strong> {new Date(orden.modificado_en).toLocaleString('es-CL')}</div></div>
+            )}
           </div>
-          {orden.estado !== 'Cancelado' && (
-            <div className="ed01-field" style={{ marginTop: '16px' }}>
-              <label>Observación (para cancelar)</label>
-              <textarea value={observacion} onChange={e => setObservacion(e.target.value)} rows={2} placeholder="Motivo de cancelación..." />
-            </div>
-          )}
         </div>
         <div className="ed01-modal-footer">
           <button className="ed01-btn-cancel" onClick={onClose}>Cerrar</button>
-          {orden.estado !== 'Cancelado' && (
-            <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => onCancelar(orden, observacion)}>Cancelar Orden</button>
-          )}
+          <button className="ed01-btn-detalle" onClick={() => { onClose(); onEditar(orden); }} style={{ marginRight: '8px' }}>Editar</button>
+          <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => { if (confirm('¿Eliminar permanentemente?')) { onClose(); onEliminar(orden); } }}>Eliminar</button>
         </div>
       </div>
     </div>
