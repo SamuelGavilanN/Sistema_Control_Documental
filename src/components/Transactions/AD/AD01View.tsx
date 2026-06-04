@@ -163,23 +163,68 @@ const AD01View: React.FC = () => {
   const exportarExcel = () => {
     if (!auditoriaDetalle) return;
 
-    const datos = datosDetalle.map((d: any) => ({
-      'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
-      'SKU': d.sku,
-      'DESCRIPCION': d.denominacion,
-      'ENTREGA': d.entrega,
-      'ACTA': auditoriaDetalle.acta || '',
-      'GUIA': auditoriaDetalle.guia || '',
-      'COD LOCAL': auditoriaDetalle.codigo_local,
-      'LOCAL': auditoriaDetalle.nombre_local,
-      'SAP': d.cantidad_sap,
-      'FISICO': d.cantidad_fisica,
-      'DIFERENCIA': d.diferencia,
-      'CAJAS': d.capturado ? d.capturas.map((c: any) => 'Caja ' + c.numero_caja + '(' + c.cantidad_fisica + ')').join(' | ') : 'Pendiente',
-      'ESTADO': d.capturado ? (d.diferencia === 0 ? 'OK' : 'CON DIFERENCIA') : 'PENDIENTE'
-    }));
+    const filas: any[] = [];
 
-    const ws = XLSX.utils.json_to_sheet(datos);
+    datosDetalle.forEach((d: any) => {
+      if (d.capturado && d.capturas.length > 0) {
+        // Desglosar por caja
+        d.capturas.forEach((cap: any, idx: number) => {
+          filas.push({
+            'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
+            'CAJA': 'Caja ' + cap.numero_caja,
+            'SKU': d.sku,
+            'DESCRIPCION': d.denominacion,
+            'SAP': idx === 0 ? d.cantidad_sap : '-',
+            'FISICO': cap.cantidad_fisica || 0,
+            'DIFERENCIA': idx === 0 ? (d.diferencia === 0 ? 'OK' : d.diferencia) : '-',
+            'ESTADO': idx === 0 ? (d.diferencia === 0 ? 'OK' : 'Pend.') : '-',
+            'ENTREGA': idx === 0 ? d.entrega : '',
+            'ACTA': idx === 0 ? (auditoriaDetalle.acta || '') : '',
+            'GUIA': idx === 0 ? (auditoriaDetalle.guia || '') : '',
+            'COD LOCAL': idx === 0 ? auditoriaDetalle.codigo_local : '',
+            'LOCAL': idx === 0 ? auditoriaDetalle.nombre_local : '',
+          });
+        });
+
+        // Si falta físico, agregar fila pendiente
+        if (d.diferencia > 0) {
+          filas.push({
+            'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
+            'CAJA': 'Pendiente (' + d.diferencia + ')',
+            'SKU': d.sku,
+            'DESCRIPCION': d.denominacion,
+            'SAP': '-',
+            'FISICO': 0,
+            'DIFERENCIA': '-',
+            'ESTADO': 'Pend.',
+            'ENTREGA': '',
+            'ACTA': '',
+            'GUIA': '',
+            'COD LOCAL': '',
+            'LOCAL': '',
+          });
+        }
+      } else {
+        // Sin capturas
+        filas.push({
+          'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
+          'CAJA': 'Pendiente',
+          'SKU': d.sku,
+          'DESCRIPCION': d.denominacion,
+          'SAP': d.cantidad_sap,
+          'FISICO': 0,
+          'DIFERENCIA': d.diferencia,
+          'ESTADO': 'Pend.',
+          'ENTREGA': d.entrega,
+          'ACTA': auditoriaDetalle.acta || '',
+          'GUIA': auditoriaDetalle.guia || '',
+          'COD LOCAL': auditoriaDetalle.codigo_local,
+          'LOCAL': auditoriaDetalle.nombre_local,
+        });
+      }
+    });
+
+    const ws = XLSX.utils.json_to_sheet(filas);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
     XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
