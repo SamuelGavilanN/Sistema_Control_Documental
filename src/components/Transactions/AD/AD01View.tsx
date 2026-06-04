@@ -34,6 +34,7 @@ const AD01View: React.FC = () => {
   const [nombreArchivoCorreo, setNombreArchivoCorreo] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [skusExpandidos, setSkusExpandidos] = useState<Set<string>>(new Set());
 
   useEffect(() => { cargarAuditorias(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(cargarAuditorias, 10000); return () => clearInterval(intervalo); }, []);
@@ -140,7 +141,6 @@ const AD01View: React.FC = () => {
         diferencia: diferencia,
         capturado: capturasSKU.length > 0,
         capturas: capturasSKU,
-        expandido: false,
       });
     });
 
@@ -150,29 +150,38 @@ const AD01View: React.FC = () => {
     if (aa) setAuditoriaDetalle(aa);
   };
 
-  const toggleExpandSKU = (index: number) => {
-    const nuevos = [...datosDetalle];
-    nuevos[index].expandido = !nuevos[index].expandido;
-    setDatosDetalle(nuevos);
+  const toggleExpandSKU = (sku: string) => {
+    const nuevos = new Set(skusExpandidos);
+    if (nuevos.has(sku)) {
+      nuevos.delete(sku);
+    } else {
+      nuevos.add(sku);
+    }
+    setSkusExpandidos(nuevos);
   };
 
   const exportarExcel = () => {
     if (!auditoriaDetalle) return;
+
     const datos = datosDetalle.map((d: any) => ({
       'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
+      'SKU': d.sku,
+      'DESCRIPCION': d.denominacion,
       'ENTREGA': d.entrega,
       'ACTA': auditoriaDetalle.acta || '',
       'GUIA': auditoriaDetalle.guia || '',
       'COD LOCAL': auditoriaDetalle.codigo_local,
       'LOCAL': auditoriaDetalle.nombre_local,
-      'DESCRIPCION': d.denominacion,
-      'SKU': d.sku,
       'SAP': d.cantidad_sap,
       'FISICO': d.cantidad_fisica,
       'DIFERENCIA': d.diferencia,
+      'CAJAS': d.capturado ? d.capturas.map((c: any) => 'Caja ' + c.numero_caja + '(' + c.cantidad_fisica + ')').join(' | ') : 'Pendiente',
       'ESTADO': d.capturado ? (d.diferencia === 0 ? 'OK' : 'CON DIFERENCIA') : 'PENDIENTE'
     }));
-    const ws = XLSX.utils.json_to_sheet(datos); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
+
+    const ws = XLSX.utils.json_to_sheet(datos);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
     XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
   };
 
@@ -227,7 +236,7 @@ const AD01View: React.FC = () => {
           </div>
           <div className="ed01-modal-body">
             <div className="ad01-detalle-header"><div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div><div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div><div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div><div><strong>Estado:</strong> <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: getEstadoBadge(auditoriaDetalle.estado).bg, color: getEstadoBadge(auditoriaDetalle.estado).color }}>{auditoriaDetalle.estado}</span></div></div>
-            
+
             <div className="ad01-resumen-cards">
               <div className="ad01-resumen-card"><span>Total SAP</span><strong>{datosSAP.reduce((s: number, d: any) => s + (d.cantidad_sap || 0), 0)}</strong></div>
               <div className="ad01-resumen-card"><span>Total Físico</span><strong>{datosDetalle.reduce((s: number, d: any) => s + (d.cantidad_fisica || 0), 0)}</strong></div>
@@ -250,101 +259,104 @@ const AD01View: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {datosDetalle.map((d: any, i: number) => (
-                    <React.Fragment key={i}>
-                      <tr 
-                        onClick={() => d.capturado && toggleExpandSKU(i)}
-                        style={{ 
-                          cursor: d.capturado ? 'pointer' : 'default',
-                          background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f8fafd'
-                        }}
-                      >
-                        <td style={{ textAlign: 'center' }}>
-                          {d.capturado && (
-                            <svg 
-                              width="12" height="12" viewBox="0 0 12 12" fill="none"
-                              style={{ 
-                                transform: d.expandido ? 'rotate(90deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.2s'
-                              }}
-                            >
-                              <path d="M4 2L8 6L4 10" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/>
-                            </svg>
-                          )}
-                        </td>
-                        <td className="ed03-ticket-id" style={{ fontSize: '12px' }}>{d.sku}</td>
-                        <td style={{ fontSize: '12px' }}>{d.denominacion}</td>
-                        <td style={{ fontSize: '11px' }}>{d.entrega}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.cantidad_sap}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                          {d.capturado ? d.cantidad_fisica : '-'}
-                        </td>
-                        <td style={{ 
-                          textAlign: 'center', 
-                          fontWeight: 600, 
-                          color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8' 
-                        }}>
-                          {d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia}
-                        </td>
-                        <td>
-                          <span style={{ 
-                            padding: '3px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600,
-                            background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f1f5f9',
-                            color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b'
+                  {datosDetalle.map((d: any, i: number) => {
+                    const expandido = skusExpandidos.has(d.sku);
+                    return (
+                      <React.Fragment key={i}>
+                        <tr
+                          onClick={() => d.capturado && toggleExpandSKU(d.sku)}
+                          style={{
+                            cursor: d.capturado ? 'pointer' : 'default',
+                            background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f8fafd'
+                          }}
+                        >
+                          <td style={{ textAlign: 'center' }}>
+                            {d.capturado && (
+                              <svg
+                                width="12" height="12" viewBox="0 0 12 12" fill="none"
+                                style={{
+                                  transform: expandido ? 'rotate(90deg)' : 'rotate(0deg)',
+                                  transition: 'transform 0.2s'
+                                }}
+                              >
+                                <path d="M4 2L8 6L4 10" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/>
+                              </svg>
+                            )}
+                          </td>
+                          <td className="ed03-ticket-id" style={{ fontSize: '12px' }}>{d.sku}</td>
+                          <td style={{ fontSize: '12px' }}>{d.denominacion}</td>
+                          <td style={{ fontSize: '11px' }}>{d.entrega}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.cantidad_sap}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                            {d.capturado ? d.cantidad_fisica : '-'}
+                          </td>
+                          <td style={{
+                            textAlign: 'center',
+                            fontWeight: 600,
+                            color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8'
                           }}>
-                            {d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.'}
-                          </span>
-                        </td>
-                      </tr>
-                      
-                      {d.expandido && d.capturas && d.capturas.length > 0 && (
-                        <tr>
-                          <td colSpan={8} style={{ padding: '0' }}>
-                            <div style={{ 
-                              background: '#f8fafd', 
-                              border: '1px solid #e2e8f0', 
-                              borderRadius: '8px',
-                              margin: '8px 16px',
-                              padding: '12px 16px'
+                            {d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia}
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600,
+                              background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f1f5f9',
+                              color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b'
                             }}>
-                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-                                📦 Detalle de Capturas - SKU: {d.sku}
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#64748b', marginBottom: '4px', flexWrap: 'wrap' }}>
-                                  <span><strong>Entrega:</strong> {d.entrega}</span>
-                                  <span><strong>Total SAP:</strong> {d.cantidad_sap} un</span>
-                                  <span><strong>Total Físico:</strong> {d.cantidad_fisica} un</span>
-                                  <span><strong>Diferencia:</strong> <span style={{ color: d.diferencia === 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>{d.diferencia === 0 ? '0' : d.diferencia}</span></span>
-                                </div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                  <thead>
-                                    <tr style={{ background: '#f1f5f9' }}>
-                                      <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Caja</th>
-                                      <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Cantidad</th>
-                                      <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Acumulado</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {d.capturas.map((cap: any, idx: number) => {
-                                      const acumulado = d.capturas.slice(0, idx + 1).reduce((s: number, c: any) => s + (c.cantidad_fisica || 0), 0);
-                                      return (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                          <td style={{ padding: '6px 10px', fontWeight: 500, color: '#1d4ed8' }}>Caja {cap.numero_caja}</td>
-                                          <td style={{ padding: '6px 10px', textAlign: 'center' }}>{cap.cantidad_fisica}</td>
-                                          <td style={{ padding: '6px 10px', textAlign: 'center', color: '#64748b' }}>{acumulado}</td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
+                              {d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.'}
+                            </span>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
+
+                        {expandido && d.capturas && d.capturas.length > 0 && (
+                          <tr>
+                            <td colSpan={8} style={{ padding: '0' }}>
+                              <div style={{
+                                background: '#f8fafd',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                margin: '8px 16px',
+                                padding: '12px 16px'
+                              }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
+                                  📦 Detalle de Capturas - SKU: {d.sku}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#64748b', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                    <span><strong>Entrega:</strong> {d.entrega}</span>
+                                    <span><strong>Total SAP:</strong> {d.cantidad_sap} un</span>
+                                    <span><strong>Total Físico:</strong> {d.cantidad_fisica} un</span>
+                                    <span><strong>Diferencia:</strong> <span style={{ color: d.diferencia === 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>{d.diferencia === 0 ? '0' : d.diferencia}</span></span>
+                                  </div>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                    <thead>
+                                      <tr style={{ background: '#f1f5f9' }}>
+                                        <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Caja</th>
+                                        <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Cantidad</th>
+                                        <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Acumulado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {d.capturas.map((cap: any, idx: number) => {
+                                        const acumulado = d.capturas.slice(0, idx + 1).reduce((s: number, c: any) => s + (c.cantidad_fisica || 0), 0);
+                                        return (
+                                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '6px 10px', fontWeight: 500, color: '#1d4ed8' }}>Caja {cap.numero_caja}</td>
+                                            <td style={{ padding: '6px 10px', textAlign: 'center' }}>{cap.cantidad_fisica}</td>
+                                            <td style={{ padding: '6px 10px', textAlign: 'center', color: '#64748b' }}>{acumulado}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
