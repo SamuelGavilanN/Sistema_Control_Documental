@@ -23,7 +23,7 @@ const getEstadoBadge = (estado: string) => {
 
 const RD01Tabla: React.FC<RD01TablaProps> = ({ ordenes, cargando, nombresUsuarios, onVerDetalle, onEditar, onEliminar }) => {
   return (
-    <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
+    <div className="ed03-tabla-container" style={{ overflowX: 'auto', maxHeight: 'none', height: '100%' }}>
       <table className="ed03-tabla" style={{ minWidth: '1900px' }}>
         <thead>
           <tr>
