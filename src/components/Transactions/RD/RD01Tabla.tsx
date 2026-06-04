@@ -7,7 +7,8 @@ interface RD01TablaProps {
   cargando: boolean;
   nombresUsuarios: Record<string, string>;
   onVerDetalle: (orden: any) => void;
-  onCancelar: (orden: any) => void;
+  onEditar: (orden: any) => void;
+  onEliminar: (orden: any) => void;
 }
 
 const getEstadoBadge = (estado: string) => {
@@ -20,10 +21,10 @@ const getEstadoBadge = (estado: string) => {
   }
 };
 
-const RD01Tabla: React.FC<RD01TablaProps> = ({ ordenes, cargando, nombresUsuarios, onVerDetalle, onCancelar }) => {
+const RD01Tabla: React.FC<RD01TablaProps> = ({ ordenes, cargando, nombresUsuarios, onVerDetalle, onEditar, onEliminar }) => {
   return (
     <div className="ed03-tabla-container" style={{ overflowX: 'auto' }}>
-      <table className="ed03-tabla" style={{ minWidth: '1800px' }}>
+      <table className="ed03-tabla" style={{ minWidth: '1900px' }}>
         <thead>
           <tr>
             <th style={{ minWidth: '170px' }}>ID Pallet</th>
@@ -40,14 +41,15 @@ const RD01Tabla: React.FC<RD01TablaProps> = ({ ordenes, cargando, nombresUsuario
             <th style={{ minWidth: '130px' }}>Almacén Destino</th>
             <th style={{ minWidth: '130px' }}>Creado Por</th>
             <th style={{ minWidth: '110px' }}>Creado En</th>
-            <th style={{ minWidth: '140px' }}>Acciones</th>
+            <th style={{ minWidth: '130px' }}>Modificado Por</th>
+            <th style={{ minWidth: '160px' }}>Acciones</th>
           </tr>
         </thead>
         <tbody>
           {cargando ? (
-            <tr><td colSpan={15} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
+            <tr><td colSpan={16} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr>
           ) : ordenes.length === 0 ? (
-            <tr><td colSpan={15} style={{ textAlign: 'center', padding: '40px' }}>Sin órdenes</td></tr>
+            <tr><td colSpan={16} style={{ textAlign: 'center', padding: '40px' }}>Sin órdenes</td></tr>
           ) : (
             ordenes.map((orden: any) => {
               const eb = getEstadoBadge(orden.estado);
@@ -80,10 +82,12 @@ const RD01Tabla: React.FC<RD01TablaProps> = ({ ordenes, cargando, nombresUsuario
                   <td style={{ whiteSpace: 'nowrap' }}>{orden.almacen_destino}</td>
                   <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{nombresUsuarios[orden.creado_por] || orden.creado_por}</td>
                   <td className="ed01-mono" style={{ whiteSpace: 'nowrap' }}>{new Date(orden.creado_en).toLocaleDateString('es-CL')}</td>
+                  <td className="ed01-usuario" style={{ whiteSpace: 'nowrap' }}>{orden.modificado_por ? (nombresUsuarios[orden.modificado_por] || orden.modificado_por) : '-'}</td>
                   <td>
-                    <div className="rd01-acciones" style={{ whiteSpace: 'nowrap' }}>
+                    <div className="rd01-acciones" style={{ whiteSpace: 'nowrap', display: 'flex', gap: '4px' }}>
                       <button className="rd01-btn-detalle" onClick={() => onVerDetalle(orden)}>Detalle</button>
-                      {orden.estado !== 'Cancelado' && (<button className="rd01-btn-cancelar" onClick={() => onCancelar(orden)}>Cancelar</button>)}
+                      <button className="rd01-btn-editar" onClick={() => onEditar(orden)}>Editar</button>
+                      <button className="rd01-btn-eliminar" onClick={() => onEliminar(orden)} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Eliminar</button>
                     </div>
                   </td>
                 </tr>
