@@ -1,7 +1,6 @@
 // src/components/Transactions/RD/RD01View.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import { locales, cargarLocales } from '../../../data/locales';
 import RD01Tabla from './RD01Tabla';
@@ -23,46 +22,39 @@ interface ColorTipo {
   almacen_destino: string;
 }
 
-interface Solicitud {
-  color: string;
-  codigo_local: string;
-  nombre_local: string;
-  numero_solicitud: string;
-  numero_guia: string;
-  cantidad_bultos: number;
-  total_bultos: number;
-}
-
-const ESTADO_INICIAL_SOLICITUD: Solicitud = {
-  color: '', codigo_local: '', nombre_local: '',
-  numero_solicitud: '', numero_guia: '',
-  cantidad_bultos: 0, total_bultos: 0,
+const ESTADO_INICIAL = {
+  color: '',
+  codigo_local: '',
+  nombre_local: '',
+  numero_solicitud: '',
+  numero_guia: '',
+  cantidad_bultos: 0,
+  total_bultos: 0,
 };
 
 const RD01View: React.FC = () => {
   const usuario = auth.getUsuario();
-  const [registros, setRegistros] = useState<any[]>([]);
+  const [ordenes, setOrdenes] = useState<any[]>([]);
   const [coloresTipos, setColoresTipos] = useState<ColorTipo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [showDetalleModal, setShowDetalleModal] = useState(false);
-  const [registroDetalle, setRegistroDetalle] = useState<any>(null);
-  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([{ ...ESTADO_INICIAL_SOLICITUD }]);
+  const [ordenDetalle, setOrdenDetalle] = useState<any>(null);
+  const [form, setForm] = useState({ ...ESTADO_INICIAL });
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
 
-  const colorSelectRefs = useRef<(HTMLSelectElement | null)[]>([]);
-  const cantidadInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Control de fraccionamiento
+  const [ordenPendiente, setOrdenPendiente] = useState(false);
+  const [datosOrdenPendiente, setDatosOrdenPendiente] = useState<any>(null);
+  const [bultosRegistrados, setBultosRegistrados] = useState(0);
 
-  const [guardadoParcial, setGuardadoParcial] = useState(false);
-  const [solicitudActualIndex, setSolicitudActualIndex] = useState(0);
-  const [palletBaseActual, setPalletBaseActual] = useState('');
-  const [bultosGuardados, setBultosGuardados] = useState(0);
-  const [palletContador, setPalletContador] = useState(1);
+  const colorSelectRef = useRef<HTMLSelectElement | null>(null);
+  const cantidadInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => { cargarLocales(); cargarColoresTipos(); cargarUsuarios(); cargarRegistros(); }, []);
-  useEffect(() => { const intervalo = setInterval(cargarRegistros, 10000); return () => clearInterval(intervalo); }, []);
+  useEffect(() => { cargarLocales(); cargarColores(); cargarUsuarios(); cargarOrdenes(); }, []);
+  useEffect(() => { const intervalo = setInterval(cargarOrdenes, 10000); return () => clearInterval(intervalo); }, []);
 
   const cargarUsuarios = async () => {
     try {
@@ -72,7 +64,7 @@ const RD01View: React.FC = () => {
     } catch (e) {}
   };
 
-  const cargarColoresTipos = async () => {
+  const cargarColores = async () => {
     try {
       const resp = await fetch(`${API_URL}/rd_colores_tipos?select=*&activo=eq.true&order=color`, { headers: HEADERS });
       const data = await resp.json();
@@ -80,11 +72,11 @@ const RD01View: React.FC = () => {
     } catch (e) {}
   };
 
-  const cargarRegistros = async () => {
+  const cargarOrdenes = async () => {
     try {
-      const resp = await fetch(`${API_URL}/rd01_devoluciones?select=*&order=creado_en.desc`, { headers: HEADERS });
+      const resp = await fetch(`${API_URL}/rd01_ordenes?select=*&order=creado_en.desc`, { headers: HEADERS });
       const data = await resp.json();
-      if (data) setRegistros(data);
+      if (data) setOrdenes(data);
     } catch (e) {}
     setCargando(false);
   };
@@ -93,101 +85,118 @@ const RD01View: React.FC = () => {
     return coloresTipos.find(c => c.color === colorNombre) || { color_hex: '#ccc', tipo_devolucion: '', almacen_destino: '' };
   };
 
-  const handleCodigoLocalChange = (index: number, codigo: string) => {
-    const nuevas = [...solicitudes];
-    nuevas[index].codigo_local = codigo.toUpperCase();
+  const handleCodigoLocalChange = (codigo: string) => {
+    const nuevo = { ...form, codigo_local: codigo.toUpperCase() };
     const local = locales.find(l => l.codigo_local.toUpperCase() === codigo.toUpperCase());
-    nuevas[index].nombre_local = local?.nombre_local || '';
-    setSolicitudes(nuevas);
+    nuevo.nombre_local = local?.nombre_local || '';
+    setForm(nuevo);
   };
 
-  const handleSolicitudChange = (index: number, campo: keyof Solicitud, valor: any) => {
-    const nuevas = [...solicitudes];
-    (nuevas[index] as any)[campo] = valor;
-    setSolicitudes(nuevas);
-  };
-
-  const agregarSolicitud = () => {
-    setSolicitudes([...solicitudes, { ...ESTADO_INICIAL_SOLICITUD }]);
-    setTimeout(() => { const idx = solicitudes.length; if (colorSelectRefs.current[idx]) colorSelectRefs.current[idx]?.focus(); }, 100);
-  };
-
-  const eliminarSolicitud = (index: number) => {
-    if (solicitudes.length === 1) return;
-    setSolicitudes(solicitudes.filter((_, i) => i !== index));
-  };
-
-  const generarNumeroPallet = async (): Promise<string> => {
-    try { const { data, error } = await supabase.rpc('generar_numero_devolucion'); if (!error && data) return data as string; } catch (e) {}
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    const fecha = dd + mm + yyyy;
-    const resp = await fetch(`${API_URL}/rd01_devoluciones?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
-    const data = await resp.json();
-    return 'DEV' + fecha + String((data?.length || 0) + 1).padStart(6, '0');
-  };
-
-  const validarSolicitudInicial = (s: Solicitud): string | null => {
-    if (!s.color) return 'Selecciona un color';
-    if (!s.codigo_local) return 'Ingresa código de local';
-    if (!s.nombre_local) return 'Local no encontrado';
-    if (!s.numero_solicitud.trim()) return 'Ingresa número de solicitud';
-    if (!s.numero_guia.trim()) return 'Ingresa número de guía';
-    if (s.cantidad_bultos <= 0) return 'Cantidad de bultos debe ser mayor a 0';
-    if (s.total_bultos <= 0) return 'Total de bultos debe ser mayor a 0';
+  const validarForm = (): string | null => {
+    if (!form.color) return 'Selecciona un color';
+    if (!form.codigo_local) return 'Ingresa código de local';
+    if (!form.nombre_local) return 'Local no encontrado';
+    if (!form.numero_solicitud.trim()) return 'Ingresa número de solicitud';
+    if (!form.numero_guia.trim()) return 'Ingresa número de guía';
+    if (form.cantidad_bultos <= 0) return 'Cantidad debe ser mayor a 0';
+    if (form.total_bultos <= 0) return 'Total debe ser mayor a 0';
     return null;
   };
 
-  // Guardar un registro SIN sufijo P01, P02 - mismo ID para todo el contenedor
-  const guardarRegistro = async (sol: Solicitud, infoColor: any, idPallet: string, cantidad: number, userId: string) => {
-    const sumaTotal = cantidad; // Se calculará después con actualizarEstadoSolicitud
-    const dif = sumaTotal - sol.total_bultos;
-    let estado = 'Finalizado'; let diferencia: number | null = null;
-    if (dif < 0) { estado = 'Pendiente'; diferencia = dif; }
-    else if (dif > 0) { estado = 'Con Diferencias'; diferencia = dif; }
+  const handleGuardar = async () => {
+    const error = validarForm();
+    if (error) { setMensaje('Error: ' + error); setTimeout(() => setMensaje(''), 3000); return; }
 
-    const resp = await fetch(`${API_URL}/rd01_devoluciones`, {
-      method: 'POST',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id_pallet: idPallet,
-        color: sol.color,
-        color_hex: infoColor.color_hex,
-        codigo_local: sol.codigo_local,
-        nombre_local: sol.nombre_local,
-        numero_solicitud: sol.numero_solicitud,
-        numero_guia: sol.numero_guia,
-        cantidad_bultos: cantidad,
-        total_bultos: sol.total_bultos,
-        tipo_devolucion: infoColor.tipo_devolucion,
-        almacen_destino: infoColor.almacen_destino,
-        estado: estado,
-        diferencia: diferencia,
-        creado_por: userId,
-        creado_en: new Date().toISOString(),
-      }),
-    });
-    if (!resp.ok) { const err = await resp.json(); throw new Error(err.message || 'Error al guardar'); }
+    setGuardando(true); setMensaje('');
+    try {
+      const user = auth.getUsuario();
+      if (!user) { setMensaje('Error: Usuario no autenticado'); setGuardando(false); return; }
+
+      const infoColor = getInfoColor(form.color);
+      const nuevaCantidad = (ordenPendiente ? bultosRegistrados : 0) + form.cantidad_bultos;
+      const diferenciaTotal = nuevaCantidad - form.total_bultos;
+
+      let estado = 'Finalizado';
+      let diferencia: number | null = null;
+      if (diferenciaTotal < 0) { estado = 'Pendiente'; diferencia = diferenciaTotal; }
+      else if (diferenciaTotal > 0) { estado = 'Con Diferencias'; diferencia = diferenciaTotal; }
+
+      // Guardar orden
+      await fetch(`${API_URL}/rd01_ordenes`, {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          color: form.color,
+          color_hex: infoColor.color_hex,
+          codigo_local: form.codigo_local,
+          nombre_local: form.nombre_local,
+          numero_solicitud: form.numero_solicitud,
+          numero_guia: form.numero_guia,
+          cantidad_bultos: form.cantidad_bultos,
+          total_bultos: form.total_bultos,
+          tipo_devolucion: infoColor.tipo_devolucion,
+          almacen_destino: infoColor.almacen_destino,
+          estado: estado,
+          diferencia: diferencia,
+          creado_por: user.id,
+          creado_en: new Date().toISOString(),
+        }),
+      });
+
+      // Actualizar todas las órdenes de esta solicitud
+      await actualizarEstadoSolicitud(form.numero_solicitud, form.total_bultos);
+
+      const faltante = form.total_bultos - nuevaCantidad;
+
+      if (faltante > 0) {
+        // Queda pendiente - mantener modal abierto, limpiar solo cantidad
+        setMensaje('✅ Registro guardado. Faltan ' + faltante + ' bultos para completar la solicitud ' + form.numero_solicitud + '.');
+        setOrdenPendiente(true);
+        setDatosOrdenPendiente({ ...form, cantidad_bultos: 0 });
+        setBultosRegistrados(nuevaCantidad);
+        setForm({ ...form, cantidad_bultos: 0 });
+        setTimeout(() => cantidadInputRef.current?.focus(), 200);
+      } else {
+        // Completado
+        if (diferenciaTotal !== 0) {
+          setMensaje('⚠️ Solicitud ' + form.numero_solicitud + ' registrada con diferencias (' + (diferenciaTotal > 0 ? '+' : '') + diferenciaTotal + ').');
+        } else {
+          setMensaje('✅ Solicitud ' + form.numero_solicitud + ' registrada correctamente.');
+        }
+        setTimeout(() => {
+          setShowCrearModal(false);
+          setForm({ ...ESTADO_INICIAL });
+          setOrdenPendiente(false);
+          setDatosOrdenPendiente(null);
+          setBultosRegistrados(0);
+          setMensaje('');
+        }, 2000);
+      }
+
+      cargarOrdenes();
+    } catch (error: any) {
+      setMensaje('Error: ' + (error.message || 'Error desconocido'));
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const actualizarEstadoSolicitud = async (numeroSolicitud: string, totalBultos: number) => {
     const resp = await fetch(
-      `${API_URL}/rd01_devoluciones?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
+      `${API_URL}/rd01_ordenes?select=id,cantidad_bultos&numero_solicitud=eq.${numeroSolicitud}`,
       { headers: HEADERS }
     );
-    const pallets = await resp.json();
-    if (!pallets || pallets.length === 0) return;
-    
-    const sumaTotal = pallets.reduce((s: number, p: any) => s + (p.cantidad_bultos || 0), 0);
+    const ordenes = await resp.json();
+    if (!ordenes || ordenes.length === 0) return;
+
+    const sumaTotal = ordenes.reduce((s: number, o: any) => s + (o.cantidad_bultos || 0), 0);
     const dif = sumaTotal - totalBultos;
     let estado = 'Finalizado'; let diferencia: number | null = null;
     if (dif < 0) { estado = 'Pendiente'; diferencia = dif; }
     else if (dif > 0) { estado = 'Con Diferencias'; diferencia = dif; }
-    
-    for (const p of pallets) {
-      await fetch(`${API_URL}/rd01_devoluciones?id=eq.${p.id}`, {
+
+    for (const o of ordenes) {
+      await fetch(`${API_URL}/rd01_ordenes?id=eq.${o.id}`, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado, diferencia }),
@@ -195,138 +204,35 @@ const RD01View: React.FC = () => {
     }
   };
 
-  const handleGuardar = async () => {
-    setGuardando(true); setMensaje('');
-    try {
-      const user = auth.getUsuario();
-      if (!user) { setMensaje('Error: Usuario no autenticado'); setGuardando(false); return; }
-
-      // MODO PARCIAL: Continuar con la solicitud actual
-      if (guardadoParcial) {
-        const sol = solicitudes[solicitudActualIndex];
-        const infoColor = getInfoColor(sol.color);
-        const cant = sol.cantidad_bultos;
-        if (cant <= 0) { setMensaje('Error: Ingresa la cantidad'); setGuardando(false); return; }
-
-        await guardarRegistro(sol, infoColor, palletBaseActual, cant, user.id);
-
-        const nuevoTotal = bultosGuardados + cant;
-        const faltante = sol.total_bultos - nuevoTotal;
-
-        if (faltante <= 0) {
-          await actualizarEstadoSolicitud(sol.numero_solicitud, sol.total_bultos);
-          setMensaje('✅ Solicitud ' + sol.numero_solicitud + ' completada!');
-          setGuardadoParcial(false); setPalletBaseActual(''); setBultosGuardados(0); setPalletContador(1);
-          
-          const sig = solicitudActualIndex + 1;
-          if (sig < solicitudes.length) {
-            setSolicitudActualIndex(sig);
-            setGuardando(false);
-            await cargarRegistros();
-            setTimeout(() => cantidadInputRefs.current[sig]?.focus(), 300);
-            return;
-          } else {
-            setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500);
-            setGuardando(false);
-            await cargarRegistros();
-            return;
-          }
-        } else {
-          setBultosGuardados(nuevoTotal);
-          setPalletContador(palletContador + 1);
-          const nuevas = [...solicitudes];
-          nuevas[solicitudActualIndex] = { ...nuevas[solicitudActualIndex], cantidad_bultos: 0 };
-          setSolicitudes(nuevas);
-          setMensaje('Pallet guardado (' + cant + ' bultos). Faltan ' + faltante + ' bultos.');
-          setTimeout(() => cantidadInputRefs.current[solicitudActualIndex]?.focus(), 200);
-        }
-        setGuardando(false);
-        await cargarRegistros();
-        return;
-      }
-
-      // MODO NORMAL: Validar todas las filas
-      for (let i = 0; i < solicitudes.length; i++) {
-        const err = validarSolicitudInicial(solicitudes[i]);
-        if (err) { setMensaje('Error en fila #' + (i + 1) + ': ' + err); setGuardando(false); return; }
-      }
-
-      // Generar UN SOLO ID Pallet para todo el contenedor
-      const idPallet = await generarNumeroPallet();
-
-      // Guardar cada solicitud con el MISMO idPallet
-      for (let i = 0; i < solicitudes.length; i++) {
-        const sol = solicitudes[i];
-        const infoColor = getInfoColor(sol.color);
-        const bultos = sol.cantidad_bultos;
-        const total = sol.total_bultos;
-
-        if (bultos >= total) {
-          // Un solo registro para esta solicitud
-          await guardarRegistro(sol, infoColor, idPallet, bultos, user.id);
-        } else {
-          // Múltiples registros para esta solicitud (mismo ID pallet)
-          const palletBase = idPallet;
-          let bultosAcumulados = 0;
-          
-          while (bultosAcumulados < total) {
-            const cantidadEste = Math.min(bultos, total - bultosAcumulados);
-            await guardarRegistro(sol, infoColor, palletBase, cantidadEste, user.id);
-            bultosAcumulados += cantidadEste;
-          }
-        }
-        // Actualizar estado después de guardar todos los registros de esta solicitud
-        await actualizarEstadoSolicitud(sol.numero_solicitud, total);
-      }
-
-      setMensaje('✅ ' + solicitudes.length + ' solicitud(es) procesada(s) en pallet ' + idPallet + '.');
-      setTimeout(() => { setShowCrearModal(false); setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]); setSolicitudActualIndex(0); setMensaje(''); }, 2500);
-      setGuardando(false);
-      await cargarRegistros();
-    } catch (error: any) {
-      setMensaje('Error: ' + (error.message || 'Error desconocido'));
-      setGuardando(false);
-    }
-  };
-
-  const handleCancelar = async (registro: any, obs?: string) => {
-    if (!confirm('¿Cancelar este registro?')) return;
+  const handleCancelar = async (orden: any, obs?: string) => {
+    if (!confirm('¿Cancelar esta orden?')) return;
     const user = auth.getUsuario();
-    await fetch(`${API_URL}/rd01_devoluciones?id=eq.${registro.id}`, {
-      method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    await fetch(`${API_URL}/rd01_ordenes?id=eq.${orden.id}`, {
+      method: 'PATCH',
+      headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado: 'Cancelado', observacion: obs || 'Cancelado por usuario', modificado_por: user?.id, modificado_en: new Date().toISOString() }),
     });
-    setShowDetalleModal(false); cargarRegistros();
+    setShowDetalleModal(false);
+    cargarOrdenes();
   };
 
-  const verDetalle = (registro: any) => { setRegistroDetalle(registro); setShowDetalleModal(true); };
-
-  const getRegistrosParaTabla = () => {
-    const conteo: Record<string, { total: number; pallets: string[] }> = {};
-    registros.forEach(r => {
-      if (!conteo[r.numero_solicitud]) conteo[r.numero_solicitud] = { total: 0, pallets: [] };
-      conteo[r.numero_solicitud].total++;
-      conteo[r.numero_solicitud].pallets.push(r.id_pallet);
-    });
-    return registros.map(r => {
-      const info = conteo[r.numero_solicitud];
-      const ordenados = info.pallets.sort();
-      const pos = ordenados.indexOf(r.id_pallet) + 1;
-      return { ...r, pallet_actual: pos, total_pallets_solicitud: info.total };
-    });
-  };
+  const verDetalle = (orden: any) => { setOrdenDetalle(orden); setShowDetalleModal(true); };
 
   const abrirModalCrear = () => {
-    setSolicitudes([{ ...ESTADO_INICIAL_SOLICITUD }]);
-    setGuardadoParcial(false); setSolicitudActualIndex(0);
-    setPalletBaseActual(''); setBultosGuardados(0); setPalletContador(1);
-    setMensaje(''); setShowCrearModal(true);
-    setTimeout(() => colorSelectRefs.current[0]?.focus(), 200);
+    setForm({ ...ESTADO_INICIAL });
+    setOrdenPendiente(false);
+    setDatosOrdenPendiente(null);
+    setBultosRegistrados(0);
+    setMensaje('');
+    setShowCrearModal(true);
+    setTimeout(() => colorSelectRef.current?.focus(), 200);
   };
 
   const handleCloseModal = () => {
-    if (guardadoParcial && !confirm('¿Salir sin completar todos los pallets?')) return;
-    setShowCrearModal(false); setGuardadoParcial(false); cargarRegistros();
+    if (ordenPendiente && !confirm('¿Salir sin completar la solicitud? La orden quedará Pendiente.')) return;
+    setShowCrearModal(false);
+    setOrdenPendiente(false);
+    cargarOrdenes();
   };
 
   return (
@@ -335,41 +241,37 @@ const RD01View: React.FC = () => {
         <h2>Recepción Devolución - Ingreso</h2>
         <button className="rd01-btn-nueva" onClick={abrirModalCrear}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          Nuevo Ingreso
+          Nueva Orden
         </button>
       </div>
 
       <RD01Tabla
-        registros={getRegistrosParaTabla()}
+        ordenes={ordenes}
         cargando={cargando}
         nombresUsuarios={nombresUsuarios}
         onVerDetalle={verDetalle}
-        onCancelar={(reg) => handleCancelar(reg)}
+        onCancelar={(orden) => handleCancelar(orden)}
       />
 
       <RD01ModalCrear
         isOpen={showCrearModal}
         guardando={guardando}
-        guardadoParcial={guardadoParcial}
-        solicitudes={solicitudes}
-        solicitudActualIndex={solicitudActualIndex}
-        palletContador={palletContador}
-        bultosGuardados={bultosGuardados}
+        ordenPendiente={ordenPendiente}
+        form={form}
+        bultosRegistrados={bultosRegistrados}
         coloresTipos={coloresTipos}
         mensaje={mensaje}
-        colorSelectRefs={colorSelectRefs}
-        cantidadInputRefs={cantidadInputRefs}
-        onSolicitudChange={handleSolicitudChange}
+        colorSelectRef={colorSelectRef}
+        cantidadInputRef={cantidadInputRef}
+        onFormChange={(campo, valor) => setForm({ ...form, [campo]: valor })}
         onCodigoLocalChange={handleCodigoLocalChange}
-        onAgregarSolicitud={agregarSolicitud}
-        onEliminarSolicitud={eliminarSolicitud}
         onGuardar={handleGuardar}
         onClose={handleCloseModal}
       />
 
       <RD01ModalDetalle
         isOpen={showDetalleModal}
-        registro={registroDetalle}
+        orden={ordenDetalle}
         onClose={() => setShowDetalleModal(false)}
         onCancelar={handleCancelar}
       />
