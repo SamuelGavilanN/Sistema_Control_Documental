@@ -10,20 +10,28 @@ interface RD01ModalCrearProps {
   bultosRegistrados: number;
   coloresTipos: any[];
   mensaje: string;
+  tipoMensaje: 'error' | 'success' | 'warning' | 'info';
   colorSelectRef: React.RefObject<HTMLSelectElement>;
   cantidadInputRef: React.RefObject<HTMLInputElement>;
+  solicitudInputRef: React.RefObject<HTMLInputElement>;
   onFormChange: (campo: string, valor: any) => void;
   onCodigoLocalChange: (codigo: string) => void;
+  onSolicitudChange: (valor: string) => void;
   onGuardar: () => void;
   onClose: () => void;
+  getMensajeStyle: () => React.CSSProperties;
 }
 
 const RD01ModalCrear: React.FC<RD01ModalCrearProps> = ({
   isOpen, guardando, ordenPendiente, form, bultosRegistrados,
-  coloresTipos, mensaje, colorSelectRef, cantidadInputRef,
-  onFormChange, onCodigoLocalChange, onGuardar, onClose,
+  coloresTipos, mensaje, tipoMensaje, colorSelectRef, cantidadInputRef,
+  solicitudInputRef, onFormChange, onCodigoLocalChange, onSolicitudChange,
+  onGuardar, onClose, getMensajeStyle,
 }) => {
   if (!isOpen) return null;
+
+  const camposBloqueados = ordenPendiente;
+  const styleDisabled: React.CSSProperties = { background: '#f1f5f9', color: '#64748b' };
 
   return (
     <div className="ed01-modal-overlay" onClick={() => !guardando && onClose()}>
@@ -48,8 +56,8 @@ const RD01ModalCrear: React.FC<RD01ModalCrearProps> = ({
               ref={colorSelectRef}
               value={form.color}
               onChange={e => onFormChange('color', e.target.value)}
-              disabled={ordenPendiente}
-              style={{ background: ordenPendiente ? '#f1f5f9' : 'white' }}
+              disabled={camposBloqueados}
+              style={camposBloqueados ? styleDisabled : undefined}
             >
               <option value="">Seleccionar...</option>
               {coloresTipos.map((c: any) => (
@@ -68,8 +76,8 @@ const RD01ModalCrear: React.FC<RD01ModalCrearProps> = ({
                 onChange={e => onCodigoLocalChange(e.target.value)}
                 placeholder="D001"
                 maxLength={4}
-                disabled={ordenPendiente}
-                style={{ background: ordenPendiente ? '#f1f5f9' : 'white' }}
+                disabled={camposBloqueados}
+                style={camposBloqueados ? styleDisabled : undefined}
               />
             </div>
             <div className="ed01-field">
@@ -78,19 +86,25 @@ const RD01ModalCrear: React.FC<RD01ModalCrearProps> = ({
             </div>
           </div>
 
-          {/* N° Solicitud + N° Guía */}
+          {/* N° Solicitud */}
+          <div className="ed01-field">
+            <label>N° Solicitud *</label>
+            <input
+              ref={solicitudInputRef}
+              type="text"
+              value={form.numero_solicitud}
+              onChange={e => onSolicitudChange(e.target.value)}
+              placeholder="Ingrese número de solicitud"
+              disabled={camposBloqueados}
+              style={camposBloqueados ? styleDisabled : undefined}
+            />
+            <small style={{ color: '#94a3b8', fontSize: '11px' }}>
+              {!camposBloqueados && 'Al escribir se verificará si la solicitud ya existe'}
+            </small>
+          </div>
+
+          {/* N° Guía + Total */}
           <div className="ed01-row">
-            <div className="ed01-field">
-              <label>N° Solicitud *</label>
-              <input
-                type="text"
-                value={form.numero_solicitud}
-                onChange={e => onFormChange('numero_solicitud', e.target.value)}
-                placeholder="2060563"
-                disabled={ordenPendiente}
-                style={{ background: ordenPendiente ? '#f1f5f9' : 'white' }}
-              />
-            </div>
             <div className="ed01-field">
               <label>N° Guía *</label>
               <input
@@ -98,24 +112,8 @@ const RD01ModalCrear: React.FC<RD01ModalCrearProps> = ({
                 value={form.numero_guia}
                 onChange={e => onFormChange('numero_guia', e.target.value)}
                 placeholder="264"
-                disabled={ordenPendiente}
-                style={{ background: ordenPendiente ? '#f1f5f9' : 'white' }}
-              />
-            </div>
-          </div>
-
-          {/* Cantidad + Total */}
-          <div className="ed01-row">
-            <div className="ed01-field">
-              <label>Cantidad a Registrar *</label>
-              <input
-                ref={cantidadInputRef}
-                type="number"
-                value={form.cantidad_bultos || ''}
-                onChange={e => onFormChange('cantidad_bultos', parseInt(e.target.value) || 0)}
-                min="0"
-                placeholder={ordenPendiente ? 'Máx: ' + (form.total_bultos - bultosRegistrados) : '0'}
-                style={{ border: '1px solid ' + (ordenPendiente ? '#f59e0b' : '#e2e8f0'), background: ordenPendiente ? '#fffdf5' : 'white' }}
+                disabled={camposBloqueados}
+                style={camposBloqueados ? styleDisabled : undefined}
               />
             </div>
             <div className="ed01-field">
@@ -126,18 +124,39 @@ const RD01ModalCrear: React.FC<RD01ModalCrearProps> = ({
                 onChange={e => onFormChange('total_bultos', parseInt(e.target.value) || 0)}
                 min="0"
                 placeholder="0"
-                disabled={ordenPendiente}
-                style={{ background: ordenPendiente ? '#f1f5f9' : 'white' }}
+                disabled={camposBloqueados}
+                style={camposBloqueados ? styleDisabled : undefined}
               />
             </div>
+          </div>
+
+          {/* Cantidad a Registrar */}
+          <div className="ed01-field">
+            <label>Cantidad a Registrar *</label>
+            <input
+              ref={cantidadInputRef}
+              type="number"
+              value={form.cantidad_bultos || ''}
+              onChange={e => onFormChange('cantidad_bultos', parseInt(e.target.value) || 0)}
+              min="0"
+              placeholder={ordenPendiente ? 'Máx: ' + (form.total_bultos - bultosRegistrados) : '0'}
+              style={{
+                border: '1px solid ' + (ordenPendiente ? '#f59e0b' : '#e2e8f0'),
+                background: ordenPendiente ? '#fffdf5' : 'white',
+              }}
+              autoFocus
+            />
+            {ordenPendiente && (
+              <small style={{ color: '#b45309', fontSize: '11px' }}>
+                Máximo permitido: {form.total_bultos - bultosRegistrados} bultos
+              </small>
+            )}
           </div>
 
           {mensaje && (
             <div style={{
               marginTop: '12px', padding: '12px 16px', borderRadius: '8px', fontSize: '13px',
-              background: mensaje.includes('Error') ? '#fef2f2' : (mensaje.includes('✅') ? '#dcfce7' : (mensaje.includes('⚠️') ? '#fef3c7' : '#eff6ff')),
-              color: mensaje.includes('Error') ? '#dc2626' : (mensaje.includes('✅') ? '#15803d' : (mensaje.includes('⚠️') ? '#92400e' : '#1e40af')),
-              fontWeight: 500,
+              fontWeight: 500, ...getMensajeStyle(),
             }}>
               {mensaje}
             </div>
