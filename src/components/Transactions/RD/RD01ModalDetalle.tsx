@@ -38,8 +38,8 @@ const RD01ModalDetalle: React.FC<RD01ModalDetalleProps> = ({ isOpen, orden, onCl
         </div>
         <div className="ed01-modal-footer">
           <button className="ed01-btn-cancel" onClick={onClose}>Cerrar</button>
-          <button className="ed01-btn-detalle" onClick={() => { onClose(); onEditar(orden); }} style={{ marginRight: '8px' }}>Editar</button>
-          <button className="ed01-btn-save" style={{ background: '#dc2626' }} onClick={() => { if (confirm('¿Eliminar permanentemente?')) { onClose(); onEliminar(orden); } }}>Eliminar</button>
+          <button className="rd01-btn-editar" onClick={() => { onClose(); onEditar(orden); }}>Editar</button>
+          <button className="rd01-btn-eliminar" onClick={() => { if (confirm('¿Eliminar permanentemente?')) { onClose(); onEliminar(orden); } }}>Eliminar</button>
         </div>
       </div>
     </div>
