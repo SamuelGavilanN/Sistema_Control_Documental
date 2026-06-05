@@ -87,7 +87,7 @@ const RD01Tabla: React.FC<RD01TablaProps> = ({ ordenes, cargando, nombresUsuario
                     <div className="rd01-acciones" style={{ whiteSpace: 'nowrap', display: 'flex', gap: '4px' }}>
                       <button className="rd01-btn-detalle" onClick={() => onVerDetalle(orden)}>Detalle</button>
                       <button className="rd01-btn-editar" onClick={() => onEditar(orden)}>Editar</button>
-                      <button className="rd01-btn-eliminar" onClick={() => onEliminar(orden)} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Eliminar</button>
+                      <button className="rd01-btn-eliminar" onClick={() => onEliminar(orden)}>Eliminar</button>
                     </div>
                   </td>
                 </tr>
