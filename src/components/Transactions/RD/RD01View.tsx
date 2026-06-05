@@ -315,18 +315,6 @@ const RD01View: React.FC = () => {
       setTipoMensaje('error');
     }
   };
-      }
-
-      await actualizarEstadoSolicitud(orden.numero_solicitud, orden.total_bultos);
-      setShowDetalleModal(false);
-      cargarOrdenes(false);
-      setMensaje('✅ Orden eliminada correctamente.');
-      setTipoMensaje('success');
-    } catch (e) {
-      setMensaje('Error al eliminar: ' + (e as any).message);
-      setTipoMensaje('error');
-    }
-  };
 
   const verDetalle = (orden: any) => { setOrdenDetalle(orden); setShowDetalleModal(true); };
 
