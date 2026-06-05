@@ -1,3 +1,5 @@
+// src/components/Transactions/AD/AD02Captura.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
@@ -62,8 +64,17 @@ const AD02Captura: React.FC = () => {
       capturasPrevias = caps || [];
     }
     if (sap) {
-      setTodosLosSKUs(sap.map((s: any) => {
-        const capturado = capturasPrevias.filter((c: any) => c.sku === s.sku).reduce((s: number, c: any) => s + (c.cantidad_fisica || 0), 0);
+      // Consolidar por SKU (mismo SKU en diferentes entregas)
+      const skuMap: Record<string, { id: string; sku: string; denominacion: string; cantidad_sap: number }> = {};
+      sap.forEach((s: any) => {
+        if (!skuMap[s.sku]) {
+          skuMap[s.sku] = { id: s.id, sku: s.sku, denominacion: s.denominacion, cantidad_sap: 0 };
+        }
+        skuMap[s.sku].cantidad_sap += (s.cantidad_sap || 0);
+      });
+
+      setTodosLosSKUs(Object.values(skuMap).map((s: any) => {
+        const capturado = capturasPrevias.filter((c: any) => c.sku === s.sku).reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
         return { ...s, cantidad_fisica: undefined, diferencia: undefined, capturadoTotal: capturado };
       }));
     }
@@ -128,50 +139,77 @@ const AD02Captura: React.FC = () => {
   };
 
   const finalizarTarea = async () => {
-  if (!tareaActiva) return;
+    if (!tareaActiva) return;
 
-  const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-  const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
+    const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+    const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
 
-  try {
-    // Obtener todos los SKU de SAP
-    const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${tareaActiva.id}`, { headers: HEADERS });
-    const sap = await respSAP.json();
+    try {
+      // Obtener todos los SKU de SAP
+      const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${tareaActiva.id}`, { headers: HEADERS });
+      const sap = await respSAP.json();
 
-    // Obtener cajas
-    const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${tareaActiva.id}`, { headers: HEADERS });
-    const cajas = await respCajas.json();
-    const cajaIds = (cajas || []).map((c: any) => c.id);
+      // CONSOLIDAR por SKU (sumar cantidades del mismo SKU en diferentes entregas)
+      const sapConsolidado: Record<string, number> = {};
+      (sap || []).forEach((s: any) => {
+        if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
+        sapConsolidado[s.sku] += (s.cantidad_sap || 0);
+      });
 
-    // Obtener capturas
-    let capturas: any[] = [];
-    if (cajaIds.length > 0) {
-      const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
-      const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=*&caja_id=in.(${idsParam})`, { headers: HEADERS });
-      capturas = await respCap.json();
+      // Obtener cajas
+      const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${tareaActiva.id}`, { headers: HEADERS });
+      const cajas = await respCajas.json();
+      const cajaIds = (cajas || []).map((c: any) => c.id);
+
+      // Obtener capturas
+      let capturas: any[] = [];
+      if (cajaIds.length > 0) {
+        const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
+        const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=*&caja_id=in.(${idsParam})`, { headers: HEADERS });
+        capturas = await respCap.json();
+      }
+
+      // Agrupar capturas por SKU
+      const fisicoConsolidado: Record<string, number> = {};
+      (capturas || []).forEach((c: any) => {
+        if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0;
+        fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0);
+      });
+
+      // Comparar SAP vs Físico por SKU consolidado
+      let hayDiferencias = false;
+      const todosLosSKUs = new Set([...Object.keys(sapConsolidado)]);
+      
+      todosLosSKUs.forEach(sku => {
+        const sapTotal = sapConsolidado[sku] || 0;
+        const fisicoTotal = fisicoConsolidado[sku] || 0;
+        if (sapTotal !== fisicoTotal) {
+          hayDiferencias = true;
+        }
+      });
+
+      // También verificar SKUs que están en capturas pero no en SAP
+      Object.keys(fisicoConsolidado).forEach(sku => {
+        if (!sapConsolidado[sku]) {
+          hayDiferencias = true;
+        }
+      });
+
+      // Actualizar estado
+      await fetch(`${API_URL}/ad_auditorias?id=eq.${tareaActiva.id}`, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado', finalizado_en: new Date().toISOString() })
+      });
+
+      alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
+    } catch (e) {
+      alert('Error al finalizar');
     }
 
-    // Agrupar: SAP vs Físico
-    const agrupado: Record<string, { sap: number; fisico: number }> = {};
-    (sap || []).forEach((s: any) => { agrupado[s.sku] = { sap: s.cantidad_sap || 0, fisico: 0 }; });
-    (capturas || []).forEach((c: any) => { if (agrupado[c.sku]) agrupado[c.sku].fisico += c.cantidad_fisica || 0; });
+    setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
+  };
 
-    const hayDiferencias = Object.values(agrupado).some(v => v.sap !== v.fisico);
-
-    // Actualizar estado
-    await fetch(`${API_URL}/ad_auditorias?id=eq.${tareaActiva.id}`, {
-      method: 'PATCH',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: hayDiferencias ? 'Con Diferencias' : 'Finalizado', finalizado_en: new Date().toISOString() })
-    });
-
-    alert(hayDiferencias ? 'Tarea finalizada con diferencias' : 'Tarea finalizada correctamente');
-  } catch (e) {
-    alert('Error al finalizar');
-  }
-
-  setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); cargarMisTareas();
-};
   return (
     <div className="ad02-view">
       {!tareaActiva ? (
