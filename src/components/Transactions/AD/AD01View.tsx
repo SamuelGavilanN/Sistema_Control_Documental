@@ -123,24 +123,53 @@ const AD01View: React.FC = () => {
       capturas = (data || []).map(c => ({ ...c, numero_caja: cMap[c.caja_id] || '-' }));
     }
 
-    // Una fila por SKU con detalle interno de cajas
-    const detalle: any[] = [];
+    // AGRUPAR POR SKU (consolidar todas las entregas del mismo SKU)
+    const skuMap: Record<string, {
+      sku: string;
+      denominacion: string;
+      entregas: string[];
+      cantidad_sap: number;
+      capturas: any[];
+    }> = {};
 
     (sap || []).forEach((s: any) => {
-      const capturasSKU = capturas.filter((c: any) => c.sku === s.sku);
-      const totalSAP = s.cantidad_sap || 0;
-      const totalFisico = capturasSKU.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
+      const key = s.sku;
+      if (!skuMap[key]) {
+        skuMap[key] = {
+          sku: s.sku,
+          denominacion: s.denominacion,
+          entregas: [],
+          cantidad_sap: 0,
+          capturas: [],
+        };
+      }
+      skuMap[key].entregas.push(s.entrega || '-');
+      skuMap[key].cantidad_sap += (s.cantidad_sap || 0);
+    });
+
+    // Agregar capturas a cada SKU
+    Object.keys(skuMap).forEach(sku => {
+      skuMap[sku].capturas = capturas.filter((c: any) => c.sku === sku);
+    });
+
+    // Construir detalle: una fila por SKU consolidado
+    const detalle: any[] = [];
+
+    Object.values(skuMap).forEach((item: any) => {
+      const totalSAP = item.cantidad_sap;
+      const totalFisico = item.capturas.reduce((sum: number, c: any) => sum + (c.cantidad_fisica || 0), 0);
       const diferencia = totalSAP - totalFisico;
+      const entregasStr = [...new Set(item.entregas)].join(', ');
 
       detalle.push({
-        sku: s.sku,
-        denominacion: s.denominacion,
-        entrega: s.entrega || '-',
+        sku: item.sku,
+        denominacion: item.denominacion,
+        entrega: entregasStr,
         cantidad_sap: totalSAP,
         cantidad_fisica: totalFisico,
         diferencia: diferencia,
-        capturado: capturasSKU.length > 0,
-        capturas: capturasSKU,
+        capturado: item.capturas.length > 0,
+        capturas: item.capturas,
       });
     });
 
@@ -167,18 +196,17 @@ const AD01View: React.FC = () => {
 
     datosDetalle.forEach((d: any) => {
       if (d.capturado && d.capturas.length > 0) {
-        // Desglosar por caja
         d.capturas.forEach((cap: any, idx: number) => {
           filas.push({
             'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
             'CAJA': 'Caja ' + cap.numero_caja,
             'SKU': d.sku,
             'DESCRIPCION': d.denominacion,
+            'ENTREGAS': idx === 0 ? d.entrega : '',
             'SAP': idx === 0 ? d.cantidad_sap : '-',
             'FISICO': cap.cantidad_fisica || 0,
             'DIFERENCIA': idx === 0 ? (d.diferencia === 0 ? 'OK' : d.diferencia) : '-',
             'ESTADO': idx === 0 ? (d.diferencia === 0 ? 'OK' : 'Pend.') : '-',
-            'ENTREGA': idx === 0 ? d.entrega : '',
             'ACTA': idx === 0 ? (auditoriaDetalle.acta || '') : '',
             'GUIA': idx === 0 ? (auditoriaDetalle.guia || '') : '',
             'COD LOCAL': idx === 0 ? auditoriaDetalle.codigo_local : '',
@@ -186,18 +214,17 @@ const AD01View: React.FC = () => {
           });
         });
 
-        // Si falta físico, agregar fila pendiente
         if (d.diferencia > 0) {
           filas.push({
             'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
             'CAJA': 'Pendiente (' + d.diferencia + ')',
             'SKU': d.sku,
             'DESCRIPCION': d.denominacion,
+            'ENTREGAS': '',
             'SAP': '-',
             'FISICO': 0,
             'DIFERENCIA': '-',
             'ESTADO': 'Pend.',
-            'ENTREGA': '',
             'ACTA': '',
             'GUIA': '',
             'COD LOCAL': '',
@@ -205,17 +232,16 @@ const AD01View: React.FC = () => {
           });
         }
       } else {
-        // Sin capturas
         filas.push({
           'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
           'CAJA': 'Pendiente',
           'SKU': d.sku,
           'DESCRIPCION': d.denominacion,
+          'ENTREGAS': d.entrega,
           'SAP': d.cantidad_sap,
           'FISICO': 0,
           'DIFERENCIA': d.diferencia,
           'ESTADO': 'Pend.',
-          'ENTREGA': d.entrega,
           'ACTA': auditoriaDetalle.acta || '',
           'GUIA': auditoriaDetalle.guia || '',
           'COD LOCAL': auditoriaDetalle.codigo_local,
@@ -296,7 +322,7 @@ const AD01View: React.FC = () => {
                     <th style={{ width: '40px' }}></th>
                     <th>SKU</th>
                     <th>Descripción</th>
-                    <th style={{ width: '80px' }}>Entrega</th>
+                    <th style={{ width: '130px' }}>Entregas</th>
                     <th style={{ width: '70px' }}>SAP</th>
                     <th style={{ width: '70px' }}>Físico</th>
                     <th style={{ width: '60px' }}>Dif.</th>
@@ -368,7 +394,7 @@ const AD01View: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                   <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#64748b', marginBottom: '4px', flexWrap: 'wrap' }}>
-                                    <span><strong>Entrega:</strong> {d.entrega}</span>
+                                    <span><strong>Entregas:</strong> {d.entrega}</span>
                                     <span><strong>Total SAP:</strong> {d.cantidad_sap} un</span>
                                     <span><strong>Total Físico:</strong> {d.cantidad_fisica} un</span>
                                     <span><strong>Diferencia:</strong> <span style={{ color: d.diferencia === 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>{d.diferencia === 0 ? '0' : d.diferencia}</span></span>
