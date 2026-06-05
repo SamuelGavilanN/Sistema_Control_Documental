@@ -301,17 +301,20 @@ const RD01View: React.FC = () => {
       });
 
       if (!resp.ok) {
-        const user = auth.getUsuario();
-        await fetch(`${API_URL}/rd01_ordenes?id=eq.${orden.id}`, {
-          method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            estado: 'Cancelado',
-            observacion: 'Eliminado por usuario',
-            modificado_por: user?.id,
-            modificado_en: new Date().toISOString(),
-          }),
-        });
+        const err = await resp.json();
+        throw new Error(err.message || 'Error al eliminar');
+      }
+
+      await actualizarEstadoSolicitud(orden.numero_solicitud, orden.total_bultos);
+      setShowDetalleModal(false);
+      cargarOrdenes(false);
+      setMensaje('✅ Orden eliminada correctamente.');
+      setTipoMensaje('success');
+    } catch (e: any) {
+      setMensaje('Error al eliminar: ' + e.message);
+      setTipoMensaje('error');
+    }
+  };
       }
 
       await actualizarEstadoSolicitud(orden.numero_solicitud, orden.total_bultos);
