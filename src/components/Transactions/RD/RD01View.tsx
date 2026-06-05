@@ -293,9 +293,36 @@ const RD01View: React.FC = () => {
 
   const handleEliminar = async (orden: any) => {
     if (!confirm('¿Eliminar esta orden permanentemente? Esta acción no se puede deshacer.')) return;
-    await fetch(`${API_URL}/rd01_ordenes?id=eq.${orden.id}`, { method: 'DELETE', headers: { ...HEADERS } });
-    await actualizarEstadoSolicitud(orden.numero_solicitud, orden.total_bultos);
-    setShowDetalleModal(false); cargarOrdenes(false);
+
+    try {
+      const resp = await fetch(`${API_URL}/rd01_ordenes?id=eq.${orden.id}`, {
+        method: 'DELETE',
+        headers: HEADERS,
+      });
+
+      if (!resp.ok) {
+        const user = auth.getUsuario();
+        await fetch(`${API_URL}/rd01_ordenes?id=eq.${orden.id}`, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estado: 'Cancelado',
+            observacion: 'Eliminado por usuario',
+            modificado_por: user?.id,
+            modificado_en: new Date().toISOString(),
+          }),
+        });
+      }
+
+      await actualizarEstadoSolicitud(orden.numero_solicitud, orden.total_bultos);
+      setShowDetalleModal(false);
+      cargarOrdenes(false);
+      setMensaje('✅ Orden eliminada correctamente.');
+      setTipoMensaje('success');
+    } catch (e) {
+      setMensaje('Error al eliminar: ' + (e as any).message);
+      setTipoMensaje('error');
+    }
   };
 
   const verDetalle = (orden: any) => { setOrdenDetalle(orden); setShowDetalleModal(true); };
