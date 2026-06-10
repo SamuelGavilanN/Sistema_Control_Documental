@@ -151,7 +151,7 @@ body { background: white; margin: 0; padding: 0; }
   width: 100%;
 }
 .etiqueta {
-  width: 50mm;
+  width: 50%;
   height: 50mm;
   border: 1px dashed #ccc;
   display: flex;
@@ -161,6 +161,7 @@ body { background: white; margin: 0; padding: 0; }
   padding: 3mm;
   gap: 2mm;
   page-break-inside: avoid;
+  box-sizing: border-box;
 }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
