@@ -35,7 +35,6 @@ const menuSections: MenuSection[] = [
       { id: 'ad-dashboard', label: 'AD03 Dashboard', type: 'subitem' }
     ]
   },
-  // NUEVA SECCIÓN RD
   {
     id: 'rd',
     title: 'RD · Recepción Devolución',
@@ -44,6 +43,13 @@ const menuSections: MenuSection[] = [
       { id: 'rd-salida', label: 'RD02 Salida Devolución', type: 'subitem' },
       { id: 'rd-informe', label: 'RD03 Informe', type: 'subitem' },
       { id: 'rd-dashboard', label: 'RD04 Dashboard', type: 'subitem' }
+    ]
+  },
+  {
+    id: 'sd',
+    title: 'SD · Salida Despacho',
+    items: [
+      { id: 'sd', label: 'SD01 Salida Despacho', type: 'item' },
     ]
   },
   {
@@ -103,7 +109,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
       if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
       if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
       if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin') return false;
-      // RD02, RD03, RD04 visibles solo para Admin/Owner
       if ((itemId === 'rd-salida' || itemId === 'rd-informe' || itemId === 'rd-dashboard') && rol !== 'Admin' && rol !== 'Owner') return false;
       return true;
     }
