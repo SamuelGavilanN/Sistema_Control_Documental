@@ -95,20 +95,29 @@ const SD01Table: React.FC<SD01TableProps> = ({ rows, setRows, cantidadFilasAgreg
   };
 
   const toggleRowSelection = (id: number) => {
-    setSelectedRows((prev: number[]) => prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]);
+    if (selectedRows.includes(id)) {
+      setSelectedRows(selectedRows.filter(rowId => rowId !== id));
+    } else {
+      setSelectedRows([...selectedRows, id]);
+    }
   };
 
   const toggleSelectAll = () => {
-    setSelectedRows((prev: number[]) => prev.length === rows.length ? [] : rows.map(row => row.id));
+    if (selectedRows.length === rows.length) {
+      setSelectedRows([]);
+    } else {
+      setSelectedRows(rows.map(row => row.id));
+    }
   };
 
   const handleDCClick = (row: SD01Row) => { setCurrentRow(row); setModalOpen(true); };
 
   const handleDCSave = (documentos: any[], localCodigo: string) => {
     const totalCarga = documentos.reduce((sum: number, doc: any) => sum + (doc.cantidadBultos || 0), 0);
-    setRows((prevRows: SD01Row[]) => prevRows.map(row =>
+    const nuevasRows = rows.map(row =>
       row.codigoLocal === localCodigo ? { ...row, totalCarga, carga: documentos } : row
-    ));
+    );
+    setRows(nuevasRows);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, rowId: number, field: string, rowIndex: number) => {
