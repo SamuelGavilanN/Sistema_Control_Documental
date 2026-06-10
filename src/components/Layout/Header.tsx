@@ -33,6 +33,7 @@ const moduleTitles: Record<string, string> = {
   'rd-informe': 'RD03 · Informe',
   'rd-dashboard': 'RD04 · Dashboard Devolución',
   'sd': 'SD01 · Salida Despacho',
+  'ut': 'UT01 · Correlativo QR',
 };
 
 interface Notificacion {
