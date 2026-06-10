@@ -30,6 +30,7 @@ const TRANSACCIONES = [
   { id: 'rd-informe', label: 'RD03 Informe' },
   { id: 'rd-dashboard', label: 'RD04 Dashboard' },
   { id: 'sd', label: 'SD01 Salida Despacho' },
+  { id: 'ut', label: 'UT01 Correlativo QR' },
   { id: 'tk', label: 'TK01 Crear Ticket' },
   { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
