@@ -14,7 +14,8 @@ import AD02Captura from './components/Transactions/AD/AD02Captura';
 import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
 import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
 import BD02Locales from './components/Transactions/BD/BD02Locales';
-import RD01View from './components/Transactions/RD/RD01View'; // NUEVO
+import RD01View from './components/Transactions/RD/RD01View';
+import SD01View from './components/Transactions/SD/SD01View';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -93,9 +94,9 @@ const App: React.FC = () => {
           {tabsMontadas.has('ad-dashboard') && <div style={{ display: activeTab === 'ad-dashboard' ? 'block' : 'none' }}><AD03Dashboard key="ad03" /></div>}
           {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
-          {/* NUEVO MÓDULO RD */}
           {tabsMontadas.has('rd') && <div style={{ display: activeTab === 'rd' ? 'block' : 'none' }}><RD01View key="rd01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd'].includes(activeTab) && (
+          {tabsMontadas.has('sd') && <div style={{ display: activeTab === 'sd' ? 'block' : 'none' }}><SD01View key="sd01" /></div>}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd', 'sd'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
