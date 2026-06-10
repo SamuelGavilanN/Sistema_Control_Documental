@@ -1,3 +1,5 @@
+// src/components/Layout/Header.tsx
+
 import React, { useState, useEffect } from 'react';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -13,7 +15,6 @@ interface HeaderProps {
   onLogout: () => void;
   onOpenModule?: (moduleId: string) => void;
 }
-
 
 const moduleTitles: Record<string, string> = {
   'dashboard': 'Ventana de Trabajo',
@@ -31,6 +32,7 @@ const moduleTitles: Record<string, string> = {
   'rd-salida': 'RD02 · Salida Devolución',
   'rd-informe': 'RD03 · Informe',
   'rd-dashboard': 'RD04 · Dashboard Devolución',
+  'sd': 'SD01 · Salida Despacho',
 };
 
 interface Notificacion {
