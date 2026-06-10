@@ -25,6 +25,22 @@ interface TareaPorcentaje {
   creado_en: string;
 }
 
+// Componente personalizado para el tooltip del gráfico de puntos
+const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
+        <p style={{ fontWeight: 600, color: '#1d4ed8', margin: '0 0 4px' }}>{data.name}</p>
+        <p style={{ margin: '0 0 2px', color: '#475569' }}>Local: {data.local}</p>
+        <p style={{ margin: '0 0 2px', color: '#475569' }}>SAP: {data.sap} | Físico: {data.fisico}</p>
+        <p style={{ margin: '0', fontWeight: 700, color: data.y === 0 ? '#15803d' : data.y <= 5 ? '#b45309' : '#dc2626' }}>{data.y}%</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 const AD03Dashboard: React.FC = () => {
   const [datos, setDatos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -425,20 +441,7 @@ const AD03Dashboard: React.FC = () => {
               <ZAxis range={[100, 100]} />
               <Tooltip
                 cursor={{ strokeDasharray: '3 3' }}
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-                    return (
-                      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
-                        <p style={{ fontWeight: 600, color: '#1d4ed8', margin: '0 0 4px' }}>{data.name}</p>
-                        <p style={{ margin: '0 0 2px', color: '#475569' }}>Local: {data.local}</p>
-                        <p style={{ margin: '0 0 2px', color: '#475569' }}>SAP: {data.sap} | Físico: {data.fisico}</p>
-                        <p style={{ margin: '0', fontWeight: 700, color: data.y === 0 ? '#15803d' : data.y <= 5 ? '#b45309' : '#dc2626' }}>{data.y}%</p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
+                content={<CustomScatterTooltip />}
               />
               <Scatter data={datosScatter} shape="circle">
                 {datosScatter.map((entry, index) => (
