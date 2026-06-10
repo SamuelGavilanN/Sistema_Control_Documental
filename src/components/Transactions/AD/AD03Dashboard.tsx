@@ -65,28 +65,25 @@ const AD03Dashboard: React.FC = () => {
     setCargando(false);
   };
 
-  // Calcular % de diferencias por tarea
+  // Cargar % por tarea Y actualizar datos
   const cargarPorcentajesTareas = async () => {
     setCargandoPorcentajes(true);
     try {
       const resultados: TareaPorcentaje[] = [];
 
       for (const auditoria of datos) {
-        // Obtener SAP
         const respSAP = await fetch(
           `${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${auditoria.id}`,
           { headers: HEADERS }
         );
         const sapData = await respSAP.json();
 
-        // Consolidar SAP por SKU
         const sapConsolidado: Record<string, number> = {};
         (sapData || []).forEach((s: any) => {
           if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
           sapConsolidado[s.sku] += (s.cantidad_sap || 0);
         });
 
-        // Obtener cajas
         const respCajas = await fetch(
           `${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`,
           { headers: HEADERS }
@@ -94,7 +91,6 @@ const AD03Dashboard: React.FC = () => {
         const cajas = await respCajas.json();
         const cajaIds = (cajas || []).map((c: any) => c.id);
 
-        // Obtener capturas
         let capturas: any[] = [];
         if (cajaIds.length > 0) {
           const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
@@ -105,19 +101,16 @@ const AD03Dashboard: React.FC = () => {
           capturas = await respCap.json();
         }
 
-        // Consolidar físico por SKU
         const fisicoConsolidado: Record<string, number> = {};
         (capturas || []).forEach((c: any) => {
           if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0;
           fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0);
         });
 
-        // Calcular totales y diferencias
         let totalSAP = 0;
         let totalFisico = 0;
         let diferenciaAbsoluta = 0;
 
-        // Todos los SKUs (unión de SAP y capturas)
         const todosLosSKUs = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
 
         todosLosSKUs.forEach(sku => {
@@ -248,17 +241,24 @@ const AD03Dashboard: React.FC = () => {
   const totalCerradas = finalizadas + conDiferencias;
   const porcentajeDiferenciasTareas = totalCerradas > 0 ? ((conDiferencias / totalCerradas) * 100).toFixed(1) : '0';
 
-  // Datos para torta
   const datosPie = [
     { name: 'OK', value: finalizadas },
     { name: 'Con Diferencias', value: conDiferencias },
     { name: 'Pendientes', value: pendientes },
   ].filter(d => d.value > 0);
 
-  // Datos para línea
   const datosLinea = datosBarra.map((d: any) => ({
     dia: d.dia,
     porcentaje: parseFloat(d.porcentajeDif),
+  }));
+
+  // Datos para gráfico de barras por tarea
+  const datosBarraTareas = tareasPorcentaje.map(t => ({
+    name: t.numero_tarea,
+    porcentaje: t.porcentajeDif,
+    local: t.codigo_local,
+    sap: t.totalSAP,
+    fisico: t.totalFisico,
   }));
 
   return (
@@ -272,7 +272,10 @@ const AD03Dashboard: React.FC = () => {
         </select>
         <input type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} placeholder="Desde" />
         <input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} placeholder="Hasta" />
-        <button className="ad03-btn-aplicar" onClick={cargarDatos}>Aplicar</button>
+        <button className="ad03-btn-aplicar" onClick={cargarDatos}>Aplicar Filtros</button>
+        <button className="ad03-btn-aplicar" onClick={cargarPorcentajesTareas} disabled={cargandoPorcentajes} style={{ background: '#1d4ed8' }}>
+          {cargandoPorcentajes ? 'Calculando...' : '📊 Calcular % por Tarea'}
+        </button>
       </div>
 
       <div className="ad03-kpis">
@@ -331,6 +334,35 @@ const AD03Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* NUEVO GRÁFICO: % Diferencias por Tarea */}
+      {tareasPorcentaje.length > 0 && (
+        <div className="ad03-chart" style={{ marginBottom: '24px' }}>
+          <h3>% Diferencias de Unidades por Tarea</h3>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={datosBarraTareas} layout="vertical" margin={{ left: 100 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
+              <XAxis type="number" stroke="#64748b" tick={{ fontSize: 11 }} unit="%" />
+              <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} width={90} />
+              <Tooltip
+                formatter={(value: any, name: string) => {
+                  if (name === 'porcentaje') return [`${value}%`, '% Diferencias'];
+                  return [value, name];
+                }}
+                labelFormatter={(label) => `Tarea: ${label}`}
+              />
+              <Bar dataKey="porcentaje" radius={[0,4,4,0]}>
+                {datosBarraTareas.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.porcentaje === 0 ? '#15803d' : entry.porcentaje <= 5 ? '#f59e0b' : '#dc2626'}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Tabla de % por día */}
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Resumen por Día</h3>
@@ -364,14 +396,9 @@ const AD03Dashboard: React.FC = () => {
         </table>
       </div>
 
-      {/* NUEVA TABLA: % Diferencias por Tarea */}
+      {/* Tabla de % por Tarea */}
       <div className="ad03-tabla-container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', margin: 0 }}>Análisis de Diferencias por Tarea (% de Unidades)</h3>
-          <button className="ad03-btn-aplicar" onClick={cargarPorcentajesTareas} disabled={cargandoPorcentajes}>
-            {cargandoPorcentajes ? 'Calculando...' : 'Calcular % por Tarea'}
-          </button>
-        </div>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Análisis de Diferencias por Tarea (% de Unidades)</h3>
         <table className="ed03-tabla">
           <thead>
             <tr>
@@ -388,7 +415,7 @@ const AD03Dashboard: React.FC = () => {
           <tbody>
             {tareasPorcentaje.length === 0 ? (
               <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
-                {cargandoPorcentajes ? 'Calculando porcentajes...' : 'Haz clic en "Calcular % por Tarea" para ver el análisis'}
+                {cargandoPorcentajes ? 'Calculando porcentajes...' : 'Haz clic en "📊 Calcular % por Tarea" para ver el análisis'}
               </td></tr>
             ) : (
               tareasPorcentaje.map((t, i) => (
@@ -403,9 +430,7 @@ const AD03Dashboard: React.FC = () => {
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 700 }}>
                     <span style={{
-                      padding: '3px 10px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
+                      padding: '3px 10px', borderRadius: '10px', fontSize: '12px',
                       background: t.porcentajeDif === 0 ? '#dcfce7' : t.porcentajeDif <= 5 ? '#fef3c7' : '#fef2f2',
                       color: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#b45309' : '#dc2626',
                     }}>
