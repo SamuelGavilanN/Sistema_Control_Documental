@@ -58,14 +58,9 @@ const cargarPatentesAPI = async (): Promise<Patente[]> => {
 };
 
 const generarIdDocumento = async (): Promise<string> => {
-  try {
-    const { data, error } = await supabase.rpc('generar_id_documento_sd01');
-    if (!error && data) return data as string;
-  } catch (e) {}
-  // Fallback
   const now = new Date();
   const fecha = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
-  const resp = await fetch(`${API_URL}/sd01_documentos?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
+  const resp = await fetch(`${API_URL}/sd01_documentos?select=id_documento&order=creado_en.desc&limit=1`, { headers: HEADERS });
   const data = await resp.json();
   const count = (data?.length || 0) + 1;
   return `SD01-${fecha}-${String(count).padStart(4, '0')}`;
@@ -162,16 +157,20 @@ const SD01View: React.FC = () => {
         creado_por: user?.id,
       };
 
-      const metodo = idDocumentoActual ? 'PATCH' : 'POST';
-      const urlDoc = idDocumentoActual
-        ? `${API_URL}/sd01_documentos?id_documento=eq.${docId}`
-        : `${API_URL}/sd01_documentos`;
-
-      await fetch(urlDoc, {
-        method: metodo,
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify(docData),
-      });
+      if (idDocumentoActual) {
+        docData.modificado_en = new Date().toISOString();
+        await fetch(`${API_URL}/sd01_documentos?id_documento=eq.${docId}`, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify(docData),
+        });
+      } else {
+        await fetch(`${API_URL}/sd01_documentos`, {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify(docData),
+        });
+      }
 
       // Guardar locales
       const localesFiltrados = rows.filter(r => r.codigoLocal);
