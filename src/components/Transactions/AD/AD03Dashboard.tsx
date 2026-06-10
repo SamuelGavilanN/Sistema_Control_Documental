@@ -259,7 +259,7 @@ const AD03Dashboard: React.FC = () => {
     { name: 'Pendientes', value: pendientes },
   ].filter(d => d.value > 0);
 
-  // Datos para gráfico de dispersión (puntos)
+  // Datos para gráfico de dispersión (puntos) - con color individual
   const datosScatter = tareasPorcentaje.map((t, index) => ({
     x: index + 1,
     y: t.porcentajeDif,
@@ -267,6 +267,7 @@ const AD03Dashboard: React.FC = () => {
     local: t.codigo_local,
     sap: t.totalSAP,
     fisico: t.totalFisico,
+    fill: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#f59e0b' : '#dc2626',
   }));
 
   return (
@@ -426,7 +427,6 @@ const AD03Dashboard: React.FC = () => {
                 stroke="#64748b"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: '#64748b', fontSize: 12 } }}
-                tickCount={datosScatter.length}
                 domain={[0, datosScatter.length + 1]}
               />
               <YAxis
@@ -443,14 +443,10 @@ const AD03Dashboard: React.FC = () => {
                 cursor={{ strokeDasharray: '3 3' }}
                 content={<CustomScatterTooltip />}
               />
-              <Scatter data={datosScatter} shape="circle">
-                {datosScatter.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={entry.y === 0 ? '#15803d' : entry.y <= 5 ? '#f59e0b' : '#dc2626'}
-                  />
-                ))}
-              </Scatter>
+              <Scatter
+                data={datosScatter}
+                shape="circle"
+              />
             </ScatterChart>
           </ResponsiveContainer>
         </div>
