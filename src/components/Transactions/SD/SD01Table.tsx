@@ -26,7 +26,7 @@ interface SD01TableProps {
 }
 
 const generateTimeOptions = () => {
-  const options = [];
+  const options: string[] = [];
   for (let h = 6; h < 24; h++) { options.push(`${h.toString().padStart(2, "0")}:00`); options.push(`${h.toString().padStart(2, "0")}:30`); }
   for (let h = 0; h < 6; h++) { options.push(`${h.toString().padStart(2, "0")}:00`); options.push(`${h.toString().padStart(2, "0")}:30`); }
   return options;
@@ -95,18 +95,18 @@ const SD01Table: React.FC<SD01TableProps> = ({ rows, setRows, cantidadFilasAgreg
   };
 
   const toggleRowSelection = (id: number) => {
-    setSelectedRows(prev => prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]);
+    setSelectedRows((prev: number[]) => prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]);
   };
 
   const toggleSelectAll = () => {
-    setSelectedRows(prev => prev.length === rows.length ? [] : rows.map(row => row.id));
+    setSelectedRows((prev: number[]) => prev.length === rows.length ? [] : rows.map(row => row.id));
   };
 
   const handleDCClick = (row: SD01Row) => { setCurrentRow(row); setModalOpen(true); };
 
   const handleDCSave = (documentos: any[], localCodigo: string) => {
-    const totalCarga = documentos.reduce((sum, doc) => sum + (doc.cantidadBultos || 0), 0);
-    setRows(prevRows => prevRows.map(row =>
+    const totalCarga = documentos.reduce((sum: number, doc: any) => sum + (doc.cantidadBultos || 0), 0);
+    setRows((prevRows: SD01Row[]) => prevRows.map(row =>
       row.codigoLocal === localCodigo ? { ...row, totalCarga, carga: documentos } : row
     ));
   };
