@@ -67,6 +67,13 @@ const menuSections: MenuSection[] = [
       { id: 'bd-usuarios', label: 'BD01 Usuarios', type: 'item' },
       { id: 'bd-locales', label: 'BD02 Locales', type: 'subitem' }
     ]
+  },
+  {
+    id: 'ut',
+    title: 'UT · Utilidades',
+    items: [
+      { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
+    ]
   }
 ];
 
