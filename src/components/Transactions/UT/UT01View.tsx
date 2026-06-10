@@ -144,14 +144,13 @@ const cssEtiquetas = `
 body { background: white; margin: 0; padding: 0; }
 .hoja {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   padding: 0;
   width: 100%;
 }
 .etiqueta {
-  width: 50%;
+  width: 50mm;
   height: 50mm;
   border: 1px dashed #ccc;
   display: flex;
@@ -160,8 +159,12 @@ body { background: white; margin: 0; padding: 0; }
   justify-content: center;
   padding: 3mm;
   gap: 2mm;
-  page-break-inside: avoid;
+  page-break-after: always;
   box-sizing: border-box;
+  margin: 0 auto;
+}
+.etiqueta:last-child {
+  page-break-after: auto;
 }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
@@ -178,11 +181,17 @@ body { background: white; margin: 0; padding: 0; }
 }
 @media print {
   @page {
-    size: A4;
-    margin: 5mm;
+    size: 50mm 50mm;
+    margin: 0;
   }
   body { background: white; }
-  .etiqueta { border: 1px solid #ddd; }
+  .etiqueta { 
+    border: none;
+    page-break-after: always;
+  }
+  .etiqueta:last-child {
+    page-break-after: auto;
+  }
 }
 `;
 
