@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line
+  PieChart, Pie, Cell, Legend, ScatterChart, Scatter, ZAxis
 } from 'recharts';
 import './AD03.css';
 
@@ -65,7 +65,6 @@ const AD03Dashboard: React.FC = () => {
     setCargando(false);
   };
 
-  // Cargar % por tarea Y actualizar datos
   const cargarPorcentajesTareas = async () => {
     setCargandoPorcentajes(true);
     try {
@@ -142,7 +141,6 @@ const AD03Dashboard: React.FC = () => {
     setCargandoPorcentajes(false);
   };
 
-  // KPIs globales
   const [porcentajesGlobales, setPorcentajesGlobales] = useState({
     totalUnidadesSAP: 0,
     totalUnidadesFisico: 0,
@@ -218,7 +216,6 @@ const AD03Dashboard: React.FC = () => {
     } catch (e) {}
   };
 
-  // Agrupar por día
   const porDia: Record<string, any> = {};
   datos.forEach(d => {
     const dia = new Date(d.creado_en).toLocaleDateString('es-CL');
@@ -233,7 +230,6 @@ const AD03Dashboard: React.FC = () => {
     porcentajeDif: d.total > 0 ? ((d.diferencias / d.total) * 100).toFixed(1) : '0',
   }));
 
-  // KPIs
   const total = datos.length;
   const finalizadas = datos.filter(d => d.estado === 'Finalizado').length;
   const conDiferencias = datos.filter(d => d.estado === 'Con Diferencias').length;
@@ -247,15 +243,11 @@ const AD03Dashboard: React.FC = () => {
     { name: 'Pendientes', value: pendientes },
   ].filter(d => d.value > 0);
 
-  const datosLinea = datosBarra.map((d: any) => ({
-    dia: d.dia,
-    porcentaje: parseFloat(d.porcentajeDif),
-  }));
-
-  // Datos para gráfico de barras por tarea
-  const datosBarraTareas = tareasPorcentaje.map(t => ({
+  // Datos para gráfico de dispersión (puntos)
+  const datosScatter = tareasPorcentaje.map((t, index) => ({
+    x: index + 1,
+    y: t.porcentajeDif,
     name: t.numero_tarea,
-    porcentaje: t.porcentajeDif,
     local: t.codigo_local,
     sap: t.totalSAP,
     fisico: t.totalFisico,
@@ -309,18 +301,6 @@ const AD03Dashboard: React.FC = () => {
           </ResponsiveContainer>
         </div>
         <div className="ad03-chart">
-          <h3>% Diferencias por Día</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={datosLinea}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} unit="%" />
-              <Tooltip formatter={(value: any) => [`${value}%`, '% Diferencias']} />
-              <Line type="monotone" dataKey="porcentaje" stroke="#dc2626" strokeWidth={2} dot={{ r: 4 }} name="% Diferencias" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="ad03-chart">
           <h3>Distribución de Estados</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -333,35 +313,6 @@ const AD03Dashboard: React.FC = () => {
           </ResponsiveContainer>
         </div>
       </div>
-
-      {/* NUEVO GRÁFICO: % Diferencias por Tarea */}
-      {tareasPorcentaje.length > 0 && (
-        <div className="ad03-chart" style={{ marginBottom: '24px' }}>
-          <h3>% Diferencias de Unidades por Tarea</h3>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={datosBarraTareas} layout="vertical" margin={{ left: 100 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis type="number" stroke="#64748b" tick={{ fontSize: 11 }} unit="%" />
-              <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} width={90} />
-              <Tooltip
-                formatter={(value: any, name: string) => {
-                  if (name === 'porcentaje') return [`${value}%`, '% Diferencias'];
-                  return [value, name];
-                }}
-                labelFormatter={(label) => `Tarea: ${label}`}
-              />
-              <Bar dataKey="porcentaje" radius={[0,4,4,0]}>
-                {datosBarraTareas.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={entry.porcentaje === 0 ? '#15803d' : entry.porcentaje <= 5 ? '#f59e0b' : '#dc2626'}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
 
       {/* Tabla de % por día */}
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
@@ -397,7 +348,7 @@ const AD03Dashboard: React.FC = () => {
       </div>
 
       {/* Tabla de % por Tarea */}
-      <div className="ad03-tabla-container">
+      <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Análisis de Diferencias por Tarea (% de Unidades)</h3>
         <table className="ed03-tabla">
           <thead>
@@ -444,6 +395,63 @@ const AD03Dashboard: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* GRÁFICO DE PUNTOS: % Diferencias por Tarea */}
+      {tareasPorcentaje.length > 0 && (
+        <div className="ad03-chart">
+          <h3>% Diferencias de Unidades por Tarea</h3>
+          <ResponsiveContainer width="100%" height={400}>
+            <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
+              <XAxis
+                type="number"
+                dataKey="x"
+                name="Tarea #"
+                stroke="#64748b"
+                tick={{ fontSize: 11 }}
+                label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: '#64748b', fontSize: 12 } }}
+                tickCount={datosScatter.length}
+                domain={[0, datosScatter.length + 1]}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="% Diferencias"
+                stroke="#64748b"
+                tick={{ fontSize: 11 }}
+                unit="%"
+                label={{ value: '% Diferencias', angle: -90, position: 'left', offset: 20, style: { fill: '#64748b', fontSize: 12 } }}
+              />
+              <ZAxis range={[100, 100]} />
+              <Tooltip
+                cursor={{ strokeDasharray: '3 3' }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
+                        <p style={{ fontWeight: 600, color: '#1d4ed8', margin: '0 0 4px' }}>{data.name}</p>
+                        <p style={{ margin: '0 0 2px', color: '#475569' }}>Local: {data.local}</p>
+                        <p style={{ margin: '0 0 2px', color: '#475569' }}>SAP: {data.sap} | Físico: {data.fisico}</p>
+                        <p style={{ margin: '0', fontWeight: 700, color: data.y === 0 ? '#15803d' : data.y <= 5 ? '#b45309' : '#dc2626' }}>{data.y}%</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Scatter data={datosScatter} shape="circle">
+                {datosScatter.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.y === 0 ? '#15803d' : entry.y <= 5 ? '#f59e0b' : '#dc2626'}
+                  />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 };
