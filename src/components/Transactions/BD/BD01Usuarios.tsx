@@ -1,3 +1,5 @@
+// src/components/Transactions/BD/BD01Usuarios.tsx
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
@@ -23,10 +25,11 @@ const TRANSACCIONES = [
   { id: 'ad', label: 'AD01 Gestión Auditoría' },
   { id: 'ad-captura', label: 'AD02 Captura Física' },
   { id: 'ad-dashboard', label: 'AD03 Dashboard' },
-  { id: 'rd', label: 'RD01 Ingreso Devolución' },        // NUEVO
-  { id: 'rd-salida', label: 'RD02 Salida Devolución' },   // NUEVO
-  { id: 'rd-informe', label: 'RD03 Informe' },            // NUEVO
-  { id: 'rd-dashboard', label: 'RD04 Dashboard' },        // NUEVO
+  { id: 'rd', label: 'RD01 Ingreso Devolución' },
+  { id: 'rd-salida', label: 'RD02 Salida Devolución' },
+  { id: 'rd-informe', label: 'RD03 Informe' },
+  { id: 'rd-dashboard', label: 'RD04 Dashboard' },
+  { id: 'sd', label: 'SD01 Salida Despacho' },
   { id: 'tk', label: 'TK01 Crear Ticket' },
   { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
