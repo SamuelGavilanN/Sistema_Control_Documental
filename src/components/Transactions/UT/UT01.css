@@ -1,0 +1,113 @@
+/* src/components/Transactions/UT/UT01.css */
+
+.ut01-view {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.ut01-header {
+  margin-bottom: 20px;
+}
+
+.ut01-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ut01-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.ut01-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  padding: 20px;
+  background: #f8fafd;
+  border-radius: 12px;
+  border: 1px solid #eef0f5;
+}
+
+.ut01-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ut01-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ut01-field input {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 140px;
+  transition: all 0.15s;
+}
+
+.ut01-field input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.ut01-btn-generar {
+  padding: 10px 24px;
+  background: #1a1f2e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  height: 42px;
+}
+
+.ut01-btn-generar:hover {
+  background: #2d3748;
+}
+
+.ut01-preview {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8fafd;
+  border-radius: 12px;
+  border: 1px solid #eef0f5;
+}
+
+.ut01-preview h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 16px;
+}
+
+.ut01-preview-container {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ut01-info {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+}
+
+.ut01-info strong {
+  color: #1e293b;
+}
