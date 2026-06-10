@@ -135,24 +135,16 @@ const AD01View: React.FC = () => {
     (sap || []).forEach((s: any) => {
       const key = s.sku;
       if (!skuMap[key]) {
-        skuMap[key] = {
-          sku: s.sku,
-          denominacion: s.denominacion,
-          entregas: [],
-          cantidad_sap: 0,
-          capturas: [],
-        };
+        skuMap[key] = { sku: s.sku, denominacion: s.denominacion, entregas: [], cantidad_sap: 0, capturas: [] };
       }
       skuMap[key].entregas.push(s.entrega || '-');
       skuMap[key].cantidad_sap += (s.cantidad_sap || 0);
     });
 
-    // Agregar capturas a cada SKU
     Object.keys(skuMap).forEach(sku => {
       skuMap[sku].capturas = capturas.filter((c: any) => c.sku === sku);
     });
 
-    // Construir detalle: una fila por SKU consolidado
     const detalle: any[] = [];
 
     Object.values(skuMap).forEach((item: any) => {
@@ -181,11 +173,7 @@ const AD01View: React.FC = () => {
 
   const toggleExpandSKU = (sku: string) => {
     const nuevos = new Set(skusExpandidos);
-    if (nuevos.has(sku)) {
-      nuevos.delete(sku);
-    } else {
-      nuevos.add(sku);
-    }
+    if (nuevos.has(sku)) { nuevos.delete(sku); } else { nuevos.add(sku); }
     setSkusExpandidos(nuevos);
   };
 
@@ -256,6 +244,41 @@ const AD01View: React.FC = () => {
     XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
   };
 
+  // NUEVO: Exportar consolidado por SKU (sin cajas, sin entregas)
+  const exportarConsolidadoSKU = () => {
+    if (!auditoriaDetalle) return;
+
+    const skuMap: Record<string, any> = {};
+
+    datosDetalle.forEach((d: any) => {
+      if (!skuMap[d.sku]) {
+        skuMap[d.sku] = { sku: d.sku, denominacion: d.denominacion, cantidad_sap: 0, cantidad_fisica: 0 };
+      }
+      skuMap[d.sku].cantidad_sap += d.cantidad_sap;
+      skuMap[d.sku].cantidad_fisica += d.cantidad_fisica;
+    });
+
+    const filas = Object.values(skuMap).map((item: any) => {
+      const diferencia = item.cantidad_sap - item.cantidad_fisica;
+      const estado = diferencia === 0 ? 'OK' : (diferencia > 0 ? 'Pendiente' : 'Con Diferencias');
+      return {
+        'TAREA': auditoriaDetalle.numero_tarea,
+        'SKU': item.sku,
+        'DESCRIPCION': item.denominacion,
+        'SAP': item.cantidad_sap,
+        'FISICO': item.cantidad_fisica,
+        'DIFERENCIA': diferencia,
+        'ESTADO': estado,
+        'LOCAL': auditoriaDetalle.codigo_local + ' - ' + auditoriaDetalle.nombre_local,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(filas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Consolidado SKU');
+    XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_consolidado_sku.xlsx`);
+  };
+
   const getEstadoBadge = (e: string) => {
     switch (e) { case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' }; case 'En Proceso': return { color: '#1d4ed8', bg: '#dbeafe' }; case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' }; case 'Con Diferencias': return { color: '#dc2626', bg: '#fef2f2' }; default: return { color: '#64748b', bg: '#f1f5f9' }; }
   };
@@ -303,7 +326,17 @@ const AD01View: React.FC = () => {
       {showDetalleModal && auditoriaDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}><div className="ed01-modal" style={{ maxWidth: '950px' }} onClick={e => e.stopPropagation()}>
           <div className="ed01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2>
-            <div style={{ display: 'flex', gap: '8px' }}><button className="ad01-btn-exportar" onClick={exportarExcel}><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V10M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10V12C1 12.5523 1.44772 13 2 13H12C12.5523 13 13 12.5523 13 12V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>Exportar XLSX</button><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="ad01-btn-exportar" onClick={exportarExcel}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V10M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10V12C1 12.5523 1.44772 13 2 13H12C12.5523 13 13 12.5523 13 12V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                Exportar XLSX
+              </button>
+              <button className="ad01-btn-exportar" onClick={exportarConsolidadoSKU} style={{ background: '#1d4ed8' }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V10M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10V12C1 12.5523 1.44772 13 2 13H12C12.5523 13 13 12.5523 13 12V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                Consolidado SKU
+              </button>
+              <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
+            </div>
           </div>
           <div className="ed01-modal-body">
             <div className="ad01-detalle-header"><div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div><div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div><div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div><div><strong>Estado:</strong> <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: getEstadoBadge(auditoriaDetalle.estado).bg, color: getEstadoBadge(auditoriaDetalle.estado).color }}>{auditoriaDetalle.estado}</span></div></div>
@@ -336,20 +369,11 @@ const AD01View: React.FC = () => {
                       <React.Fragment key={i}>
                         <tr
                           onClick={() => d.capturado && toggleExpandSKU(d.sku)}
-                          style={{
-                            cursor: d.capturado ? 'pointer' : 'default',
-                            background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f8fafd'
-                          }}
+                          style={{ cursor: d.capturado ? 'pointer' : 'default', background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f8fafd' }}
                         >
                           <td style={{ textAlign: 'center' }}>
                             {d.capturado && (
-                              <svg
-                                width="12" height="12" viewBox="0 0 12 12" fill="none"
-                                style={{
-                                  transform: expandido ? 'rotate(90deg)' : 'rotate(0deg)',
-                                  transition: 'transform 0.2s'
-                                }}
-                              >
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: expandido ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                                 <path d="M4 2L8 6L4 10" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/>
                               </svg>
                             )}
@@ -358,40 +382,15 @@ const AD01View: React.FC = () => {
                           <td style={{ fontSize: '12px' }}>{d.denominacion}</td>
                           <td style={{ fontSize: '11px' }}>{d.entrega}</td>
                           <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.cantidad_sap}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                            {d.capturado ? d.cantidad_fisica : '-'}
-                          </td>
-                          <td style={{
-                            textAlign: 'center',
-                            fontWeight: 600,
-                            color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8'
-                          }}>
-                            {d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia}
-                          </td>
-                          <td>
-                            <span style={{
-                              padding: '3px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600,
-                              background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f1f5f9',
-                              color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b'
-                            }}>
-                              {d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.'}
-                            </span>
-                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.capturado ? d.cantidad_fisica : '-'}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8' }}>{d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia}</td>
+                          <td><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600, background: d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f1f5f9', color: d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b' }}>{d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.'}</span></td>
                         </tr>
-
                         {expandido && d.capturas && d.capturas.length > 0 && (
                           <tr>
                             <td colSpan={8} style={{ padding: '0' }}>
-                              <div style={{
-                                background: '#f8fafd',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                margin: '8px 16px',
-                                padding: '12px 16px'
-                              }}>
-                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-                                  📦 Detalle de Capturas - SKU: {d.sku}
-                                </div>
+                              <div style={{ background: '#f8fafd', border: '1px solid #e2e8f0', borderRadius: '8px', margin: '8px 16px', padding: '12px 16px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>📦 Detalle de Capturas - SKU: {d.sku}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                   <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#64748b', marginBottom: '4px', flexWrap: 'wrap' }}>
                                     <span><strong>Entregas:</strong> {d.entrega}</span>
@@ -400,13 +399,7 @@ const AD01View: React.FC = () => {
                                     <span><strong>Diferencia:</strong> <span style={{ color: d.diferencia === 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>{d.diferencia === 0 ? '0' : d.diferencia}</span></span>
                                   </div>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                    <thead>
-                                      <tr style={{ background: '#f1f5f9' }}>
-                                        <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Caja</th>
-                                        <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Cantidad</th>
-                                        <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Acumulado</th>
-                                      </tr>
-                                    </thead>
+                                    <thead><tr style={{ background: '#f1f5f9' }}><th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Caja</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Cantidad</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Acumulado</th></tr></thead>
                                     <tbody>
                                       {d.capturas.map((cap: any, idx: number) => {
                                         const acumulado = d.capturas.slice(0, idx + 1).reduce((s: number, c: any) => s + (c.cantidad_fisica || 0), 0);
