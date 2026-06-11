@@ -36,7 +36,7 @@ const UT01View: React.FC = () => {
     for (let i = inicio; i <= fin; i++) {
       const numero = String(i).padStart(digitos, '0');
       const valorCompleto = prefijo + numero;
-      const qrSize = esHorizontal ? 200 : 250;
+      const qrSize = esHorizontal ? 180 : 200;
       const qr = await QRCode.toDataURL(valorCompleto, { width: qrSize, margin: 2 });
 
       etiquetasHTML += `
@@ -152,7 +152,7 @@ const UT01View: React.FC = () => {
             <div className="etiqueta-preview-numero" style={esHorizontal ? {} : { writingMode: 'vertical-rl', textOrientation: 'mixed' } as React.CSSProperties}>
               {prefijo}{String(inicio).padStart(digitos, '0')}
             </div>
-            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '100px', height: '100px' } : { width: '110px', height: '110px' }} />}
+            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '90px', height: '90px' } : { width: '100px', height: '100px' }} />}
           </div>
         </div>
         <div className="ut01-info">
@@ -164,7 +164,7 @@ const UT01View: React.FC = () => {
   );
 };
 
-// CSS Horizontal (100mm × 50mm)
+// CSS Horizontal (100mm × 50mm) - Con márgenes internos
 const cssHorizontal = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -176,14 +176,14 @@ body {
   align-items: center;
 }
 .etiqueta {
-  width: 90mm;
-  height: 40mm;
+  width: 80mm;
+  height: 36mm;
   border: 2px solid #000;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-around;
-  padding: 2mm;
+  padding: 3mm;
   gap: 4mm;
   page-break-after: always;
   box-sizing: border-box;
@@ -193,18 +193,18 @@ body {
 .etiqueta:last-child { page-break-after: auto; }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 900;
   color: #000;
   text-align: center;
   word-break: break-all;
   line-height: 1.2;
   flex: 1;
-  padding: 2mm;
+  padding: 1mm;
 }
 .etiqueta-qr {
-  width: 32mm;
-  height: 32mm;
+  width: 28mm;
+  height: 28mm;
   flex-shrink: 0;
 }
 @media print {
@@ -214,14 +214,17 @@ body {
     border: 1px solid #000; 
     margin: 0;
     page-break-after: always;
-    width: 100mm;
-    height: 50mm;
+    width: 94mm;
+    height: 44mm;
+    padding: 3mm;
   }
   .etiqueta:last-child { page-break-after: auto; }
+  .etiqueta-numero { font-size: 20px; }
+  .etiqueta-qr { width: 26mm; height: 26mm; }
 }
 `;
 
-// CSS Vertical (50mm × 100mm)
+// CSS Vertical (50mm × 100mm) - Con márgenes internos
 const cssVertical = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -233,8 +236,8 @@ body {
   align-items: center;
 }
 .etiqueta {
-  width: 40mm;
-  height: 90mm;
+  width: 36mm;
+  height: 80mm;
   border: 2px solid #000;
   display: flex;
   flex-direction: column;
@@ -259,8 +262,8 @@ body {
   letter-spacing: 3px;
 }
 .etiqueta-qr {
-  width: 32mm;
-  height: 32mm;
+  width: 28mm;
+  height: 28mm;
 }
 @media print {
   @page { size: 50mm 100mm; margin: 0; }
@@ -269,10 +272,13 @@ body {
     border: 1px solid #000; 
     margin: 0;
     page-break-after: always;
-    width: 50mm;
-    height: 100mm;
+    width: 44mm;
+    height: 94mm;
+    padding: 3mm;
   }
   .etiqueta:last-child { page-break-after: auto; }
+  .etiqueta-numero { font-size: 16px; letter-spacing: 2px; }
+  .etiqueta-qr { width: 26mm; height: 26mm; }
 }
 `;
 
