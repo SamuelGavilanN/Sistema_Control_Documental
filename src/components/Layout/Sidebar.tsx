@@ -53,6 +53,14 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
+    id: 'pk',
+    title: 'PK · Picking LPN',
+    items: [
+      { id: 'pk', label: 'PK01 Crear Pedido', type: 'item' },
+      { id: 'pk-captura', label: 'PK02 Capturar LPN', type: 'subitem' },
+    ]
+  },
+  {
     id: 'tk',
     title: 'TK · Mesa de Ayuda',
     items: [
