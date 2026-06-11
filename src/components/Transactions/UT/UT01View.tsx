@@ -15,7 +15,7 @@ const UT01View: React.FC = () => {
   const generarPreview = async () => {
     const numero = String(inicio).padStart(digitos, '0');
     const valorCompleto = prefijo + numero;
-    const qr = await QRCode.toDataURL(valorCompleto, { width: 80, margin: 1 });
+    const qr = await QRCode.toDataURL(valorCompleto, { width: 120, margin: 1 });
     setQrPreview(qr);
   };
 
@@ -32,7 +32,7 @@ const UT01View: React.FC = () => {
     for (let i = inicio; i <= fin; i++) {
       const numero = String(i).padStart(digitos, '0');
       const valorCompleto = prefijo + numero;
-      const qr = await QRCode.toDataURL(valorCompleto, { width: 60, margin: 1 });
+      const qr = await QRCode.toDataURL(valorCompleto, { width: 100, margin: 1 });
 
       etiquetasHTML += `
         <div class="etiqueta">
@@ -50,9 +50,7 @@ const UT01View: React.FC = () => {
   <style>${cssEtiquetas}</style>
 </head>
 <body>
-  <div class="hoja">
-    ${etiquetasHTML}
-  </div>
+  ${etiquetasHTML}
 </body>
 </html>`;
 
@@ -69,7 +67,7 @@ const UT01View: React.FC = () => {
     <div className="ut01-view">
       <div className="ut01-header">
         <h2>UT01 · Generador de Etiquetas QR Correlativas</h2>
-        <p className="ut01-subtitle">Genera etiquetas con número correlativo y código QR. 2 etiquetas por fila, 50mm × 50mm.</p>
+        <p className="ut01-subtitle">Genera etiquetas con número correlativo y código QR. 1 etiqueta por fila, 50mm × 100mm.</p>
       </div>
 
       <div className="ut01-form">
@@ -126,7 +124,7 @@ const UT01View: React.FC = () => {
             <div className="etiqueta-preview-numero">
               {prefijo}{String(inicio).padStart(digitos, '0')}
             </div>
-            {qrPreview && <img src={qrPreview} alt="QR Preview" style={{ width: '70px', height: '70px' }} />}
+            {qrPreview && <img src={qrPreview} alt="QR Preview" style={{ width: '90px', height: '90px' }} />}
           </div>
         </div>
         <div className="ut01-info">
@@ -142,23 +140,16 @@ const UT01View: React.FC = () => {
 const cssEtiquetas = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: white; margin: 0; padding: 0; }
-.hoja {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0;
-  width: 100%;
-}
 .etiqueta {
   width: 50mm;
-  height: 50mm;
+  height: 100mm;
   border: 1px dashed #ccc;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3mm;
-  gap: 2mm;
+  padding: 5mm;
+  gap: 4mm;
   page-break-after: always;
   box-sizing: border-box;
   margin: 0 auto;
@@ -168,7 +159,7 @@ body { background: white; margin: 0; padding: 0; }
 }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: 22px;
   font-weight: 900;
   color: #000;
   text-align: center;
@@ -176,12 +167,12 @@ body { background: white; margin: 0; padding: 0; }
   line-height: 1.2;
 }
 .etiqueta-qr {
-  width: 28mm;
-  height: 28mm;
+  width: 40mm;
+  height: 40mm;
 }
 @media print {
   @page {
-    size: 50mm 50mm;
+    size: 50mm 100mm;
     margin: 0;
   }
   body { background: white; }
@@ -200,20 +191,20 @@ const stylePreview = document.createElement('style');
 stylePreview.textContent = `
 .etiqueta-preview {
   width: 50mm;
-  height: 50mm;
+  height: 100mm;
   border: 2px solid #1a1f2e;
   border-radius: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3mm;
-  gap: 2mm;
+  padding: 5mm;
+  gap: 4mm;
   background: white;
 }
 .etiqueta-preview-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: 22px;
   font-weight: 900;
   color: #000;
   text-align: center;
