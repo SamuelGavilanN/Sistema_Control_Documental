@@ -67,7 +67,7 @@ const UT01View: React.FC = () => {
     <div className="ut01-view">
       <div className="ut01-header">
         <h2>UT01 · Generador de Etiquetas QR Correlativas</h2>
-        <p className="ut01-subtitle">Genera etiquetas con número correlativo y código QR. 1 etiqueta por fila, 50mm × 100mm.</p>
+        <p className="ut01-subtitle">Genera etiquetas con número correlativo y código QR. 1 etiqueta por fila, 100mm × 50mm.</p>
       </div>
 
       <div className="ut01-form">
@@ -141,15 +141,15 @@ const cssEtiquetas = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: white; margin: 0; padding: 0; }
 .etiqueta {
-  width: 50mm;
-  height: 100mm;
+  width: 100mm;
+  height: 50mm;
   border: 1px dashed #ccc;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   padding: 5mm;
-  gap: 4mm;
+  gap: 8mm;
   page-break-after: always;
   box-sizing: border-box;
   margin: 0 auto;
@@ -159,20 +159,22 @@ body { background: white; margin: 0; padding: 0; }
 }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 900;
   color: #000;
   text-align: center;
   word-break: break-all;
   line-height: 1.2;
+  flex: 1;
 }
 .etiqueta-qr {
-  width: 40mm;
-  height: 40mm;
+  width: 35mm;
+  height: 35mm;
+  flex-shrink: 0;
 }
 @media print {
   @page {
-    size: 50mm 100mm;
+    size: 100mm 50mm;
     margin: 0;
   }
   body { background: white; }
@@ -190,26 +192,27 @@ body { background: white; margin: 0; padding: 0; }
 const stylePreview = document.createElement('style');
 stylePreview.textContent = `
 .etiqueta-preview {
-  width: 50mm;
-  height: 100mm;
+  width: 100mm;
+  height: 50mm;
   border: 2px solid #1a1f2e;
   border-radius: 4px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   padding: 5mm;
-  gap: 4mm;
+  gap: 8mm;
   background: white;
 }
 .etiqueta-preview-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 900;
   color: #000;
   text-align: center;
   word-break: break-all;
   line-height: 1.2;
+  flex: 1;
 }
 `;
 document.head.appendChild(stylePreview);
