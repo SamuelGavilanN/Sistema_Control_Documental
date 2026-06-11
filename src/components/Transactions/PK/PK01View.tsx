@@ -41,25 +41,30 @@ const PK01View: React.FC = () => {
     setCargando(true);
     try {
       const resp = await fetch(`${API_URL}/pk01_pedidos?select=*&order=creado_en.desc`, { headers: HEADERS });
-      const data: any[] = await resp.json();
+      const data = await resp.json();
 
-      const pedidosConConteo: Pedido[] = await Promise.all((data || []).map(async (p: any): Promise<Pedido> => {
-        const respLPN = await fetch(
-          `${API_URL}/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.${p.id}`,
-          { headers: HEADERS }
-        );
-        const lpns: any[] = await respLPN.json();
-        return {
-          id: p.id,
-          numero_pedido: p.numero_pedido,
-          cod_tda: p.cod_tda,
-          nombre_tda: p.nombre_tda,
-          estado: p.estado,
-          creado_en: p.creado_en,
-          total_lpns: lpns?.length || 0,
-          encontrados: lpns?.filter((l: any) => l.encontrado).length || 0,
-        };
-      }));
+      const pedidosConConteo: Pedido[] = [];
+
+      if (data) {
+        for (const p of data) {
+          const respLPN = await fetch(
+            `${API_URL}/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.${p.id}`,
+            { headers: HEADERS }
+          );
+          const lpns = await respLPN.json();
+
+          pedidosConConteo.push({
+            id: p.id,
+            numero_pedido: p.numero_pedido,
+            cod_tda: p.cod_tda,
+            nombre_tda: p.nombre_tda,
+            estado: p.estado,
+            creado_en: p.creado_en,
+            total_lpns: (lpns || []).length,
+            encontrados: (lpns || []).filter((l: any) => l.encontrado).length,
+          });
+        }
+      }
 
       setPedidos(pedidosConConteo);
     } catch (e) {}
@@ -72,7 +77,7 @@ const PK01View: React.FC = () => {
     setMensaje('');
 
     try {
-      const data: any[] = await leerExcel(archivo);
+      const data = await leerExcel(archivo);
 
       if (!data || data.length === 0) {
         setMensaje('El archivo está vacío');
@@ -81,20 +86,16 @@ const PK01View: React.FC = () => {
       }
 
       const primeraFila = data[0];
-      const tieneCodTda = Object.keys(primeraFila).some(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA'));
-      const tienePallet = Object.keys(primeraFila).some(k => k.toUpperCase().includes('PALLET'));
-      const tieneLpn = Object.keys(primeraFila).some(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO'));
-
-      if (!tieneCodTda || !tienePallet || !tieneLpn) {
-        setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN');
-        setProcesando(false);
-        return;
-      }
-
       const colCodTda = Object.keys(primeraFila).find(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
       const colTda = Object.keys(primeraFila).find(k => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
       const colPallet = Object.keys(primeraFila).find(k => k.toUpperCase().includes('PALLET')) || '';
       const colLpn = Object.keys(primeraFila).find(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
+
+      if (!colCodTda || !colPallet || !colLpn) {
+        setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN');
+        setProcesando(false);
+        return;
+      }
 
       const grupos: Record<string, { nombre: string; items: any[] }> = {};
 
@@ -115,8 +116,8 @@ const PK01View: React.FC = () => {
         const now = new Date();
         const fecha = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
         const respCount = await fetch(`${API_URL}/pk01_pedidos?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
-        const countData: any[] = await respCount.json();
-        const count = (countData?.length || 0) + 1;
+        const countData = await respCount.json();
+        const count = ((countData || []).length) + 1;
         const numeroPedido = `PK-${fecha}-${String(count).padStart(4, '0')}`;
 
         const respPedido = await fetch(`${API_URL}/pk01_pedidos`, {
@@ -130,7 +131,7 @@ const PK01View: React.FC = () => {
             creado_por: user?.id,
           }),
         });
-        const pedidoCreado: any = await respPedido.json();
+        const pedidoCreado = await respPedido.json();
 
         for (const item of grupo.items) {
           const pallet = String(item[colPallet] || '').trim();
@@ -149,7 +150,7 @@ const PK01View: React.FC = () => {
         }
       }
 
-      setMensaje(`✅ Pedido(s) creado(s) correctamente`);
+      setMensaje('✅ Pedido(s) creado(s) correctamente');
       setNombreArchivo('');
       setArchivo(null);
       setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
@@ -178,7 +179,8 @@ const PK01View: React.FC = () => {
       `${API_URL}/pk01_pedido_lpns?select=*&pedido_id=eq.${pedido.id}&order=pallet,codigo_lpn`,
       { headers: HEADERS }
     );
-    setLpnsDetalle(await resp.json() || []);
+    const data = await resp.json();
+    setLpnsDetalle(data || []);
     setShowDetalleModal(true);
   };
 
