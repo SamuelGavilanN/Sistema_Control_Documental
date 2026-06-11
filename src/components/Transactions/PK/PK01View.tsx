@@ -18,7 +18,7 @@ const PK01View: React.FC = () => {
   const [showDetalleModal, setShowDetalleModal] = useState(false);
   const [pedidoDetalle, setPedidoDetalle] = useState<any>(null);
   const [lpnsDetalle, setLpnsDetalle] = useState<any[]>([]);
-  const [archivo, setArchivo] = useState<File | null>(null);
+  const [archivo, setArchivo] = useState<any>(null);
   const [nombreArchivo, setNombreArchivo] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -30,26 +30,26 @@ const PK01View: React.FC = () => {
     setCargando(true);
     try {
       const resp = await fetch(API_URL + '/pk01_pedidos?select=*&order=creado_en.desc', { headers: HEADERS });
-      const data = await resp.json();
-      const pedidosConConteo: any[] = [];
-      if (data) {
+      const data: any = await resp.json();
+      const resultado: any[] = [];
+      if (data && data.length) {
         for (let i = 0; i < data.length; i++) {
-          const p = data[i];
+          const p: any = data[i];
           const respLPN = await fetch(API_URL + '/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.' + p.id, { headers: HEADERS });
-          const lpns = await respLPN.json();
-          pedidosConConteo.push({
+          const lpns: any = await respLPN.json();
+          resultado.push({
             id: p.id,
             numero_pedido: p.numero_pedido,
             cod_tda: p.cod_tda,
             nombre_tda: p.nombre_tda,
             estado: p.estado,
             creado_en: p.creado_en,
-            total_lpns: (lpns || []).length,
-            encontrados: (lpns || []).filter((l: any) => l.encontrado).length,
+            total_lpns: lpns ? lpns.length : 0,
+            encontrados: lpns ? lpns.filter((l: any) => l.encontrado).length : 0,
           });
         }
       }
-      setPedidos(pedidosConConteo);
+      setPedidos(resultado);
     } catch (e) {}
     setCargando(false);
   };
@@ -59,15 +59,16 @@ const PK01View: React.FC = () => {
     setProcesando(true);
     setMensaje('');
     try {
-      const data = await leerExcel(archivo);
-      if (!data || data.length === 0) { setMensaje('El archivo esta vacio'); setProcesando(false); return; }
-      const primeraFila = data[0];
-      const colCodTda = Object.keys(primeraFila).find(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
-      const colTda = Object.keys(primeraFila).find(k => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
-      const colPallet = Object.keys(primeraFila).find(k => k.toUpperCase().includes('PALLET')) || '';
-      const colLpn = Object.keys(primeraFila).find(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
+      const data: any = await leerExcel(archivo);
+      if (!data || !data.length) { setMensaje('El archivo esta vacio'); setProcesando(false); return; }
+      const primeraFila: any = data[0];
+      const colCodTda = Object.keys(primeraFila).find((k: string) => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
+      const colTda = Object.keys(primeraFila).find((k: string) => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
+      const colPallet = Object.keys(primeraFila).find((k: string) => k.toUpperCase().includes('PALLET')) || '';
+      const colLpn = Object.keys(primeraFila).find((k: string) => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
       if (!colCodTda || !colPallet || !colLpn) { setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN'); setProcesando(false); return; }
-      const grupos: Record<string, { nombre: string; items: any[] }> = {};
+      
+      const grupos: any = {};
       data.forEach((row: any) => {
         const codTda = String(row[colCodTda] || '').trim();
         const nombreTda = String(row[colTda] || '').trim();
@@ -75,21 +76,29 @@ const PK01View: React.FC = () => {
         if (!grupos[codTda]) { grupos[codTda] = { nombre: nombreTda, items: [] }; }
         grupos[codTda].items.push(row);
       });
-      const user = auth.getUsuario();
-      for (const [codTda, grupo] of Object.entries(grupos)) {
+      
+      const user: any = auth.getUsuario();
+      const keys = Object.keys(grupos);
+      
+      for (let g = 0; g < keys.length; g++) {
+        const codTda = keys[g];
+        const grupo = grupos[codTda];
         const now = new Date();
         const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
         const respCount = await fetch(API_URL + '/pk01_pedidos?select=id&order=creado_en.desc&limit=1', { headers: HEADERS });
-        const countData = await respCount.json();
-        const count = ((countData || []).length) + 1;
+        const countData: any = await respCount.json();
+        const count = (countData ? countData.length : 0) + 1;
         const numeroPedido = 'PK-' + fecha + '-' + String(count).padStart(4, '0');
+        
         const respPedido = await fetch(API_URL + '/pk01_pedidos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({ numero_pedido: numeroPedido, cod_tda: codTda, nombre_tda: grupo.nombre, estado: 'Pendiente', creado_por: user?.id }),
         });
-        const pedidoCreado = await respPedido.json();
-        for (const item of grupo.items) {
+        const pedidoCreado: any = await respPedido.json();
+        
+        for (let j = 0; j < grupo.items.length; j++) {
+          const item = grupo.items[j];
           const pallet = String(item[colPallet] || '').trim();
           const lpn = String(item[colLpn] || '').trim();
           await fetch(API_URL + '/pk01_pedido_lpns', {
@@ -99,6 +108,7 @@ const PK01View: React.FC = () => {
           });
         }
       }
+      
       setMensaje('✅ Pedido(s) creado(s) correctamente');
       setNombreArchivo('');
       setArchivo(null);
@@ -108,9 +118,9 @@ const PK01View: React.FC = () => {
     finally { setProcesando(false); }
   };
 
-  const leerExcel = (file: File): Promise<any[]> => new Promise((resolve, reject) => {
+  const leerExcel = (file: any): Promise<any[]> => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => { const data = new Uint8Array(e.target?.result as ArrayBuffer); const wb = XLSX.read(data, { type: 'array' }); resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])); };
+    reader.onload = (e: any) => { const data = new Uint8Array(e.target?.result); const wb = XLSX.read(data, { type: 'array' }); resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])); };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
@@ -118,7 +128,7 @@ const PK01View: React.FC = () => {
   const verDetalle = async (pedido: any) => {
     setPedidoDetalle(pedido);
     const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
-    const data = await resp.json();
+    const data: any = await resp.json();
     setLpnsDetalle(data || []);
     setShowDetalleModal(true);
   };
@@ -145,9 +155,7 @@ const PK01View: React.FC = () => {
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
           <thead>
-            <tr>
-              <th>N° Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '100px' }}>Acciones</th>
-            </tr>
+            <tr><th>N° Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '100px' }}>Acciones</th></tr>
           </thead>
           <tbody>
             {cargando ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
@@ -178,9 +186,9 @@ const PK01View: React.FC = () => {
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#475569', marginBottom: '6px' }}>Archivo Excel (.xlsx)</label>
                 <div onClick={() => document.getElementById('file-pedido')?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '28px', border: '2px dashed #e2e8f0', borderRadius: '10px', cursor: 'pointer', background: '#fafcff', color: '#94a3b8', fontSize: '13px', transition: 'all 0.15s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.background = '#f8fafd'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fafcff'; }}>
-                  <input id="file-pedido" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivo(e.target.files?.[0] || null); setNombreArchivo(e.target.files?.[0]?.name || ''); }} />
+                  onMouseEnter={(e: any) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.background = '#f8fafd'; }}
+                  onMouseLeave={(e: any) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fafcff'; }}>
+                  <input id="file-pedido" type="file" accept=".xlsx,.xls" hidden onChange={(e: any) => { setArchivo(e.target.files?.[0] || null); setNombreArchivo(e.target.files?.[0]?.name || ''); }} />
                   {nombreArchivo ? <span style={{ color: '#1e293b', fontWeight: 500 }}>{nombreArchivo}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}
                 </div>
               </div>
