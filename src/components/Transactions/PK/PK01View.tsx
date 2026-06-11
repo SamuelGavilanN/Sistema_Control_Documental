@@ -51,7 +51,61 @@ const PK01View: React.FC = () => {
             `${API_URL}/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.${p.id}`,
             { headers: HEADERS }
           );
-          const lpns = await respLPN.json();
+          const lpns = await respLPN.json()// src/components/Transactions/PK/PK01View.tsx
+
+import React, { useState, useEffect } from 'react';
+import { auth } from '../../../lib/auth';
+import * as XLSX from 'xlsx';
+import './PK01.css';
+
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS = {
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+};
+
+interface Pedido {
+  id: string;
+  numero_pedido: string;
+  cod_tda: string;
+  nombre_tda: string;
+  estado: string;
+  creado_en: string;
+  total_lpns?: number;
+  encontrados?: number;
+}
+
+const PK01View: React.FC = () => {
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [showCrearModal, setShowCrearModal] = useState(false);
+  const [showDetalleModal, setShowDetalleModal] = useState(false);
+  const [pedidoDetalle, setPedidoDetalle] = useState<any>(null);
+  const [lpnsDetalle, setLpnsDetalle] = useState<any[]>([]);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [nombreArchivo, setNombreArchivo] = useState('');
+  const [procesando, setProcesando] = useState(false);
+  const [mensaje, setMensaje] = useState('');
+
+  useEffect(() => { cargarPedidos(); }, []);
+  useEffect(() => { const intervalo = setInterval(cargarPedidos, 10000); return () => clearInterval(intervalo); }, []);
+
+  const cargarPedidos = async () => {
+    setCargando(true);
+    try {
+      const resp = await fetch(`${API_URL}/pk01_pedidos?select=*&order=creado_en.desc`, { headers: HEADERS });
+      const data: any[] = await resp.json();
+
+      const pedidosConConteo: any[] = [];
+
+      if (data) {
+        for (let i = 0; i < data.length; i++) {
+          const p = data[i];
+          const respLPN = await fetch(
+            `${API_URL}/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.${p.id}`,
+            { headers: HEADERS }
+          );
+          const lpns: any[] = await respLPN.json();
 
           pedidosConConteo.push({
             id: p.id,
@@ -66,7 +120,7 @@ const PK01View: React.FC = () => {
         }
       }
 
-      setPedidos(pedidosConConteo);
+      setPedidos(pedidosConConteo as Pedido[]);
     } catch (e) {}
     setCargando(false);
   };
@@ -77,7 +131,7 @@ const PK01View: React.FC = () => {
     setMensaje('');
 
     try {
-      const data = await leerExcel(archivo);
+      const data: any[] = await leerExcel(archivo);
 
       if (!data || data.length === 0) {
         setMensaje('El archivo está vacío');
@@ -116,7 +170,7 @@ const PK01View: React.FC = () => {
         const now = new Date();
         const fecha = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
         const respCount = await fetch(`${API_URL}/pk01_pedidos?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
-        const countData = await respCount.json();
+        const countData: any[] = await respCount.json();
         const count = ((countData || []).length) + 1;
         const numeroPedido = `PK-${fecha}-${String(count).padStart(4, '0')}`;
 
@@ -131,7 +185,7 @@ const PK01View: React.FC = () => {
             creado_por: user?.id,
           }),
         });
-        const pedidoCreado = await respPedido.json();
+        const pedidoCreado: any = await respPedido.json();
 
         for (const item of grupo.items) {
           const pallet = String(item[colPallet] || '').trim();
@@ -179,7 +233,7 @@ const PK01View: React.FC = () => {
       `${API_URL}/pk01_pedido_lpns?select=*&pedido_id=eq.${pedido.id}&order=pallet,codigo_lpn`,
       { headers: HEADERS }
     );
-    const data = await resp.json();
+    const data: any[] = await resp.json();
     setLpnsDetalle(data || []);
     setShowDetalleModal(true);
   };
