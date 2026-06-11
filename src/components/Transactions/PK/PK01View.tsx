@@ -41,22 +41,26 @@ const PK01View: React.FC = () => {
     setCargando(true);
     try {
       const resp = await fetch(`${API_URL}/pk01_pedidos?select=*&order=creado_en.desc`, { headers: HEADERS });
-      const data = await resp.json();
-      
-      // Obtener conteo de LPNs por pedido
-      const pedidosConConteo = await Promise.all((data || []).map(async (p: any) => {
+      const data: any[] = await resp.json();
+
+      const pedidosConConteo: Pedido[] = await Promise.all((data || []).map(async (p: any): Promise<Pedido> => {
         const respLPN = await fetch(
           `${API_URL}/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.${p.id}`,
           { headers: HEADERS }
         );
-        const lpns = await respLPN.json();
+        const lpns: any[] = await respLPN.json();
         return {
-          ...p,
+          id: p.id,
+          numero_pedido: p.numero_pedido,
+          cod_tda: p.cod_tda,
+          nombre_tda: p.nombre_tda,
+          estado: p.estado,
+          creado_en: p.creado_en,
           total_lpns: lpns?.length || 0,
           encontrados: lpns?.filter((l: any) => l.encontrado).length || 0,
         };
       }));
-      
+
       setPedidos(pedidosConConteo);
     } catch (e) {}
     setCargando(false);
@@ -68,18 +72,16 @@ const PK01View: React.FC = () => {
     setMensaje('');
 
     try {
-      const data = await leerExcel(archivo);
-      
+      const data: any[] = await leerExcel(archivo);
+
       if (!data || data.length === 0) {
         setMensaje('El archivo está vacío');
         setProcesando(false);
         return;
       }
 
-      // Validar columnas
       const primeraFila = data[0];
       const tieneCodTda = Object.keys(primeraFila).some(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA'));
-      const tieneTda = Object.keys(primeraFila).some(k => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA'));
       const tienePallet = Object.keys(primeraFila).some(k => k.toUpperCase().includes('PALLET'));
       const tieneLpn = Object.keys(primeraFila).some(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO'));
 
@@ -89,20 +91,18 @@ const PK01View: React.FC = () => {
         return;
       }
 
-      // Encontrar nombres de columnas reales
       const colCodTda = Object.keys(primeraFila).find(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
       const colTda = Object.keys(primeraFila).find(k => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
       const colPallet = Object.keys(primeraFila).find(k => k.toUpperCase().includes('PALLET')) || '';
       const colLpn = Object.keys(primeraFila).find(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
 
-      // Agrupar por COD TDA
       const grupos: Record<string, { nombre: string; items: any[] }> = {};
-      
+
       data.forEach((row: any) => {
         const codTda = String(row[colCodTda] || '').trim();
         const nombreTda = String(row[colTda] || '').trim();
         if (!codTda) return;
-        
+
         if (!grupos[codTda]) {
           grupos[codTda] = { nombre: nombreTda, items: [] };
         }
@@ -110,18 +110,15 @@ const PK01View: React.FC = () => {
       });
 
       const user = auth.getUsuario();
-      let totalPedidos = 0;
 
       for (const [codTda, grupo] of Object.entries(grupos)) {
-        // Generar número de pedido
         const now = new Date();
         const fecha = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
         const respCount = await fetch(`${API_URL}/pk01_pedidos?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
-        const countData = await respCount.json();
+        const countData: any[] = await respCount.json();
         const count = (countData?.length || 0) + 1;
         const numeroPedido = `PK-${fecha}-${String(count).padStart(4, '0')}`;
 
-        // Crear pedido
         const respPedido = await fetch(`${API_URL}/pk01_pedidos`, {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -133,13 +130,12 @@ const PK01View: React.FC = () => {
             creado_por: user?.id,
           }),
         });
-        const pedidoCreado = await respPedido.json();
+        const pedidoCreado: any = await respPedido.json();
 
-        // Insertar LPNs
         for (const item of grupo.items) {
           const pallet = String(item[colPallet] || '').trim();
           const lpn = String(item[colLpn] || '').trim();
-          
+
           await fetch(`${API_URL}/pk01_pedido_lpns`, {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -151,10 +147,9 @@ const PK01View: React.FC = () => {
             }),
           });
         }
-        totalPedidos++;
       }
 
-      setMensaje(`✅ ${totalPedidos} pedido(s) creado(s) correctamente`);
+      setMensaje(`✅ Pedido(s) creado(s) correctamente`);
       setNombreArchivo('');
       setArchivo(null);
       setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
