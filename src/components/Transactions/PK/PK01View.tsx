@@ -183,15 +183,13 @@ const PK01View: React.FC = () => {
             <div className="ed01-modal-body">
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#475569', marginBottom: '6px' }}>Archivo Excel (.xlsx)</label>
-                <div onClick={() => document.getElementById('file-pedido')?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '28px', border: '2px dashed #e2e8f0', borderRadius: '10px', cursor: 'pointer', background: '#fafcff', color: '#94a3b8', fontSize: '13px', transition: 'all 0.15s' }}
-                  onMouseEnter={(e: any) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.background = '#f8fafd'; }}
-                  onMouseLeave={(e: any) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fafcff'; }}>
+                <div onClick={() => document.getElementById('file-pedido')?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '28px', border: '2px dashed #e2e8f0', borderRadius: '10px', cursor: 'pointer', background: '#fafcff', color: '#94a3b8', fontSize: '13px' }}>
                   <input id="file-pedido" type="file" accept=".xlsx,.xls" hidden onChange={(e: any) => { setArchivo(e.target.files?.[0] || null); setNombreArchivo(e.target.files?.[0]?.name || ''); }} />
                   {nombreArchivo ? <span style={{ color: '#1e293b', fontWeight: 500 }}>{nombreArchivo}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}
                 </div>
               </div>
-              <p style={{ fontSize: '12px', color: '#64748b' }}>El archivo debe tener las columnas: <strong>COD TDA, TDA, PALLET, CODIGO LPN</strong></p>
-              {mensaje && <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : '#dcfce7', color: mensaje.includes('Error') ? '#dc2626' : '#15803d' }}>{mensaje}</div>}
+              <p style={{ fontSize: '12px', color: '#64748b' }}>Columnas requeridas: <strong>COD TDA, TDA, PALLET, CODIGO LPN</strong></p>
+              {mensaje && <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: '#dcfce7', color: '#15803d' }}>{mensaje}</div>}
             </div>
             <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivo} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Pedido'}</button></div>
           </div>
