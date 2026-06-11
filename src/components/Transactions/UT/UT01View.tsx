@@ -9,13 +9,14 @@ const UT01View: React.FC = () => {
   const [inicio, setInicio] = useState(1);
   const [fin, setFin] = useState(100);
   const [digitos, setDigitos] = useState(4);
+  const [orientacion, setOrientacion] = useState<'horizontal' | 'vertical'>('horizontal');
   const [qrPreview, setQrPreview] = useState('');
 
   // Generar vista previa
   const generarPreview = async () => {
     const numero = String(inicio).padStart(digitos, '0');
     const valorCompleto = prefijo + numero;
-    const qr = await QRCode.toDataURL(valorCompleto, { width: 120, margin: 1 });
+    const qr = await QRCode.toDataURL(valorCompleto, { width: 100, margin: 1 });
     setQrPreview(qr);
   };
 
@@ -27,12 +28,15 @@ const UT01View: React.FC = () => {
       return;
     }
 
+    const esHorizontal = orientacion === 'horizontal';
+    const css = esHorizontal ? cssHorizontal : cssVertical;
+
     let etiquetasHTML = '';
 
     for (let i = inicio; i <= fin; i++) {
       const numero = String(i).padStart(digitos, '0');
       const valorCompleto = prefijo + numero;
-      const qr = await QRCode.toDataURL(valorCompleto, { width: 100, margin: 1 });
+      const qr = await QRCode.toDataURL(valorCompleto, { width: esHorizontal ? 70 : 80, margin: 1 });
 
       etiquetasHTML += `
         <div class="etiqueta">
@@ -47,7 +51,7 @@ const UT01View: React.FC = () => {
 <head>
   <meta charset="UTF-8">
   <title>Etiquetas QR Correlativas</title>
-  <style>${cssEtiquetas}</style>
+  <style>${css}</style>
 </head>
 <body>
   ${etiquetasHTML}
@@ -63,11 +67,16 @@ const UT01View: React.FC = () => {
     }
   };
 
+  const esHorizontal = orientacion === 'horizontal';
+
   return (
     <div className="ut01-view">
       <div className="ut01-header">
         <h2>UT01 · Generador de Etiquetas QR Correlativas</h2>
-        <p className="ut01-subtitle">Genera etiquetas con número correlativo y código QR. 1 etiqueta por fila, 100mm × 50mm.</p>
+        <p className="ut01-subtitle">
+          Genera etiquetas con número correlativo y código QR. 1 etiqueta por hoja.{' '}
+          {esHorizontal ? '100mm × 50mm (Horizontal)' : '50mm × 100mm (Vertical)'}
+        </p>
       </div>
 
       <div className="ut01-form">
@@ -112,19 +121,33 @@ const UT01View: React.FC = () => {
             onBlur={generarPreview}
           />
         </div>
+        <div className="ut01-field">
+          <label>Orientación</label>
+          <select
+            value={orientacion}
+            onChange={e => {
+              setOrientacion(e.target.value as 'horizontal' | 'vertical');
+              setTimeout(generarPreview, 100);
+            }}
+            style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', height: '42px' }}
+          >
+            <option value="horizontal">Horizontal (100×50mm)</option>
+            <option value="vertical">Vertical (50×100mm)</option>
+          </select>
+        </div>
         <button className="ut01-btn-generar" onClick={generarEtiquetas}>
           🖨️ Generar {fin - inicio + 1} Etiquetas
         </button>
       </div>
 
       <div className="ut01-preview">
-        <h3>Vista Previa</h3>
+        <h3>Vista Previa ({esHorizontal ? '100×50mm' : '50×100mm'})</h3>
         <div className="ut01-preview-container">
-          <div className="etiqueta-preview">
-            <div className="etiqueta-preview-numero">
+          <div className={`etiqueta-preview ${esHorizontal ? 'preview-horizontal' : 'preview-vertical'}`}>
+            <div className="etiqueta-preview-numero" style={esHorizontal ? {} : { writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
               {prefijo}{String(inicio).padStart(digitos, '0')}
             </div>
-            {qrPreview && <img src={qrPreview} alt="QR Preview" style={{ width: '90px', height: '90px' }} />}
+            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '50px', height: '50px' } : { width: '60px', height: '60px' }} />}
           </div>
         </div>
         <div className="ut01-info">
@@ -136,8 +159,8 @@ const UT01View: React.FC = () => {
   );
 };
 
-// CSS para las etiquetas en la ventana de impresión
-const cssEtiquetas = `
+// CSS Horizontal (100mm × 50mm)
+const cssHorizontal = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: white; margin: 0; padding: 0; }
 .etiqueta {
@@ -147,19 +170,17 @@ body { background: white; margin: 0; padding: 0; }
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
-  padding: 5mm;
-  gap: 8mm;
+  justify-content: space-around;
+  padding: 3mm;
+  gap: 5mm;
   page-break-after: always;
   box-sizing: border-box;
   margin: 0 auto;
 }
-.etiqueta:last-child {
-  page-break-after: auto;
-}
+.etiqueta:last-child { page-break-after: auto; }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 28px;
+  font-size: 16px;
   font-weight: 900;
   color: #000;
   text-align: center;
@@ -168,23 +189,56 @@ body { background: white; margin: 0; padding: 0; }
   flex: 1;
 }
 .etiqueta-qr {
-  width: 35mm;
-  height: 35mm;
+  width: 28mm;
+  height: 28mm;
   flex-shrink: 0;
 }
 @media print {
-  @page {
-    size: 100mm 50mm;
-    margin: 0;
-  }
+  @page { size: 100mm 50mm; margin: 0; }
   body { background: white; }
-  .etiqueta { 
-    border: none;
-    page-break-after: always;
-  }
-  .etiqueta:last-child {
-    page-break-after: auto;
-  }
+  .etiqueta { border: none; page-break-after: always; }
+  .etiqueta:last-child { page-break-after: auto; }
+}
+`;
+
+// CSS Vertical (50mm × 100mm) - rotado 90°
+const cssVertical = `
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: white; margin: 0; padding: 0; }
+.etiqueta {
+  width: 50mm;
+  height: 100mm;
+  border: 1px dashed #ccc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4mm;
+  gap: 4mm;
+  page-break-after: always;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+.etiqueta:last-child { page-break-after: auto; }
+.etiqueta-numero {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  color: #000;
+  text-align: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 2px;
+}
+.etiqueta-qr {
+  width: 30mm;
+  height: 30mm;
+}
+@media print {
+  @page { size: 50mm 100mm; margin: 0; }
+  body { background: white; }
+  .etiqueta { border: none; page-break-after: always; }
+  .etiqueta:last-child { page-break-after: auto; }
 }
 `;
 
@@ -192,27 +246,33 @@ body { background: white; margin: 0; padding: 0; }
 const stylePreview = document.createElement('style');
 stylePreview.textContent = `
 .etiqueta-preview {
-  width: 100mm;
-  height: 50mm;
   border: 2px solid #1a1f2e;
   border-radius: 4px;
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: 5mm;
-  gap: 8mm;
+  padding: 3mm;
+  gap: 5mm;
   background: white;
+}
+.preview-horizontal {
+  width: 100mm;
+  height: 50mm;
+  flex-direction: row;
+}
+.preview-vertical {
+  width: 50mm;
+  height: 100mm;
+  flex-direction: column;
 }
 .etiqueta-preview-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 28px;
+  font-size: 16px;
   font-weight: 900;
   color: #000;
   text-align: center;
   word-break: break-all;
   line-height: 1.2;
-  flex: 1;
 }
 `;
 document.head.appendChild(stylePreview);
