@@ -1,0 +1,348 @@
+// src/components/Transactions/PK/PK01View.tsx
+
+import React, { useState, useEffect } from 'react';
+import { auth } from '../../../lib/auth';
+import * as XLSX from 'xlsx';
+import './PK01.css';
+
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS = {
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+};
+
+interface Pedido {
+  id: string;
+  numero_pedido: string;
+  cod_tda: string;
+  nombre_tda: string;
+  estado: string;
+  creado_en: string;
+  total_lpns?: number;
+  encontrados?: number;
+}
+
+const PK01View: React.FC = () => {
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [showCrearModal, setShowCrearModal] = useState(false);
+  const [showDetalleModal, setShowDetalleModal] = useState(false);
+  const [pedidoDetalle, setPedidoDetalle] = useState<any>(null);
+  const [lpnsDetalle, setLpnsDetalle] = useState<any[]>([]);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [nombreArchivo, setNombreArchivo] = useState('');
+  const [procesando, setProcesando] = useState(false);
+  const [mensaje, setMensaje] = useState('');
+
+  useEffect(() => { cargarPedidos(); }, []);
+  useEffect(() => { const intervalo = setInterval(cargarPedidos, 10000); return () => clearInterval(intervalo); }, []);
+
+  const cargarPedidos = async () => {
+    setCargando(true);
+    try {
+      const resp = await fetch(`${API_URL}/pk01_pedidos?select=*&order=creado_en.desc`, { headers: HEADERS });
+      const data = await resp.json();
+      
+      // Obtener conteo de LPNs por pedido
+      const pedidosConConteo = await Promise.all((data || []).map(async (p: any) => {
+        const respLPN = await fetch(
+          `${API_URL}/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.${p.id}`,
+          { headers: HEADERS }
+        );
+        const lpns = await respLPN.json();
+        return {
+          ...p,
+          total_lpns: lpns?.length || 0,
+          encontrados: lpns?.filter((l: any) => l.encontrado).length || 0,
+        };
+      }));
+      
+      setPedidos(pedidosConConteo);
+    } catch (e) {}
+    setCargando(false);
+  };
+
+  const procesarArchivo = async () => {
+    if (!archivo) { alert('Selecciona un archivo'); return; }
+    setProcesando(true);
+    setMensaje('');
+
+    try {
+      const data = await leerExcel(archivo);
+      
+      if (!data || data.length === 0) {
+        setMensaje('El archivo está vacío');
+        setProcesando(false);
+        return;
+      }
+
+      // Validar columnas
+      const primeraFila = data[0];
+      const tieneCodTda = Object.keys(primeraFila).some(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA'));
+      const tieneTda = Object.keys(primeraFila).some(k => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA'));
+      const tienePallet = Object.keys(primeraFila).some(k => k.toUpperCase().includes('PALLET'));
+      const tieneLpn = Object.keys(primeraFila).some(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO'));
+
+      if (!tieneCodTda || !tienePallet || !tieneLpn) {
+        setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN');
+        setProcesando(false);
+        return;
+      }
+
+      // Encontrar nombres de columnas reales
+      const colCodTda = Object.keys(primeraFila).find(k => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
+      const colTda = Object.keys(primeraFila).find(k => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
+      const colPallet = Object.keys(primeraFila).find(k => k.toUpperCase().includes('PALLET')) || '';
+      const colLpn = Object.keys(primeraFila).find(k => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
+
+      // Agrupar por COD TDA
+      const grupos: Record<string, { nombre: string; items: any[] }> = {};
+      
+      data.forEach((row: any) => {
+        const codTda = String(row[colCodTda] || '').trim();
+        const nombreTda = String(row[colTda] || '').trim();
+        if (!codTda) return;
+        
+        if (!grupos[codTda]) {
+          grupos[codTda] = { nombre: nombreTda, items: [] };
+        }
+        grupos[codTda].items.push(row);
+      });
+
+      const user = auth.getUsuario();
+      let totalPedidos = 0;
+
+      for (const [codTda, grupo] of Object.entries(grupos)) {
+        // Generar número de pedido
+        const now = new Date();
+        const fecha = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
+        const respCount = await fetch(`${API_URL}/pk01_pedidos?select=id&order=creado_en.desc&limit=1`, { headers: HEADERS });
+        const countData = await respCount.json();
+        const count = (countData?.length || 0) + 1;
+        const numeroPedido = `PK-${fecha}-${String(count).padStart(4, '0')}`;
+
+        // Crear pedido
+        const respPedido = await fetch(`${API_URL}/pk01_pedidos`, {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            numero_pedido: numeroPedido,
+            cod_tda: codTda,
+            nombre_tda: grupo.nombre,
+            estado: 'Pendiente',
+            creado_por: user?.id,
+          }),
+        });
+        const pedidoCreado = await respPedido.json();
+
+        // Insertar LPNs
+        for (const item of grupo.items) {
+          const pallet = String(item[colPallet] || '').trim();
+          const lpn = String(item[colLpn] || '').trim();
+          
+          await fetch(`${API_URL}/pk01_pedido_lpns`, {
+            method: 'POST',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pedido_id: pedidoCreado.id,
+              pallet: pallet,
+              codigo_lpn: lpn,
+              encontrado: false,
+            }),
+          });
+        }
+        totalPedidos++;
+      }
+
+      setMensaje(`✅ ${totalPedidos} pedido(s) creado(s) correctamente`);
+      setNombreArchivo('');
+      setArchivo(null);
+      setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
+      cargarPedidos();
+    } catch (e: any) {
+      setMensaje('Error: ' + e.message);
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  const leerExcel = (file: File): Promise<any[]> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const wb = XLSX.read(data, { type: 'array' });
+      resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+
+  const verDetalle = async (pedido: Pedido) => {
+    setPedidoDetalle(pedido);
+    const resp = await fetch(
+      `${API_URL}/pk01_pedido_lpns?select=*&pedido_id=eq.${pedido.id}&order=pallet,codigo_lpn`,
+      { headers: HEADERS }
+    );
+    setLpnsDetalle(await resp.json() || []);
+    setShowDetalleModal(true);
+  };
+
+  const getEstadoBadge = (estado: string) => {
+    switch (estado) {
+      case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
+      case 'En Proceso': return { color: '#1d4ed8', bg: '#dbeafe' };
+      case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' };
+      default: return { color: '#64748b', bg: '#f1f5f9' };
+    }
+  };
+
+  return (
+    <div className="pk01-view">
+      <div className="pk01-header">
+        <h2>Picking LPN - Pedidos</h2>
+        <button className="pk01-btn-nueva" onClick={() => setShowCrearModal(true)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          Nuevo Pedido
+        </button>
+      </div>
+
+      <div className="ed03-tabla-container">
+        <table className="ed03-tabla">
+          <thead>
+            <tr>
+              <th>N° Pedido</th>
+              <th>Tienda</th>
+              <th>Total LPNs</th>
+              <th>Encontrados</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+              <th style={{ width: '100px' }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cargando ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
+              pedidos.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Sin pedidos</td></tr> :
+              pedidos.map(p => {
+                const eb = getEstadoBadge(p.estado);
+                return (
+                  <tr key={p.id}>
+                    <td className="ed03-ticket-id">{p.numero_pedido}</td>
+                    <td>{p.cod_tda} - {p.nombre_tda}</td>
+                    <td style={{ textAlign: 'center' }}>{p.total_lpns}</td>
+                    <td style={{ textAlign: 'center', color: (p.encontrados || 0) > 0 ? '#15803d' : '#64748b', fontWeight: 600 }}>
+                      {p.encontrados || 0}
+                    </td>
+                    <td><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: eb.bg, color: eb.color }}>{p.estado}</span></td>
+                    <td>{new Date(p.creado_en).toLocaleDateString('es-CL')}</td>
+                    <td><button className="pk01-btn-detalle" onClick={() => verDetalle(p)}>Detalle</button></td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal Crear */}
+      {showCrearModal && (
+        <div className="ed01-modal-overlay" onClick={() => !procesando && setShowCrearModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header"><h2>Nuevo Pedido</h2><button className="ed01-modal-close" onClick={() => setShowCrearModal(false)}>×</button></div>
+            <div className="ed01-modal-body">
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#475569', marginBottom: '6px' }}>
+                  Archivo Excel (.xlsx)
+                </label>
+                <div
+                  onClick={() => document.getElementById('file-pedido')?.click()}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    gap: '8px', padding: '28px', border: '2px dashed #e2e8f0', borderRadius: '10px',
+                    cursor: 'pointer', background: '#fafcff', color: '#94a3b8', fontSize: '13px',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.background = '#f8fafd'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fafcff'; }}
+                >
+                  <input id="file-pedido" type="file" accept=".xlsx,.xls" hidden
+                    onChange={e => { setArchivo(e.target.files?.[0] || null); setNombreArchivo(e.target.files?.[0]?.name || ''); }}
+                  />
+                  {nombreArchivo ? (
+                    <span style={{ color: '#1e293b', fontWeight: 500 }}>{nombreArchivo}</span>
+                  ) : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                      <span>Seleccionar archivo</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <p style={{ fontSize: '12px', color: '#64748b' }}>
+                El archivo debe tener las columnas: <strong>COD TDA, TDA, PALLET, CODIGO LPN</strong>
+              </p>
+              {mensaje && (
+                <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('✅') ? '#dcfce7' : '#fef2f2', color: mensaje.includes('✅') ? '#15803d' : '#dc2626' }}>
+                  {mensaje}
+                </div>
+              )}
+            </div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button>
+              <button className="ed01-btn-save" onClick={procesarArchivo} disabled={procesando}>
+                {procesando ? 'Procesando...' : 'Crear Pedido'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Detalle */}
+      {showDetalleModal && pedidoDetalle && (
+        <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>{pedidoDetalle.numero_pedido} - {pedidoDetalle.cod_tda} {pedidoDetalle.nombre_tda}</h2>
+              <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
+            </div>
+            <div className="ed01-modal-body">
+              <div className="ed03-tabla-container" style={{ maxHeight: '400px' }}>
+                <table className="ed03-tabla">
+                  <thead>
+                    <tr>
+                      <th>Pallet</th>
+                      <th>Código LPN</th>
+                      <th style={{ width: '100px' }}>Encontrado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lpnsDetalle.length === 0 ? (
+                      <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>Sin LPNs</td></tr>
+                    ) : (
+                      lpnsDetalle.map((lpn: any) => (
+                        <tr key={lpn.id} style={{ background: lpn.encontrado ? '#dcfce7' : 'transparent' }}>
+                          <td>{lpn.pallet}</td>
+                          <td className="ed03-ticket-id">{lpn.codigo_lpn}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            {lpn.encontrado ? (
+                              <span style={{ color: '#15803d', fontWeight: 600 }}>✅ SI</span>
+                            ) : (
+                              <span style={{ color: '#dc2626', fontWeight: 600 }}>❌ NO</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => setShowDetalleModal(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PK01View;
