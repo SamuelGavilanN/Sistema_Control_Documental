@@ -152,7 +152,7 @@ const UT01View: React.FC = () => {
             <div className="etiqueta-preview-numero" style={esHorizontal ? {} : { writingMode: 'vertical-rl', textOrientation: 'mixed' } as React.CSSProperties}>
               {prefijo}{String(inicio).padStart(digitos, '0')}
             </div>
-            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '100px', height: '100px' } : { width: '120px', height: '120px' }} />}
+            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '100px', height: '100px' } : { width: '110px', height: '110px' }} />}
           </div>
         </div>
         <div className="ut01-info">
@@ -164,7 +164,7 @@ const UT01View: React.FC = () => {
   );
 };
 
-// CSS Horizontal (100mm × 50mm) - Todo más grande
+// CSS Horizontal (100mm × 50mm)
 const cssHorizontal = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -221,7 +221,7 @@ body {
 }
 `;
 
-// CSS Vertical (50mm × 100mm) - Todo más grande
+// CSS Vertical (50mm × 100mm)
 const cssVertical = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -279,34 +279,46 @@ body {
 // Estilos para la vista previa
 const stylePreview = document.createElement('style');
 stylePreview.textContent = `
+.ut01-preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
 .etiqueta-preview {
   border: 2px solid #1a1f2e;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4mm;
-  gap: 6mm;
+  padding: 8px;
+  gap: 12px;
   background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .preview-horizontal {
-  width: 200px;
-  height: 100px;
+  width: 300px;
+  height: 150px;
   flex-direction: row;
 }
 .preview-vertical {
-  width: 100px;
-  height: 200px;
+  width: 150px;
+  height: 300px;
   flex-direction: column;
 }
 .etiqueta-preview-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 900;
   color: #000;
   text-align: center;
   word-break: break-all;
   line-height: 1.2;
+}
+.etiqueta-preview img {
+  image-rendering: auto;
 }
 `;
 document.head.appendChild(stylePreview);
