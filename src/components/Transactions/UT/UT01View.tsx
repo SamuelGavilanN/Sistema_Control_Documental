@@ -16,7 +16,7 @@ const UT01View: React.FC = () => {
   const generarPreview = async () => {
     const numero = String(inicio).padStart(digitos, '0');
     const valorCompleto = prefijo + numero;
-    const qr = await QRCode.toDataURL(valorCompleto, { width: 100, margin: 1 });
+    const qr = await QRCode.toDataURL(valorCompleto, { width: 200, margin: 1 });
     setQrPreview(qr);
   };
 
@@ -36,7 +36,8 @@ const UT01View: React.FC = () => {
     for (let i = inicio; i <= fin; i++) {
       const numero = String(i).padStart(digitos, '0');
       const valorCompleto = prefijo + numero;
-      const qr = await QRCode.toDataURL(valorCompleto, { width: esHorizontal ? 70 : 80, margin: 1 });
+      const qrSize = esHorizontal ? 200 : 250;
+      const qr = await QRCode.toDataURL(valorCompleto, { width: qrSize, margin: 2 });
 
       etiquetasHTML += `
         <div class="etiqueta">
@@ -55,15 +56,19 @@ const UT01View: React.FC = () => {
 </head>
 <body>
   ${etiquetasHTML}
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 500);
+    };
+  </script>
 </body>
 </html>`;
 
-    const ventana = window.open('', '_blank');
+    const ventana = window.open('', '_blank', 'width=800,height=600');
     if (ventana) {
       ventana.document.write(htmlCompleto);
       ventana.document.close();
       ventana.focus();
-      setTimeout(() => ventana.print(), 800);
     }
   };
 
@@ -144,10 +149,10 @@ const UT01View: React.FC = () => {
         <h3>Vista Previa ({esHorizontal ? '100×50mm' : '50×100mm'})</h3>
         <div className="ut01-preview-container">
           <div className={`etiqueta-preview ${esHorizontal ? 'preview-horizontal' : 'preview-vertical'}`}>
-            <div className="etiqueta-preview-numero" style={esHorizontal ? {} : { writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+            <div className="etiqueta-preview-numero" style={esHorizontal ? {} : { writingMode: 'vertical-rl', textOrientation: 'mixed' } as React.CSSProperties}>
               {prefijo}{String(inicio).padStart(digitos, '0')}
             </div>
-            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '50px', height: '50px' } : { width: '60px', height: '60px' }} />}
+            {qrPreview && <img src={qrPreview} alt="QR Preview" style={esHorizontal ? { width: '100px', height: '100px' } : { width: '120px', height: '120px' }} />}
           </div>
         </div>
         <div className="ut01-info">
@@ -159,85 +164,114 @@ const UT01View: React.FC = () => {
   );
 };
 
-// CSS Horizontal (100mm × 50mm)
+// CSS Horizontal (100mm × 50mm) - Todo más grande
 const cssHorizontal = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: white; margin: 0; padding: 0; }
+body { 
+  background: white; 
+  margin: 0; 
+  padding: 10mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 .etiqueta {
-  width: 100mm;
-  height: 50mm;
-  border: 1px dashed #ccc;
+  width: 90mm;
+  height: 40mm;
+  border: 2px solid #000;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-around;
-  padding: 3mm;
-  gap: 5mm;
+  padding: 2mm;
+  gap: 4mm;
   page-break-after: always;
   box-sizing: border-box;
-  margin: 0 auto;
+  margin-bottom: 5mm;
+  background: white;
 }
 .etiqueta:last-child { page-break-after: auto; }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 16px;
+  font-size: 24px;
   font-weight: 900;
   color: #000;
   text-align: center;
   word-break: break-all;
   line-height: 1.2;
   flex: 1;
+  padding: 2mm;
 }
 .etiqueta-qr {
-  width: 28mm;
-  height: 28mm;
+  width: 32mm;
+  height: 32mm;
   flex-shrink: 0;
 }
 @media print {
   @page { size: 100mm 50mm; margin: 0; }
-  body { background: white; }
-  .etiqueta { border: none; page-break-after: always; }
+  body { padding: 0; margin: 0; }
+  .etiqueta { 
+    border: 1px solid #000; 
+    margin: 0;
+    page-break-after: always;
+    width: 100mm;
+    height: 50mm;
+  }
   .etiqueta:last-child { page-break-after: auto; }
 }
 `;
 
-// CSS Vertical (50mm × 100mm) - rotado 90°
+// CSS Vertical (50mm × 100mm) - Todo más grande
 const cssVertical = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: white; margin: 0; padding: 0; }
+body { 
+  background: white; 
+  margin: 0; 
+  padding: 10mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 .etiqueta {
-  width: 50mm;
-  height: 100mm;
-  border: 1px dashed #ccc;
+  width: 40mm;
+  height: 90mm;
+  border: 2px solid #000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4mm;
+  padding: 3mm;
   gap: 4mm;
   page-break-after: always;
   box-sizing: border-box;
-  margin: 0 auto;
+  margin-bottom: 5mm;
+  background: white;
 }
 .etiqueta:last-child { page-break-after: auto; }
 .etiqueta-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 900;
   color: #000;
   text-align: center;
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
 }
 .etiqueta-qr {
-  width: 30mm;
-  height: 30mm;
+  width: 32mm;
+  height: 32mm;
 }
 @media print {
   @page { size: 50mm 100mm; margin: 0; }
-  body { background: white; }
-  .etiqueta { border: none; page-break-after: always; }
+  body { padding: 0; margin: 0; }
+  .etiqueta { 
+    border: 1px solid #000; 
+    margin: 0;
+    page-break-after: always;
+    width: 50mm;
+    height: 100mm;
+  }
   .etiqueta:last-child { page-break-after: auto; }
 }
 `;
@@ -251,23 +285,23 @@ stylePreview.textContent = `
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3mm;
-  gap: 5mm;
+  padding: 4mm;
+  gap: 6mm;
   background: white;
 }
 .preview-horizontal {
-  width: 100mm;
-  height: 50mm;
+  width: 200px;
+  height: 100px;
   flex-direction: row;
 }
 .preview-vertical {
-  width: 50mm;
-  height: 100mm;
+  width: 100px;
+  height: 200px;
   flex-direction: column;
 }
 .etiqueta-preview-numero {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 900;
   color: #000;
   text-align: center;
