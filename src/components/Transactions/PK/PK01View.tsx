@@ -11,19 +11,8 @@ const HEADERS = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
-interface Pedido {
-  id: string;
-  numero_pedido: string;
-  cod_tda: string;
-  nombre_tda: string;
-  estado: string;
-  creado_en: string;
-  total_lpns?: number;
-  encontrados?: number;
-}
-
 const PK01View: React.FC = () => {
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [pedidos, setPedidos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [showDetalleModal, setShowDetalleModal] = useState(false);
@@ -60,7 +49,7 @@ const PK01View: React.FC = () => {
           });
         }
       }
-      setPedidos(pedidosConConteo as Pedido[]);
+      setPedidos(pedidosConConteo);
     } catch (e) {}
     setCargando(false);
   };
@@ -126,7 +115,7 @@ const PK01View: React.FC = () => {
     reader.readAsArrayBuffer(file);
   });
 
-  const verDetalle = async (pedido: Pedido) => {
+  const verDetalle = async (pedido: any) => {
     setPedidoDetalle(pedido);
     const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     const data = await resp.json();
@@ -163,7 +152,7 @@ const PK01View: React.FC = () => {
           <tbody>
             {cargando ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
               pedidos.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Sin pedidos</td></tr> :
-              pedidos.map(p => {
+              pedidos.map((p: any) => {
                 const eb = getEstadoBadge(p.estado);
                 return (
                   <tr key={p.id}>
