@@ -1,27 +1,25 @@
-// src/components/Transactions/PK/PK01View.tsx
-
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../../lib/auth';
 import * as XLSX from 'xlsx';
 import './PK01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS = {
+const HEADERS: any = {
   'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
 const PK01View: React.FC = () => {
-  const [pedidos, setPedidos] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [showCrearModal, setShowCrearModal] = useState(false);
-  const [showDetalleModal, setShowDetalleModal] = useState(false);
-  const [pedidoDetalle, setPedidoDetalle] = useState<any>(null);
-  const [lpnsDetalle, setLpnsDetalle] = useState<any[]>([]);
-  const [archivo, setArchivo] = useState<any>(null);
-  const [nombreArchivo, setNombreArchivo] = useState('');
-  const [procesando, setProcesando] = useState(false);
-  const [mensaje, setMensaje] = useState('');
+  const [pedidos, setPedidos]: any = useState([]);
+  const [cargando, setCargando]: any = useState(true);
+  const [showCrearModal, setShowCrearModal]: any = useState(false);
+  const [showDetalleModal, setShowDetalleModal]: any = useState(false);
+  const [pedidoDetalle, setPedidoDetalle]: any = useState(null);
+  const [lpnsDetalle, setLpnsDetalle]: any = useState([]);
+  const [archivo, setArchivo]: any = useState(null);
+  const [nombreArchivo, setNombreArchivo]: any = useState('');
+  const [procesando, setProcesando]: any = useState(false);
+  const [mensaje, setMensaje]: any = useState('');
 
   useEffect(() => { cargarPedidos(); }, []);
   useEffect(() => { const intervalo = setInterval(cargarPedidos, 10000); return () => clearInterval(intervalo); }, []);
@@ -29,13 +27,13 @@ const PK01View: React.FC = () => {
   const cargarPedidos = async () => {
     setCargando(true);
     try {
-      const resp = await fetch(API_URL + '/pk01_pedidos?select=*&order=creado_en.desc', { headers: HEADERS });
+      const resp: any = await fetch(API_URL + '/pk01_pedidos?select=*&order=creado_en.desc', { headers: HEADERS });
       const data: any = await resp.json();
-      const resultado: any[] = [];
+      const resultado: any = [];
       if (data && data.length) {
         for (let i = 0; i < data.length; i++) {
           const p: any = data[i];
-          const respLPN = await fetch(API_URL + '/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.' + p.id, { headers: HEADERS });
+          const respLPN: any = await fetch(API_URL + '/pk01_pedido_lpns?select=id,encontrado&pedido_id=eq.' + p.id, { headers: HEADERS });
           const lpns: any = await respLPN.json();
           resultado.push({
             id: p.id,
@@ -62,35 +60,35 @@ const PK01View: React.FC = () => {
       const data: any = await leerExcel(archivo);
       if (!data || !data.length) { setMensaje('El archivo esta vacio'); setProcesando(false); return; }
       const primeraFila: any = data[0];
-      const colCodTda = Object.keys(primeraFila).find((k: string) => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
-      const colTda = Object.keys(primeraFila).find((k: string) => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
-      const colPallet = Object.keys(primeraFila).find((k: string) => k.toUpperCase().includes('PALLET')) || '';
-      const colLpn = Object.keys(primeraFila).find((k: string) => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
+      const colCodTda: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
+      const colTda: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
+      const colPallet: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('PALLET')) || '';
+      const colLpn: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
       if (!colCodTda || !colPallet || !colLpn) { setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN'); setProcesando(false); return; }
       
       const grupos: any = {};
       data.forEach((row: any) => {
-        const codTda = String(row[colCodTda] || '').trim();
-        const nombreTda = String(row[colTda] || '').trim();
+        const codTda: any = String(row[colCodTda] || '').trim();
+        const nombreTda: any = String(row[colTda] || '').trim();
         if (!codTda) return;
         if (!grupos[codTda]) { grupos[codTda] = { nombre: nombreTda, items: [] }; }
         grupos[codTda].items.push(row);
       });
       
       const user: any = auth.getUsuario();
-      const keys = Object.keys(grupos);
+      const keys: any = Object.keys(grupos);
       
       for (let g = 0; g < keys.length; g++) {
-        const codTda = keys[g];
-        const grupo = grupos[codTda];
-        const now = new Date();
-        const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
-        const respCount = await fetch(API_URL + '/pk01_pedidos?select=id&order=creado_en.desc&limit=1', { headers: HEADERS });
+        const codTda: any = keys[g];
+        const grupo: any = grupos[codTda];
+        const now: any = new Date();
+        const fecha: any = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
+        const respCount: any = await fetch(API_URL + '/pk01_pedidos?select=id&order=creado_en.desc&limit=1', { headers: HEADERS });
         const countData: any = await respCount.json();
-        const count = (countData ? countData.length : 0) + 1;
-        const numeroPedido = 'PK-' + fecha + '-' + String(count).padStart(4, '0');
+        const count: any = (countData ? countData.length : 0) + 1;
+        const numeroPedido: any = 'PK-' + fecha + '-' + String(count).padStart(4, '0');
         
-        const respPedido = await fetch(API_URL + '/pk01_pedidos', {
+        const respPedido: any = await fetch(API_URL + '/pk01_pedidos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({ numero_pedido: numeroPedido, cod_tda: codTda, nombre_tda: grupo.nombre, estado: 'Pendiente', creado_por: user?.id }),
@@ -98,9 +96,9 @@ const PK01View: React.FC = () => {
         const pedidoCreado: any = await respPedido.json();
         
         for (let j = 0; j < grupo.items.length; j++) {
-          const item = grupo.items[j];
-          const pallet = String(item[colPallet] || '').trim();
-          const lpn = String(item[colLpn] || '').trim();
+          const item: any = grupo.items[j];
+          const pallet: any = String(item[colPallet] || '').trim();
+          const lpn: any = String(item[colLpn] || '').trim();
           await fetch(API_URL + '/pk01_pedido_lpns', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -109,7 +107,7 @@ const PK01View: React.FC = () => {
         }
       }
       
-      setMensaje('✅ Pedido(s) creado(s) correctamente');
+      setMensaje('Pedido(s) creado(s) correctamente');
       setNombreArchivo('');
       setArchivo(null);
       setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
@@ -119,21 +117,21 @@ const PK01View: React.FC = () => {
   };
 
   const leerExcel = (file: any): Promise<any[]> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e: any) => { const data = new Uint8Array(e.target?.result); const wb = XLSX.read(data, { type: 'array' }); resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])); };
+    const reader: any = new FileReader();
+    reader.onload = (e: any) => { const data: any = new Uint8Array(e.target?.result); const wb: any = XLSX.read(data, { type: 'array' }); resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])); };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
 
   const verDetalle = async (pedido: any) => {
     setPedidoDetalle(pedido);
-    const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
+    const resp: any = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     const data: any = await resp.json();
     setLpnsDetalle(data || []);
     setShowDetalleModal(true);
   };
 
-  const getEstadoBadge = (estado: string) => {
+  const getEstadoBadge = (estado: any) => {
     switch (estado) {
       case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
       case 'En Proceso': return { color: '#1d4ed8', bg: '#dbeafe' };
@@ -155,13 +153,13 @@ const PK01View: React.FC = () => {
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
           <thead>
-            <tr><th>N° Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '100px' }}>Acciones</th></tr>
+            <tr><th>Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '100px' }}>Acciones</th></tr>
           </thead>
           <tbody>
             {cargando ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
               pedidos.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Sin pedidos</td></tr> :
               pedidos.map((p: any) => {
-                const eb = getEstadoBadge(p.estado);
+                const eb: any = getEstadoBadge(p.estado);
                 return (
                   <tr key={p.id}>
                     <td className="ed03-ticket-id">{p.numero_pedido}</td>
@@ -193,7 +191,7 @@ const PK01View: React.FC = () => {
                 </div>
               </div>
               <p style={{ fontSize: '12px', color: '#64748b' }}>El archivo debe tener las columnas: <strong>COD TDA, TDA, PALLET, CODIGO LPN</strong></p>
-              {mensaje && <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('✅') ? '#dcfce7' : '#fef2f2', color: mensaje.includes('✅') ? '#15803d' : '#dc2626' }}>{mensaje}</div>}
+              {mensaje && <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : '#dcfce7', color: mensaje.includes('Error') ? '#dc2626' : '#15803d' }}>{mensaje}</div>}
             </div>
             <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivo} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Pedido'}</button></div>
           </div>
@@ -207,13 +205,13 @@ const PK01View: React.FC = () => {
             <div className="ed01-modal-body">
               <div className="ed03-tabla-container" style={{ maxHeight: '400px' }}>
                 <table className="ed03-tabla">
-                  <thead><tr><th>Pallet</th><th>Código LPN</th><th style={{ width: '100px' }}>Encontrado</th></tr></thead>
+                  <thead><tr><th>Pallet</th><th>Codigo LPN</th><th style={{ width: '100px' }}>Encontrado</th></tr></thead>
                   <tbody>
                     {lpnsDetalle.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>Sin LPNs</td></tr> :
                       lpnsDetalle.map((lpn: any) => (
                         <tr key={lpn.id} style={{ background: lpn.encontrado ? '#dcfce7' : 'transparent' }}>
                           <td>{lpn.pallet}</td><td className="ed03-ticket-id">{lpn.codigo_lpn}</td>
-                          <td style={{ textAlign: 'center' }}>{lpn.encontrado ? <span style={{ color: '#15803d', fontWeight: 600 }}>✅ SI</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>❌ NO</span>}</td>
+                          <td style={{ textAlign: 'center' }}>{lpn.encontrado ? <span style={{ color: '#15803d', fontWeight: 600 }}>SI</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>NO</span>}</td>
                         </tr>
                       ))}
                   </tbody>
