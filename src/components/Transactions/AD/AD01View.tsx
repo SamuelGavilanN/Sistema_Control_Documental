@@ -198,7 +198,7 @@ const AD01View: React.FC = () => {
             'SAP': idx === 0 ? (d.esHuerfano ? 0 : d.cantidad_sap) : '-',
             'FISICO': cap.cantidad_fisica || 0,
             'DIFERENCIA': idx === 0 ? (d.esHuerfano ? 'X' : (d.diferencia === 0 ? 'OK' : d.diferencia)) : '-',
-            'ESTADO': idx === 0 ? (d.esHuerfano ? 'Manual' : (d.diferencia === 0 ? 'OK' : 'Pend.')) : '-',
+            'ESTADO': idx === 0 ? (d.esHuerfano ? 'Dif.' : (d.diferencia === 0 ? 'OK' : 'Pend.')) : '-',
             'ACTA': idx === 0 ? (auditoriaDetalle.acta || '') : '',
             'GUIA': idx === 0 ? (auditoriaDetalle.guia || '') : '',
             'COD LOCAL': idx === 0 ? auditoriaDetalle.codigo_local : '',
@@ -222,7 +222,7 @@ const AD01View: React.FC = () => {
           'SAP': d.esHuerfano ? 0 : d.cantidad_sap,
           'FISICO': 0,
           'DIFERENCIA': d.esHuerfano ? 'X' : d.diferencia,
-          'ESTADO': d.esHuerfano ? 'Manual' : 'Pend.',
+          'ESTADO': d.esHuerfano ? 'Dif.' : 'Pend.',
           'ACTA': auditoriaDetalle.acta || '', 'GUIA': auditoriaDetalle.guia || '',
           'COD LOCAL': auditoriaDetalle.codigo_local, 'LOCAL': auditoriaDetalle.nombre_local,
         });
@@ -246,7 +246,7 @@ const AD01View: React.FC = () => {
     });
     const filas = Object.values(skuMapCons).map((item: any) => {
       const diferencia = item.cantidad_sap - item.cantidad_fisica;
-      const estado = item.esHuerfano ? 'Manual' : (diferencia === 0 ? 'OK' : (diferencia > 0 ? 'Pendiente' : 'Con Diferencias'));
+      const estado = item.esHuerfano ? 'Dif.' : (diferencia === 0 ? 'OK' : (diferencia > 0 ? 'Pendiente' : 'Con Diferencias'));
       return {
         'TAREA': auditoriaDetalle.numero_tarea,
         'SKU': item.sku,
@@ -380,7 +380,7 @@ const AD01View: React.FC = () => {
                               background: d.esHuerfano ? '#fef3c7' : (d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f1f5f9'),
                               color: d.esHuerfano ? '#92400e' : (d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b')
                             }}>
-                              {d.esHuerfano ? 'Manual' : (d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.')}
+                              {d.esHuerfano ? 'Dif.' : (d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.')}
                             </span>
                           </td>
                         </tr>
