@@ -59,14 +59,29 @@ const LP01View: React.FC = () => {
     setMensaje('');
     try {
       const data: any = await leerExcel(archivo);
+      console.log('Datos leidos del Excel:', data);
+
       if (!data || !data.length) { setMensaje('El archivo esta vacio'); setProcesando(false); return; }
+
       const primeraFila: any = data[0];
+      console.log('Columnas encontradas:', Object.keys(primeraFila));
+
       const colCodTda: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
       const colTda: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
       const colPallet: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('PALLET')) || '';
       const colLpn: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
-      if (!colCodTda || !colPallet || !colLpn) { setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN'); setProcesando(false); return; }
-      
+
+      console.log('Columna COD TDA:', colCodTda, '| Valor:', primeraFila[colCodTda]);
+      console.log('Columna TDA:', colTda, '| Valor:', primeraFila[colTda]);
+      console.log('Columna PALLET:', colPallet, '| Valor:', primeraFila[colPallet]);
+      console.log('Columna LPN:', colLpn, '| Valor:', primeraFila[colLpn]);
+
+      if (!colCodTda || !colPallet || !colLpn) {
+        setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN');
+        setProcesando(false);
+        return;
+      }
+
       const grupos: any = {};
       data.forEach((row: any) => {
         const codTda: any = String(row[colCodTda] || '').trim();
@@ -75,10 +90,12 @@ const LP01View: React.FC = () => {
         if (!grupos[codTda]) { grupos[codTda] = { nombre: nombreTda, items: [] }; }
         grupos[codTda].items.push(row);
       });
-      
+
+      console.log('Grupos formados:', Object.keys(grupos).length);
+
       const user: any = auth.getUsuario();
       const keys: any = Object.keys(grupos);
-      
+
       for (let g = 0; g < keys.length; g++) {
         const codTda: any = keys[g];
         const grupo: any = grupos[codTda];
@@ -88,33 +105,46 @@ const LP01View: React.FC = () => {
         const countData: any = await respCount.json();
         const count: any = (countData ? countData.length : 0) + 1;
         const numeroPedido: any = 'LP-' + fecha + '-' + String(count).padStart(4, '0');
-        
+
         const respPedido: any = await fetch(API_URL + '/pk01_pedidos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({ numero_pedido: numeroPedido, cod_tda: codTda, nombre_tda: grupo.nombre, estado: 'Pendiente', creado_por: user?.id }),
         });
         const pedidoCreado: any = await respPedido.json();
-        
+        console.log('Pedido creado:', pedidoCreado.id, numeroPedido);
+
         for (let j = 0; j < grupo.items.length; j++) {
           const item: any = grupo.items[j];
           const pallet: any = String(item[colPallet] || '').trim();
           const lpn: any = String(item[colLpn] || '').trim();
-          await fetch(API_URL + '/pk01_pedido_lpns', {
+
+          console.log('Insertando LPN:', { pedido_id: pedidoCreado.id, pallet, codigo_lpn: lpn });
+
+          const respInsert: any = await fetch(API_URL + '/pk01_pedido_lpns', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
             body: JSON.stringify({ pedido_id: pedidoCreado.id, pallet: pallet, codigo_lpn: lpn, encontrado: false }),
           });
+          
+          if (!respInsert.ok) {
+            const err: any = await respInsert.json();
+            console.error('Error insertando LPN:', err);
+          }
         }
       }
-      
+
       setMensaje('Pedido(s) creado(s) correctamente');
       setNombreArchivo('');
       setArchivo(null);
       setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
       cargarPedidos();
-    } catch (e: any) { setMensaje('Error: ' + e.message); }
-    finally { setProcesando(false); }
+    } catch (e: any) {
+      console.error('Error general:', e);
+      setMensaje('Error: ' + e.message);
+    } finally {
+      setProcesando(false);
+    }
   };
 
   const leerExcel = (file: any): Promise<any[]> => new Promise((resolve, reject) => {
@@ -126,8 +156,10 @@ const LP01View: React.FC = () => {
 
   const verDetalle = async (pedido: any) => {
     setPedidoDetalle(pedido);
+    console.log('Cargando detalle para pedido:', pedido.id);
     const resp: any = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     const data: any = await resp.json();
+    console.log('LPNs encontrados:', data ? data.length : 0, data);
     setLpnsDetalle(data || []);
     setShowDetalleModal(true);
   };
