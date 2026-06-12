@@ -467,7 +467,7 @@ const AD03Dashboard: React.FC = () => {
         yPos += 8;
 
         const headersDif = ['Tarea', 'SKU', 'Descripción', 'SAP', 'Físico', 'Dif.', 'Est.'];
-        const colWidthsDif = [35, 28, 52, 22, 22, 20, 15];
+        const colWidthsDif = [35, 28, 48, 22, 22, 20, 15];
         const rowsDif = detalleDiferencias.map(d => [
           d.tarea,
           d.sku,
