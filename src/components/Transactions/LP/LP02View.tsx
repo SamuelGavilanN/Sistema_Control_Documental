@@ -95,12 +95,10 @@ const LP02View: React.FC = () => {
     setPalletActual('');
     setLpnsPendientesPallet([]);
     setMensaje('');
+    setCapturasLog([]);
 
     const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     setLpnsPedido(await resp.json() || []);
-
-    const respLog = await fetch(API_URL + '/pk02_capturas?select=*&pedido_id=eq.' + pedido.id + '&order=capturado_en.desc&limit=50', { headers: HEADERS });
-    setCapturasLog(await respLog.json() || []);
 
     if (pedido.estado === 'Pendiente') {
       await fetch(API_URL + '/pk01_pedidos?id=eq.' + pedido.id, {
@@ -187,7 +185,6 @@ const LP02View: React.FC = () => {
     setCapturasLog(prev => [{ ...captura, id: captura.id || Date.now().toString() }, ...prev]);
     setLpnInput('');
 
-    // Refrescar listas
     await refrescarPedidoActivo();
     cargarPedidos();
 
@@ -399,7 +396,7 @@ const LP02View: React.FC = () => {
           {/* Log de capturas */}
           <div className="ed03-tabla-container" style={{ maxHeight: '300px' }}>
             <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-              📝 Últimas capturas ({capturasLog.length})
+              📝 Capturas de esta sesión ({capturasLog.length})
             </h4>
             <table className="ed03-tabla">
               <thead>
