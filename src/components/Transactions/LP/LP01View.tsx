@@ -116,16 +116,11 @@ const LP01View: React.FC = () => {
           const pallet: any = String(item[colPallet] || '').trim();
           const lpn: any = String(item[colLpn] || '').trim();
 
-          const respInsert: any = await fetch(API_URL + '/pk01_pedido_lpns', {
+          await fetch(API_URL + '/pk01_pedido_lpns', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
             body: JSON.stringify({ pedido_id: pedidoCreado.id, pallet: pallet, codigo_lpn: lpn, encontrado: false }),
           });
-
-          if (!respInsert.ok) {
-            const errInsert: any = await respInsert.text();
-            console.error('Error insertando LPN:', errInsert);
-          }
         }
       }
 
@@ -156,6 +151,44 @@ const LP01View: React.FC = () => {
     setShowDetalleModal(true);
   };
 
+  // ELIMINAR pedido completo
+  const handleEliminar = async (pedido: any) => {
+    if (!confirm('¿Eliminar este pedido y todos sus LPNs? Esta acción no se puede deshacer.')) return;
+    try {
+      await fetch(API_URL + '/pk01_pedido_lpns?pedido_id=eq.' + pedido.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/pk02_capturas?pedido_id=eq.' + pedido.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/pk01_pedidos?id=eq.' + pedido.id, { method: 'DELETE', headers: HEADERS });
+      setShowDetalleModal(false);
+      cargarPedidos();
+      setMensaje('Pedido eliminado correctamente');
+    } catch (e: any) {
+      setMensaje('Error al eliminar: ' + e.message);
+    }
+  };
+
+  // LIMPIAR capturas de un pedido
+  const handleLimpiar = async (pedido: any) => {
+    if (!confirm('¿Limpiar todas las capturas de este pedido? Los LPNs volverán a estado "No encontrado".')) return;
+    try {
+      await fetch(API_URL + '/pk02_capturas?pedido_id=eq.' + pedido.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/pk01_pedido_lpns?pedido_id=eq.' + pedido.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encontrado: false, capturado_en: null }),
+      });
+      await fetch(API_URL + '/pk01_pedidos?id=eq.' + pedido.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'Pendiente' }),
+      });
+      setShowDetalleModal(false);
+      cargarPedidos();
+      setMensaje('Capturas limpiadas correctamente');
+    } catch (e: any) {
+      setMensaje('Error al limpiar: ' + e.message);
+    }
+  };
+
   const getEstadoBadge = (estado: any) => {
     switch (estado) {
       case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
@@ -177,7 +210,9 @@ const LP01View: React.FC = () => {
       <div className="ed03-tabla-container">
         <table className="ed03-tabla">
           <thead>
-            <tr><th>Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '100px' }}>Acciones</th></tr>
+            <tr>
+              <th>Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '200px' }}>Acciones</th>
+            </tr>
           </thead>
           <tbody>
             {cargando ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
@@ -192,7 +227,15 @@ const LP01View: React.FC = () => {
                     <td style={{ textAlign: 'center', color: (p.encontrados || 0) > 0 ? '#15803d' : '#64748b', fontWeight: 600 }}>{p.encontrados || 0}</td>
                     <td><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: eb.bg, color: eb.color }}>{p.estado}</span></td>
                     <td>{new Date(p.creado_en).toLocaleDateString('es-CL')}</td>
-                    <td><button onClick={() => verDetalle(p)} style={{ padding: '5px 12px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Detalle</button></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button onClick={() => verDetalle(p)} style={{ padding: '5px 12px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Detalle</button>
+                        {(p.estado === 'En Proceso' || p.estado === 'Finalizado') && (
+                          <button onClick={() => handleLimpiar(p)} style={{ padding: '5px 12px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Limpiar</button>
+                        )}
+                        <button onClick={() => handleEliminar(p)} style={{ padding: '5px 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Eliminar</button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -213,7 +256,7 @@ const LP01View: React.FC = () => {
                 </div>
               </div>
               <p style={{ fontSize: '12px', color: '#64748b' }}>Columnas: <strong>COD TDA, TDA, PALLET, CODIGO LPN</strong></p>
-              {mensaje && <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: '#dcfce7', color: '#15803d' }}>{mensaje}</div>}
+              {mensaje && <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', fontSize: '13px', background: mensaje.includes('Error') ? '#fef2f2' : '#dcfce7', color: mensaje.includes('Error') ? '#dc2626' : '#15803d' }}>{mensaje}</div>}
             </div>
             <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivo} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Pedido'}</button></div>
           </div>
@@ -223,7 +266,10 @@ const LP01View: React.FC = () => {
       {showDetalleModal && pedidoDetalle && (
         <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header"><h2>{pedidoDetalle.numero_pedido} - {pedidoDetalle.cod_tda} {pedidoDetalle.nombre_tda}</h2><button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button></div>
+            <div className="ed01-modal-header">
+              <h2>{pedidoDetalle.numero_pedido} - {pedidoDetalle.cod_tda} {pedidoDetalle.nombre_tda}</h2>
+              <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
+            </div>
             <div className="ed01-modal-body">
               <div className="ed03-tabla-container" style={{ maxHeight: '400px' }}>
                 <table className="ed03-tabla">
@@ -238,6 +284,12 @@ const LP01View: React.FC = () => {
                       ))}
                   </tbody>
                 </table>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                {(pedidoDetalle.estado === 'En Proceso' || pedidoDetalle.estado === 'Finalizado') && (
+                  <button onClick={() => handleLimpiar(pedidoDetalle)} style={{ padding: '8px 16px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Limpiar Capturas</button>
+                )}
+                <button onClick={() => handleEliminar(pedidoDetalle)} style={{ padding: '8px 16px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Eliminar Pedido</button>
               </div>
             </div>
             <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowDetalleModal(false)}>Cerrar</button></div>
