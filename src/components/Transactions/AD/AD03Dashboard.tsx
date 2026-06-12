@@ -92,7 +92,6 @@ const drawTablePDF = (
   pdf.setFontSize(fontSize);
   rows.forEach((row, rowIndex) => {
     if (y > 275) { pdf.addPage(); y = margin; }
-    // Fondo alternado
     if (rowIndex % 2 === 0) {
       pdf.setFillColor(248, 250, 253);
       pdf.rect(startX, y, pageWidth - margin * 2, rowHeight, 'F');
@@ -320,16 +319,16 @@ const AD03Dashboard: React.FC = () => {
       pdf.setDrawColor(226, 232, 240);
       pdf.setLineWidth(0.5);
 
-      const infoItems = [
+      const infoItems: [string, string][] = [
         ['Período:', (filtroDesde || 'Inicio') + ' — ' + (filtroHasta || 'Fin')],
         ['Local:', nombreLocal],
         ['Generado por:', nombreUsuario],
         ['Fecha:', fechaInforme],
       ];
       infoItems.forEach(([label, value]) => {
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text(label, margin, yPos);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont('helvetica', 'normal');
         pdf.text(value, margin + 35, yPos);
         yPos += 7;
       });
@@ -341,11 +340,11 @@ const AD03Dashboard: React.FC = () => {
         pdf.rect(margin - 3, yPos - 5, pageWidth - margin * 2 + 6, 8, 'F');
         pdf.setFontSize(13);
         pdf.setTextColor(26, 31, 46);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Resumen Ejecutivo', margin, yPos);
         yPos += 8;
         pdf.setFontSize(10);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(71, 85, 105);
         const lines = pdf.splitTextToSize(textoInforme, pageWidth - margin * 2);
         pdf.text(lines, margin, yPos);
@@ -356,7 +355,7 @@ const AD03Dashboard: React.FC = () => {
       yPos += 2;
       pdf.setFontSize(13);
       pdf.setTextColor(26, 31, 46);
-      pdf.setFont(undefined, 'bold');
+      pdf.setFont('helvetica', 'bold');
       pdf.text('Indicadores Clave (KPIs)', margin, yPos);
       yPos += 8;
 
@@ -381,7 +380,7 @@ const AD03Dashboard: React.FC = () => {
         pdf.setFontSize(8);
         pdf.text(kpi.label, x + 4, cy + 7);
         pdf.setFontSize(14);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text(kpi.value, x + 4, cy + 15);
       });
       yPos += 50;
@@ -391,7 +390,7 @@ const AD03Dashboard: React.FC = () => {
         if (yPos > 180) { pdf.addPage(); yPos = margin; }
         pdf.setFontSize(13);
         pdf.setTextColor(26, 31, 46);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Auditorías por Día', margin, yPos);
         yPos += 5;
         const canvasBar = await html2canvas(chartBarRef.current, { scale: 2, backgroundColor: '#ffffff' });
@@ -407,7 +406,7 @@ const AD03Dashboard: React.FC = () => {
         if (yPos > 180) { pdf.addPage(); yPos = margin; }
         pdf.setFontSize(13);
         pdf.setTextColor(26, 31, 46);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Distribución de Estados', margin, yPos);
         yPos += 5;
         const canvasPie = await html2canvas(chartPieRef.current, { scale: 2, backgroundColor: '#ffffff' });
@@ -423,7 +422,7 @@ const AD03Dashboard: React.FC = () => {
         if (yPos > 180) { pdf.addPage(); yPos = margin; }
         pdf.setFontSize(13);
         pdf.setTextColor(26, 31, 46);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('% Diferencias de Unidades por Tarea', margin, yPos);
         yPos += 5;
         const canvasScatter = await html2canvas(chartScatterRef.current, { scale: 2, backgroundColor: '#ffffff' });
@@ -440,7 +439,7 @@ const AD03Dashboard: React.FC = () => {
         pdf.addPage(); yPos = margin;
         pdf.setFontSize(13);
         pdf.setTextColor(26, 31, 46);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Análisis de Diferencias por Tarea', margin, yPos);
         yPos += 8;
 
@@ -463,7 +462,7 @@ const AD03Dashboard: React.FC = () => {
         pdf.addPage(); yPos = margin;
         pdf.setFontSize(13);
         pdf.setTextColor(26, 31, 46);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Detalle de Diferencias por SKU', margin, yPos);
         yPos += 8;
 
@@ -488,7 +487,7 @@ const AD03Dashboard: React.FC = () => {
         pdf.setPage(i);
         pdf.setFontSize(7);
         pdf.setTextColor(148, 163, 184);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont('helvetica', 'normal');
         pdf.text('Generado por Docxentra SGD · ' + fechaInforme + ' · Página ' + i + ' de ' + totalPages, margin, 292);
       }
 
