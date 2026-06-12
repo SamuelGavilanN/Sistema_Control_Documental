@@ -61,6 +61,56 @@ const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
   return null;
 };
 
+// Función para dibujar tabla formateada en PDF
+const drawTablePDF = (
+  pdf: jsPDF,
+  headers: string[],
+  rows: string[][],
+  colWidths: number[],
+  startX: number,
+  startY: number,
+  pageWidth: number,
+  margin: number,
+  headerBg: number[] = [26, 31, 46],
+  fontSize: number = 8
+): number => {
+  let y = startY;
+  const rowHeight = 6;
+
+  // Encabezado
+  pdf.setFillColor(headerBg[0], headerBg[1], headerBg[2]);
+  pdf.rect(startX, y, pageWidth - margin * 2, rowHeight, 'F');
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(fontSize);
+  headers.forEach((header, i) => {
+    pdf.text(header, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0) + 2, y + 4);
+  });
+  y += rowHeight;
+
+  // Filas
+  pdf.setTextColor(30, 41, 59);
+  pdf.setFontSize(fontSize);
+  rows.forEach((row, rowIndex) => {
+    if (y > 275) { pdf.addPage(); y = margin; }
+    // Fondo alternado
+    if (rowIndex % 2 === 0) {
+      pdf.setFillColor(248, 250, 253);
+      pdf.rect(startX, y, pageWidth - margin * 2, rowHeight, 'F');
+    }
+    row.forEach((cell, i) => {
+      pdf.text(String(cell), startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0) + 2, y + 4);
+    });
+    y += rowHeight;
+  });
+
+  // Línea de cierre
+  pdf.setDrawColor(226, 232, 240);
+  pdf.setLineWidth(0.5);
+  pdf.rect(startX, startY, pageWidth - margin * 2, y - startY);
+
+  return y + 4;
+};
+
 const AD03Dashboard: React.FC = () => {
   const [datos, setDatos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -71,13 +121,11 @@ const AD03Dashboard: React.FC = () => {
   const [tareasPorcentaje, setTareasPorcentaje] = useState<TareaPorcentaje[]>([]);
   const [cargandoPorcentajes, setCargandoPorcentajes] = useState(false);
 
-  // Estados para el informe PDF
   const [showInformeModal, setShowInformeModal] = useState(false);
   const [textoInforme, setTextoInforme] = useState('');
   const [generandoPDF, setGenerandoPDF] = useState(false);
   const [detalleDiferencias, setDetalleDiferencias] = useState<any[]>([]);
 
-  const kpiRef = useRef<HTMLDivElement>(null);
   const chartBarRef = useRef<HTMLDivElement>(null);
   const chartPieRef = useRef<HTMLDivElement>(null);
   const chartScatterRef = useRef<HTMLDivElement>(null);
@@ -144,47 +192,32 @@ const AD03Dashboard: React.FC = () => {
           fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0);
         });
 
-        let totalSAP = 0;
-        let totalFisico = 0;
-        let diferenciaAbsoluta = 0;
-
+        let totalSAP = 0; let totalFisico = 0; let diferenciaAbsoluta = 0;
         const todosLosSKUs = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
 
         todosLosSKUs.forEach(sku => {
           const sap = (sapConsolidado[sku]?.cantidad_sap || 0);
           const fisico = fisicoConsolidado[sku] || 0;
-          totalSAP += sap;
-          totalFisico += fisico;
+          totalSAP += sap; totalFisico += fisico;
           diferenciaAbsoluta += Math.abs(sap - fisico);
-
-          // Guardar detalle de diferencias
           if (sap !== fisico) {
             diferenciasDetalle.push({
               tarea: auditoria.numero_tarea,
               local: auditoria.codigo_local + ' - ' + auditoria.nombre_local,
               sku: sku,
               denominacion: sapConsolidado[sku]?.denominacion || 'SKU Manual',
-              sap: sap,
-              fisico: fisico,
-              diferencia: sap - fisico,
+              sap: sap, fisico: fisico, diferencia: sap - fisico,
               estado: sap - fisico === 0 ? 'OK' : (sap - fisico > 0 ? 'Pendiente' : 'Con Diferencias'),
             });
           }
         });
 
         const porcentajeDif = totalSAP > 0 ? (diferenciaAbsoluta / totalSAP) * 100 : 0;
-
         resultados.push({
-          id: auditoria.id,
-          numero_tarea: auditoria.numero_tarea,
-          codigo_local: auditoria.codigo_local,
-          nombre_local: auditoria.nombre_local,
-          estado: auditoria.estado,
-          totalSAP,
-          totalFisico,
-          diferenciaAbsoluta,
-          porcentajeDif: parseFloat(porcentajeDif.toFixed(1)),
-          creado_en: auditoria.creado_en,
+          id: auditoria.id, numero_tarea: auditoria.numero_tarea, codigo_local: auditoria.codigo_local,
+          nombre_local: auditoria.nombre_local, estado: auditoria.estado,
+          totalSAP, totalFisico, diferenciaAbsoluta,
+          porcentajeDif: parseFloat(porcentajeDif.toFixed(1)), creado_en: auditoria.creado_en,
         });
       }
 
@@ -262,7 +295,7 @@ const AD03Dashboard: React.FC = () => {
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
-      const margin = 15;
+      const margin = 12;
       let yPos = margin;
 
       const usuario = auth.getUsuario();
@@ -270,68 +303,95 @@ const AD03Dashboard: React.FC = () => {
       const fechaInforme = new Date().toLocaleDateString('es-CL');
       const nombreLocal = filtroLocal ? localesData.find(l => l.codigo === filtroLocal)?.nombre || filtroLocal : 'Todos los locales';
 
-      // PORTADA
+      // ===== PORTADA =====
       pdf.setFillColor(26, 31, 46);
-      pdf.rect(0, 0, pageWidth, 50, 'F');
+      pdf.rect(0, 0, pageWidth, 55, 'F');
+      pdf.setFillColor(220, 38, 38);
+      pdf.rect(0, 55, pageWidth, 3, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(24);
-      pdf.text('Informe de Auditoría', margin, 25);
-      pdf.setFontSize(14);
-      pdf.text('FASHIONSPARK · Docxentra SGD', margin, 35);
+      pdf.setFontSize(26);
+      pdf.text('Informe de Auditoría', margin, 28);
+      pdf.setFontSize(13);
+      pdf.text('FASHIONSPARK · Docxentra SGD', margin, 40);
 
       pdf.setTextColor(30, 41, 59);
-      pdf.setFontSize(12);
-      yPos = 60;
-      pdf.text('Período:', margin, yPos);
-      pdf.text(filtroDesde || 'Inicio', margin + 30, yPos);
-      pdf.text(' - ', margin + 55, yPos);
-      pdf.text(filtroHasta || 'Fin', margin + 65, yPos);
-      yPos += 8;
-      pdf.text('Local:', margin, yPos);
-      pdf.text(nombreLocal, margin + 30, yPos);
-      yPos += 8;
-      pdf.text('Generado por:', margin, yPos);
-      pdf.text(nombreUsuario, margin + 30, yPos);
-      yPos += 8;
-      pdf.text('Fecha:', margin, yPos);
-      pdf.text(fechaInforme, margin + 30, yPos);
-
-      // RESUMEN EJECUTIVO
-      if (textoInforme.trim()) {
-        yPos += 15;
-        pdf.setFontSize(14);
-        pdf.text('Resumen Ejecutivo', margin, yPos);
-        yPos += 8;
-        pdf.setFontSize(11);
-        const lines = pdf.splitTextToSize(textoInforme, pageWidth - margin * 2);
-        pdf.text(lines, margin, yPos);
-        yPos += lines.length * 5 + 10;
-      }
-
-      // KPIs
-      yPos += 5;
-      pdf.setFontSize(14);
-      pdf.text('Indicadores Clave (KPIs)', margin, yPos);
-      yPos += 10;
       pdf.setFontSize(11);
-      const kpis = [
-        { label: 'Total Auditorías', value: formatNum(total) },
-        { label: 'Finalizadas OK', value: formatNum(finalizadas) },
-        { label: 'Con Diferencias', value: formatNum(conDiferencias) },
-        { label: 'Pendientes', value: formatNum(pendientes) },
-        { label: '% Tareas con Dif.', value: porcentajeDiferenciasTareas + '%' },
-        { label: '% Unidades con Dif.', value: porcentajesGlobales.porcentajeDif + '%' },
+      yPos = 68;
+      pdf.setDrawColor(226, 232, 240);
+      pdf.setLineWidth(0.5);
+
+      const infoItems = [
+        ['Período:', (filtroDesde || 'Inicio') + ' — ' + (filtroHasta || 'Fin')],
+        ['Local:', nombreLocal],
+        ['Generado por:', nombreUsuario],
+        ['Fecha:', fechaInforme],
       ];
-      kpis.forEach(kpi => {
-        pdf.text(kpi.label + ': ' + kpi.value, margin, yPos);
-        yPos += 6;
+      infoItems.forEach(([label, value]) => {
+        pdf.setFont(undefined, 'bold');
+        pdf.text(label, margin, yPos);
+        pdf.setFont(undefined, 'normal');
+        pdf.text(value, margin + 35, yPos);
+        yPos += 7;
       });
 
-      // GRÁFICOS
-      if (chartBarRef.current) {
-        yPos += 10;
-        if (yPos > 200) { pdf.addPage(); yPos = margin; }
+      // ===== RESUMEN EJECUTIVO =====
+      if (textoInforme.trim()) {
+        yPos += 8;
+        pdf.setFillColor(248, 250, 253);
+        pdf.rect(margin - 3, yPos - 5, pageWidth - margin * 2 + 6, 8, 'F');
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 31, 46);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Resumen Ejecutivo', margin, yPos);
+        yPos += 8;
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        pdf.setTextColor(71, 85, 105);
+        const lines = pdf.splitTextToSize(textoInforme, pageWidth - margin * 2);
+        pdf.text(lines, margin, yPos);
+        yPos += lines.length * 4.5 + 8;
+      }
+
+      // ===== KPIs =====
+      yPos += 2;
+      pdf.setFontSize(13);
+      pdf.setTextColor(26, 31, 46);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Indicadores Clave (KPIs)', margin, yPos);
+      yPos += 8;
+
+      const kpiCards = [
+        { label: 'Total Auditorías', value: formatNum(total), color: [30, 41, 59] },
+        { label: 'Finalizadas OK', value: formatNum(finalizadas), color: [21, 128, 61] },
+        { label: 'Con Diferencias', value: formatNum(conDiferencias), color: [220, 38, 38] },
+        { label: 'Pendientes', value: formatNum(pendientes), color: [180, 83, 9] },
+        { label: '% Tareas con Dif.', value: porcentajeDiferenciasTareas + '%', color: [220, 38, 38] },
+        { label: '% Unidades con Dif.', value: porcentajesGlobales.porcentajeDif + '%', color: [220, 38, 38] },
+      ];
+
+      const cardWidth = (pageWidth - margin * 2 - 12) / 3;
+      kpiCards.forEach((kpi, i) => {
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const x = margin + col * (cardWidth + 6);
+        const cy = yPos + row * 22;
+        pdf.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+        pdf.roundedRect(x, cy, cardWidth, 18, 3, 3, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(8);
+        pdf.text(kpi.label, x + 4, cy + 7);
         pdf.setFontSize(14);
+        pdf.setFont(undefined, 'bold');
+        pdf.text(kpi.value, x + 4, cy + 15);
+      });
+      yPos += 50;
+
+      // ===== GRÁFICOS =====
+      if (chartBarRef.current) {
+        if (yPos > 180) { pdf.addPage(); yPos = margin; }
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 31, 46);
+        pdf.setFont(undefined, 'bold');
         pdf.text('Auditorías por Día', margin, yPos);
         yPos += 5;
         const canvasBar = await html2canvas(chartBarRef.current, { scale: 2, backgroundColor: '#ffffff' });
@@ -340,12 +400,14 @@ const AD03Dashboard: React.FC = () => {
         const imgHeight = (canvasBar.height * imgWidth) / canvasBar.width;
         if (yPos + imgHeight > 280) { pdf.addPage(); yPos = margin; }
         pdf.addImage(imgBar, 'PNG', margin, yPos, imgWidth, imgHeight);
-        yPos += imgHeight + 5;
+        yPos += imgHeight + 8;
       }
 
       if (chartPieRef.current) {
-        if (yPos > 200) { pdf.addPage(); yPos = margin; }
-        pdf.setFontSize(14);
+        if (yPos > 180) { pdf.addPage(); yPos = margin; }
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 31, 46);
+        pdf.setFont(undefined, 'bold');
         pdf.text('Distribución de Estados', margin, yPos);
         yPos += 5;
         const canvasPie = await html2canvas(chartPieRef.current, { scale: 2, backgroundColor: '#ffffff' });
@@ -354,79 +416,80 @@ const AD03Dashboard: React.FC = () => {
         const imgHeight = (canvasPie.height * imgWidth) / canvasPie.width;
         if (yPos + imgHeight > 280) { pdf.addPage(); yPos = margin; }
         pdf.addImage(imgPie, 'PNG', margin, yPos, imgWidth, imgHeight);
-        yPos += imgHeight + 5;
+        yPos += imgHeight + 8;
       }
 
-      // TABLA DE ANÁLISIS POR TAREA
+      if (chartScatterRef.current) {
+        if (yPos > 180) { pdf.addPage(); yPos = margin; }
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 31, 46);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('% Diferencias de Unidades por Tarea', margin, yPos);
+        yPos += 5;
+        const canvasScatter = await html2canvas(chartScatterRef.current, { scale: 2, backgroundColor: '#ffffff' });
+        const imgScatter = canvasScatter.toDataURL('image/png');
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (canvasScatter.height * imgWidth) / canvasScatter.width;
+        if (yPos + imgHeight > 280) { pdf.addPage(); yPos = margin; }
+        pdf.addImage(imgScatter, 'PNG', margin, yPos, imgWidth, imgHeight);
+        yPos += imgHeight + 10;
+      }
+
+      // ===== TABLA ANÁLISIS POR TAREA =====
       if (tareasPorcentaje.length > 0) {
         pdf.addPage(); yPos = margin;
-        pdf.setFontSize(14);
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 31, 46);
+        pdf.setFont(undefined, 'bold');
         pdf.text('Análisis de Diferencias por Tarea', margin, yPos);
         yPos += 8;
-        pdf.setFontSize(9);
 
-        // Encabezado
-        pdf.setFillColor(241, 245, 249);
-        pdf.rect(margin, yPos, pageWidth - margin * 2, 6, 'F');
-        pdf.text('Tarea', margin + 2, yPos + 4);
-        pdf.text('Local', margin + 35, yPos + 4);
-        pdf.text('SAP', margin + 75, yPos + 4);
-        pdf.text('Físico', margin + 95, yPos + 4);
-        pdf.text('Dif.', margin + 115, yPos + 4);
-        pdf.text('% Dif.', margin + 135, yPos + 4);
-        yPos += 8;
+        const headersTarea = ['Tarea', 'Local', 'SAP', 'Físico', 'Dif.', '% Dif.'];
+        const colWidthsTarea = [38, 55, 25, 25, 22, 21];
+        const rowsTarea = tareasPorcentaje.map(t => [
+          t.numero_tarea,
+          t.codigo_local + ' - ' + t.nombre_local,
+          formatNum(t.totalSAP),
+          formatNum(t.totalFisico),
+          formatNum(t.diferenciaAbsoluta),
+          t.porcentajeDif + '%',
+        ]);
 
-        tareasPorcentaje.forEach((t, i) => {
-          if (yPos > 275) { pdf.addPage(); yPos = margin; }
-          pdf.text(t.numero_tarea, margin + 2, yPos);
-          pdf.text(t.codigo_local + ' - ' + t.nombre_local, margin + 35, yPos);
-          pdf.text(formatNum(t.totalSAP), margin + 75, yPos);
-          pdf.text(formatNum(t.totalFisico), margin + 95, yPos);
-          pdf.text(formatNum(t.diferenciaAbsoluta), margin + 115, yPos);
-          pdf.text(t.porcentajeDif + '%', margin + 135, yPos);
-          yPos += 5;
-        });
+        yPos = drawTablePDF(pdf, headersTarea, rowsTarea, colWidthsTarea, margin, yPos, pageWidth, margin, [26, 31, 46], 8);
       }
 
-      // DETALLE DE DIFERENCIAS
+      // ===== TABLA DETALLE DIFERENCIAS =====
       if (detalleDiferencias.length > 0) {
         pdf.addPage(); yPos = margin;
-        pdf.setFontSize(14);
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 31, 46);
+        pdf.setFont(undefined, 'bold');
         pdf.text('Detalle de Diferencias por SKU', margin, yPos);
         yPos += 8;
-        pdf.setFontSize(8);
 
-        pdf.setFillColor(241, 245, 249);
-        pdf.rect(margin, yPos, pageWidth - margin * 2, 6, 'F');
-        pdf.text('Tarea', margin + 2, yPos + 4);
-        pdf.text('SKU', margin + 40, yPos + 4);
-        pdf.text('Descripción', margin + 68, yPos + 4);
-        pdf.text('SAP', margin + 130, yPos + 4);
-        pdf.text('Físico', margin + 145, yPos + 4);
-        pdf.text('Dif.', margin + 160, yPos + 4);
-        pdf.text('Estado', margin + 178, yPos + 4);
-        yPos += 8;
+        const headersDif = ['Tarea', 'SKU', 'Descripción', 'SAP', 'Físico', 'Dif.', 'Estado'];
+        const colWidthsDif = [38, 30, 48, 22, 22, 22, 22];
+        const rowsDif = detalleDiferencias.map(d => [
+          d.tarea,
+          d.sku,
+          d.denominacion.substring(0, 40),
+          formatNum(d.sap),
+          formatNum(d.fisico),
+          formatNum(d.diferencia),
+          d.estado,
+        ]);
 
-        detalleDiferencias.forEach((d, i) => {
-          if (yPos > 275) { pdf.addPage(); yPos = margin; }
-          pdf.text(d.tarea, margin + 2, yPos);
-          pdf.text(d.sku, margin + 40, yPos);
-          pdf.text(d.denominacion.substring(0, 35), margin + 68, yPos);
-          pdf.text(formatNum(d.sap), margin + 130, yPos);
-          pdf.text(formatNum(d.fisico), margin + 145, yPos);
-          pdf.text(formatNum(d.diferencia), margin + 160, yPos);
-          pdf.text(d.estado, margin + 178, yPos);
-          yPos += 5;
-        });
+        yPos = drawTablePDF(pdf, headersDif, rowsDif, colWidthsDif, margin, yPos, pageWidth, margin, [26, 31, 46], 7);
       }
 
-      // PIE DE PÁGINA
-      pdf.setFontSize(8);
-      pdf.setTextColor(148, 163, 184);
+      // ===== PIE DE PÁGINA =====
       const totalPages = pdf.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
-        pdf.text('Generado por Docxentra SGD · ' + fechaInforme + ' · Página ' + i + ' de ' + totalPages, margin, 290);
+        pdf.setFontSize(7);
+        pdf.setTextColor(148, 163, 184);
+        pdf.setFont(undefined, 'normal');
+        pdf.text('Generado por Docxentra SGD · ' + fechaInforme + ' · Página ' + i + ' de ' + totalPages, margin, 292);
       }
 
       pdf.save('Informe_Auditoria_' + fechaInforme.replace(/\//g, '-') + '.pdf');
@@ -460,7 +523,7 @@ const AD03Dashboard: React.FC = () => {
         </button>
       </div>
 
-      <div className="ad03-kpis" ref={kpiRef}>
+      <div className="ad03-kpis">
         <div className="ad03-kpi"><span>Total Auditorías</span><strong>{formatNum(total)}</strong></div>
         <div className="ad03-kpi ad03-kpi-ok"><span>Finalizadas OK</span><strong>{formatNum(finalizadas)}</strong></div>
         <div className="ad03-kpi ad03-kpi-diff"><span>Con Diferencias</span><strong>{formatNum(conDiferencias)}</strong></div>
