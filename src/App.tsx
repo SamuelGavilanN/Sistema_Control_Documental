@@ -17,7 +17,7 @@ import BD02Locales from './components/Transactions/BD/BD02Locales';
 import RD01View from './components/Transactions/RD/RD01View';
 import SD01View from './components/Transactions/SD/SD01View';
 import PK01View from './components/Transactions/PK2/PK01View';
-import PK02View from './components/Transactions/PK/PK02View';
+import PK02View from './components/Transactions/PK2/PK02View';
 import UT01View from './components/Transactions/UT/UT01View';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
