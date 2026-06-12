@@ -16,6 +16,8 @@ interface HeaderProps {
   onOpenModule?: (moduleId: string) => void;
 }
 
+// En src/components/Layout/Header.tsx, solo cambia moduleTitles:
+
 const moduleTitles: Record<string, string> = {
   'dashboard': 'Ventana de Trabajo',
   'ed': 'ED01 · Reg Empaque',
@@ -33,8 +35,8 @@ const moduleTitles: Record<string, string> = {
   'rd-informe': 'RD03 · Informe',
   'rd-dashboard': 'RD04 · Dashboard Devolución',
   'sd': 'SD01 · Salida Despacho',
-  'pk': 'PK01 · Crear Pedido',
-  'pk-captura': 'PK02 · Capturar LPN',
+  'lp': 'LP01 · Crear Pedido',
+  'lp-captura': 'LP02 · Capturar LPN',
   'ut': 'UT01 · Correlativo QR',
 };
 
