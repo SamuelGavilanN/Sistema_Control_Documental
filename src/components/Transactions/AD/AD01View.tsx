@@ -201,8 +201,8 @@ const AD01View: React.FC = () => {
             'ESTADO': idx === 0 ? (d.esHuerfano ? 'Dif.' : (d.diferencia === 0 ? 'OK' : 'Pend.')) : '-',
             'ACTA': idx === 0 ? (d.esHuerfano ? '' : (auditoriaDetalle.acta || '')) : '',
             'GUIA': idx === 0 ? (d.esHuerfano ? '' : (auditoriaDetalle.guia || '')) : '',
-            'COD LOCAL': idx === 0 ? (d.esHuerfano ? '' : auditoriaDetalle.codigo_local) : '',
-            'LOCAL': idx === 0 ? (d.esHuerfano ? '' : auditoriaDetalle.nombre_local) : '',
+            'COD LOCAL': idx === 0 ? auditoriaDetalle.codigo_local : '',
+            'LOCAL': idx === 0 ? auditoriaDetalle.nombre_local : '',
           });
         });
         if (d.diferencia > 0 && !d.esHuerfano) {
@@ -225,8 +225,8 @@ const AD01View: React.FC = () => {
           'ESTADO': d.esHuerfano ? 'Dif.' : 'Pend.',
           'ACTA': d.esHuerfano ? '' : (auditoriaDetalle.acta || ''),
           'GUIA': d.esHuerfano ? '' : (auditoriaDetalle.guia || ''),
-          'COD LOCAL': d.esHuerfano ? '' : auditoriaDetalle.codigo_local,
-          'LOCAL': d.esHuerfano ? '' : auditoriaDetalle.nombre_local,
+          'COD LOCAL': auditoriaDetalle.codigo_local,
+          'LOCAL': auditoriaDetalle.nombre_local,
         });
       }
     });
