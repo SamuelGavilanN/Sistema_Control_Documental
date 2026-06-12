@@ -1,11 +1,13 @@
 {
-  "name": "fashionspark-portico",
+  "name": "fashionspark-Docxentra",
   "version": "1.0.0",
-  "description": "FASHIONSPARK - Portico",
+  "description": "FASHIONSPARK - Docxentra",
   "main": "src/index.tsx",
   "dependencies": {
     "@supabase/supabase-js": "2.49.0",
+    "html2canvas": "^1.4.1",
     "jsbarcode": "3.11.6",
+    "jspdf": "^2.5.1",
     "qrcode": "1.5.3",
     "react": "18.2.0",
     "react-dom": "18.2.0",
