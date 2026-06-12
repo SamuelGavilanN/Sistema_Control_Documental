@@ -12,6 +12,7 @@ const HEADERS: any = {
 
 const LP01View: React.FC = () => {
   const [pedidos, setPedidos]: any = useState([]);
+  const [usuarios, setUsuarios]: any = useState([]);
   const [cargando, setCargando]: any = useState(true);
   const [showCrearModal, setShowCrearModal]: any = useState(false);
   const [showDetalleModal, setShowDetalleModal]: any = useState(false);
@@ -22,8 +23,16 @@ const LP01View: React.FC = () => {
   const [procesando, setProcesando]: any = useState(false);
   const [mensaje, setMensaje]: any = useState('');
 
-  useEffect(() => { cargarPedidos(); }, []);
+  useEffect(() => { cargarPedidos(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(cargarPedidos, 10000); return () => clearInterval(intervalo); }, []);
+
+  const cargarUsuarios = async () => {
+    try {
+      const resp: any = await fetch(API_URL + '/usuarios?select=id,nombre,apellido', { headers: HEADERS });
+      const data: any = await resp.json();
+      if (data) setUsuarios(data);
+    } catch (e) {}
+  };
 
   const cargarPedidos = async () => {
     setCargando(true);
@@ -41,6 +50,7 @@ const LP01View: React.FC = () => {
             numero_pedido: p.numero_pedido,
             cod_tda: p.cod_tda,
             nombre_tda: p.nombre_tda,
+            usuario_asignado: p.usuario_asignado || null,
             estado: p.estado,
             creado_en: p.creado_en,
             total_lpns: lpns ? lpns.length : 0,
@@ -51,6 +61,15 @@ const LP01View: React.FC = () => {
       setPedidos(resultado);
     } catch (e) {}
     setCargando(false);
+  };
+
+  const handleAsignar = async (pedidoId: string, usuarioId: string) => {
+    await fetch(API_URL + '/pk01_pedidos?id=eq.' + pedidoId, {
+      method: 'PATCH',
+      headers: { ...HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario_asignado: usuarioId || null }),
+    });
+    cargarPedidos();
   };
 
   const procesarArchivo = async () => {
@@ -151,7 +170,6 @@ const LP01View: React.FC = () => {
     setShowDetalleModal(true);
   };
 
-  // ELIMINAR pedido completo
   const handleEliminar = async (pedido: any) => {
     if (!confirm('¿Eliminar este pedido y todos sus LPNs? Esta acción no se puede deshacer.')) return;
     try {
@@ -166,7 +184,6 @@ const LP01View: React.FC = () => {
     }
   };
 
-  // LIMPIAR capturas de un pedido
   const handleLimpiar = async (pedido: any) => {
     if (!confirm('¿Limpiar todas las capturas de este pedido? Los LPNs volverán a estado "No encontrado".')) return;
     try {
@@ -198,6 +215,11 @@ const LP01View: React.FC = () => {
     }
   };
 
+  const getNombreUsuario = (usuarioId: string) => {
+    const u = usuarios.find((u: any) => u.id === usuarioId);
+    return u ? u.nombre + ' ' + u.apellido : '';
+  };
+
   return (
     <div style={{ background: 'white', borderRadius: '12px', padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -211,12 +233,12 @@ const LP01View: React.FC = () => {
         <table className="ed03-tabla">
           <thead>
             <tr>
-              <th>Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Estado</th><th>Fecha</th><th style={{ width: '200px' }}>Acciones</th>
+              <th>Pedido</th><th>Tienda</th><th>Total LPNs</th><th>Encontrados</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '200px' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {cargando ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
-              pedidos.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>Sin pedidos</td></tr> :
+            {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>Cargando...</td></tr> :
+              pedidos.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>Sin pedidos</td></tr> :
               pedidos.map((p: any) => {
                 const eb: any = getEstadoBadge(p.estado);
                 return (
@@ -225,6 +247,18 @@ const LP01View: React.FC = () => {
                     <td>{p.cod_tda} - {p.nombre_tda}</td>
                     <td style={{ textAlign: 'center' }}>{p.total_lpns}</td>
                     <td style={{ textAlign: 'center', color: (p.encontrados || 0) > 0 ? '#15803d' : '#64748b', fontWeight: 600 }}>{p.encontrados || 0}</td>
+                    <td>
+                      <select
+                        value={p.usuario_asignado || ''}
+                        onChange={(e: any) => handleAsignar(p.id, e.target.value)}
+                        style={{ padding: '4px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', width: '130px' }}
+                      >
+                        <option value="">Sin asignar</option>
+                        {usuarios.map((u: any) => (
+                          <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: eb.bg, color: eb.color }}>{p.estado}</span></td>
                     <td>{new Date(p.creado_en).toLocaleDateString('es-CL')}</td>
                     <td>
@@ -271,6 +305,11 @@ const LP01View: React.FC = () => {
               <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
             </div>
             <div className="ed01-modal-body">
+              {pedidoDetalle.usuario_asignado && (
+                <div style={{ marginBottom: '12px', fontSize: '13px', color: '#475569' }}>
+                  <strong>Asignado a:</strong> {getNombreUsuario(pedidoDetalle.usuario_asignado)}
+                </div>
+              )}
               <div className="ed03-tabla-container" style={{ maxHeight: '400px' }}>
                 <table className="ed03-tabla">
                   <thead><tr><th>Pallet</th><th>Codigo LPN</th><th style={{ width: '100px' }}>Encontrado</th></tr></thead>
