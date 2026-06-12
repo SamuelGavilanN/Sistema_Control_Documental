@@ -199,10 +199,10 @@ const AD01View: React.FC = () => {
             'FISICO': cap.cantidad_fisica || 0,
             'DIFERENCIA': idx === 0 ? (d.esHuerfano ? 'X' : (d.diferencia === 0 ? 'OK' : d.diferencia)) : '-',
             'ESTADO': idx === 0 ? (d.esHuerfano ? 'Dif.' : (d.diferencia === 0 ? 'OK' : 'Pend.')) : '-',
-            'ACTA': idx === 0 ? (auditoriaDetalle.acta || '') : '',
-            'GUIA': idx === 0 ? (auditoriaDetalle.guia || '') : '',
-            'COD LOCAL': idx === 0 ? auditoriaDetalle.codigo_local : '',
-            'LOCAL': idx === 0 ? auditoriaDetalle.nombre_local : '',
+            'ACTA': idx === 0 ? (d.esHuerfano ? '' : (auditoriaDetalle.acta || '')) : '',
+            'GUIA': idx === 0 ? (d.esHuerfano ? '' : (auditoriaDetalle.guia || '')) : '',
+            'COD LOCAL': idx === 0 ? (d.esHuerfano ? '' : auditoriaDetalle.codigo_local) : '',
+            'LOCAL': idx === 0 ? (d.esHuerfano ? '' : auditoriaDetalle.nombre_local) : '',
           });
         });
         if (d.diferencia > 0 && !d.esHuerfano) {
@@ -223,8 +223,10 @@ const AD01View: React.FC = () => {
           'FISICO': 0,
           'DIFERENCIA': d.esHuerfano ? 'X' : d.diferencia,
           'ESTADO': d.esHuerfano ? 'Dif.' : 'Pend.',
-          'ACTA': auditoriaDetalle.acta || '', 'GUIA': auditoriaDetalle.guia || '',
-          'COD LOCAL': auditoriaDetalle.codigo_local, 'LOCAL': auditoriaDetalle.nombre_local,
+          'ACTA': d.esHuerfano ? '' : (auditoriaDetalle.acta || ''),
+          'GUIA': d.esHuerfano ? '' : (auditoriaDetalle.guia || ''),
+          'COD LOCAL': d.esHuerfano ? '' : auditoriaDetalle.codigo_local,
+          'LOCAL': d.esHuerfano ? '' : auditoriaDetalle.nombre_local,
         });
       }
     });
