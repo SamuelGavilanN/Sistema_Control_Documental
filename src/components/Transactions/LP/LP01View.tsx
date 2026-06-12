@@ -59,22 +59,13 @@ const LP01View: React.FC = () => {
     setMensaje('');
     try {
       const data: any = await leerExcel(archivo);
-      console.log('Datos leidos del Excel:', data);
-
       if (!data || !data.length) { setMensaje('El archivo esta vacio'); setProcesando(false); return; }
 
       const primeraFila: any = data[0];
-      console.log('Columnas encontradas:', Object.keys(primeraFila));
-
       const colCodTda: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('COD TDA') || k.toUpperCase().includes('COD_TDA')) || '';
       const colTda: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase() === 'TDA' || k.toUpperCase().includes('TIENDA')) || '';
       const colPallet: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('PALLET')) || '';
       const colLpn: any = Object.keys(primeraFila).find((k: any) => k.toUpperCase().includes('LPN') || k.toUpperCase().includes('CODIGO')) || '';
-
-      console.log('Columna COD TDA:', colCodTda, '| Valor:', primeraFila[colCodTda]);
-      console.log('Columna TDA:', colTda, '| Valor:', primeraFila[colTda]);
-      console.log('Columna PALLET:', colPallet, '| Valor:', primeraFila[colPallet]);
-      console.log('Columna LPN:', colLpn, '| Valor:', primeraFila[colLpn]);
 
       if (!colCodTda || !colPallet || !colLpn) {
         setMensaje('El archivo debe tener las columnas: COD TDA, TDA, PALLET, CODIGO LPN');
@@ -91,16 +82,8 @@ const LP01View: React.FC = () => {
         grupos[codTda].items.push(row);
       });
 
-      console.log('Grupos formados:', Object.keys(grupos).length);
-
       const user: any = auth.getUsuario();
-      console.log('Usuario autenticado:', user);
-
-      if (!user || !user.id) {
-        setMensaje('Error: Usuario no autenticado');
-        setProcesando(false);
-        return;
-      }
+      if (!user || !user.id) { setMensaje('Error: Usuario no autenticado'); setProcesando(false); return; }
 
       const keys: any = Object.keys(grupos);
 
@@ -114,42 +97,28 @@ const LP01View: React.FC = () => {
         const count: any = (countData ? countData.length : 0) + 1;
         const numeroPedido: any = 'LP-' + fecha + '-' + String(count).padStart(4, '0');
 
-        const bodyPedido = JSON.stringify({
-          numero_pedido: numeroPedido,
-          cod_tda: codTda,
-          nombre_tda: grupo.nombre,
-          estado: 'Pendiente',
-          creado_por: user.id
-        });
-        console.log('Creando pedido:', bodyPedido);
-
         const respPedido: any = await fetch(API_URL + '/pk01_pedidos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-          body: bodyPedido,
+          body: JSON.stringify({ numero_pedido: numeroPedido, cod_tda: codTda, nombre_tda: grupo.nombre, estado: 'Pendiente', creado_por: user.id }),
         });
-
-        console.log('Respuesta pedido status:', respPedido.status);
 
         if (!respPedido.ok) {
           const errText = await respPedido.text();
-          console.error('Error creando pedido:', errText);
           throw new Error('Error al crear pedido: ' + errText);
         }
 
-        const pedidoCreado: any = await respPedido.json();
-        console.log('Pedido creado:', pedidoCreado);
+        const pedidoCreadoArray: any = await respPedido.json();
+        const pedidoCreado: any = Array.isArray(pedidoCreadoArray) ? pedidoCreadoArray[0] : pedidoCreadoArray;
 
         for (let j = 0; j < grupo.items.length; j++) {
           const item: any = grupo.items[j];
           const pallet: any = String(item[colPallet] || '').trim();
           const lpn: any = String(item[colLpn] || '').trim();
 
-          console.log('Insertando LPN:', { pedido_id: pedidoCreado.id, pallet, codigo_lpn: lpn });
-
           const respInsert: any = await fetch(API_URL + '/pk01_pedido_lpns', {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
             body: JSON.stringify({ pedido_id: pedidoCreado.id, pallet: pallet, codigo_lpn: lpn, encontrado: false }),
           });
 
@@ -166,7 +135,6 @@ const LP01View: React.FC = () => {
       setTimeout(() => { setMensaje(''); setShowCrearModal(false); }, 2000);
       cargarPedidos();
     } catch (e: any) {
-      console.error('Error general:', e);
       setMensaje('Error: ' + e.message);
     } finally {
       setProcesando(false);
@@ -182,10 +150,8 @@ const LP01View: React.FC = () => {
 
   const verDetalle = async (pedido: any) => {
     setPedidoDetalle(pedido);
-    console.log('Cargando detalle para pedido:', pedido.id);
     const resp: any = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     const data: any = await resp.json();
-    console.log('LPNs encontrados:', data ? data.length : 0, data);
     setLpnsDetalle(data || []);
     setShowDetalleModal(true);
   };
