@@ -26,11 +26,9 @@ const LP02View: React.FC = () => {
   const [lpnsPedido, setLpnsPedido] = useState<any[]>([]);
   const [capturasLog, setCapturasLog] = useState<CapturaLog[]>([]);
 
-  // Inputs
   const [palletInput, setPalletInput] = useState('');
   const [lpnInput, setLpnInput] = useState('');
 
-  // Estados
   const [palletVerificado, setPalletVerificado] = useState(false);
   const [palletActual, setPalletActual] = useState('');
   const [lpnsPendientesPallet, setLpnsPendientesPallet] = useState<any[]>([]);
@@ -66,6 +64,29 @@ const LP02View: React.FC = () => {
     setCargando(false);
   };
 
+  const refrescarPedidoActivo = async () => {
+    if (!pedidoActivo) return;
+    const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedidoActivo.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
+    const lpnsActualizados = await resp.json() || [];
+    setLpnsPedido(lpnsActualizados);
+
+    if (palletVerificado && palletActual) {
+      const pendientes = lpnsActualizados.filter(
+        (l: any) => l.pallet.toUpperCase() === palletActual.toUpperCase() && !l.encontrado
+      );
+      setLpnsPendientesPallet(pendientes);
+
+      if (pendientes.length === 0) {
+        setPalletVerificado(false);
+        setPalletActual('');
+        setPalletInput('');
+        setMensaje('🎉 ¡Pallet ' + palletActual + ' completado! Escanea el siguiente pallet.');
+        setTipoMensaje('success');
+        setTimeout(() => palletInputRef.current?.focus(), 300);
+      }
+    }
+  };
+
   const seleccionarPedido = async (pedido: any) => {
     setPedidoActivo(pedido);
     setPalletInput('');
@@ -92,13 +113,10 @@ const LP02View: React.FC = () => {
     setTimeout(() => palletInputRef.current?.focus(), 300);
   };
 
-  // ============ VERIFICAR PALLET ============
   const handleVerificarPallet = () => {
     if (!palletInput.trim() || !pedidoActivo) return;
 
     const palletBuscado = palletInput.trim().toUpperCase();
-
-    // Buscar LPNs pendientes de este pallet
     const pendientes = lpnsPedido.filter(
       l => l.pallet.toUpperCase() === palletBuscado && !l.encontrado
     );
@@ -107,14 +125,13 @@ const LP02View: React.FC = () => {
       setPalletVerificado(true);
       setPalletActual(palletBuscado);
       setLpnsPendientesPallet(pendientes);
-      setMensaje('✅ Pallet ' + palletBuscado + ' verificado. ' + pendientes.length + ' LPN(s) pendiente(s) de este pedido.');
+      setMensaje('✅ Pallet ' + palletBuscado + ' verificado. ' + pendientes.length + ' LPN(s) pendiente(s).');
       setTipoMensaje('success');
       setTimeout(() => lpnInputRef.current?.focus(), 200);
     } else {
       const yaEncontrados = lpnsPedido.filter(
         l => l.pallet.toUpperCase() === palletBuscado && l.encontrado
       );
-
       if (yaEncontrados.length > 0) {
         setMensaje('⚠️ El pallet ' + palletBuscado + ' ya fue procesado completamente.');
         setTipoMensaje('warning');
@@ -127,20 +144,16 @@ const LP02View: React.FC = () => {
     }
   };
 
-  // ============ BUSCAR LPN ============
   const handleBuscarLPN = async () => {
     if (!lpnInput.trim() || !pedidoActivo || !palletVerificado) return;
 
     const user = auth.getUsuario();
     const lpnBuscado = lpnInput.trim().toUpperCase();
-
     const lpnEncontrado = lpnsPedido.find(
       l => l.codigo_lpn.toUpperCase() === lpnBuscado
     );
-
     const corresponde = !!lpnEncontrado && !lpnEncontrado.encontrado;
 
-    // Guardar captura
     const resp = await fetch(API_URL + '/pk02_capturas', {
       method: 'POST',
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -161,39 +174,26 @@ const LP02View: React.FC = () => {
         body: JSON.stringify({ encontrado: true, capturado_en: new Date().toISOString() }),
       });
 
-      // Actualizar listas locales
-      setLpnsPedido(prev => prev.map(l =>
-        l.id === lpnEncontrado!.id ? { ...l, encontrado: true } : l
-      ));
-      setLpnsPendientesPallet(prev => prev.filter(l => l.id !== lpnEncontrado!.id));
-
-      // Verificar si se completó el pallet
-      if (lpnsPendientesPallet.length <= 1) {
-        setMensaje('🎉 ¡Pallet ' + palletActual + ' completado! Escanea el siguiente pallet.');
-        setTipoMensaje('success');
-        setPalletVerificado(false);
-        setPalletActual('');
-        setPalletInput('');
-        setTimeout(() => palletInputRef.current?.focus(), 300);
-      } else {
-        setMensaje('✅ LPN ' + lpnBuscado + ' → CORRESPONDE');
-        setTipoMensaje('success');
-      }
+      setMensaje('✅ LPN ' + lpnBuscado + ' → CORRESPONDE');
+      setTipoMensaje('success');
     } else if (lpnEncontrado && lpnEncontrado.encontrado) {
       setMensaje('⚠️ LPN ' + lpnBuscado + ' → YA FUE CAPTURADO');
       setTipoMensaje('warning');
     } else {
-      setMensaje('❌ LPN ' + lpnBuscado + ' → NO CORRESPONDE al pedido');
+      setMensaje('❌ LPN ' + lpnBuscado + ' → NO CORRESPONDE');
       setTipoMensaje('error');
     }
 
     setCapturasLog(prev => [{ ...captura, id: captura.id || Date.now().toString() }, ...prev]);
     setLpnInput('');
-    setTimeout(() => lpnInputRef.current?.focus(), 100);
+
+    // Refrescar listas
+    await refrescarPedidoActivo();
     cargarPedidos();
+
+    setTimeout(() => lpnInputRef.current?.focus(), 100);
   };
 
-  // ============ FINALIZAR ============
   const handleFinalizar = async () => {
     if (!pedidoActivo) return;
     if (!confirm('¿Finalizar este pedido? Se generará un informe Excel.')) return;
@@ -224,7 +224,6 @@ const LP02View: React.FC = () => {
     XLSX.writeFile(wb, pedidoActivo.numero_pedido + '_' + pedidoActivo.cod_tda + '.xlsx');
   };
 
-  // ============ KEY HANDLERS ============
   const handleKeyDownPallet = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); handleVerificarPallet(); }
   };
@@ -297,7 +296,6 @@ const LP02View: React.FC = () => {
         </>
       ) : (
         <>
-          {/* Info del pedido + Progreso */}
           <div style={{ background: '#f8fafd', border: '1px solid #eef0f5', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', fontSize: '13px', marginBottom: '10px' }}>
               <div><strong>Pedido:</strong> <span style={{ color: '#1d4ed8', fontWeight: 600 }}>{pedidoActivo.numero_pedido}</span></div>
@@ -312,7 +310,7 @@ const LP02View: React.FC = () => {
             </button>
           </div>
 
-          {/* ===== ESCANEAR PALLET ===== */}
+          {/* ESCANEAR PALLET */}
           <div style={{ marginBottom: '16px', opacity: palletVerificado ? 0.5 : 1 }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
               📦 Escanear Pallet
@@ -344,7 +342,7 @@ const LP02View: React.FC = () => {
             )}
           </div>
 
-          {/* ===== LPNs PENDIENTES DEL PALLET ===== */}
+          {/* LPNs PENDIENTES DEL PALLET */}
           {palletVerificado && lpnsPendientesPallet.length > 0 && (
             <div style={{ marginBottom: '16px', padding: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
               <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#15803d', marginBottom: '8px' }}>
@@ -364,7 +362,7 @@ const LP02View: React.FC = () => {
             </div>
           )}
 
-          {/* ===== ESCANEAR LPN ===== */}
+          {/* ESCANEAR LPN */}
           {palletVerificado && (
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
