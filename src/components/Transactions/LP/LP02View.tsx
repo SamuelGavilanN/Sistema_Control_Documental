@@ -25,10 +25,19 @@ const LP02View: React.FC = () => {
   const [pedidoActivo, setPedidoActivo] = useState<any>(null);
   const [lpnsPedido, setLpnsPedido] = useState<any[]>([]);
   const [capturasLog, setCapturasLog] = useState<CapturaLog[]>([]);
+
+  // Inputs
+  const [palletInput, setPalletInput] = useState('');
   const [lpnInput, setLpnInput] = useState('');
+
+  // Estados
+  const [palletVerificado, setPalletVerificado] = useState(false);
+  const [palletActual, setPalletActual] = useState('');
+  const [lpnsPendientesPallet, setLpnsPendientesPallet] = useState<any[]>([]);
   const [mensaje, setMensaje] = useState('');
   const [tipoMensaje, setTipoMensaje] = useState<'success' | 'error' | 'warning' | 'info'>('info');
-  const [ultimaCaptura, setUltimaCaptura] = useState<{ lpn: string; corresponde: boolean } | null>(null);
+
+  const palletInputRef = useRef<HTMLInputElement>(null);
   const lpnInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { cargarPedidos(); }, []);
@@ -59,9 +68,12 @@ const LP02View: React.FC = () => {
 
   const seleccionarPedido = async (pedido: any) => {
     setPedidoActivo(pedido);
+    setPalletInput('');
     setLpnInput('');
+    setPalletVerificado(false);
+    setPalletActual('');
+    setLpnsPendientesPallet([]);
     setMensaje('');
-    setUltimaCaptura(null);
 
     const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     setLpnsPedido(await resp.json() || []);
@@ -77,16 +89,51 @@ const LP02View: React.FC = () => {
       });
     }
 
-    setTimeout(() => lpnInputRef.current?.focus(), 300);
+    setTimeout(() => palletInputRef.current?.focus(), 300);
   };
 
+  // ============ VERIFICAR PALLET ============
+  const handleVerificarPallet = () => {
+    if (!palletInput.trim() || !pedidoActivo) return;
+
+    const palletBuscado = palletInput.trim().toUpperCase();
+
+    // Buscar LPNs pendientes de este pallet
+    const pendientes = lpnsPedido.filter(
+      l => l.pallet.toUpperCase() === palletBuscado && !l.encontrado
+    );
+
+    if (pendientes.length > 0) {
+      setPalletVerificado(true);
+      setPalletActual(palletBuscado);
+      setLpnsPendientesPallet(pendientes);
+      setMensaje('✅ Pallet ' + palletBuscado + ' verificado. ' + pendientes.length + ' LPN(s) pendiente(s) de este pedido.');
+      setTipoMensaje('success');
+      setTimeout(() => lpnInputRef.current?.focus(), 200);
+    } else {
+      const yaEncontrados = lpnsPedido.filter(
+        l => l.pallet.toUpperCase() === palletBuscado && l.encontrado
+      );
+
+      if (yaEncontrados.length > 0) {
+        setMensaje('⚠️ El pallet ' + palletBuscado + ' ya fue procesado completamente.');
+        setTipoMensaje('warning');
+      } else {
+        setMensaje('❌ El pallet ' + palletBuscado + ' no tiene LPNs pendientes de este pedido.');
+        setTipoMensaje('error');
+      }
+      setPalletVerificado(false);
+      setLpnsPendientesPallet([]);
+    }
+  };
+
+  // ============ BUSCAR LPN ============
   const handleBuscarLPN = async () => {
-    if (!lpnInput.trim() || !pedidoActivo) return;
+    if (!lpnInput.trim() || !pedidoActivo || !palletVerificado) return;
 
     const user = auth.getUsuario();
     const lpnBuscado = lpnInput.trim().toUpperCase();
-    
-    // Buscar en los LPNs del pedido
+
     const lpnEncontrado = lpnsPedido.find(
       l => l.codigo_lpn.toUpperCase() === lpnBuscado
     );
@@ -99,7 +146,7 @@ const LP02View: React.FC = () => {
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pedido_id: pedidoActivo.id,
-        pallet_escaneado: lpnEncontrado ? lpnEncontrado.pallet : '-',
+        pallet_escaneado: palletActual,
         lpn_escaneado: lpnBuscado,
         corresponde: corresponde,
         capturado_por: user?.id,
@@ -108,47 +155,45 @@ const LP02View: React.FC = () => {
     const captura = await resp.json();
 
     if (corresponde) {
-      // Marcar como encontrado
       await fetch(API_URL + '/pk01_pedido_lpns?id=eq.' + lpnEncontrado!.id, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ encontrado: true, capturado_en: new Date().toISOString() }),
       });
 
-      // Actualizar lista local
+      // Actualizar listas locales
       setLpnsPedido(prev => prev.map(l =>
         l.id === lpnEncontrado!.id ? { ...l, encontrado: true } : l
       ));
+      setLpnsPendientesPallet(prev => prev.filter(l => l.id !== lpnEncontrado!.id));
 
-      setMensaje('✅ LPN ' + lpnBuscado + ' → CORRESPONDE');
-      setTipoMensaje('success');
-      setUltimaCaptura({ lpn: lpnBuscado, corresponde: true });
+      // Verificar si se completó el pallet
+      if (lpnsPendientesPallet.length <= 1) {
+        setMensaje('🎉 ¡Pallet ' + palletActual + ' completado! Escanea el siguiente pallet.');
+        setTipoMensaje('success');
+        setPalletVerificado(false);
+        setPalletActual('');
+        setPalletInput('');
+        setTimeout(() => palletInputRef.current?.focus(), 300);
+      } else {
+        setMensaje('✅ LPN ' + lpnBuscado + ' → CORRESPONDE');
+        setTipoMensaje('success');
+      }
     } else if (lpnEncontrado && lpnEncontrado.encontrado) {
       setMensaje('⚠️ LPN ' + lpnBuscado + ' → YA FUE CAPTURADO');
       setTipoMensaje('warning');
-      setUltimaCaptura({ lpn: lpnBuscado, corresponde: true });
     } else {
-      setMensaje('❌ LPN ' + lpnBuscado + ' → NO CORRESPONDE');
+      setMensaje('❌ LPN ' + lpnBuscado + ' → NO CORRESPONDE al pedido');
       setTipoMensaje('error');
-      setUltimaCaptura({ lpn: lpnBuscado, corresponde: false });
     }
 
-    // Agregar al log
     setCapturasLog(prev => [{ ...captura, id: captura.id || Date.now().toString() }, ...prev]);
-
-    // Limpiar input para siguiente captura
     setLpnInput('');
     setTimeout(() => lpnInputRef.current?.focus(), 100);
     cargarPedidos();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleBuscarLPN();
-    }
-  };
-
+  // ============ FINALIZAR ============
   const handleFinalizar = async () => {
     if (!pedidoActivo) return;
     if (!confirm('¿Finalizar este pedido? Se generará un informe Excel.')) return;
@@ -177,6 +222,15 @@ const LP02View: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
     XLSX.writeFile(wb, pedidoActivo.numero_pedido + '_' + pedidoActivo.cod_tda + '.xlsx');
+  };
+
+  // ============ KEY HANDLERS ============
+  const handleKeyDownPallet = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleVerificarPallet(); }
+  };
+
+  const handleKeyDownLPN = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleBuscarLPN(); }
   };
 
   const getMensajeStyle = () => {
@@ -250,7 +304,6 @@ const LP02View: React.FC = () => {
               <div><strong>Tienda:</strong> {pedidoActivo.cod_tda} - {pedidoActivo.nombre_tda}</div>
               <div><strong>Progreso:</strong> {encontrados} de {total} LPNs</div>
             </div>
-            {/* Barra de progreso */}
             <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
               <div style={{ width: total > 0 ? (encontrados / total) * 100 + '%' : '0%', height: '100%', background: encontrados === total ? '#15803d' : '#3b82f6', transition: 'width 0.3s', borderRadius: '4px' }} />
             </div>
@@ -259,44 +312,82 @@ const LP02View: React.FC = () => {
             </button>
           </div>
 
-          {/* Input de LPN + Botón Buscar */}
-          <div style={{ marginBottom: '16px' }}>
+          {/* ===== ESCANEAR PALLET ===== */}
+          <div style={{ marginBottom: '16px', opacity: palletVerificado ? 0.5 : 1 }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
-              📱 Escanear o escribir LPN
+              📦 Escanear Pallet
             </label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input
-                ref={lpnInputRef}
+                ref={palletInputRef}
                 type="text"
-                value={lpnInput}
-                onChange={e => setLpnInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Escanee o escriba el código LPN..."
+                value={palletInput}
+                onChange={e => setPalletInput(e.target.value)}
+                onKeyDown={handleKeyDownPallet}
+                placeholder="Escanee el código del pallet..."
+                disabled={palletVerificado}
                 style={{
                   flex: 1, padding: '14px', fontSize: '18px',
-                  border: '2px solid ' + (ultimaCaptura ? (ultimaCaptura.corresponde ? '#15803d' : '#dc2626') : '#e2e8f0'),
-                  borderRadius: '8px', transition: 'border-color 0.2s',
+                  border: '2px solid ' + (palletVerificado ? '#15803d' : '#e2e8f0'),
+                  borderRadius: '8px', background: palletVerificado ? '#f0fdf4' : 'white',
                 }}
-                autoFocus
               />
-              <button onClick={handleBuscarLPN} style={{ padding: '14px 24px', fontSize: '16px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-                Buscar
+              <button onClick={handleVerificarPallet} disabled={palletVerificado}
+                style={{ padding: '14px 24px', fontSize: '16px', background: palletVerificado ? '#15803d' : '#1a1f2e', color: 'white', border: 'none', borderRadius: '8px', cursor: palletVerificado ? 'default' : 'pointer' }}>
+                {palletVerificado ? '✓ Verificado' : 'Verificar'}
               </button>
             </div>
+            {palletVerificado && (
+              <div style={{ marginTop: '6px', fontSize: '12px', color: '#15803d' }}>
+                Pallet <strong>{palletActual}</strong> · {lpnsPendientesPallet.length} LPN(s) pendiente(s)
+              </div>
+            )}
           </div>
 
-          {/* Última captura */}
-          {ultimaCaptura && (
-            <div style={{ padding: '16px', borderRadius: '8px', marginBottom: '16px', textAlign: 'center',
-              background: ultimaCaptura.corresponde ? '#dcfce7' : '#fef2f2',
-              border: '1px solid ' + (ultimaCaptura.corresponde ? '#bbf7d0' : '#fecaca'),
-            }}>
-              <span style={{ fontSize: '18px', fontWeight: 700, color: ultimaCaptura.corresponde ? '#15803d' : '#dc2626' }}>
-                {ultimaCaptura.corresponde ? '✅' : '❌'} {ultimaCaptura.lpn}
-              </span>
-              <span style={{ fontSize: '14px', display: 'block', marginTop: '4px', color: ultimaCaptura.corresponde ? '#15803d' : '#dc2626' }}>
-                {ultimaCaptura.corresponde ? 'CORRESPONDE al pedido' : 'NO CORRESPONDE al pedido'}
-              </span>
+          {/* ===== LPNs PENDIENTES DEL PALLET ===== */}
+          {palletVerificado && lpnsPendientesPallet.length > 0 && (
+            <div style={{ marginBottom: '16px', padding: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
+              <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#15803d', marginBottom: '8px' }}>
+                📋 LPNs pendientes en {palletActual} ({lpnsPendientesPallet.length})
+              </h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {lpnsPendientesPallet.map(lpn => (
+                  <span key={lpn.id} style={{
+                    padding: '4px 10px', background: 'white', border: '1px solid #bbf7d0',
+                    borderRadius: '6px', fontSize: '12px', fontFamily: 'Courier New, monospace',
+                    color: '#15803d', fontWeight: 600,
+                  }}>
+                    {lpn.codigo_lpn}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ===== ESCANEAR LPN ===== */}
+          {palletVerificado && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                📱 Escanear LPN
+              </label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input
+                  ref={lpnInputRef}
+                  type="text"
+                  value={lpnInput}
+                  onChange={e => setLpnInput(e.target.value)}
+                  onKeyDown={handleKeyDownLPN}
+                  placeholder="Escanee el código LPN de la caja..."
+                  style={{
+                    flex: 1, padding: '14px', fontSize: '18px',
+                    border: '2px solid #e2e8f0', borderRadius: '8px',
+                  }}
+                />
+                <button onClick={handleBuscarLPN}
+                  style={{ padding: '14px 24px', fontSize: '16px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                  Buscar
+                </button>
+              </div>
             </div>
           )}
 
