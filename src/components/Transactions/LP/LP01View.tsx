@@ -94,6 +94,14 @@ const LP01View: React.FC = () => {
       console.log('Grupos formados:', Object.keys(grupos).length);
 
       const user: any = auth.getUsuario();
+      console.log('Usuario autenticado:', user);
+
+      if (!user || !user.id) {
+        setMensaje('Error: Usuario no autenticado');
+        setProcesando(false);
+        return;
+      }
+
       const keys: any = Object.keys(grupos);
 
       for (let g = 0; g < keys.length; g++) {
@@ -106,13 +114,31 @@ const LP01View: React.FC = () => {
         const count: any = (countData ? countData.length : 0) + 1;
         const numeroPedido: any = 'LP-' + fecha + '-' + String(count).padStart(4, '0');
 
+        const bodyPedido = JSON.stringify({
+          numero_pedido: numeroPedido,
+          cod_tda: codTda,
+          nombre_tda: grupo.nombre,
+          estado: 'Pendiente',
+          creado_por: user.id
+        });
+        console.log('Creando pedido:', bodyPedido);
+
         const respPedido: any = await fetch(API_URL + '/pk01_pedidos', {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numero_pedido: numeroPedido, cod_tda: codTda, nombre_tda: grupo.nombre, estado: 'Pendiente', creado_por: user?.id }),
+          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: bodyPedido,
         });
+
+        console.log('Respuesta pedido status:', respPedido.status);
+
+        if (!respPedido.ok) {
+          const errText = await respPedido.text();
+          console.error('Error creando pedido:', errText);
+          throw new Error('Error al crear pedido: ' + errText);
+        }
+
         const pedidoCreado: any = await respPedido.json();
-        console.log('Pedido creado:', pedidoCreado.id, numeroPedido);
+        console.log('Pedido creado:', pedidoCreado);
 
         for (let j = 0; j < grupo.items.length; j++) {
           const item: any = grupo.items[j];
@@ -123,13 +149,13 @@ const LP01View: React.FC = () => {
 
           const respInsert: any = await fetch(API_URL + '/pk01_pedido_lpns', {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
             body: JSON.stringify({ pedido_id: pedidoCreado.id, pallet: pallet, codigo_lpn: lpn, encontrado: false }),
           });
-          
+
           if (!respInsert.ok) {
-            const err: any = await respInsert.json();
-            console.error('Error insertando LPN:', err);
+            const errInsert: any = await respInsert.text();
+            console.error('Error insertando LPN:', errInsert);
           }
         }
       }
