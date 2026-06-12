@@ -10,30 +10,30 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
-interface CapturaLog {
-  id: string;
-  pallet_escaneado: string;
-  lpn_escaneado: string;
-  corresponde: boolean;
-  capturado_en: string;
-}
-
 const LP02View: React.FC = () => {
   const usuario = auth.getUsuario();
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [pedidoActivo, setPedidoActivo] = useState<any>(null);
   const [lpnsPedido, setLpnsPedido] = useState<any[]>([]);
-  const [capturasLog, setCapturasLog] = useState<CapturaLog[]>([]);
 
+  // Inputs
   const [palletInput, setPalletInput] = useState('');
   const [lpnInput, setLpnInput] = useState('');
 
+  // Estados
   const [palletVerificado, setPalletVerificado] = useState(false);
   const [palletActual, setPalletActual] = useState('');
   const [lpnsPendientesPallet, setLpnsPendientesPallet] = useState<any[]>([]);
   const [mensaje, setMensaje] = useState('');
   const [tipoMensaje, setTipoMensaje] = useState<'success' | 'error' | 'warning' | 'info'>('info');
+
+  // Contadores
+  const [cajasCapturadas, setCajasCapturadas] = useState(0);
+  const [cajasNoCorresponden, setCajasNoCorresponden] = useState(0);
+
+  // Colección de capturas (solo frontend)
+  const [capturasSesion, setCapturasSesion] = useState<any[]>([]);
 
   const palletInputRef = useRef<HTMLInputElement>(null);
   const lpnInputRef = useRef<HTMLInputElement>(null);
@@ -64,29 +64,6 @@ const LP02View: React.FC = () => {
     setCargando(false);
   };
 
-  const refrescarPedidoActivo = async () => {
-    if (!pedidoActivo) return;
-    const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedidoActivo.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
-    const lpnsActualizados = await resp.json() || [];
-    setLpnsPedido(lpnsActualizados);
-
-    if (palletVerificado && palletActual) {
-      const pendientes = lpnsActualizados.filter(
-        (l: any) => l.pallet.toUpperCase() === palletActual.toUpperCase() && !l.encontrado
-      );
-      setLpnsPendientesPallet(pendientes);
-
-      if (pendientes.length === 0) {
-        setPalletVerificado(false);
-        setPalletActual('');
-        setPalletInput('');
-        setMensaje('🎉 ¡Pallet ' + palletActual + ' completado! Escanea el siguiente pallet.');
-        setTipoMensaje('success');
-        setTimeout(() => palletInputRef.current?.focus(), 300);
-      }
-    }
-  };
-
   const seleccionarPedido = async (pedido: any) => {
     setPedidoActivo(pedido);
     setPalletInput('');
@@ -95,22 +72,17 @@ const LP02View: React.FC = () => {
     setPalletActual('');
     setLpnsPendientesPallet([]);
     setMensaje('');
-    setCapturasLog([]);
+    setCajasCapturadas(0);
+    setCajasNoCorresponden(0);
+    setCapturasSesion([]);
 
     const resp = await fetch(API_URL + '/pk01_pedido_lpns?select=*&pedido_id=eq.' + pedido.id + '&order=pallet,codigo_lpn', { headers: HEADERS });
     setLpnsPedido(await resp.json() || []);
 
-    if (pedido.estado === 'Pendiente') {
-      await fetch(API_URL + '/pk01_pedidos?id=eq.' + pedido.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'En Proceso' }),
-      });
-    }
-
     setTimeout(() => palletInputRef.current?.focus(), 300);
   };
 
+  // Verificar pallet
   const handleVerificarPallet = () => {
     if (!palletInput.trim() || !pedidoActivo) return;
 
@@ -133,81 +105,116 @@ const LP02View: React.FC = () => {
       if (yaEncontrados.length > 0) {
         setMensaje('⚠️ El pallet ' + palletBuscado + ' ya fue procesado completamente.');
         setTipoMensaje('warning');
+        setPalletInput('');
       } else {
         setMensaje('❌ El pallet ' + palletBuscado + ' no tiene LPNs pendientes de este pedido.');
         setTipoMensaje('error');
+        setPalletInput('');
       }
       setPalletVerificado(false);
       setLpnsPendientesPallet([]);
+      setTimeout(() => palletInputRef.current?.focus(), 300);
     }
   };
 
-  const handleBuscarLPN = async () => {
+  // Buscar LPN (solo frontend, sin guardar)
+  const handleBuscarLPN = () => {
     if (!lpnInput.trim() || !pedidoActivo || !palletVerificado) return;
 
-    const user = auth.getUsuario();
     const lpnBuscado = lpnInput.trim().toUpperCase();
-    const lpnEncontrado = lpnsPedido.find(
+    const lpnEncontrado = lpnsPendientesPallet.find(
       l => l.codigo_lpn.toUpperCase() === lpnBuscado
     );
-    const corresponde = !!lpnEncontrado && !lpnEncontrado.encontrado;
 
-    // Guardar captura
-    const resp = await fetch(API_URL + '/pk02_capturas', {
-      method: 'POST',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pedido_id: pedidoActivo.id,
-        pallet_escaneado: palletActual,
-        lpn_escaneado: lpnBuscado,
-        corresponde: corresponde,
-        capturado_por: user?.id,
-      }),
-    });
-    const captura = await resp.json();
-
-    // Limpiar input inmediatamente
+    // Limpiar input
     setLpnInput('');
-    if (lpnInputRef.current) {
-      lpnInputRef.current.value = '';
-    }
+    if (lpnInputRef.current) lpnInputRef.current.value = '';
 
-    if (corresponde) {
-      await fetch(API_URL + '/pk01_pedido_lpns?id=eq.' + lpnEncontrado!.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ encontrado: true, capturado_en: new Date().toISOString() }),
-      });
-      setMensaje('✅ LPN ' + lpnBuscado + ' → CORRESPONDE');
+    if (lpnEncontrado) {
+      // CORRESPONDE
+      setMensaje('✅ ' + lpnBuscado + ' → CORRESPONDE');
       setTipoMensaje('success');
-    } else if (lpnEncontrado && lpnEncontrado.encontrado) {
-      setMensaje('⚠️ LPN ' + lpnBuscado + ' → YA FUE CAPTURADO');
-      setTipoMensaje('warning');
+      setCajasCapturadas(prev => prev + 1);
+
+      // Quitar de pendientes y marcar como encontrado en lista local
+      setLpnsPendientesPallet(prev => prev.filter(l => l.id !== lpnEncontrado.id));
+      setLpnsPedido(prev => prev.map(l =>
+        l.id === lpnEncontrado.id ? { ...l, encontrado: true } : l
+      ));
+
+      // Agregar a colección
+      setCapturasSesion(prev => [...prev, {
+        lpn: lpnBuscado,
+        pallet: palletActual,
+        corresponde: true,
+        hora: new Date().toLocaleTimeString('es-CL'),
+      }]);
+
+      // Verificar si se completó el pallet
+      const pendientesRestantes = lpnsPendientesPallet.filter(l => l.id !== lpnEncontrado.id);
+      if (pendientesRestantes.length === 0) {
+        setMensaje('🎉 ¡Pallet ' + palletActual + ' completado! (' + (cajasCapturadas + 1) + ' cajas)');
+        setTipoMensaje('success');
+        setPalletVerificado(false);
+        setPalletActual('');
+        setPalletInput('');
+        setTimeout(() => palletInputRef.current?.focus(), 300);
+      }
     } else {
-      setMensaje('❌ LPN ' + lpnBuscado + ' → NO CORRESPONDE');
+      // NO CORRESPONDE
+      setMensaje('❌ ' + lpnBuscado + ' → NO CORRESPONDE');
       setTipoMensaje('error');
+      setCajasNoCorresponden(prev => prev + 1);
+
+      setCapturasSesion(prev => [...prev, {
+        lpn: lpnBuscado,
+        pallet: palletActual,
+        corresponde: false,
+        hora: new Date().toLocaleTimeString('es-CL'),
+      }]);
     }
 
-    // Actualizar log
-    const nuevaCaptura = { ...captura, id: captura.id || Date.now().toString() };
-    setCapturasLog(prev => [nuevaCaptura, ...prev]);
-
-    // Refrescar datos
-    await refrescarPedidoActivo();
-    cargarPedidos();
-
-    // Enfocar input LPN
-    setTimeout(() => {
-      if (lpnInputRef.current) {
-        lpnInputRef.current.focus();
-      }
-    }, 150);
+    setTimeout(() => lpnInputRef.current?.focus(), 150);
   };
 
+  // Finalizar - guardar en Supabase y exportar
   const handleFinalizar = async () => {
     if (!pedidoActivo) return;
-    if (!confirm('¿Finalizar este pedido? Se generará un informe Excel.')) return;
+    if (!confirm('¿Finalizar este pedido? Se guardarán las capturas y se generará un informe Excel.')) return;
 
+    const user = auth.getUsuario();
+
+    // Guardar capturas en Supabase
+    for (const cap of capturasSesion) {
+      if (cap.corresponde) {
+        // Marcar LPN como encontrado
+        const lpnEncontrado = lpnsPedido.find(
+          (l: any) => l.codigo_lpn.toUpperCase() === cap.lpn.toUpperCase()
+        );
+        if (lpnEncontrado) {
+          await fetch(API_URL + '/pk01_pedido_lpns?id=eq.' + lpnEncontrado.id, {
+            method: 'PATCH',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ encontrado: true, capturado_en: new Date().toISOString() }),
+          });
+        }
+      }
+
+      // Guardar log de captura
+      await fetch(API_URL + '/pk02_capturas', {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pedido_id: pedidoActivo.id,
+          pallet_escaneado: cap.pallet,
+          lpn_escaneado: cap.lpn,
+          corresponde: cap.corresponde,
+          capturado_por: user?.id,
+        }),
+      });
+    }
+
+    // Actualizar estado del pedido
     await fetch(API_URL + '/pk01_pedidos?id=eq.' + pedidoActivo.id, {
       method: 'PATCH',
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -306,6 +313,7 @@ const LP02View: React.FC = () => {
         </>
       ) : (
         <>
+          {/* Info del pedido + Progreso */}
           <div style={{ background: '#f8fafd', border: '1px solid #eef0f5', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', fontSize: '13px', marginBottom: '10px' }}>
               <div><strong>Pedido:</strong> <span style={{ color: '#1d4ed8', fontWeight: 600 }}>{pedidoActivo.numero_pedido}</span></div>
@@ -318,6 +326,18 @@ const LP02View: React.FC = () => {
             <button onClick={() => { setPedidoActivo(null); cargarPedidos(); }} style={{ marginTop: '10px', padding: '6px 12px', background: '#64748b', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
               ← Volver a pedidos
             </button>
+          </div>
+
+          {/* Contadores */}
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+            <div style={{ flex: 1, padding: '12px', background: '#dcfce7', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#15803d', fontWeight: 600 }}>✅ CORRESPONDEN</div>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: '#15803d' }}>{cajasCapturadas}</div>
+            </div>
+            <div style={{ flex: 1, padding: '12px', background: '#fef2f2', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>❌ NO CORRESPONDEN</div>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: '#dc2626' }}>{cajasNoCorresponden}</div>
+            </div>
           </div>
 
           {/* ESCANEAR PALLET */}
@@ -352,7 +372,7 @@ const LP02View: React.FC = () => {
             )}
           </div>
 
-          {/* LPNs PENDIENTES DEL PALLET */}
+          {/* LPNs PENDIENTES */}
           {palletVerificado && lpnsPendientesPallet.length > 0 && (
             <div style={{ marginBottom: '16px', padding: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
               <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#15803d', marginBottom: '8px' }}>
@@ -407,26 +427,26 @@ const LP02View: React.FC = () => {
           )}
 
           {/* Log de capturas */}
-          <div className="ed03-tabla-container" style={{ maxHeight: '300px' }}>
+          <div className="ed03-tabla-container" style={{ maxHeight: '250px' }}>
             <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-              📝 Capturas de esta sesión ({capturasLog.length})
+              📝 Registro de capturas ({capturasSesion.length})
             </h4>
             <table className="ed03-tabla">
               <thead>
                 <tr><th>Pallet</th><th>LPN</th><th style={{ width: '120px' }}>¿Corresponde?</th><th>Hora</th></tr>
               </thead>
               <tbody>
-                {capturasLog.length === 0 ? (
+                {capturasSesion.length === 0 ? (
                   <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>Sin capturas aún</td></tr>
                 ) : (
-                  capturasLog.map(c => (
-                    <tr key={c.id} style={{ background: c.corresponde ? '#dcfce7' : '#fef2f2' }}>
-                      <td>{c.pallet_escaneado}</td>
-                      <td className="ed03-ticket-id">{c.lpn_escaneado}</td>
+                  capturasSesion.map((c, i) => (
+                    <tr key={i} style={{ background: c.corresponde ? '#dcfce7' : '#fef2f2' }}>
+                      <td>{c.pallet}</td>
+                      <td className="ed03-ticket-id">{c.lpn}</td>
                       <td style={{ textAlign: 'center' }}>
                         {c.corresponde ? <span style={{ color: '#15803d', fontWeight: 600 }}>✅ SI</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>❌ NO</span>}
                       </td>
-                      <td>{new Date(c.capturado_en).toLocaleTimeString('es-CL')}</td>
+                      <td>{c.hora}</td>
                     </tr>
                   ))
                 )}
