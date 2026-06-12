@@ -25,6 +25,11 @@ interface TareaPorcentaje {
   creado_en: string;
 }
 
+// Formatear números con separador de miles
+const formatNum = (num: number): string => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
 // Componente personalizado para el tooltip del gráfico de puntos
 const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -33,7 +38,7 @@ const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
         <p style={{ fontWeight: 600, color: '#1d4ed8', margin: '0 0 4px' }}>{data.name}</p>
         <p style={{ margin: '0 0 2px', color: '#475569' }}>Local: {data.local}</p>
-        <p style={{ margin: '0 0 2px', color: '#475569' }}>SAP: {data.sap} | Físico: {data.fisico}</p>
+        <p style={{ margin: '0 0 2px', color: '#475569' }}>SAP: {formatNum(data.sap)} | Físico: {formatNum(data.fisico)}</p>
         <p style={{ margin: '0', fontWeight: 700, color: data.y === 0 ? '#15803d' : data.y <= 5 ? '#b45309' : '#dc2626' }}>{data.y}%</p>
       </div>
     );
@@ -259,7 +264,6 @@ const AD03Dashboard: React.FC = () => {
     { name: 'Pendientes', value: pendientes },
   ].filter(d => d.value > 0);
 
-  // Datos para gráfico de dispersión (puntos) - con color individual
   const datosScatter = tareasPorcentaje.map((t, index) => ({
     x: index + 1,
     y: t.porcentajeDif,
@@ -269,6 +273,23 @@ const AD03Dashboard: React.FC = () => {
     fisico: t.totalFisico,
     fill: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#f59e0b' : '#dc2626',
   }));
+
+  // Custom Tooltip para BarChart con formato de miles
+  const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
+          <p style={{ fontWeight: 600, color: '#1e293b', margin: '0 0 4px' }}>{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} style={{ margin: '2px 0', color: entry.color }}>
+              {entry.name}: <strong>{formatNum(entry.value)}</strong>
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="ad03-view">
@@ -288,16 +309,16 @@ const AD03Dashboard: React.FC = () => {
       </div>
 
       <div className="ad03-kpis">
-        <div className="ad03-kpi"><span>Total Auditorías</span><strong>{total}</strong></div>
-        <div className="ad03-kpi ad03-kpi-ok"><span>Finalizadas OK</span><strong>{finalizadas}</strong></div>
-        <div className="ad03-kpi ad03-kpi-diff"><span>Con Diferencias</span><strong>{conDiferencias}</strong></div>
-        <div className="ad03-kpi ad03-kpi-pend"><span>Pendientes</span><strong>{pendientes}</strong></div>
+        <div className="ad03-kpi"><span>Total Auditorías</span><strong>{formatNum(total)}</strong></div>
+        <div className="ad03-kpi ad03-kpi-ok"><span>Finalizadas OK</span><strong>{formatNum(finalizadas)}</strong></div>
+        <div className="ad03-kpi ad03-kpi-diff"><span>Con Diferencias</span><strong>{formatNum(conDiferencias)}</strong></div>
+        <div className="ad03-kpi ad03-kpi-pend"><span>Pendientes</span><strong>{formatNum(pendientes)}</strong></div>
         <div className="ad03-kpi ad03-kpi-porc"><span>% Tareas con Dif.</span><strong>{porcentajeDiferenciasTareas}%</strong></div>
         <div className="ad03-kpi ad03-kpi-porc" style={{ background: '#fef2f2' }}>
           <span>% Unidades con Dif.</span>
           <strong style={{ color: '#dc2626' }}>{porcentajesGlobales.porcentajeDif}%</strong>
           <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>
-            {porcentajesGlobales.unidadesDiferencia} de {porcentajesGlobales.totalUnidadesSAP} un
+            {formatNum(porcentajesGlobales.unidadesDiferencia)} de {formatNum(porcentajesGlobales.totalUnidadesSAP)} un
           </small>
         </div>
       </div>
@@ -309,8 +330,8 @@ const AD03Dashboard: React.FC = () => {
             <BarChart data={datosBarra}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
               <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11, formatter: (val: number) => formatNum(val) }} allowDecimals={false} />
+              <Tooltip content={<CustomBarTooltip />} />
               <Legend />
               <Bar dataKey="ok" fill="#15803d" radius={[4,4,0,0]} name="OK" />
               <Bar dataKey="diferencias" fill="#dc2626" radius={[4,4,0,0]} name="Con Diferencias" />
@@ -321,27 +342,22 @@ const AD03Dashboard: React.FC = () => {
           <h3>Distribución de Estados</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={datosPie} cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+              <Pie data={datosPie} cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name}: ${formatNum(value)}`}>
                 {datosPie.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(value: any) => formatNum(value)} />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Tabla de % por día */}
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Resumen por Día</h3>
         <table className="ed03-tabla">
           <thead>
             <tr>
-              <th>Día</th>
-              <th>Total</th>
-              <th>OK</th>
-              <th>Diferencias</th>
-              <th>% Dif. Tareas</th>
+              <th>Día</th><th>Total</th><th>OK</th><th>Diferencias</th><th>% Dif. Tareas</th>
             </tr>
           </thead>
           <tbody>
@@ -353,9 +369,9 @@ const AD03Dashboard: React.FC = () => {
                 return (
                   <tr key={i}>
                     <td className="ed03-ticket-id">{d.dia}</td>
-                    <td>{d.total}</td>
-                    <td>{d.ok}</td>
-                    <td style={{ color: '#dc2626', fontWeight: 600 }}>{d.diferencias}</td>
+                    <td>{formatNum(d.total)}</td>
+                    <td>{formatNum(d.ok)}</td>
+                    <td style={{ color: '#dc2626', fontWeight: 600 }}>{formatNum(d.diferencias)}</td>
                     <td style={{ fontWeight: 600, color: '#dc2626' }}>{pctTareas}%</td>
                   </tr>
                 );
@@ -364,20 +380,12 @@ const AD03Dashboard: React.FC = () => {
         </table>
       </div>
 
-      {/* Tabla de % por Tarea */}
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Análisis de Diferencias por Tarea (% de Unidades)</h3>
         <table className="ed03-tabla">
           <thead>
             <tr>
-              <th>Tarea</th>
-              <th>Local</th>
-              <th>Estado</th>
-              <th>Total SAP</th>
-              <th>Total Físico</th>
-              <th>Dif. Absoluta</th>
-              <th>% Dif.</th>
-              <th>Fecha</th>
+              <th>Tarea</th><th>Local</th><th>Estado</th><th>Total SAP</th><th>Total Físico</th><th>Dif. Absoluta</th><th>% Dif.</th><th>Fecha</th>
             </tr>
           </thead>
           <tbody>
@@ -391,10 +399,10 @@ const AD03Dashboard: React.FC = () => {
                   <td className="ed03-ticket-id">{t.numero_tarea}</td>
                   <td>{t.codigo_local} - {t.nombre_local}</td>
                   <td>{t.estado}</td>
-                  <td style={{ textAlign: 'center' }}>{t.totalSAP}</td>
-                  <td style={{ textAlign: 'center' }}>{t.totalFisico}</td>
+                  <td style={{ textAlign: 'center' }}>{formatNum(t.totalSAP)}</td>
+                  <td style={{ textAlign: 'center' }}>{formatNum(t.totalFisico)}</td>
                   <td style={{ textAlign: 'center', fontWeight: 600, color: t.diferenciaAbsoluta > 0 ? '#dc2626' : '#15803d' }}>
-                    {t.diferenciaAbsoluta > 0 ? t.diferenciaAbsoluta : '-'}
+                    {t.diferenciaAbsoluta > 0 ? formatNum(t.diferenciaAbsoluta) : '-'}
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 700 }}>
                     <span style={{
@@ -413,7 +421,6 @@ const AD03Dashboard: React.FC = () => {
         </table>
       </div>
 
-      {/* GRÁFICO DE PUNTOS: % Diferencias por Tarea */}
       {tareasPorcentaje.length > 0 && (
         <div className="ad03-chart">
           <h3>% Diferencias de Unidades por Tarea</h3>
@@ -421,32 +428,19 @@ const AD03Dashboard: React.FC = () => {
             <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
               <XAxis
-                type="number"
-                dataKey="x"
-                name="Tarea #"
-                stroke="#64748b"
+                type="number" dataKey="x" name="Tarea #" stroke="#64748b"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: '#64748b', fontSize: 12 } }}
                 domain={[0, datosScatter.length + 1]}
               />
               <YAxis
-                type="number"
-                dataKey="y"
-                name="% Diferencias"
-                stroke="#64748b"
-                tick={{ fontSize: 11 }}
-                unit="%"
+                type="number" dataKey="y" name="% Diferencias" stroke="#64748b"
+                tick={{ fontSize: 11 }} unit="%"
                 label={{ value: '% Diferencias', angle: -90, position: 'left', offset: 20, style: { fill: '#64748b', fontSize: 12 } }}
               />
               <ZAxis range={[100, 100]} />
-              <Tooltip
-                cursor={{ strokeDasharray: '3 3' }}
-                content={<CustomScatterTooltip />}
-              />
-              <Scatter
-                data={datosScatter}
-                shape="circle"
-              />
+              <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomScatterTooltip />} />
+              <Scatter data={datosScatter} shape="circle" />
             </ScatterChart>
           </ResponsiveContainer>
         </div>
