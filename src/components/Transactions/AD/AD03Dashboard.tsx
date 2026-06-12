@@ -457,7 +457,7 @@ const AD03Dashboard: React.FC = () => {
         yPos = drawTablePDF(pdf, headersTarea, rowsTarea, colWidthsTarea, margin, yPos, pageWidth, margin, [26, 31, 46], 8);
       }
 
-      // ===== TABLA DETALLE DIFERENCIAS =====
+            // ===== TABLA DETALLE DIFERENCIAS =====
       if (detalleDiferencias.length > 0) {
         pdf.addPage(); yPos = margin;
         pdf.setFontSize(13);
@@ -466,21 +466,20 @@ const AD03Dashboard: React.FC = () => {
         pdf.text('Detalle de Diferencias por SKU', margin, yPos);
         yPos += 8;
 
-        const headersDif = ['Tarea', 'SKU', 'Descripción', 'SAP', 'Físico', 'Dif.', 'Estado'];
-        const colWidthsDif = [38, 30, 48, 22, 22, 22, 22];
+        const headersDif = ['Tarea', 'SKU', 'Descripción', 'SAP', 'Físico', 'Dif.', 'Est.'];
+        const colWidthsDif = [35, 28, 52, 22, 22, 20, 15];
         const rowsDif = detalleDiferencias.map(d => [
           d.tarea,
           d.sku,
-          d.denominacion.substring(0, 40),
+          d.denominacion.length > 38 ? d.denominacion.substring(0, 35) + '...' : d.denominacion,
           formatNum(d.sap),
           formatNum(d.fisico),
           formatNum(d.diferencia),
-          d.estado,
+          d.estado === 'Pendiente' ? 'Pend.' : d.estado === 'Con Diferencias' ? 'C/Dif.' : d.estado,
         ]);
 
         yPos = drawTablePDF(pdf, headersDif, rowsDif, colWidthsDif, margin, yPos, pageWidth, margin, [26, 31, 46], 7);
       }
-
       // ===== PIE DE PÁGINA =====
       const totalPages = pdf.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
