@@ -1,0 +1,5 @@
+.pk01-view { background: white; border-radius: 12px; padding: 24px; }
+.pk01-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.pk01-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
+.pk01-btn-nueva { display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: #1a1f2e; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.pk01-btn-detalle { padding: 5px 12px; background: #1a1f2e; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
