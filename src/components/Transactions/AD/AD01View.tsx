@@ -123,10 +123,8 @@ const AD01View: React.FC = () => {
       capturas = (data || []).map(c => ({ ...c, numero_caja: cMap[c.caja_id] || '-' }));
     }
 
-    // AGRUPAR POR SKU (consolidar + huérfanos)
     const skuMap: Record<string, any> = {};
 
-    // Procesar SKUs de SAP
     (sap || []).forEach((s: any) => {
       const key = String(s.sku || '').trim();
       if (!skuMap[key]) {
@@ -136,31 +134,23 @@ const AD01View: React.FC = () => {
       skuMap[key].cantidad_sap += (s.cantidad_sap || 0);
     });
 
-    // Agregar capturas a SKUs de SAP
     Object.keys(skuMap).forEach(sku => {
       skuMap[sku].capturas = capturas.filter((c: any) => String(c.sku || '').trim() === sku);
     });
 
-    // Agregar SKUs huérfanos (capturas sin SAP)
     capturas.forEach((c: any) => {
       const sku = String(c.sku || '').trim();
       if (!skuMap[sku]) {
         skuMap[sku] = {
-          sku: sku,
-          denominacion: 'SKU AGREGADO MANUALMENTE',
-          entregas: ['-'],
-          cantidad_sap: 0,
-          capturas: [],
-          esHuerfano: true,
+          sku: sku, denominacion: 'SKU AGREGADO MANUALMENTE', entregas: ['-'],
+          cantidad_sap: 0, capturas: [], esHuerfano: true,
         };
       }
-      // Si ya existe pero la captura no está en el array, agregarla
       if (skuMap[sku] && !skuMap[sku].capturas.find((cap: any) => cap.id === c.id)) {
         skuMap[sku].capturas.push(c);
       }
     });
 
-    // Construir detalle
     const detalle: any[] = [];
 
     Object.values(skuMap).forEach((item: any) => {
@@ -183,7 +173,6 @@ const AD01View: React.FC = () => {
     });
 
     setDatosDetalle(detalle);
-
     const { data: aa } = await supabase.from('ad_auditorias').select('*').eq('id', a.id).single();
     if (aa) setAuditoriaDetalle(aa);
   };
@@ -196,9 +185,7 @@ const AD01View: React.FC = () => {
 
   const exportarExcel = () => {
     if (!auditoriaDetalle) return;
-
     const filas: any[] = [];
-
     datosDetalle.forEach((d: any) => {
       if (d.capturado && d.capturas.length > 0) {
         d.capturas.forEach((cap: any, idx: number) => {
@@ -208,9 +195,9 @@ const AD01View: React.FC = () => {
             'SKU': d.sku,
             'DESCRIPCION': d.denominacion,
             'ENTREGAS': idx === 0 ? d.entrega : '',
-            'SAP': idx === 0 ? (d.esHuerfano ? 'N/A' : d.cantidad_sap) : '-',
+            'SAP': idx === 0 ? (d.esHuerfano ? 0 : d.cantidad_sap) : '-',
             'FISICO': cap.cantidad_fisica || 0,
-            'DIFERENCIA': idx === 0 ? (d.esHuerfano ? 'N/A' : (d.diferencia === 0 ? 'OK' : d.diferencia)) : '-',
+            'DIFERENCIA': idx === 0 ? (d.esHuerfano ? 'X' : (d.diferencia === 0 ? 'OK' : d.diferencia)) : '-',
             'ESTADO': idx === 0 ? (d.esHuerfano ? 'Manual' : (d.diferencia === 0 ? 'OK' : 'Pend.')) : '-',
             'ACTA': idx === 0 ? (auditoriaDetalle.acta || '') : '',
             'GUIA': idx === 0 ? (auditoriaDetalle.guia || '') : '',
@@ -218,43 +205,29 @@ const AD01View: React.FC = () => {
             'LOCAL': idx === 0 ? auditoriaDetalle.nombre_local : '',
           });
         });
-
         if (d.diferencia > 0 && !d.esHuerfano) {
           filas.push({
             'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
             'CAJA': 'Pendiente (' + d.diferencia + ')',
-            'SKU': d.sku,
-            'DESCRIPCION': d.denominacion,
-            'ENTREGAS': '',
-            'SAP': '-',
-            'FISICO': 0,
-            'DIFERENCIA': '-',
-            'ESTADO': 'Pend.',
-            'ACTA': '',
-            'GUIA': '',
-            'COD LOCAL': '',
-            'LOCAL': '',
+            'SKU': d.sku, 'DESCRIPCION': d.denominacion, 'ENTREGAS': '',
+            'SAP': '-', 'FISICO': 0, 'DIFERENCIA': '-', 'ESTADO': 'Pend.',
+            'ACTA': '', 'GUIA': '', 'COD LOCAL': '', 'LOCAL': '',
           });
         }
       } else {
         filas.push({
           'TAREA AUDITORIA': auditoriaDetalle.numero_tarea,
           'CAJA': 'Pendiente',
-          'SKU': d.sku,
-          'DESCRIPCION': d.denominacion,
-          'ENTREGAS': d.entrega,
-          'SAP': d.esHuerfano ? 'N/A' : d.cantidad_sap,
+          'SKU': d.sku, 'DESCRIPCION': d.denominacion, 'ENTREGAS': d.entrega,
+          'SAP': d.esHuerfano ? 0 : d.cantidad_sap,
           'FISICO': 0,
-          'DIFERENCIA': d.esHuerfano ? 'N/A' : d.diferencia,
+          'DIFERENCIA': d.esHuerfano ? 'X' : d.diferencia,
           'ESTADO': d.esHuerfano ? 'Manual' : 'Pend.',
-          'ACTA': auditoriaDetalle.acta || '',
-          'GUIA': auditoriaDetalle.guia || '',
-          'COD LOCAL': auditoriaDetalle.codigo_local,
-          'LOCAL': auditoriaDetalle.nombre_local,
+          'ACTA': auditoriaDetalle.acta || '', 'GUIA': auditoriaDetalle.guia || '',
+          'COD LOCAL': auditoriaDetalle.codigo_local, 'LOCAL': auditoriaDetalle.nombre_local,
         });
       }
     });
-
     const ws = XLSX.utils.json_to_sheet(filas);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
@@ -263,9 +236,7 @@ const AD01View: React.FC = () => {
 
   const exportarConsolidadoSKU = () => {
     if (!auditoriaDetalle) return;
-
     const skuMapCons: Record<string, any> = {};
-
     datosDetalle.forEach((d: any) => {
       if (!skuMapCons[d.sku]) {
         skuMapCons[d.sku] = { sku: d.sku, denominacion: d.denominacion, cantidad_sap: 0, cantidad_fisica: 0, esHuerfano: d.esHuerfano };
@@ -273,7 +244,6 @@ const AD01View: React.FC = () => {
       skuMapCons[d.sku].cantidad_sap += d.cantidad_sap;
       skuMapCons[d.sku].cantidad_fisica += d.cantidad_fisica;
     });
-
     const filas = Object.values(skuMapCons).map((item: any) => {
       const diferencia = item.cantidad_sap - item.cantidad_fisica;
       const estado = item.esHuerfano ? 'Manual' : (diferencia === 0 ? 'OK' : (diferencia > 0 ? 'Pendiente' : 'Con Diferencias'));
@@ -281,14 +251,13 @@ const AD01View: React.FC = () => {
         'TAREA': auditoriaDetalle.numero_tarea,
         'SKU': item.sku,
         'DESCRIPCION': item.denominacion,
-        'SAP': item.esHuerfano ? 'N/A' : item.cantidad_sap,
+        'SAP': item.esHuerfano ? 0 : item.cantidad_sap,
         'FISICO': item.cantidad_fisica,
-        'DIFERENCIA': item.esHuerfano ? 'N/A' : diferencia,
+        'DIFERENCIA': item.esHuerfano ? 'X' : diferencia,
         'ESTADO': estado,
         'LOCAL': auditoriaDetalle.codigo_local + ' - ' + auditoriaDetalle.nombre_local,
       };
     });
-
     const ws = XLSX.utils.json_to_sheet(filas);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Consolidado SKU');
@@ -400,10 +369,10 @@ const AD01View: React.FC = () => {
                           <td className="ed03-ticket-id" style={{ fontSize: '12px' }}>{d.sku}</td>
                           <td style={{ fontSize: '12px' }}>{d.denominacion}</td>
                           <td style={{ fontSize: '11px' }}>{d.entrega}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.esHuerfano ? 'N/A' : d.cantidad_sap}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.esHuerfano ? 0 : d.cantidad_sap}</td>
                           <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.capturado ? d.cantidad_fisica : '-'}</td>
                           <td style={{ textAlign: 'center', fontWeight: 600, color: d.esHuerfano ? '#92400e' : (d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8') }}>
-                            {d.esHuerfano ? 'N/A' : (d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia)}
+                            {d.esHuerfano ? 'X' : (d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia)}
                           </td>
                           <td>
                             <span style={{
@@ -425,9 +394,9 @@ const AD01View: React.FC = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                   <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#64748b', marginBottom: '4px', flexWrap: 'wrap' }}>
                                     <span><strong>Entregas:</strong> {d.entrega}</span>
-                                    <span><strong>Total SAP:</strong> {d.esHuerfano ? 'N/A' : d.cantidad_sap + ' un'}</span>
+                                    <span><strong>Total SAP:</strong> {d.esHuerfano ? '0 un' : d.cantidad_sap + ' un'}</span>
                                     <span><strong>Total Físico:</strong> {d.cantidad_fisica} un</span>
-                                    <span><strong>Diferencia:</strong> <span style={{ color: d.esHuerfano ? '#92400e' : (d.diferencia === 0 ? '#15803d' : '#dc2626'), fontWeight: 600 }}>{d.esHuerfano ? 'N/A' : (d.diferencia === 0 ? '0' : d.diferencia)}</span></span>
+                                    <span><strong>Diferencia:</strong> <span style={{ color: d.esHuerfano ? '#92400e' : (d.diferencia === 0 ? '#15803d' : '#dc2626'), fontWeight: 600 }}>{d.esHuerfano ? 'X' : (d.diferencia === 0 ? '0' : d.diferencia)}</span></span>
                                   </div>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                     <thead><tr style={{ background: '#f1f5f9' }}><th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Caja</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Cantidad</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Acumulado</th></tr></thead>
