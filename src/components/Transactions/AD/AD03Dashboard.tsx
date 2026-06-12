@@ -1,10 +1,13 @@
 // src/components/Transactions/AD/AD03Dashboard.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, ScatterChart, Scatter, ZAxis
 } from 'recharts';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { auth } from '../../../lib/auth';
 import './AD03.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -25,12 +28,10 @@ interface TareaPorcentaje {
   creado_en: string;
 }
 
-// Formatear números con separador de miles
 const formatNum = (num: number): string => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 
-// Componente personalizado para el tooltip del gráfico de puntos
 const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -46,6 +47,20 @@ const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
   return null;
 };
 
+const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
+        <p style={{ fontWeight: 600, color: '#1e293b', margin: '0 0 4px' }}>{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} style={{ margin: '2px 0', color: entry.color }}>{entry.name}: <strong>{formatNum(entry.value)}</strong></p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 const AD03Dashboard: React.FC = () => {
   const [datos, setDatos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -55,6 +70,17 @@ const AD03Dashboard: React.FC = () => {
   const [localesData, setLocalesData] = useState<{ codigo: string; nombre: string }[]>([]);
   const [tareasPorcentaje, setTareasPorcentaje] = useState<TareaPorcentaje[]>([]);
   const [cargandoPorcentajes, setCargandoPorcentajes] = useState(false);
+
+  // Estados para el informe PDF
+  const [showInformeModal, setShowInformeModal] = useState(false);
+  const [textoInforme, setTextoInforme] = useState('');
+  const [generandoPDF, setGenerandoPDF] = useState(false);
+  const [detalleDiferencias, setDetalleDiferencias] = useState<any[]>([]);
+
+  const kpiRef = useRef<HTMLDivElement>(null);
+  const chartBarRef = useRef<HTMLDivElement>(null);
+  const chartPieRef = useRef<HTMLDivElement>(null);
+  const chartScatterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
   useEffect(() => { cargarDatos(); }, [filtroLocal, filtroDesde, filtroHasta]);
@@ -78,7 +104,6 @@ const AD03Dashboard: React.FC = () => {
       if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
       if (filtroDesde) url += `&creado_en=gte.${filtroDesde}`;
       if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
-
       const resp = await fetch(url, { headers: HEADERS });
       const data = await resp.json();
       setDatos(data || []);
@@ -90,34 +115,26 @@ const AD03Dashboard: React.FC = () => {
     setCargandoPorcentajes(true);
     try {
       const resultados: TareaPorcentaje[] = [];
+      const diferenciasDetalle: any[] = [];
 
       for (const auditoria of datos) {
-        const respSAP = await fetch(
-          `${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${auditoria.id}`,
-          { headers: HEADERS }
-        );
+        const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=*&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
         const sapData = await respSAP.json();
 
-        const sapConsolidado: Record<string, number> = {};
+        const sapConsolidado: Record<string, any> = {};
         (sapData || []).forEach((s: any) => {
-          if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
-          sapConsolidado[s.sku] += (s.cantidad_sap || 0);
+          if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = { sku: s.sku, denominacion: s.denominacion, cantidad_sap: 0 };
+          sapConsolidado[s.sku].cantidad_sap += (s.cantidad_sap || 0);
         });
 
-        const respCajas = await fetch(
-          `${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`,
-          { headers: HEADERS }
-        );
+        const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
         const cajas = await respCajas.json();
         const cajaIds = (cajas || []).map((c: any) => c.id);
 
         let capturas: any[] = [];
         if (cajaIds.length > 0) {
           const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
-          const respCap = await fetch(
-            `${API_URL}/ad_capturas_skus?select=sku,cantidad_fisica&caja_id=in.(${idsParam})`,
-            { headers: HEADERS }
-          );
+          const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=*&caja_id=in.(${idsParam})`, { headers: HEADERS });
           capturas = await respCap.json();
         }
 
@@ -134,11 +151,25 @@ const AD03Dashboard: React.FC = () => {
         const todosLosSKUs = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
 
         todosLosSKUs.forEach(sku => {
-          const sap = sapConsolidado[sku] || 0;
+          const sap = (sapConsolidado[sku]?.cantidad_sap || 0);
           const fisico = fisicoConsolidado[sku] || 0;
           totalSAP += sap;
           totalFisico += fisico;
           diferenciaAbsoluta += Math.abs(sap - fisico);
+
+          // Guardar detalle de diferencias
+          if (sap !== fisico) {
+            diferenciasDetalle.push({
+              tarea: auditoria.numero_tarea,
+              local: auditoria.codigo_local + ' - ' + auditoria.nombre_local,
+              sku: sku,
+              denominacion: sapConsolidado[sku]?.denominacion || 'SKU Manual',
+              sap: sap,
+              fisico: fisico,
+              diferencia: sap - fisico,
+              estado: sap - fisico === 0 ? 'OK' : (sap - fisico > 0 ? 'Pendiente' : 'Con Diferencias'),
+            });
+          }
         });
 
         const porcentajeDif = totalSAP > 0 ? (diferenciaAbsoluta / totalSAP) * 100 : 0;
@@ -158,82 +189,41 @@ const AD03Dashboard: React.FC = () => {
       }
 
       setTareasPorcentaje(resultados);
+      setDetalleDiferencias(diferenciasDetalle);
     } catch (e) {}
     setCargandoPorcentajes(false);
   };
 
   const [porcentajesGlobales, setPorcentajesGlobales] = useState({
-    totalUnidadesSAP: 0,
-    totalUnidadesFisico: 0,
-    unidadesDiferencia: 0,
-    porcentajeDif: 0,
+    totalUnidadesSAP: 0, totalUnidadesFisico: 0, unidadesDiferencia: 0, porcentajeDif: 0,
   });
 
-  useEffect(() => {
-    if (datos.length === 0) return;
-    calcularPorcentajeGlobal();
-  }, [datos]);
+  useEffect(() => { if (datos.length === 0) return; calcularPorcentajeGlobal(); }, [datos]);
 
   const calcularPorcentajeGlobal = async () => {
     try {
-      let totalSAP = 0;
-      let totalFisico = 0;
-      let difAbsoluta = 0;
-
+      let totalSAP = 0; let totalFisico = 0; let difAbsoluta = 0;
       for (const auditoria of datos) {
-        const respSAP = await fetch(
-          `${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${auditoria.id}`,
-          { headers: HEADERS }
-        );
+        const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
         const sapData = await respSAP.json();
-
         const sapConsolidado: Record<string, number> = {};
-        (sapData || []).forEach((s: any) => {
-          if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
-          sapConsolidado[s.sku] += (s.cantidad_sap || 0);
-        });
-
-        const respCajas = await fetch(
-          `${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`,
-          { headers: HEADERS }
-        );
+        (sapData || []).forEach((s: any) => { if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0; sapConsolidado[s.sku] += (s.cantidad_sap || 0); });
+        const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
         const cajas = await respCajas.json();
         const cajaIds = (cajas || []).map((c: any) => c.id);
-
         let capturas: any[] = [];
         if (cajaIds.length > 0) {
           const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
-          const respCap = await fetch(
-            `${API_URL}/ad_capturas_skus?select=sku,cantidad_fisica&caja_id=in.(${idsParam})`,
-            { headers: HEADERS }
-          );
+          const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=sku,cantidad_fisica&caja_id=in.(${idsParam})`, { headers: HEADERS });
           capturas = await respCap.json();
         }
-
         const fisicoConsolidado: Record<string, number> = {};
-        (capturas || []).forEach((c: any) => {
-          if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0;
-          fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0);
-        });
-
+        (capturas || []).forEach((c: any) => { if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0; fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0); });
         const todosSKUs = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
-        todosSKUs.forEach(sku => {
-          const sap = sapConsolidado[sku] || 0;
-          const fisico = fisicoConsolidado[sku] || 0;
-          totalSAP += sap;
-          totalFisico += fisico;
-          difAbsoluta += Math.abs(sap - fisico);
-        });
+        todosSKUs.forEach(sku => { const sap = sapConsolidado[sku] || 0; const fisico = fisicoConsolidado[sku] || 0; totalSAP += sap; totalFisico += fisico; difAbsoluta += Math.abs(sap - fisico); });
       }
-
       const porcentaje = totalSAP > 0 ? (difAbsoluta / totalSAP) * 100 : 0;
-
-      setPorcentajesGlobales({
-        totalUnidadesSAP: totalSAP,
-        totalUnidadesFisico: totalFisico,
-        unidadesDiferencia: difAbsoluta,
-        porcentajeDif: parseFloat(porcentaje.toFixed(1)),
-      });
+      setPorcentajesGlobales({ totalUnidadesSAP: totalSAP, totalUnidadesFisico: totalFisico, unidadesDiferencia: difAbsoluta, porcentajeDif: parseFloat(porcentaje.toFixed(1)) });
     } catch (e) {}
   };
 
@@ -246,10 +236,7 @@ const AD03Dashboard: React.FC = () => {
     if (d.estado === 'Con Diferencias') porDia[dia].diferencias++;
   });
 
-  const datosBarra = Object.values(porDia).map((d: any) => ({
-    ...d,
-    porcentajeDif: d.total > 0 ? ((d.diferencias / d.total) * 100).toFixed(1) : '0',
-  }));
+  const datosBarra = Object.values(porDia).map((d: any) => ({ ...d, porcentajeDif: d.total > 0 ? ((d.diferencias / d.total) * 100).toFixed(1) : '0' }));
 
   const total = datos.length;
   const finalizadas = datos.filter(d => d.estado === 'Finalizado').length;
@@ -265,35 +252,200 @@ const AD03Dashboard: React.FC = () => {
   ].filter(d => d.value > 0);
 
   const datosScatter = tareasPorcentaje.map((t, index) => ({
-    x: index + 1,
-    y: t.porcentajeDif,
-    name: t.numero_tarea,
-    local: t.codigo_local,
-    sap: t.totalSAP,
-    fisico: t.totalFisico,
+    x: index + 1, y: t.porcentajeDif, name: t.numero_tarea, local: t.codigo_local, sap: t.totalSAP, fisico: t.totalFisico,
     fill: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#f59e0b' : '#dc2626',
   }));
 
-  // Custom Tooltip para BarChart con formato de miles
-  const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
-          <p style={{ fontWeight: 600, color: '#1e293b', margin: '0 0 4px' }}>{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ margin: '2px 0', color: entry.color }}>
-              {entry.name}: <strong>{formatNum(entry.value)}</strong>
-            </p>
-          ))}
-        </div>
-      );
+  // ==================== GENERAR PDF ====================
+  const generarPDF = async () => {
+    setGenerandoPDF(true);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const margin = 15;
+      let yPos = margin;
+
+      const usuario = auth.getUsuario();
+      const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario';
+      const fechaInforme = new Date().toLocaleDateString('es-CL');
+      const nombreLocal = filtroLocal ? localesData.find(l => l.codigo === filtroLocal)?.nombre || filtroLocal : 'Todos los locales';
+
+      // PORTADA
+      pdf.setFillColor(26, 31, 46);
+      pdf.rect(0, 0, pageWidth, 50, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.text('Informe de Auditoría', margin, 25);
+      pdf.setFontSize(14);
+      pdf.text('FASHIONSPARK · Docxentra SGD', margin, 35);
+
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFontSize(12);
+      yPos = 60;
+      pdf.text('Período:', margin, yPos);
+      pdf.text(filtroDesde || 'Inicio', margin + 30, yPos);
+      pdf.text(' - ', margin + 55, yPos);
+      pdf.text(filtroHasta || 'Fin', margin + 65, yPos);
+      yPos += 8;
+      pdf.text('Local:', margin, yPos);
+      pdf.text(nombreLocal, margin + 30, yPos);
+      yPos += 8;
+      pdf.text('Generado por:', margin, yPos);
+      pdf.text(nombreUsuario, margin + 30, yPos);
+      yPos += 8;
+      pdf.text('Fecha:', margin, yPos);
+      pdf.text(fechaInforme, margin + 30, yPos);
+
+      // RESUMEN EJECUTIVO
+      if (textoInforme.trim()) {
+        yPos += 15;
+        pdf.setFontSize(14);
+        pdf.text('Resumen Ejecutivo', margin, yPos);
+        yPos += 8;
+        pdf.setFontSize(11);
+        const lines = pdf.splitTextToSize(textoInforme, pageWidth - margin * 2);
+        pdf.text(lines, margin, yPos);
+        yPos += lines.length * 5 + 10;
+      }
+
+      // KPIs
+      yPos += 5;
+      pdf.setFontSize(14);
+      pdf.text('Indicadores Clave (KPIs)', margin, yPos);
+      yPos += 10;
+      pdf.setFontSize(11);
+      const kpis = [
+        { label: 'Total Auditorías', value: formatNum(total) },
+        { label: 'Finalizadas OK', value: formatNum(finalizadas) },
+        { label: 'Con Diferencias', value: formatNum(conDiferencias) },
+        { label: 'Pendientes', value: formatNum(pendientes) },
+        { label: '% Tareas con Dif.', value: porcentajeDiferenciasTareas + '%' },
+        { label: '% Unidades con Dif.', value: porcentajesGlobales.porcentajeDif + '%' },
+      ];
+      kpis.forEach(kpi => {
+        pdf.text(kpi.label + ': ' + kpi.value, margin, yPos);
+        yPos += 6;
+      });
+
+      // GRÁFICOS
+      if (chartBarRef.current) {
+        yPos += 10;
+        if (yPos > 200) { pdf.addPage(); yPos = margin; }
+        pdf.setFontSize(14);
+        pdf.text('Auditorías por Día', margin, yPos);
+        yPos += 5;
+        const canvasBar = await html2canvas(chartBarRef.current, { scale: 2, backgroundColor: '#ffffff' });
+        const imgBar = canvasBar.toDataURL('image/png');
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (canvasBar.height * imgWidth) / canvasBar.width;
+        if (yPos + imgHeight > 280) { pdf.addPage(); yPos = margin; }
+        pdf.addImage(imgBar, 'PNG', margin, yPos, imgWidth, imgHeight);
+        yPos += imgHeight + 5;
+      }
+
+      if (chartPieRef.current) {
+        if (yPos > 200) { pdf.addPage(); yPos = margin; }
+        pdf.setFontSize(14);
+        pdf.text('Distribución de Estados', margin, yPos);
+        yPos += 5;
+        const canvasPie = await html2canvas(chartPieRef.current, { scale: 2, backgroundColor: '#ffffff' });
+        const imgPie = canvasPie.toDataURL('image/png');
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (canvasPie.height * imgWidth) / canvasPie.width;
+        if (yPos + imgHeight > 280) { pdf.addPage(); yPos = margin; }
+        pdf.addImage(imgPie, 'PNG', margin, yPos, imgWidth, imgHeight);
+        yPos += imgHeight + 5;
+      }
+
+      // TABLA DE ANÁLISIS POR TAREA
+      if (tareasPorcentaje.length > 0) {
+        pdf.addPage(); yPos = margin;
+        pdf.setFontSize(14);
+        pdf.text('Análisis de Diferencias por Tarea', margin, yPos);
+        yPos += 8;
+        pdf.setFontSize(9);
+
+        // Encabezado
+        pdf.setFillColor(241, 245, 249);
+        pdf.rect(margin, yPos, pageWidth - margin * 2, 6, 'F');
+        pdf.text('Tarea', margin + 2, yPos + 4);
+        pdf.text('Local', margin + 35, yPos + 4);
+        pdf.text('SAP', margin + 75, yPos + 4);
+        pdf.text('Físico', margin + 95, yPos + 4);
+        pdf.text('Dif.', margin + 115, yPos + 4);
+        pdf.text('% Dif.', margin + 135, yPos + 4);
+        yPos += 8;
+
+        tareasPorcentaje.forEach((t, i) => {
+          if (yPos > 275) { pdf.addPage(); yPos = margin; }
+          pdf.text(t.numero_tarea, margin + 2, yPos);
+          pdf.text(t.codigo_local + ' - ' + t.nombre_local, margin + 35, yPos);
+          pdf.text(formatNum(t.totalSAP), margin + 75, yPos);
+          pdf.text(formatNum(t.totalFisico), margin + 95, yPos);
+          pdf.text(formatNum(t.diferenciaAbsoluta), margin + 115, yPos);
+          pdf.text(t.porcentajeDif + '%', margin + 135, yPos);
+          yPos += 5;
+        });
+      }
+
+      // DETALLE DE DIFERENCIAS
+      if (detalleDiferencias.length > 0) {
+        pdf.addPage(); yPos = margin;
+        pdf.setFontSize(14);
+        pdf.text('Detalle de Diferencias por SKU', margin, yPos);
+        yPos += 8;
+        pdf.setFontSize(8);
+
+        pdf.setFillColor(241, 245, 249);
+        pdf.rect(margin, yPos, pageWidth - margin * 2, 6, 'F');
+        pdf.text('Tarea', margin + 2, yPos + 4);
+        pdf.text('SKU', margin + 40, yPos + 4);
+        pdf.text('Descripción', margin + 68, yPos + 4);
+        pdf.text('SAP', margin + 130, yPos + 4);
+        pdf.text('Físico', margin + 145, yPos + 4);
+        pdf.text('Dif.', margin + 160, yPos + 4);
+        pdf.text('Estado', margin + 178, yPos + 4);
+        yPos += 8;
+
+        detalleDiferencias.forEach((d, i) => {
+          if (yPos > 275) { pdf.addPage(); yPos = margin; }
+          pdf.text(d.tarea, margin + 2, yPos);
+          pdf.text(d.sku, margin + 40, yPos);
+          pdf.text(d.denominacion.substring(0, 35), margin + 68, yPos);
+          pdf.text(formatNum(d.sap), margin + 130, yPos);
+          pdf.text(formatNum(d.fisico), margin + 145, yPos);
+          pdf.text(formatNum(d.diferencia), margin + 160, yPos);
+          pdf.text(d.estado, margin + 178, yPos);
+          yPos += 5;
+        });
+      }
+
+      // PIE DE PÁGINA
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.text('Generado por Docxentra SGD · ' + fechaInforme + ' · Página ' + i + ' de ' + totalPages, margin, 290);
+      }
+
+      pdf.save('Informe_Auditoria_' + fechaInforme.replace(/\//g, '-') + '.pdf');
+    } catch (e) {
+      console.error('Error generando PDF:', e);
+      alert('Error al generar el PDF');
+    } finally {
+      setGenerandoPDF(false);
     }
-    return null;
   };
 
   return (
     <div className="ad03-view">
-      <div className="ad03-header"><h2>Dashboard Auditoría</h2></div>
+      <div className="ad03-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>Dashboard Auditoría</h2>
+        <button className="ad03-btn-aplicar" onClick={() => { setShowInformeModal(true); cargarPorcentajesTareas(); }} style={{ background: '#15803d' }}>
+          📄 Generar Informe PDF
+        </button>
+      </div>
 
       <div className="ad03-filtros">
         <select value={filtroLocal} onChange={e => setFiltroLocal(e.target.value)}>
@@ -308,7 +460,7 @@ const AD03Dashboard: React.FC = () => {
         </button>
       </div>
 
-      <div className="ad03-kpis">
+      <div className="ad03-kpis" ref={kpiRef}>
         <div className="ad03-kpi"><span>Total Auditorías</span><strong>{formatNum(total)}</strong></div>
         <div className="ad03-kpi ad03-kpi-ok"><span>Finalizadas OK</span><strong>{formatNum(finalizadas)}</strong></div>
         <div className="ad03-kpi ad03-kpi-diff"><span>Con Diferencias</span><strong>{formatNum(conDiferencias)}</strong></div>
@@ -317,14 +469,12 @@ const AD03Dashboard: React.FC = () => {
         <div className="ad03-kpi ad03-kpi-porc" style={{ background: '#fef2f2' }}>
           <span>% Unidades con Dif.</span>
           <strong style={{ color: '#dc2626' }}>{porcentajesGlobales.porcentajeDif}%</strong>
-          <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>
-            {formatNum(porcentajesGlobales.unidadesDiferencia)} de {formatNum(porcentajesGlobales.totalUnidadesSAP)} un
-          </small>
+          <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>{formatNum(porcentajesGlobales.unidadesDiferencia)} de {formatNum(porcentajesGlobales.totalUnidadesSAP)} un</small>
         </div>
       </div>
 
       <div className="ad03-charts">
-        <div className="ad03-chart">
+        <div className="ad03-chart" ref={chartBarRef}>
           <h3>Auditorías por Día</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={datosBarra}>
@@ -338,7 +488,7 @@ const AD03Dashboard: React.FC = () => {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="ad03-chart">
+        <div className="ad03-chart" ref={chartPieRef}>
           <h3>Distribución de Estados</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -355,11 +505,7 @@ const AD03Dashboard: React.FC = () => {
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Resumen por Día</h3>
         <table className="ed03-tabla">
-          <thead>
-            <tr>
-              <th>Día</th><th>Total</th><th>OK</th><th>Diferencias</th><th>% Dif. Tareas</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Día</th><th>Total</th><th>OK</th><th>Diferencias</th><th>% Dif. Tareas</th></tr></thead>
           <tbody>
             {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
               datosBarra.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Sin datos</td></tr> :
@@ -367,13 +513,7 @@ const AD03Dashboard: React.FC = () => {
                 const cerradas = d.ok + d.diferencias;
                 const pctTareas = cerradas > 0 ? ((d.diferencias / cerradas) * 100).toFixed(1) : '0';
                 return (
-                  <tr key={i}>
-                    <td className="ed03-ticket-id">{d.dia}</td>
-                    <td>{formatNum(d.total)}</td>
-                    <td>{formatNum(d.ok)}</td>
-                    <td style={{ color: '#dc2626', fontWeight: 600 }}>{formatNum(d.diferencias)}</td>
-                    <td style={{ fontWeight: 600, color: '#dc2626' }}>{pctTareas}%</td>
-                  </tr>
+                  <tr key={i}><td className="ed03-ticket-id">{d.dia}</td><td>{formatNum(d.total)}</td><td>{formatNum(d.ok)}</td><td style={{ color: '#dc2626', fontWeight: 600 }}>{formatNum(d.diferencias)}</td><td style={{ fontWeight: 600, color: '#dc2626' }}>{pctTareas}%</td></tr>
                 );
               })}
           </tbody>
@@ -381,38 +521,19 @@ const AD03Dashboard: React.FC = () => {
       </div>
 
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Análisis de Diferencias por Tarea (% de Unidades)</h3>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Análisis de Diferencias por Tarea</h3>
         <table className="ed03-tabla">
-          <thead>
-            <tr>
-              <th>Tarea</th><th>Local</th><th>Estado</th><th>Total SAP</th><th>Total Físico</th><th>Dif. Absoluta</th><th>% Dif.</th><th>Fecha</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Tarea</th><th>Local</th><th>Estado</th><th>Total SAP</th><th>Total Físico</th><th>Dif. Absoluta</th><th>% Dif.</th><th>Fecha</th></tr></thead>
           <tbody>
             {tareasPorcentaje.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
-                {cargandoPorcentajes ? 'Calculando porcentajes...' : 'Haz clic en "📊 Calcular % por Tarea" para ver el análisis'}
-              </td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>{cargandoPorcentajes ? 'Calculando...' : 'Haz clic en "📊 Calcular % por Tarea"'}</td></tr>
             ) : (
               tareasPorcentaje.map((t, i) => (
                 <tr key={t.id} style={{ background: t.porcentajeDif > 0 ? '#fff5f5' : 'transparent' }}>
-                  <td className="ed03-ticket-id">{t.numero_tarea}</td>
-                  <td>{t.codigo_local} - {t.nombre_local}</td>
-                  <td>{t.estado}</td>
-                  <td style={{ textAlign: 'center' }}>{formatNum(t.totalSAP)}</td>
-                  <td style={{ textAlign: 'center' }}>{formatNum(t.totalFisico)}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 600, color: t.diferenciaAbsoluta > 0 ? '#dc2626' : '#15803d' }}>
-                    {t.diferenciaAbsoluta > 0 ? formatNum(t.diferenciaAbsoluta) : '-'}
-                  </td>
-                  <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                    <span style={{
-                      padding: '3px 10px', borderRadius: '10px', fontSize: '12px',
-                      background: t.porcentajeDif === 0 ? '#dcfce7' : t.porcentajeDif <= 5 ? '#fef3c7' : '#fef2f2',
-                      color: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#b45309' : '#dc2626',
-                    }}>
-                      {t.porcentajeDif}%
-                    </span>
-                  </td>
+                  <td className="ed03-ticket-id">{t.numero_tarea}</td><td>{t.codigo_local} - {t.nombre_local}</td><td>{t.estado}</td>
+                  <td style={{ textAlign: 'center' }}>{formatNum(t.totalSAP)}</td><td style={{ textAlign: 'center' }}>{formatNum(t.totalFisico)}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 600, color: t.diferenciaAbsoluta > 0 ? '#dc2626' : '#15803d' }}>{t.diferenciaAbsoluta > 0 ? formatNum(t.diferenciaAbsoluta) : '-'}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 700 }}><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '12px', background: t.porcentajeDif === 0 ? '#dcfce7' : t.porcentajeDif <= 5 ? '#fef3c7' : '#fef2f2', color: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#b45309' : '#dc2626' }}>{t.porcentajeDif}%</span></td>
                   <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
                 </tr>
               ))
@@ -422,27 +543,54 @@ const AD03Dashboard: React.FC = () => {
       </div>
 
       {tareasPorcentaje.length > 0 && (
-        <div className="ad03-chart">
+        <div className="ad03-chart" ref={chartScatterRef}>
           <h3>% Diferencias de Unidades por Tarea</h3>
           <ResponsiveContainer width="100%" height={400}>
             <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis
-                type="number" dataKey="x" name="Tarea #" stroke="#64748b"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: '#64748b', fontSize: 12 } }}
-                domain={[0, datosScatter.length + 1]}
-              />
-              <YAxis
-                type="number" dataKey="y" name="% Diferencias" stroke="#64748b"
-                tick={{ fontSize: 11 }} unit="%"
-                label={{ value: '% Diferencias', angle: -90, position: 'left', offset: 20, style: { fill: '#64748b', fontSize: 12 } }}
-              />
+              <XAxis type="number" dataKey="x" stroke="#64748b" tick={{ fontSize: 11 }} label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: '#64748b', fontSize: 12 } }} domain={[0, datosScatter.length + 1]} />
+              <YAxis type="number" dataKey="y" stroke="#64748b" tick={{ fontSize: 11 }} unit="%" label={{ value: '% Diferencias', angle: -90, position: 'left', offset: 20, style: { fill: '#64748b', fontSize: 12 } }} />
               <ZAxis range={[100, 100]} />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomScatterTooltip />} />
               <Scatter data={datosScatter} shape="circle" />
             </ScatterChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* MODAL INFORME PDF */}
+      {showInformeModal && (
+        <div className="ed01-modal-overlay" onClick={() => setShowInformeModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '650px' }} onClick={e => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>📄 Generar Informe PDF</h2>
+              <button className="ed01-modal-close" onClick={() => setShowInformeModal(false)}>×</button>
+            </div>
+            <div className="ed01-modal-body">
+              <div style={{ marginBottom: '12px', fontSize: '13px', color: '#475569' }}>
+                <strong>Período:</strong> {filtroDesde || 'Inicio'} - {filtroHasta || 'Fin'} | <strong>Local:</strong> {filtroLocal || 'Todos'}
+              </div>
+              <div className="ed01-field">
+                <label>Resumen Ejecutivo (opcional)</label>
+                <textarea
+                  value={textoInforme}
+                  onChange={e => setTextoInforme(e.target.value)}
+                  rows={6}
+                  placeholder="Escribe tus conclusiones, observaciones o comentarios sobre el período analizado..."
+                  style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+                El PDF incluirá: Portada, KPIs, Gráficos, Tabla de Análisis y Detalle de Diferencias por SKU.
+              </div>
+            </div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => setShowInformeModal(false)}>Cancelar</button>
+              <button className="ed01-btn-save" onClick={generarPDF} disabled={generandoPDF} style={{ background: '#15803d' }}>
+                {generandoPDF ? 'Generando PDF...' : '📄 Generar PDF'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
