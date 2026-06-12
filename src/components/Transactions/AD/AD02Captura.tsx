@@ -38,10 +38,13 @@ const AD02Captura: React.FC = () => {
   const [guardando, setGuardando] = useState(false);
   const busquedaRef = useRef<HTMLInputElement>(null);
 
-  // Estados para SKU manual
+  // Estados para SKU manual múltiple
   const [showAgregarSKU, setShowAgregarSKU] = useState(false);
-  const [nuevoSKU, setNuevoSKU] = useState('');
-  const [nuevaDenominacion, setNuevaDenominacion] = useState('');
+  const [skusManuales, setSkusManuales] = useState<any[]>([]);
+  const [nuevoSKUInput, setNuevoSKUInput] = useState('');
+  const [nuevaCantidadInput, setNuevaCantidadInput] = useState('');
+  const skuManualInputRef = useRef<HTMLInputElement>(null);
+  const cantidadManualInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { cargarMisTareas(); }, []);
   useEffect(() => {
@@ -70,7 +73,6 @@ const AD02Captura: React.FC = () => {
       capturasPrevias = caps || [];
     }
     if (sap) {
-      // Consolidar por SKU (mismo SKU en diferentes entregas)
       const skuMap: Record<string, { id: string; sku: string; denominacion: string; cantidad_sap: number }> = {};
       sap.forEach((s: any) => {
         if (!skuMap[s.sku]) {
@@ -144,7 +146,6 @@ const AD02Captura: React.FC = () => {
     setCurvaActual([]);
     setBusqueda('');
 
-    // Actualizar totales capturados sin recargar toda la tarea
     const nuevosSKUs = todosLosSKUs.map(s => {
       const capturadoAhora = skusConFisico.find(c => c.sku === s.sku);
       if (capturadoAhora) {
@@ -157,33 +158,59 @@ const AD02Captura: React.FC = () => {
     setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
-  const agregarSKUManual = () => {
-    if (!nuevoSKU.trim()) { alert('Ingresa un SKU'); return; }
+  const agregarSKUaLista = () => {
+    if (!nuevoSKUInput.trim() || !nuevaCantidadInput || parseInt(nuevaCantidadInput) <= 0) {
+      alert('Ingresa SKU y cantidad válida');
+      return;
+    }
+    setSkusManuales([...skusManuales, { sku: nuevoSKUInput.trim(), cantidad: parseInt(nuevaCantidadInput) }]);
+    setNuevoSKUInput('');
+    setNuevaCantidadInput('');
+    setTimeout(() => skuManualInputRef.current?.focus(), 100);
+  };
 
-    const skuExiste = todosLosSKUs.find(s => s.sku === nuevoSKU.trim());
-    if (skuExiste) {
-      setCurvaActual([{ ...skuExiste, cantidad_fisica: undefined, diferencia: undefined }]);
-    } else {
-      const nuevo: SKUItem = {
-        id: 'temp-' + Date.now(),
-        sku: nuevoSKU.trim(),
-        denominacion: nuevaDenominacion || 'SKU AGREGADO MANUALMENTE',
-        cantidad_sap: 0,
-        cantidad_fisica: undefined,
-        diferencia: undefined,
-        capturadoTotal: 0,
-      };
-      setTodosLosSKUs([...todosLosSKUs, nuevo]);
-      setCurvaActual([nuevo]);
+  const eliminarSKUdeLista = (index: number) => {
+    setSkusManuales(skusManuales.filter((_, i) => i !== index));
+  };
+
+  const guardarCajaManual = async () => {
+    if (!tareaActiva || skusManuales.length === 0) { alert('Agrega al menos un SKU'); return; }
+
+    setGuardando(true);
+
+    const { data: caja } = await supabase.from('ad_capturas_cajas').insert([{
+      auditoria_id: tareaActiva.id, numero_caja: cajaActual, capturado_por: usuario?.id, estado: 'Capturada'
+    }]).select('id').single();
+
+    if (caja) {
+      const inserts = skusManuales.map(s => {
+        const skuEnSAP = todosLosSKUs.find(t => t.sku === s.sku);
+        return {
+          caja_id: (caja as any).id,
+          sku: s.sku,
+          cantidad_sap: skuEnSAP ? skuEnSAP.cantidad_sap : 0,
+          cantidad_fisica: s.cantidad,
+          diferencia: skuEnSAP ? (skuEnSAP.cantidad_sap - s.cantidad) : (0 - s.cantidad),
+        };
+      });
+
+      await supabase.from('ad_capturas_skus').insert(inserts);
     }
 
+    const nuevosSKUs = todosLosSKUs.map(s => {
+      const capturadoAhora = skusManuales.find(c => c.sku === s.sku);
+      if (capturadoAhora) {
+        return { ...s, capturadoTotal: (s.capturadoTotal || 0) + capturadoAhora.cantidad };
+      }
+      return s;
+    });
+    setTodosLosSKUs(nuevosSKUs);
+
+    setCajaActual(prev => prev + 1);
+    setSkusManuales([]);
     setShowAgregarSKU(false);
-    setNuevoSKU('');
-    setNuevaDenominacion('');
-    setTimeout(() => {
-      const inputs = document.querySelectorAll('.ad02-input-cantidad');
-      if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
-    }, 200);
+    setGuardando(false);
+    setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
   const finalizarTarea = async () => {
@@ -299,27 +326,86 @@ const AD02Captura: React.FC = () => {
             <button className="ad02-btn-buscar" onClick={buscarCurva} style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px' }}>Buscar</button>
           </div>
 
-          {/* Botón SKU Manual */}
+          {/* Botón Caja Manual */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
             <button
-              onClick={() => setShowAgregarSKU(!showAgregarSKU)}
+              onClick={() => { setShowAgregarSKU(!showAgregarSKU); setSkusManuales([]); }}
               style={{ padding: '8px 14px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
             >
-              + SKU Manual
+              + Caja Manual
             </button>
+            {showAgregarSKU && skusManuales.length > 0 && (
+              <span style={{ fontSize: '12px', color: '#92400e', padding: '6px 0' }}>
+                {skusManuales.length} SKU(s) agregados
+              </span>
+            )}
           </div>
 
           {showAgregarSKU && (
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', padding: '10px', background: '#fef3c7', borderRadius: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ fontSize: '11px', color: '#92400e', display: 'block', marginBottom: '2px' }}>SKU</label>
-                <input value={nuevoSKU} onChange={e => setNuevoSKU(e.target.value)} placeholder="SKU" style={{ padding: '6px 8px', border: '1px solid #f59e0b', borderRadius: '4px', fontSize: '13px', width: '140px' }} />
+            <div style={{ marginBottom: '12px', padding: '12px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fde68a' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#92400e', display: 'block', marginBottom: '2px' }}>SKU</label>
+                  <input
+                    ref={skuManualInputRef}
+                    value={nuevoSKUInput}
+                    onChange={e => setNuevoSKUInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); cantidadManualInputRef.current?.focus(); } }}
+                    placeholder="Escanear o escribir SKU"
+                    style={{ padding: '8px 10px', border: '1px solid #f59e0b', borderRadius: '4px', fontSize: '14px', width: '180px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#92400e', display: 'block', marginBottom: '2px' }}>Cantidad</label>
+                  <input
+                    ref={cantidadManualInputRef}
+                    type="number"
+                    value={nuevaCantidadInput}
+                    onChange={e => setNuevaCantidadInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarSKUaLista(); } }}
+                    placeholder="0"
+                    min="1"
+                    style={{ padding: '8px 10px', border: '1px solid #f59e0b', borderRadius: '4px', fontSize: '14px', width: '90px' }}
+                  />
+                </div>
+                <button onClick={agregarSKUaLista} style={{ padding: '8px 14px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', fontSize: '13px', cursor: 'pointer', height: '38px' }}>
+                  + Agregar
+                </button>
               </div>
-              <div>
-                <label style={{ fontSize: '11px', color: '#92400e', display: 'block', marginBottom: '2px' }}>Descripción (opcional)</label>
-                <input value={nuevaDenominacion} onChange={e => setNuevaDenominacion(e.target.value)} placeholder="Descripción" style={{ padding: '6px 8px', border: '1px solid #f59e0b', borderRadius: '4px', fontSize: '13px', width: '200px' }} />
-              </div>
-              <button onClick={agregarSKUManual} style={{ padding: '6px 14px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>Agregar</button>
+
+              {skusManuales.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#fde68a' }}>
+                        <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: '#92400e' }}>SKU</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600, color: '#92400e', width: '80px' }}>Cantidad</th>
+                        <th style={{ width: '40px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {skusManuales.map((s, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #fde68a' }}>
+                          <td style={{ padding: '6px 8px', fontFamily: 'Courier New, monospace', fontWeight: 600 }}>{s.sku}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center' }}>{s.cantidad}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button onClick={() => eliminarSKUdeLista(i)} style={{ width: '22px', height: '22px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', lineHeight: '1' }}>×</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{ marginTop: '10px' }}>
+                    <button
+                      onClick={guardarCajaManual}
+                      disabled={guardando}
+                      style={{ padding: '10px 20px', background: '#1a1f2e', color: 'white', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%' }}
+                    >
+                      {guardando ? 'Guardando...' : 'Guardar Caja Manual (Caja #' + cajaActual + ')'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
