@@ -34,6 +34,44 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const usuarioGuardado = auth.getUsuario();
+    if (usuarioGuardado) { setUsuario(us// src/App.tsx
+
+import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Layout/Sidebar';
+import Header from './components/Layout/Header';
+import Dashboard from './components/Layout/Dashboard';
+import ED01View from './components/Transactions/ED01/ED01View';
+import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
+import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
+import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
+import TK02Dashboard from './components/Transactions/TK/TK02Dashboard';
+import AD01View from './components/Transactions/AD/AD01View';
+import AD02Captura from './components/Transactions/AD/AD02Captura';
+import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
+import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
+import BD02Locales from './components/Transactions/BD/BD02Locales';
+import RD01View from './components/Transactions/RD/RD01View';
+import SD01View from './components/Transactions/SD/SD01View';
+import LP01View from './components/Transactions/LP/LP01View';
+import LP02View from './components/Transactions/LP/LP02View';
+import UT01View from './components/Transactions/UT/UT01View';
+import Login from './components/Login/Login';
+import { auth } from './lib/auth';
+import { cargarLocales } from './data/locales';
+import './App.css';
+
+export type TabId = string;
+
+const App: React.FC = () => {
+  const [usuario, setUsuario] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const [openTabs, setOpenTabs] = useState<TabId[]>(['dashboard']);
+  const [cargando, setCargando] = useState(true);
+  const [tabsMontadas, setTabsMontadas] = useState<Set<string>>(new Set(['dashboard']));
+  const [permisos, setPermisos] = useState<string[]>([]);
+
+  useEffect(() => {
+    const usuarioGuardado = auth.getUsuario();
     if (usuarioGuardado) { setUsuario(usuarioGuardado); } else { setCargando(false); }
   }, []);
 
@@ -97,8 +135,10 @@ const App: React.FC = () => {
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
           {tabsMontadas.has('rd') && <div style={{ display: activeTab === 'rd' ? 'block' : 'none' }}><RD01View key="rd01" /></div>}
           {tabsMontadas.has('sd') && <div style={{ display: activeTab === 'sd' ? 'block' : 'none' }}><SD01View key="sd01" /></div>}
+          {tabsMontadas.has('lp') && <div style={{ display: activeTab === 'lp' ? 'block' : 'none' }}><LP01View key="lp01" /></div>}
+          {tabsMontadas.has('lp-captura') && <div style={{ display: activeTab === 'lp-captura' ? 'block' : 'none' }}><LP02View key="lp02" /></div>}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'ut'].includes(activeTab) && (
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'lp', 'lp-captura', 'ut'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
