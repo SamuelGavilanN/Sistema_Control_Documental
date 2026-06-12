@@ -152,6 +152,7 @@ const LP02View: React.FC = () => {
     );
     const corresponde = !!lpnEncontrado && !lpnEncontrado.encontrado;
 
+    // Guardar captura
     const resp = await fetch(API_URL + '/pk02_capturas', {
       method: 'POST',
       headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -165,13 +166,18 @@ const LP02View: React.FC = () => {
     });
     const captura = await resp.json();
 
+    // Limpiar input inmediatamente
+    setLpnInput('');
+    if (lpnInputRef.current) {
+      lpnInputRef.current.value = '';
+    }
+
     if (corresponde) {
       await fetch(API_URL + '/pk01_pedido_lpns?id=eq.' + lpnEncontrado!.id, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ encontrado: true, capturado_en: new Date().toISOString() }),
       });
-
       setMensaje('✅ LPN ' + lpnBuscado + ' → CORRESPONDE');
       setTipoMensaje('success');
     } else if (lpnEncontrado && lpnEncontrado.encontrado) {
@@ -182,13 +188,20 @@ const LP02View: React.FC = () => {
       setTipoMensaje('error');
     }
 
-    setCapturasLog(prev => [{ ...captura, id: captura.id || Date.now().toString() }, ...prev]);
-    setLpnInput('');
+    // Actualizar log
+    const nuevaCaptura = { ...captura, id: captura.id || Date.now().toString() };
+    setCapturasLog(prev => [nuevaCaptura, ...prev]);
 
+    // Refrescar datos
     await refrescarPedidoActivo();
     cargarPedidos();
 
-    setTimeout(() => lpnInputRef.current?.focus(), 100);
+    // Enfocar input LPN
+    setTimeout(() => {
+      if (lpnInputRef.current) {
+        lpnInputRef.current.focus();
+      }
+    }, 150);
   };
 
   const handleFinalizar = async () => {
@@ -308,7 +321,7 @@ const LP02View: React.FC = () => {
           </div>
 
           {/* ESCANEAR PALLET */}
-          <div style={{ marginBottom: '16px', opacity: palletVerificado ? 0.5 : 1 }}>
+          <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
               📦 Escanear Pallet
             </label>
