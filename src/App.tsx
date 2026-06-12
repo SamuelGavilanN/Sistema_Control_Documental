@@ -16,42 +16,6 @@ import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
 import BD02Locales from './components/Transactions/BD/BD02Locales';
 import RD01View from './components/Transactions/RD/RD01View';
 import SD01View from './components/Transactions/SD/SD01View';
-import UT01View from './components/Transactions/UT/UT01View';
-import Login from './components/Login/Login';
-import { auth } from './lib/auth';
-import { cargarLocales } from './data/locales';
-import './App.css';
-
-export type TabId = string;
-
-const App: React.FC = () => {
-  const [usuario, setUsuario] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
-  const [openTabs, setOpenTabs] = useState<TabId[]>(['dashboard']);
-  const [cargando, setCargando] = useState(true);
-  const [tabsMontadas, setTabsMontadas] = useState<Set<string>>(new Set(['dashboard']));
-  const [permisos, setPermisos] = useState<string[]>([]);
-
-  useEffect(() => {
-    const usuarioGuardado = auth.getUsuario();
-    if (usuarioGuardado) { setUsuario(us// src/App.tsx
-
-import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Layout/Sidebar';
-import Header from './components/Layout/Header';
-import Dashboard from './components/Layout/Dashboard';
-import ED01View from './components/Transactions/ED01/ED01View';
-import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
-import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
-import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
-import TK02Dashboard from './components/Transactions/TK/TK02Dashboard';
-import AD01View from './components/Transactions/AD/AD01View';
-import AD02Captura from './components/Transactions/AD/AD02Captura';
-import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
-import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
-import BD02Locales from './components/Transactions/BD/BD02Locales';
-import RD01View from './components/Transactions/RD/RD01View';
-import SD01View from './components/Transactions/SD/SD01View';
 import LP01View from './components/Transactions/LP/LP01View';
 import LP02View from './components/Transactions/LP/LP02View';
 import UT01View from './components/Transactions/UT/UT01View';
@@ -85,7 +49,7 @@ const App: React.FC = () => {
   const cargarPermisos = async (userId: string) => {
     try {
       const resp = await fetch(
-        `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_permisos?select=transaccion_id&usuario_id=eq.${userId}&activo=eq.true`,
+        'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_permisos?select=transaccion_id&usuario_id=eq.' + userId + '&activo=eq.true',
         { headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
       );
       const data = await resp.json();
