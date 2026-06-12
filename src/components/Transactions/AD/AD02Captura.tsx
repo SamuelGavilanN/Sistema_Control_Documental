@@ -35,7 +35,13 @@ const AD02Captura: React.FC = () => {
   const [cargando, setCargando] = useState(true);
   const [cajaActual, setCajaActual] = useState(1);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [guardando, setGuardando] = useState(false);
   const busquedaRef = useRef<HTMLInputElement>(null);
+
+  // Estados para SKU manual
+  const [showAgregarSKU, setShowAgregarSKU] = useState(false);
+  const [nuevoSKU, setNuevoSKU] = useState('');
+  const [nuevaDenominacion, setNuevaDenominacion] = useState('');
 
   useEffect(() => { cargarMisTareas(); }, []);
   useEffect(() => {
@@ -122,6 +128,8 @@ const AD02Captura: React.FC = () => {
     const skusConFisico = curvaActual.filter(s => s.cantidad_fisica !== undefined);
     if (skusConFisico.length === 0) { alert('Ingresa al menos una cantidad'); return; }
 
+    setGuardando(true);
+
     const { data: caja } = await supabase.from('ad_capturas_cajas').insert([{
       auditoria_id: tareaActiva.id, numero_caja: cajaActual, capturado_por: usuario?.id, estado: 'Capturada'
     }]).select('id').single();
@@ -135,7 +143,47 @@ const AD02Captura: React.FC = () => {
     setCajaActual(prev => prev + 1);
     setCurvaActual([]);
     setBusqueda('');
-    abrirTarea(tareaActiva);
+
+    // Actualizar totales capturados sin recargar toda la tarea
+    const nuevosSKUs = todosLosSKUs.map(s => {
+      const capturadoAhora = skusConFisico.find(c => c.sku === s.sku);
+      if (capturadoAhora) {
+        return { ...s, capturadoTotal: (s.capturadoTotal || 0) + (capturadoAhora.cantidad_fisica || 0) };
+      }
+      return s;
+    });
+    setTodosLosSKUs(nuevosSKUs);
+    setGuardando(false);
+    setTimeout(() => busquedaRef.current?.focus(), 300);
+  };
+
+  const agregarSKUManual = () => {
+    if (!nuevoSKU.trim()) { alert('Ingresa un SKU'); return; }
+
+    const skuExiste = todosLosSKUs.find(s => s.sku === nuevoSKU.trim());
+    if (skuExiste) {
+      setCurvaActual([{ ...skuExiste, cantidad_fisica: undefined, diferencia: undefined }]);
+    } else {
+      const nuevo: SKUItem = {
+        id: 'temp-' + Date.now(),
+        sku: nuevoSKU.trim(),
+        denominacion: nuevaDenominacion || 'SKU AGREGADO MANUALMENTE',
+        cantidad_sap: 0,
+        cantidad_fisica: undefined,
+        diferencia: undefined,
+        capturadoTotal: 0,
+      };
+      setTodosLosSKUs([...todosLosSKUs, nuevo]);
+      setCurvaActual([nuevo]);
+    }
+
+    setShowAgregarSKU(false);
+    setNuevoSKU('');
+    setNuevaDenominacion('');
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.ad02-input-cantidad');
+      if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
+    }, 200);
   };
 
   const finalizarTarea = async () => {
@@ -145,23 +193,19 @@ const AD02Captura: React.FC = () => {
     const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
 
     try {
-      // Obtener todos los SKU de SAP
       const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${tareaActiva.id}`, { headers: HEADERS });
       const sap = await respSAP.json();
 
-      // CONSOLIDAR por SKU (sumar cantidades del mismo SKU en diferentes entregas)
       const sapConsolidado: Record<string, number> = {};
       (sap || []).forEach((s: any) => {
         if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
         sapConsolidado[s.sku] += (s.cantidad_sap || 0);
       });
 
-      // Obtener cajas
       const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${tareaActiva.id}`, { headers: HEADERS });
       const cajas = await respCajas.json();
       const cajaIds = (cajas || []).map((c: any) => c.id);
 
-      // Obtener capturas
       let capturas: any[] = [];
       if (cajaIds.length > 0) {
         const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
@@ -169,18 +213,16 @@ const AD02Captura: React.FC = () => {
         capturas = await respCap.json();
       }
 
-      // Agrupar capturas por SKU
       const fisicoConsolidado: Record<string, number> = {};
       (capturas || []).forEach((c: any) => {
         if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0;
         fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0);
       });
 
-      // Comparar SAP vs Físico por SKU consolidado
       let hayDiferencias = false;
-      const todosLosSKUs = new Set([...Object.keys(sapConsolidado)]);
-      
-      todosLosSKUs.forEach(sku => {
+      const todosLosSKUsSet = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
+
+      todosLosSKUsSet.forEach(sku => {
         const sapTotal = sapConsolidado[sku] || 0;
         const fisicoTotal = fisicoConsolidado[sku] || 0;
         if (sapTotal !== fisicoTotal) {
@@ -188,14 +230,6 @@ const AD02Captura: React.FC = () => {
         }
       });
 
-      // También verificar SKUs que están en capturas pero no en SAP
-      Object.keys(fisicoConsolidado).forEach(sku => {
-        if (!sapConsolidado[sku]) {
-          hayDiferencias = true;
-        }
-      });
-
-      // Actualizar estado
       await fetch(`${API_URL}/ad_auditorias?id=eq.${tareaActiva.id}`, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -265,6 +299,30 @@ const AD02Captura: React.FC = () => {
             <button className="ad02-btn-buscar" onClick={buscarCurva} style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px' }}>Buscar</button>
           </div>
 
+          {/* Botón SKU Manual */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <button
+              onClick={() => setShowAgregarSKU(!showAgregarSKU)}
+              style={{ padding: '8px 14px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+            >
+              + SKU Manual
+            </button>
+          </div>
+
+          {showAgregarSKU && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', padding: '10px', background: '#fef3c7', borderRadius: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#92400e', display: 'block', marginBottom: '2px' }}>SKU</label>
+                <input value={nuevoSKU} onChange={e => setNuevoSKU(e.target.value)} placeholder="SKU" style={{ padding: '6px 8px', border: '1px solid #f59e0b', borderRadius: '4px', fontSize: '13px', width: '140px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#92400e', display: 'block', marginBottom: '2px' }}>Descripción (opcional)</label>
+                <input value={nuevaDenominacion} onChange={e => setNuevaDenominacion(e.target.value)} placeholder="Descripción" style={{ padding: '6px 8px', border: '1px solid #f59e0b', borderRadius: '4px', fontSize: '13px', width: '200px' }} />
+              </div>
+              <button onClick={agregarSKUManual} style={{ padding: '6px 14px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>Agregar</button>
+            </div>
+          )}
+
           {curvaActual.length > 0 && (
             <>
               <div className="ad02-curva-info" style={{ fontSize: isMobile ? '11px' : '13px' }}>Curva: <strong>{curvaActual[0].sku.substring(0, curvaActual[0].sku.length - 3)}XXX</strong> ({curvaActual.length} items)</div>
@@ -287,12 +345,14 @@ const AD02Captura: React.FC = () => {
               </div>
               <div className="ad02-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
                 <span className="ad02-totales" style={{ fontSize: isMobile ? '11px' : '13px' }}>SAP: {curvaActual.reduce((s, i) => s + i.cantidad_sap, 0)} | Capt: {curvaActual.reduce((s, i) => s + (i.capturadoTotal || 0), 0)} | Fis: {curvaActual.filter(s => s.cantidad_fisica !== undefined).reduce((s, i) => s + (i.cantidad_fisica || 0), 0)}</span>
-                <button className="ad02-btn-guardar" onClick={guardarCaja} style={{ fontSize: isMobile ? '11px' : '14px', padding: isMobile ? '8px 14px' : '10px 20px' }}>Guardar Caja</button>
+                <button className="ad02-btn-guardar" onClick={guardarCaja} disabled={guardando} style={{ fontSize: isMobile ? '11px' : '14px', padding: isMobile ? '8px 14px' : '10px 20px' }}>
+                  {guardando ? 'Guardando...' : 'Guardar Caja'}
+                </button>
               </div>
             </>
           )}
 
-          {curvaActual.length === 0 && (
+          {curvaActual.length === 0 && !showAgregarSKU && (
             <div className="ad02-empty"><p style={{ fontSize: isMobile ? '13px' : '16px' }}>Escanea un EAN o ingresa un SKU</p><p style={{ fontSize: isMobile ? '11px' : '13px' }}>Presiona Enter para ver la curva completa</p></div>
           )}
         </>
