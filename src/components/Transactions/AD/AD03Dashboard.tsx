@@ -61,7 +61,6 @@ const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
   return null;
 };
 
-// Función para dibujar tabla formateada en PDF
 const drawTablePDF = (
   pdf: jsPDF,
   headers: string[],
@@ -77,7 +76,6 @@ const drawTablePDF = (
   let y = startY;
   const rowHeight = 6;
 
-  // Encabezado
   pdf.setFillColor(headerBg[0], headerBg[1], headerBg[2]);
   pdf.rect(startX, y, pageWidth - margin * 2, rowHeight, 'F');
   pdf.setTextColor(255, 255, 255);
@@ -87,7 +85,6 @@ const drawTablePDF = (
   });
   y += rowHeight;
 
-  // Filas
   pdf.setTextColor(30, 41, 59);
   pdf.setFontSize(fontSize);
   rows.forEach((row, rowIndex) => {
@@ -102,7 +99,6 @@ const drawTablePDF = (
     y += rowHeight;
   });
 
-  // Línea de cierre
   pdf.setDrawColor(226, 232, 240);
   pdf.setLineWidth(0.5);
   pdf.rect(startX, startY, pageWidth - margin * 2, y - startY);
@@ -192,13 +188,18 @@ const AD03Dashboard: React.FC = () => {
         });
 
         let totalSAP = 0; let totalFisico = 0; let diferenciaAbsoluta = 0;
-        const todosLosSKUs = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
+        // Solo considerar SKUs que existen en SAP (excluir huérfanos para el % global)
+        const todosLosSKUs = Object.keys(sapConsolidado);
 
         todosLosSKUs.forEach(sku => {
-          const sap = (sapConsolidado[sku]?.cantidad_sap || 0);
+          const sap = sapConsolidado[sku]?.cantidad_sap || 0;
           const fisico = fisicoConsolidado[sku] || 0;
-          totalSAP += sap; totalFisico += fisico;
-          diferenciaAbsoluta += Math.abs(sap - fisico);
+          totalSAP += sap;
+          totalFisico += fisico;
+          const dif = Math.abs(sap - fisico);
+          diferenciaAbsoluta += dif;
+          
+          // Para el detalle de diferencias (incluir todo)
           if (sap !== fisico) {
             diferenciasDetalle.push({
               tarea: auditoria.numero_tarea,
@@ -211,7 +212,22 @@ const AD03Dashboard: React.FC = () => {
           }
         });
 
+        // También incluir huérfanos en detalle de diferencias
+        const huerfanos = Object.keys(fisicoConsolidado).filter(sku => !sapConsolidado[sku]);
+        huerfanos.forEach(sku => {
+          const fisico = fisicoConsolidado[sku] || 0;
+          diferenciasDetalle.push({
+            tarea: auditoria.numero_tarea,
+            local: auditoria.codigo_local + ' - ' + auditoria.nombre_local,
+            sku: sku,
+            denominacion: 'SKU Manual',
+            sap: 0, fisico: fisico, diferencia: -fisico,
+            estado: 'Con Diferencias',
+          });
+        });
+
         const porcentajeDif = totalSAP > 0 ? (diferenciaAbsoluta / totalSAP) * 100 : 0;
+
         resultados.push({
           id: auditoria.id, numero_tarea: auditoria.numero_tarea, codigo_local: auditoria.codigo_local,
           nombre_local: auditoria.nombre_local, estado: auditoria.estado,
@@ -235,27 +251,60 @@ const AD03Dashboard: React.FC = () => {
   const calcularPorcentajeGlobal = async () => {
     try {
       let totalSAP = 0; let totalFisico = 0; let difAbsoluta = 0;
+      
       for (const auditoria of datos) {
         const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
         const sapData = await respSAP.json();
+        
         const sapConsolidado: Record<string, number> = {};
-        (sapData || []).forEach((s: any) => { if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0; sapConsolidado[s.sku] += (s.cantidad_sap || 0); });
+        (sapData || []).forEach((s: any) => {
+          if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
+          sapConsolidado[s.sku] += (s.cantidad_sap || 0);
+        });
+
         const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
         const cajas = await respCajas.json();
         const cajaIds = (cajas || []).map((c: any) => c.id);
+        
         let capturas: any[] = [];
         if (cajaIds.length > 0) {
           const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
           const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=sku,cantidad_fisica&caja_id=in.(${idsParam})`, { headers: HEADERS });
           capturas = await respCap.json();
         }
+        
         const fisicoConsolidado: Record<string, number> = {};
-        (capturas || []).forEach((c: any) => { if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0; fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0); });
-        const todosSKUs = new Set([...Object.keys(sapConsolidado), ...Object.keys(fisicoConsolidado)]);
-        todosSKUs.forEach(sku => { const sap = sapConsolidado[sku] || 0; const fisico = fisicoConsolidado[sku] || 0; totalSAP += sap; totalFisico += fisico; difAbsoluta += Math.abs(sap - fisico); });
+        (capturas || []).forEach((c: any) => {
+          if (!fisicoConsolidado[c.sku]) fisicoConsolidado[c.sku] = 0;
+          fisicoConsolidado[c.sku] += (c.cantidad_fisica || 0);
+        });
+
+        // SOLO considerar SKUs que existen en SAP (excluir huérfanos)
+        const todosSKUs = Object.keys(sapConsolidado);
+        
+        todosSKUs.forEach(sku => {
+          const sap = sapConsolidado[sku] || 0;
+          const fisico = fisicoConsolidado[sku] || 0;
+          totalSAP += sap;
+          totalFisico += fisico;
+          const dif = Math.abs(sap - fisico);
+          if (dif > 0) {
+            console.log('SKU con diferencia:', sku, 'SAP:', sap, 'Fisico:', fisico, 'Dif:', dif, 'Tarea:', auditoria.numero_tarea);
+          }
+          difAbsoluta += dif;
+        });
       }
+
       const porcentaje = totalSAP > 0 ? (difAbsoluta / totalSAP) * 100 : 0;
-      setPorcentajesGlobales({ totalUnidadesSAP: totalSAP, totalUnidadesFisico: totalFisico, unidadesDiferencia: difAbsoluta, porcentajeDif: parseFloat(porcentaje.toFixed(1)) });
+      // Si es menor a 0.05%, mostrar 0
+      const porcentajeFinal = porcentaje < 0.05 ? 0 : parseFloat(porcentaje.toFixed(1));
+
+      setPorcentajesGlobales({
+        totalUnidadesSAP: totalSAP,
+        totalUnidadesFisico: totalFisico,
+        unidadesDiferencia: difAbsoluta,
+        porcentajeDif: porcentajeFinal,
+      });
     } catch (e) {}
   };
 
@@ -288,7 +337,6 @@ const AD03Dashboard: React.FC = () => {
     fill: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#f59e0b' : '#dc2626',
   }));
 
-  // ==================== GENERAR PDF ====================
   const generarPDF = async () => {
     setGenerandoPDF(true);
     try {
@@ -302,7 +350,7 @@ const AD03Dashboard: React.FC = () => {
       const fechaInforme = new Date().toLocaleDateString('es-CL');
       const nombreLocal = filtroLocal ? localesData.find(l => l.codigo === filtroLocal)?.nombre || filtroLocal : 'Todos los locales';
 
-      // ===== PORTADA =====
+      // PORTADA
       pdf.setFillColor(26, 31, 46);
       pdf.rect(0, 0, pageWidth, 55, 'F');
       pdf.setFillColor(220, 38, 38);
@@ -316,8 +364,6 @@ const AD03Dashboard: React.FC = () => {
       pdf.setTextColor(30, 41, 59);
       pdf.setFontSize(11);
       yPos = 68;
-      pdf.setDrawColor(226, 232, 240);
-      pdf.setLineWidth(0.5);
 
       const infoItems: [string, string][] = [
         ['Período:', (filtroDesde || 'Inicio') + ' — ' + (filtroHasta || 'Fin')],
@@ -333,7 +379,7 @@ const AD03Dashboard: React.FC = () => {
         yPos += 7;
       });
 
-      // ===== RESUMEN EJECUTIVO =====
+      // RESUMEN EJECUTIVO
       if (textoInforme.trim()) {
         yPos += 8;
         pdf.setFillColor(248, 250, 253);
@@ -351,7 +397,7 @@ const AD03Dashboard: React.FC = () => {
         yPos += lines.length * 4.5 + 8;
       }
 
-      // ===== KPIs =====
+      // KPIs
       yPos += 2;
       pdf.setFontSize(13);
       pdf.setTextColor(26, 31, 46);
@@ -385,7 +431,7 @@ const AD03Dashboard: React.FC = () => {
       });
       yPos += 50;
 
-      // ===== GRÁFICOS =====
+      // GRÁFICOS
       if (chartBarRef.current) {
         if (yPos > 180) { pdf.addPage(); yPos = margin; }
         pdf.setFontSize(13);
@@ -434,7 +480,7 @@ const AD03Dashboard: React.FC = () => {
         yPos += imgHeight + 10;
       }
 
-      // ===== TABLA ANÁLISIS POR TAREA =====
+      // TABLA ANÁLISIS POR TAREA
       if (tareasPorcentaje.length > 0) {
         pdf.addPage(); yPos = margin;
         pdf.setFontSize(13);
@@ -446,18 +492,13 @@ const AD03Dashboard: React.FC = () => {
         const headersTarea = ['Tarea', 'Local', 'SAP', 'Físico', 'Dif.', '% Dif.'];
         const colWidthsTarea = [38, 55, 25, 25, 22, 21];
         const rowsTarea = tareasPorcentaje.map(t => [
-          t.numero_tarea,
-          t.codigo_local + ' - ' + t.nombre_local,
-          formatNum(t.totalSAP),
-          formatNum(t.totalFisico),
-          formatNum(t.diferenciaAbsoluta),
-          t.porcentajeDif + '%',
+          t.numero_tarea, t.codigo_local + ' - ' + t.nombre_local,
+          formatNum(t.totalSAP), formatNum(t.totalFisico), formatNum(t.diferenciaAbsoluta), t.porcentajeDif + '%',
         ]);
-
         yPos = drawTablePDF(pdf, headersTarea, rowsTarea, colWidthsTarea, margin, yPos, pageWidth, margin, [26, 31, 46], 8);
       }
 
-            // ===== TABLA DETALLE DIFERENCIAS =====
+      // TABLA DETALLE DIFERENCIAS
       if (detalleDiferencias.length > 0) {
         pdf.addPage(); yPos = margin;
         pdf.setFontSize(13);
@@ -467,20 +508,17 @@ const AD03Dashboard: React.FC = () => {
         yPos += 8;
 
         const headersDif = ['Tarea', 'SKU', 'Descripción', 'SAP', 'Físico', 'Dif.', 'Est.'];
-        const colWidthsDif = [35, 28, 48, 22, 22, 20, 15];
+        const colWidthsDif = [35, 28, 52, 22, 22, 20, 15];
         const rowsDif = detalleDiferencias.map(d => [
-          d.tarea,
-          d.sku,
+          d.tarea, d.sku,
           d.denominacion.length > 38 ? d.denominacion.substring(0, 35) + '...' : d.denominacion,
-          formatNum(d.sap),
-          formatNum(d.fisico),
-          formatNum(d.diferencia),
+          formatNum(d.sap), formatNum(d.fisico), formatNum(d.diferencia),
           d.estado === 'Pendiente' ? 'Pend.' : d.estado === 'Con Diferencias' ? 'C/Dif.' : d.estado,
         ]);
-
         yPos = drawTablePDF(pdf, headersDif, rowsDif, colWidthsDif, margin, yPos, pageWidth, margin, [26, 31, 46], 7);
       }
-      // ===== PIE DE PÁGINA =====
+
+      // PIE DE PÁGINA
       const totalPages = pdf.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
@@ -529,7 +567,7 @@ const AD03Dashboard: React.FC = () => {
         <div className="ad03-kpi ad03-kpi-porc"><span>% Tareas con Dif.</span><strong>{porcentajeDiferenciasTareas}%</strong></div>
         <div className="ad03-kpi ad03-kpi-porc" style={{ background: '#fef2f2' }}>
           <span>% Unidades con Dif.</span>
-          <strong style={{ color: '#dc2626' }}>{porcentajesGlobales.porcentajeDif}%</strong>
+          <strong style={{ color: porcentajesGlobales.porcentajeDif > 0 ? '#dc2626' : '#15803d' }}>{porcentajesGlobales.porcentajeDif}%</strong>
           <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>{formatNum(porcentajesGlobales.unidadesDiferencia)} de {formatNum(porcentajesGlobales.totalUnidadesSAP)} un</small>
         </div>
       </div>
@@ -619,7 +657,6 @@ const AD03Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL INFORME PDF */}
       {showInformeModal && (
         <div className="ed01-modal-overlay" onClick={() => setShowInformeModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '650px' }} onClick={e => e.stopPropagation()}>
@@ -633,13 +670,8 @@ const AD03Dashboard: React.FC = () => {
               </div>
               <div className="ed01-field">
                 <label>Resumen Ejecutivo (opcional)</label>
-                <textarea
-                  value={textoInforme}
-                  onChange={e => setTextoInforme(e.target.value)}
-                  rows={6}
-                  placeholder="Escribe tus conclusiones, observaciones o comentarios sobre el período analizado..."
-                  style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }}
-                />
+                <textarea value={textoInforme} onChange={e => setTextoInforme(e.target.value)} rows={6} placeholder="Escribe tus conclusiones..."
+                  style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }} />
               </div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
                 El PDF incluirá: Portada, KPIs, Gráficos, Tabla de Análisis y Detalle de Diferencias por SKU.
