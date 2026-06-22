@@ -18,31 +18,17 @@ const HEADERS = {
 };
 
 interface Conductor {
-  id: string;
-  nombre: string;
-  apellido: string;
-  nombre_completo?: string;
-  numero_documento: string;
-  telefono: string;
-  empresa: string;
+  id: string; nombre: string; apellido: string; nombre_completo?: string;
+  numero_documento: string; telefono: string; empresa: string;
 }
 
 interface Patente {
-  id: string;
-  numero_patente: string;
-  tipo_vehiculo: string;
-  cantidad_sellos: number;
+  id: string; numero_patente: string; tipo_vehiculo: string; cantidad_sellos: number;
 }
 
 interface SD01Row {
-  id: number;
-  codigoLocal: string;
-  nombreLocal: string;
-  fechaEntrega: string;
-  horaEntrega: string;
-  selloTrasero: string;
-  cantidadPallet: number;
-  totalCarga: number;
+  id: number; codigoLocal: string; nombreLocal: string; fechaEntrega: string; horaEntrega: string;
+  selloTrasero: string; cantidadPallet: number; totalCarga: number;
   carga?: Array<{ id: number; origenCarga: string; tipoDocumento: string; numeroDocumento: string; cantidadBultos: number; observacion: string }>;
 }
 
@@ -104,19 +90,14 @@ const SD01View: React.FC = () => {
   const cargarDatosIniciales = async () => {
     setCargandoDatos(true);
     try {
-      const [conductoresData, patentesData] = await Promise.all([
-        cargarConductoresAPI(),
-        cargarPatentesAPI(),
-      ]);
-      setConductores(conductoresData);
-      setPatentes(patentesData);
+      const [conductoresData, patentesData] = await Promise.all([cargarConductoresAPI(), cargarPatentesAPI()]);
+      setConductores(conductoresData); setPatentes(patentesData);
     } catch (e) { console.error('Error cargando datos:', e); }
     setCargandoDatos(false);
   };
 
   const limpiarFormulario = () => {
-    setRows([filaVacia()]);
-    setConductorSeleccionado(""); setPatentePrincipal(""); setPatenteAdicional("");
+    setRows([filaVacia()]); setConductorSeleccionado(""); setPatentePrincipal(""); setPatenteAdicional("");
     setFechaProgramacion(""); setSelloLateral(""); setSelloAdicional("");
     setObservacionesGenerales(""); setCantidadFilasAgregar(1);
     setIdDocumentoActual(null); setEstadoDocumento("borrador");
@@ -124,13 +105,9 @@ const SD01View: React.FC = () => {
   };
 
   const handleCrearDocumento = async (datos: { conductor: string; patentePrincipal: string; patenteAdicional: string; fechaProgramacion: string }) => {
-    setConductorSeleccionado(datos.conductor);
-    setPatentePrincipal(datos.patentePrincipal);
-    setPatenteAdicional(datos.patenteAdicional);
-    setFechaProgramacion(datos.fechaProgramacion);
-    setDocumentoCreado(true);
-    setRows([filaVacia()]);
-    setShowNuevaDocModal(false);
+    setConductorSeleccionado(datos.conductor); setPatentePrincipal(datos.patentePrincipal);
+    setPatenteAdicional(datos.patenteAdicional); setFechaProgramacion(datos.fechaProgramacion);
+    setDocumentoCreado(true); setRows([filaVacia()]); setShowNuevaDocModal(false);
   };
 
   const guardarDocumento = async (estado: string) => {
@@ -141,232 +118,68 @@ const SD01View: React.FC = () => {
       const patentePData = patentes.find(p => p.numero_patente === patentePrincipal);
       const patenteSData = patentes.find(p => p.numero_patente === patenteAdicional);
       const docId = idDocumentoActual || await generarIdDocumento();
-
-      const docData: any = {
-        id_documento: docId,
-        conductor_id: conductorData?.id || null,
-        patente_principal_id: patentePData?.id || null,
-        patente_adicional_id: patenteSData?.id || null,
-        fecha_programacion: fechaProgramacion || null,
-        sello_lateral: selloLateral,
-        sello_adicional: selloAdicional,
-        administrativo: nombreAdministrativo,
-        observaciones: observacionesGenerales,
-        estado: estado,
-        creado_por: user?.id,
-      };
+      const docData: any = { id_documento: docId, conductor_id: conductorData?.id || null, patente_principal_id: patentePData?.id || null, patente_adicional_id: patenteSData?.id || null, fecha_programacion: fechaProgramacion || null, sello_lateral: selloLateral, sello_adicional: selloAdicional, administrativo: nombreAdministrativo, observaciones: observacionesGenerales, estado: estado, creado_por: user?.id };
 
       if (idDocumentoActual) {
         docData.modificado_en = new Date().toISOString();
-        await fetch(API_URL + '/sd01_documentos?id_documento=eq.' + docId, {
-          method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify(docData),
-        });
+        await fetch(API_URL + '/sd01_documentos?id_documento=eq.' + docId, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify(docData) });
       } else {
-        await fetch(API_URL + '/sd01_documentos', {
-          method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify(docData),
-        });
+        await fetch(API_URL + '/sd01_documentos', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify(docData) });
       }
-
       const localesFiltrados = rows.filter(r => r.codigoLocal);
       for (const row of localesFiltrados) {
-        const localData = {
-          documento_id: docId,
-          codigo_local: row.codigoLocal,
-          nombre_local: row.nombreLocal,
-          fecha_entrega: row.fechaEntrega || null,
-          hora_entrega: row.horaEntrega || null,
-          sello_trasero: row.selloTrasero,
-          cantidad_pallet: row.cantidadPallet,
-          total_carga: row.totalCarga,
-        };
-        await fetch(API_URL + '/sd01_documento_locales', {
-          method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify(localData),
-        });
+        await fetch(API_URL + '/sd01_documento_locales', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ documento_id: docId, codigo_local: row.codigoLocal, nombre_local: row.nombreLocal, fecha_entrega: row.fechaEntrega || null, hora_entrega: row.horaEntrega || null, sello_trasero: row.selloTrasero, cantidad_pallet: row.cantidadPallet, total_carga: row.totalCarga }) });
       }
-
       if (!idDocumentoActual) setIdDocumentoActual(docId);
       setEstadoDocumento(estado);
       alert('✅ Documento ' + (estado === "finalizado" ? "finalizado" : "guardado como borrador") + ' correctamente');
       if (estado === "finalizado") limpiarFormulario();
-    } catch (error: any) {
-      alert("Error al guardar: " + error.message);
-    } finally {
-      setGuardando(false);
-    }
+    } catch (error: any) { alert("Error al guardar: " + error.message); }
+    finally { setGuardando(false); }
   };
 
-  if (cargandoDatos) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: '#64748b' }}>Cargando datos...</div>;
-  }
+  if (cargandoDatos) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: '#64748b' }}>Cargando datos...</div>;
 
   return (
     <div className="sd01-view">
-      <SD01Toolbar
-        onGuardarBorrador={() => guardarDocumento("borrador")}
-        onFinalizar={() => guardarDocumento("finalizado")}
-        onCancelar={() => { if (confirm("¿Descartar cambios?")) limpiarFormulario(); }}
-        onAbrirDocumentos={() => setShowDocumentosModal(true)}
-        onNuevaDocumentacion={() => setShowNuevaDocModal(true)}
-        onEditarTransporte={() => setShowEditarTransporteModal(true)}
-        onImprimir={() => {}}
-        onImprimirSeleccionados={() => {}}
-        estado={estadoDocumento}
-        guardando={guardando}
-        documentoCreado={documentoCreado}
-      />
+      <SD01Toolbar onGuardarBorrador={() => guardarDocumento("borrador")} onFinalizar={() => guardarDocumento("finalizado")} onCancelar={() => { if (confirm("¿Descartar cambios?")) limpiarFormulario(); }} onAbrirDocumentos={() => setShowDocumentosModal(true)} onNuevaDocumentacion={() => setShowNuevaDocModal(true)} onEditarTransporte={() => setShowEditarTransporteModal(true)} onImprimir={() => {}} onImprimirSeleccionados={() => {}} estado={estadoDocumento} guardando={guardando} documentoCreado={documentoCreado} />
 
-      {/* Tarjeta de transporte - ancho completo, colapsada por defecto */}
       {documentoCreado && (
         <div style={{ marginBottom: '16px' }}>
-          <TarjetaTransporte
-            idDocumento={idDocumentoActual || ""}
-            conductor={conductorSeleccionado}
-            patentePrincipal={patentePrincipal}
-            patenteAdicional={patenteAdicional}
-            fechaProgramacion={fechaProgramacion}
-            administrativo={nombreAdministrativo}
-            conductores={conductores}
-            patentes={patentes}
-          />
+          <TarjetaTransporte idDocumento={idDocumentoActual || ""} conductor={conductorSeleccionado} patentePrincipal={patentePrincipal} patenteAdicional={patenteAdicional} fechaProgramacion={fechaProgramacion} administrativo={nombreAdministrativo} conductores={conductores} patentes={patentes} />
         </div>
       )}
 
-      {/* Barra: Agregar Local + Cantidad + Aplicar + Sellos */}
       {documentoCreado && (
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px', padding: '12px 16px', background: '#f8fafd', borderRadius: '8px', border: '1px solid #eef0f5' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-            <button className="add-row-btn" onClick={() => {
-              const newRow: SD01Row = {
-                id: rows.length > 0 ? Math.max(...rows.map(r => r.id)) + 1 : 1,
-                codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "",
-                selloTrasero: "", cantidadPallet: 0, totalCarga: 0,
-              };
-              setRows([...rows, newRow]);
-              setCantidadFilasAgregar(rows.length + 1);
-            }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-              Agregar Local
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Cantidad:</label>
-              <input type="number" min="1" value={cantidadFilasAgregar} onChange={e => setCantidadFilasAgregar(parseInt(e.target.value) || 1)}
-                onBlur={() => {
-                  const currentCount = rows.length;
-                  const targetCount = cantidadFilasAgregar;
-                  if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
-                  const newRows: SD01Row[] = [...rows];
-                  const startId = Math.max(...rows.map(r => r.id)) + 1;
-                  for (let i = 0; i < targetCount - currentCount; i++) {
-                    newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
-                  }
-                  setRows(newRows);
-                }}
-                onKeyPress={(e: any) => {
-                  if (e.key === "Enter") {
-                    const currentCount = rows.length;
-                    const targetCount = cantidadFilasAgregar;
-                    if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
-                    const newRows: SD01Row[] = [...rows];
-                    const startId = Math.max(...rows.map(r => r.id)) + 1;
-                    for (let i = 0; i < targetCount - currentCount; i++) {
-                      newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
-                    }
-                    setRows(newRows);
-                  }
-                }}
-                style={{ width: '60px', padding: '7px 8px', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '13px', textAlign: 'center' }} />
-              <button className="apply-quantity-btn" onClick={() => {
-                const currentCount = rows.length;
-                const targetCount = cantidadFilasAgregar;
-                if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
-                const newRows: SD01Row[] = [...rows];
-                const startId = Math.max(...rows.map(r => r.id)) + 1;
-                for (let i = 0; i < targetCount - currentCount; i++) {
-                  newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
-                }
-                setRows(newRows);
-              }}>Aplicar</button>
-            </div>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px', padding: '12px 16px', background: '#f8fafd', borderRadius: '8px', border: '1px solid #eef0f5' }}>
+          <button className="add-row-btn" onClick={() => { const newRow: SD01Row = { id: rows.length > 0 ? Math.max(...rows.map(r => r.id)) + 1 : 1, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 }; setRows([...rows, newRow]); setCantidadFilasAgregar(rows.length + 1); }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>Agregar Local
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Cantidad:</label>
+            <input type="number" min="1" value={cantidadFilasAgregar} onChange={e => setCantidadFilasAgregar(parseInt(e.target.value) || 1)} onBlur={() => { const c = rows.length; const t = cantidadFilasAgregar; if (t <= c) { setRows(rows.slice(0, t)); return; } const nr: SD01Row[] = [...rows]; const sId = Math.max(...rows.map(r => r.id)) + 1; for (let i = 0; i < t - c; i++) { nr.push({ id: sId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 }); } setRows(nr); }} onKeyPress={(e: any) => { if (e.key === "Enter") { const c = rows.length; const t = cantidadFilasAgregar; if (t <= c) { setRows(rows.slice(0, t)); return; } const nr: SD01Row[] = [...rows]; const sId = Math.max(...rows.map(r => r.id)) + 1; for (let i = 0; i < t - c; i++) { nr.push({ id: sId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 }); } setRows(nr); } }} style={{ width: '60px', padding: '7px 8px', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '13px', textAlign: 'center' }} />
+            <button className="apply-quantity-btn" onClick={() => { const c = rows.length; const t = cantidadFilasAgregar; if (t <= c) { setRows(rows.slice(0, t)); return; } const nr: SD01Row[] = [...rows]; const sId = Math.max(...rows.map(r => r.id)) + 1; for (let i = 0; i < t - c; i++) { nr.push({ id: sId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 }); } setRows(nr); }}>Aplicar</button>
           </div>
           <div style={{ flex: 1, minWidth: '300px' }}>
-            <SellosAdicionales
-              selloLateral={selloLateral}
-              selloAdicional={selloAdicional}
-              onSelloLateralChange={setSelloLateral}
-              onSelloAdicionalChange={setSelloAdicional}
-            />
+            <SellosAdicionales selloLateral={selloLateral} selloAdicional={selloAdicional} onSelloLateralChange={setSelloLateral} onSelloAdicionalChange={setSelloAdicional} />
           </div>
         </div>
       )}
 
       {!documentoCreado && (
-        <div className="sin-documento" style={{ marginTop: '20px' }}>
-          <div className="sin-documento-icon">📋</div>
-          <h3>Sin documento activo</h3>
-          <p>Haz clic en <strong>"Nuevo Transporte"</strong> para comenzar.</p>
-        </div>
+        <div className="sin-documento" style={{ marginTop: '20px' }}><div className="sin-documento-icon">📋</div><h3>Sin documento activo</h3><p>Haz clic en <strong>"Nuevo Transporte"</strong> para comenzar.</p></div>
       )}
 
       {documentoCreado && (
         <>
-          <SD01Table
-            rows={rows} setRows={setRows}
-            cantidadFilasAgregar={cantidadFilasAgregar}
-            setCantidadFilasAgregar={setCantidadFilasAgregar}
-            selectedRows={selectedRows} setSelectedRows={setSelectedRows}
-          />
-          <div className="sd01-footer">
-            <div className="observaciones-section">
-              <label>Observaciones Generales</label>
-              <textarea value={observacionesGenerales} onChange={e => setObservacionesGenerales(e.target.value)} placeholder="Ingresar observaciones generales del transporte..." rows={2} />
-            </div>
-          </div>
+          <SD01Table rows={rows} setRows={setRows} cantidadFilasAgregar={cantidadFilasAgregar} setCantidadFilasAgregar={setCantidadFilasAgregar} selectedRows={selectedRows} setSelectedRows={setSelectedRows} />
+          <div className="sd01-footer"><div className="observaciones-section"><label>Observaciones Generales</label><textarea value={observacionesGenerales} onChange={e => setObservacionesGenerales(e.target.value)} placeholder="Ingresar observaciones generales del transporte..." rows={2} /></div></div>
         </>
       )}
 
-      {showNuevaDocModal && (
-        <NuevaDocumentacionModal
-          isOpen={showNuevaDocModal}
-          onClose={() => setShowNuevaDocModal(false)}
-          onCrear={handleCrearDocumento}
-          conductores={conductores}
-          setConductores={setConductores}
-          patentes={patentes}
-          setPatentes={setPatentes}
-        />
-      )}
-      {showEditarTransporteModal && (
-        <NuevaDocumentacionModal
-          isOpen={showEditarTransporteModal}
-          onClose={() => setShowEditarTransporteModal(false)}
-          onCrear={(datos) => {
-            handleCrearDocumento(datos);
-            setShowEditarTransporteModal(false);
-          }}
-          valoresIniciales={{ conductor: conductorSeleccionado, patentePrincipal, patenteAdicional, fechaProgramacion }}
-          conductores={conductores}
-          setConductores={setConductores}
-          patentes={patentes}
-          setPatentes={setPatentes}
-        />
-      )}
-      {showDocumentosModal && (
-        <DocumentosModal
-          isOpen={showDocumentosModal}
-          onClose={() => setShowDocumentosModal(false)}
-          onAbrirDocumento={(idDoc) => {
-            setShowDocumentosModal(false);
-            setIdDocumentoActual(idDoc);
-            setDocumentoCreado(true);
-          }}
-        />
-      )}
+      {showNuevaDocModal && <NuevaDocumentacionModal isOpen={showNuevaDocModal} onClose={() => setShowNuevaDocModal(false)} onCrear={handleCrearDocumento} conductores={conductores} setConductores={setConductores} patentes={patentes} setPatentes={setPatentes} />}
+      {showEditarTransporteModal && <NuevaDocumentacionModal isOpen={showEditarTransporteModal} onClose={() => setShowEditarTransporteModal(false)} onCrear={(datos) => { handleCrearDocumento(datos); setShowEditarTransporteModal(false); }} valoresIniciales={{ conductor: conductorSeleccionado, patentePrincipal, patenteAdicional, fechaProgramacion }} conductores={conductores} setConductores={setConductores} patentes={patentes} setPatentes={setPatentes} />}
+      {showDocumentosModal && <DocumentosModal isOpen={showDocumentosModal} onClose={() => setShowDocumentosModal(false)} onAbrirDocumento={(idDoc) => { setShowDocumentosModal(false); setIdDocumentoActual(idDoc); setDocumentoCreado(true); }} />}
     </div>
   );
 };
