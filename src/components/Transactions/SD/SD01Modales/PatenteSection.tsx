@@ -58,30 +58,37 @@ const PatenteSection: React.FC<PatenteSectionProps> = ({ titulo, value, onChange
     setHighlightIndex(-1);
   };
 
-  const handleSelect = (patente: Patente) => { onChange(patente.numero_patente); setIsOpen(false); actualRef.current?.focus(); };
-  const handleAddNew = () => { setIsOpen(false); setShowAddForm(true); };
+  const handleSelect = (patente: Patente) => {
+    onChange(patente.numero_patente);
+    setIsOpen(false);
+    setSuggestions([]);
+    actualRef.current?.focus();
+  };
+
+  const handleAddNew = () => { setIsOpen(false); setSuggestions([]); setShowAddForm(true); };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       if (isOpen && highlightIndex >= 0) { e.preventDefault(); handleSelect(suggestions[highlightIndex]); }
-      else { const bestMatch = getBestMatch(value); if (bestMatch) { e.preventDefault(); onChange(bestMatch.numero_patente); setIsOpen(false); } }
+      else { const bestMatch = getBestMatch(value); if (bestMatch) { e.preventDefault(); onChange(bestMatch.numero_patente); setIsOpen(false); setSuggestions([]); } }
     } else if (e.key === "Tab") {
       const bestMatch = getBestMatch(value);
-      if (bestMatch && value !== bestMatch.numero_patente) { e.preventDefault(); onChange(bestMatch.numero_patente); setIsOpen(false); return; }
-      setIsOpen(false); if (onTab) { e.preventDefault(); onTab(); }
+      if (bestMatch && value !== bestMatch.numero_patente) { e.preventDefault(); onChange(bestMatch.numero_patente); setIsOpen(false); setSuggestions([]); return; }
+      setIsOpen(false); setSuggestions([]);
+      if (onTab) { e.preventDefault(); onTab(); }
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!isOpen && value) { const filtered = patentes.filter(p => p.numero_patente.toUpperCase().includes(value.toUpperCase())); setSuggestions(filtered); setIsOpen(true); setHighlightIndex(0); }
       else { setHighlightIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
     } else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightIndex(prev => prev > 0 ? prev - 1 : prev); }
-    else if (e.key === "Escape") { setIsOpen(false); }
+    else if (e.key === "Escape") { setIsOpen(false); setSuggestions([]); }
   };
 
   const handleAddPatente = async () => {
     try {
       setGuardando(true);
       if (nuevaPatente.numero_patente) {
-        const resp = await fetch(`${API_URL}/sd01_patentes`, {
+        const resp = await fetch(API_URL + '/sd01_patentes', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -91,12 +98,16 @@ const PatenteSection: React.FC<PatenteSectionProps> = ({ titulo, value, onChange
             activo: true,
           }),
         });
-        const creada = await resp.json();
-        setPatentes([...patentes, creada]);
+        const creada: any = await resp.json();
+        
+        const nuevaLista = [...patentes, creada];
+        setPatentes(nuevaLista);
         onChange(creada.numero_patente);
+        
+        setShowAddForm(false);
+        setNuevaPatente({});
+        setTimeout(() => actualRef.current?.focus(), 100);
       }
-      setShowAddForm(false); setNuevaPatente({});
-      actualRef.current?.focus();
     } catch (error: any) { alert("Error al guardar patente: " + error.message); }
     finally { setGuardando(false); }
   };
@@ -109,7 +120,9 @@ const PatenteSection: React.FC<PatenteSectionProps> = ({ titulo, value, onChange
       </div>
       <div className="compact-content">
         <div className="autocomplete-wrapper" ref={wrapperRef}>
-          <input ref={actualRef} type="text" className="compact-input" value={value} onChange={handleInputChange} onFocus={() => { if (value) { const filtered = patentes.filter(p => p.numero_patente.toUpperCase().includes(value.toUpperCase())); setSuggestions(filtered); setIsOpen(filtered.length > 0); } }} onKeyDown={handleKeyDown} placeholder="Buscar o escribir patente..." />
+          <input ref={actualRef} type="text" className="compact-input" value={value} onChange={handleInputChange}
+            onFocus={() => { if (value) { const filtered = patentes.filter(p => p.numero_patente.toUpperCase().includes(value.toUpperCase())); setSuggestions(filtered); setIsOpen(filtered.length > 0); } }}
+            onKeyDown={handleKeyDown} placeholder="Buscar o escribir patente..." />
           {isOpen && suggestions.length > 0 && (
             <div className="autocomplete-dropdown">
               {suggestions.map((patente, index) => (
