@@ -45,28 +45,6 @@ const SD01Table: React.FC<SD01TableProps> = ({ rows, setRows, cantidadFilasAgreg
   const cargaInicialMap: Record<string, any[]> = {};
   rows.forEach(row => { if (row.codigoLocal && row.carga) cargaInicialMap[row.codigoLocal] = row.carga; });
 
-  const addSingleRow = () => {
-    const newRow: SD01Row = {
-      id: rows.length > 0 ? Math.max(...rows.map(r => r.id)) + 1 : 1,
-      codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "",
-      selloTrasero: "", cantidadPallet: 0, totalCarga: 0,
-    };
-    setRows([...rows, newRow]);
-    setCantidadFilasAgregar(rows.length + 1);
-  };
-
-  const addMultipleRows = () => {
-    const currentCount = rows.length;
-    const targetCount = cantidadFilasAgregar;
-    if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
-    const newRows: SD01Row[] = [...rows];
-    const startId = Math.max(...rows.map(r => r.id)) + 1;
-    for (let i = 0; i < targetCount - currentCount; i++) {
-      newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
-    }
-    setRows(newRows);
-  };
-
   const removeRow = (id: number) => {
     if (rows.length > 1) {
       const newRows = rows.filter(row => row.id !== id);
@@ -149,21 +127,6 @@ const SD01Table: React.FC<SD01TableProps> = ({ rows, setRows, cantidadFilasAgreg
   return (
     <>
       <div className="sd01-table-container">
-        <div className="table-header-actions">
-          <div className="add-row-controls">
-            <button className="add-row-btn" onClick={addSingleRow}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              Agregar Local
-            </button>
-            <div className="row-quantity-control">
-              <label>Cantidad Locales:</label>
-              <input type="number" min="1" value={cantidadFilasAgregar} onChange={e => setCantidadFilasAgregar(parseInt(e.target.value) || 1)} onBlur={addMultipleRows} onKeyPress={e => { if (e.key === "Enter") addMultipleRows(); }} />
-              <button className="apply-quantity-btn" onClick={addMultipleRows}>Aplicar</button>
-            </div>
-          </div>
-        </div>
         <div className="sd01-table-wrapper">
           <table className="sd01-table">
             <thead>
