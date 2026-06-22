@@ -221,38 +221,97 @@ const SD01View: React.FC = () => {
         documentoCreado={documentoCreado}
       />
 
-      <div className="sd01-form-grid">
-        <div className="sd01-left-column">
-          {documentoCreado ? (
-            <TarjetaTransporte
-              idDocumento={idDocumentoActual || ""}
-              conductor={conductorSeleccionado}
-              patentePrincipal={patentePrincipal}
-              patenteAdicional={patenteAdicional}
-              fechaProgramacion={fechaProgramacion}
-              administrativo={nombreAdministrativo}
-              conductores={conductores}
-              patentes={patentes}
-            />
-          ) : (
-            <div className="sin-documento">
-              <div className="sin-documento-icon">📋</div>
-              <h3>Sin documento activo</h3>
-              <p>Haz clic en <strong>"Nuevo Transporte"</strong> para comenzar.</p>
-            </div>
-          )}
+      {/* Tarjeta de transporte - ancho completo, colapsada por defecto */}
+      {documentoCreado && (
+        <div style={{ marginBottom: '16px' }}>
+          <TarjetaTransporte
+            idDocumento={idDocumentoActual || ""}
+            conductor={conductorSeleccionado}
+            patentePrincipal={patentePrincipal}
+            patenteAdicional={patenteAdicional}
+            fechaProgramacion={fechaProgramacion}
+            administrativo={nombreAdministrativo}
+            conductores={conductores}
+            patentes={patentes}
+          />
         </div>
-        <div className="sd01-right-column">
-          {documentoCreado && (
+      )}
+
+      {/* Barra: Agregar Local + Cantidad + Aplicar + Sellos */}
+      {documentoCreado && (
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px', padding: '12px 16px', background: '#f8fafd', borderRadius: '8px', border: '1px solid #eef0f5' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <button className="add-row-btn" onClick={() => {
+              const newRow: SD01Row = {
+                id: rows.length > 0 ? Math.max(...rows.map(r => r.id)) + 1 : 1,
+                codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "",
+                selloTrasero: "", cantidadPallet: 0, totalCarga: 0,
+              };
+              setRows([...rows, newRow]);
+              setCantidadFilasAgregar(rows.length + 1);
+            }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              Agregar Local
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Cantidad:</label>
+              <input type="number" min="1" value={cantidadFilasAgregar} onChange={e => setCantidadFilasAgregar(parseInt(e.target.value) || 1)}
+                onBlur={() => {
+                  const currentCount = rows.length;
+                  const targetCount = cantidadFilasAgregar;
+                  if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
+                  const newRows: SD01Row[] = [...rows];
+                  const startId = Math.max(...rows.map(r => r.id)) + 1;
+                  for (let i = 0; i < targetCount - currentCount; i++) {
+                    newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
+                  }
+                  setRows(newRows);
+                }}
+                onKeyPress={(e: any) => {
+                  if (e.key === "Enter") {
+                    const currentCount = rows.length;
+                    const targetCount = cantidadFilasAgregar;
+                    if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
+                    const newRows: SD01Row[] = [...rows];
+                    const startId = Math.max(...rows.map(r => r.id)) + 1;
+                    for (let i = 0; i < targetCount - currentCount; i++) {
+                      newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
+                    }
+                    setRows(newRows);
+                  }
+                }}
+                style={{ width: '60px', padding: '7px 8px', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '13px', textAlign: 'center' }} />
+              <button className="apply-quantity-btn" onClick={() => {
+                const currentCount = rows.length;
+                const targetCount = cantidadFilasAgregar;
+                if (targetCount <= currentCount) { setRows(rows.slice(0, targetCount)); return; }
+                const newRows: SD01Row[] = [...rows];
+                const startId = Math.max(...rows.map(r => r.id)) + 1;
+                for (let i = 0; i < targetCount - currentCount; i++) {
+                  newRows.push({ id: startId + i, codigoLocal: "", nombreLocal: "", fechaEntrega: "", horaEntrega: "", selloTrasero: "", cantidadPallet: 0, totalCarga: 0 });
+                }
+                setRows(newRows);
+              }}>Aplicar</button>
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: '300px' }}>
             <SellosAdicionales
               selloLateral={selloLateral}
               selloAdicional={selloAdicional}
               onSelloLateralChange={setSelloLateral}
               onSelloAdicionalChange={setSelloAdicional}
             />
-          )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {!documentoCreado && (
+        <div className="sin-documento" style={{ marginTop: '20px' }}>
+          <div className="sin-documento-icon">📋</div>
+          <h3>Sin documento activo</h3>
+          <p>Haz clic en <strong>"Nuevo Transporte"</strong> para comenzar.</p>
+        </div>
+      )}
 
       {documentoCreado && (
         <>
