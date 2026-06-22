@@ -40,7 +40,7 @@ const NuevaDocumentacionModal: React.FC<NuevaDocumentacionModalProps> = ({
       setPatenteAdicional(valoresIniciales.patenteAdicional || "");
       setFechaProgramacion(valoresIniciales.fechaProgramacion || "");
     }
-  }, [isOpen, valoresIniciales]);
+  }, [isOpen]); // ← Solo isOpen
 
   const handleCrear = () => {
     if (!conductor) { alert("Debe seleccionar un conductor"); return; }
