@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD01Modales/SellosAdicionales.tsx
 
-import React, { useState } from 'react';
+import React from 'react';
 
 interface SellosAdicionalesProps {
   selloLateral: string;
@@ -10,20 +10,28 @@ interface SellosAdicionalesProps {
 }
 
 const SellosAdicionales: React.FC<SellosAdicionalesProps> = ({ selloLateral, selloAdicional, onSelloLateralChange, onSelloAdicionalChange }) => {
-  const [expandido, setExpandido] = useState(false);
-
   return (
-    <div className="sellos-container">
-      <div className="sellos-header" onClick={() => setExpandido(!expandido)}>
-        <span className="sellos-title">Sellos Adicionales</span>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={`sellos-arrow ${expandido ? "rotated" : ""}`}><path d="M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="sellos-field" style={{ flex: 1, minWidth: '150px' }}>
+        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '2px' }}>Sello Lateral</label>
+        <input
+          type="text"
+          value={selloLateral}
+          onChange={e => onSelloLateralChange(e.target.value)}
+          placeholder="N° Sello"
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px' }}
+        />
       </div>
-      {expandido && (
-        <div className="sellos-body">
-          <div className="sellos-field"><label>Sello Lateral</label><input type="text" value={selloLateral} onChange={e => onSelloLateralChange(e.target.value)} placeholder="N° Sello" /></div>
-          <div className="sellos-field"><label>Sello Adicional</label><input type="text" value={selloAdicional} onChange={e => onSelloAdicionalChange(e.target.value)} placeholder="N° Sello" /></div>
-        </div>
-      )}
+      <div className="sellos-field" style={{ flex: 1, minWidth: '150px' }}>
+        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '2px' }}>Sello Adicional</label>
+        <input
+          type="text"
+          value={selloAdicional}
+          onChange={e => onSelloAdicionalChange(e.target.value)}
+          placeholder="N° Sello"
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px' }}
+        />
+      </div>
     </div>
   );
 };
