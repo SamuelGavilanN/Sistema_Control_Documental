@@ -58,30 +58,69 @@ const ConductorSection: React.FC<ConductorSectionProps> = ({ value, onChange, in
     setHighlightIndex(-1);
   };
 
-  const handleSelect = (conductor: Conductor) => { onChange(conductor.nombre_completo || ""); setIsOpen(false); actualRef.current?.focus(); };
-  const handleAddNew = () => { setIsOpen(false); setShowAddForm(true); };
+  const handleSelect = (conductor: Conductor) => {
+    onChange(conductor.nombre_completo || "");
+    setIsOpen(false);
+    setSuggestions([]);
+    actualRef.current?.focus();
+  };
+
+  const handleAddNew = () => {
+    setIsOpen(false);
+    setSuggestions([]);
+    setShowAddForm(true);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      if (isOpen && highlightIndex >= 0) { e.preventDefault(); handleSelect(suggestions[highlightIndex]); }
-      else { const bestMatch = getBestMatch(value); if (bestMatch) { e.preventDefault(); onChange(bestMatch.nombre_completo || ""); setIsOpen(false); } }
+      if (isOpen && highlightIndex >= 0) {
+        e.preventDefault();
+        handleSelect(suggestions[highlightIndex]);
+      } else {
+        const bestMatch = getBestMatch(value);
+        if (bestMatch) {
+          e.preventDefault();
+          onChange(bestMatch.nombre_completo || "");
+          setIsOpen(false);
+          setSuggestions([]);
+        }
+      }
     } else if (e.key === "Tab") {
       const bestMatch = getBestMatch(value);
-      if (bestMatch && value !== bestMatch.nombre_completo) { e.preventDefault(); onChange(bestMatch.nombre_completo || ""); setIsOpen(false); return; }
-      setIsOpen(false); if (onTab) { e.preventDefault(); onTab(); }
+      if (bestMatch && value !== bestMatch.nombre_completo) {
+        e.preventDefault();
+        onChange(bestMatch.nombre_completo || "");
+        setIsOpen(false);
+        setSuggestions([]);
+        return;
+      }
+      setIsOpen(false);
+      setSuggestions([]);
+      if (onTab) { e.preventDefault(); onTab(); }
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (!isOpen && value) { const filtered = conductores.filter(c => c.nombre_completo?.toLowerCase().includes(value.toLowerCase())); setSuggestions(filtered); setIsOpen(true); setHighlightIndex(0); }
-      else { setHighlightIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev); }
-    } else if (e.key === "ArrowUp") { e.preventDefault(); setHighlightIndex(prev => prev > 0 ? prev - 1 : prev); }
-    else if (e.key === "Escape") { setIsOpen(false); }
+      if (!isOpen && value) {
+        const filtered = conductores.filter(c => c.nombre_completo?.toLowerCase().includes(value.toLowerCase()));
+        setSuggestions(filtered);
+        setIsOpen(true);
+        setHighlightIndex(0);
+      } else {
+        setHighlightIndex(prev => prev < suggestions.length - 1 ? prev + 1 : prev);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex(prev => prev > 0 ? prev - 1 : prev);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setSuggestions([]);
+    }
   };
 
   const handleAddConductor = async () => {
     try {
       setGuardando(true);
       if (nuevoConductor.nombre) {
-        const resp = await fetch(`${API_URL}/sd01_conductores`, {
+        const resp = await fetch(API_URL + '/sd01_conductores', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -93,15 +132,31 @@ const ConductorSection: React.FC<ConductorSectionProps> = ({ value, onChange, in
             activo: true,
           }),
         });
-        const creado = await resp.json();
-        const nuevo = { ...creado, nombre_completo: `${creado.nombre} ${creado.apellido}` };
-        setConductores([...conductores, nuevo]);
+        const creado: any = await resp.json();
+        const nuevo: Conductor = {
+          ...creado,
+          nombre_completo: creado.nombre + ' ' + creado.apellido,
+        };
+        
+        // Actualizar lista global
+        const nuevaLista = [...conductores, nuevo];
+        setConductores(nuevaLista);
+        
+        // Seleccionar el nuevo conductor
         onChange(nuevo.nombre_completo || nuevo.nombre);
+        
+        // Cerrar formulario
+        setShowAddForm(false);
+        setNuevoConductor({});
+        
+        // Enfocar input
+        setTimeout(() => actualRef.current?.focus(), 100);
       }
-      setShowAddForm(false); setNuevoConductor({});
-      actualRef.current?.focus();
-    } catch (error: any) { alert("Error al guardar conductor: " + error.message); }
-    finally { setGuardando(false); }
+    } catch (error: any) {
+      alert("Error al guardar conductor: " + error.message);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
@@ -112,11 +167,28 @@ const ConductorSection: React.FC<ConductorSectionProps> = ({ value, onChange, in
       </div>
       <div className="compact-content">
         <div className="autocomplete-wrapper" ref={wrapperRef}>
-          <input ref={actualRef} type="text" className="compact-input" value={value} onChange={handleInputChange} onFocus={() => { if (value) { const filtered = conductores.filter(c => c.nombre_completo?.toLowerCase().includes(value.toLowerCase())); setSuggestions(filtered); setIsOpen(filtered.length > 0); } }} onKeyDown={handleKeyDown} placeholder="Buscar o escribir..." />
+          <input
+            ref={actualRef}
+            type="text"
+            className="compact-input"
+            value={value}
+            onChange={handleInputChange}
+            onFocus={() => {
+              if (value) {
+                const filtered = conductores.filter(c => c.nombre_completo?.toLowerCase().includes(value.toLowerCase()));
+                setSuggestions(filtered);
+                setIsOpen(filtered.length > 0);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Buscar o escribir..."
+          />
           {isOpen && suggestions.length > 0 && (
             <div className="autocomplete-dropdown">
               {suggestions.map((conductor, index) => (
-                <div key={conductor.id} className={`autocomplete-item ${index === highlightIndex ? "highlighted" : ""}`} onClick={() => handleSelect(conductor)}>{conductor.nombre_completo}</div>
+                <div key={conductor.id} className={`autocomplete-item ${index === highlightIndex ? "highlighted" : ""}`} onClick={() => handleSelect(conductor)}>
+                  {conductor.nombre_completo}
+                </div>
               ))}
               <div className="autocomplete-item add-new" onClick={handleAddNew}>+ Agregar nuevo conductor</div>
             </div>
