@@ -47,23 +47,23 @@ interface SD01Row {
 }
 
 const cargarConductoresAPI = async (): Promise<Conductor[]> => {
-  const resp = await fetch(`${API_URL}/sd01_conductores?select=*&activo=eq.true&order=nombre,apellido`, { headers: HEADERS });
+  const resp = await fetch(API_URL + '/sd01_conductores?select=*&activo=eq.true&order=nombre,apellido', { headers: HEADERS });
   const data = await resp.json();
-  return (data || []).map((c: any) => ({ ...c, nombre_completo: `${c.nombre} ${c.apellido}` }));
+  return (data || []).map((c: any) => ({ ...c, nombre_completo: c.nombre + ' ' + c.apellido }));
 };
 
 const cargarPatentesAPI = async (): Promise<Patente[]> => {
-  const resp = await fetch(`${API_URL}/sd01_patentes?select=*&activo=eq.true&order=numero_patente`, { headers: HEADERS });
+  const resp = await fetch(API_URL + '/sd01_patentes?select=*&activo=eq.true&order=numero_patente', { headers: HEADERS });
   return (await resp.json()) || [];
 };
 
 const generarIdDocumento = async (): Promise<string> => {
   const now = new Date();
-  const fecha = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
-  const resp = await fetch(`${API_URL}/sd01_documentos?select=id_documento&order=creado_en.desc&limit=1`, { headers: HEADERS });
+  const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
+  const resp = await fetch(API_URL + '/sd01_documentos?select=id_documento&order=creado_en.desc&limit=1', { headers: HEADERS });
   const data = await resp.json();
   const count = (data?.length || 0) + 1;
-  return `SD01-${fecha}-${String(count).padStart(4, '0')}`;
+  return 'SD01-' + fecha + '-' + String(count).padStart(4, '0');
 };
 
 const filaVacia = (): SD01Row => ({
@@ -98,7 +98,7 @@ const SD01View: React.FC = () => {
     cargarLocales();
     cargarDatosIniciales();
     const usuario = auth.getUsuario();
-    if (usuario) setNombreAdministrativo(`${usuario.nombre || ""} ${usuario.apellido || ""}`.trim());
+    if (usuario) setNombreAdministrativo((usuario.nombre || "") + " " + (usuario.apellido || "").trim());
   }, []);
 
   const cargarDatosIniciales = async () => {
@@ -142,7 +142,6 @@ const SD01View: React.FC = () => {
       const patenteSData = patentes.find(p => p.numero_patente === patenteAdicional);
       const docId = idDocumentoActual || await generarIdDocumento();
 
-      // Guardar documento principal
       const docData: any = {
         id_documento: docId,
         conductor_id: conductorData?.id || null,
@@ -159,20 +158,19 @@ const SD01View: React.FC = () => {
 
       if (idDocumentoActual) {
         docData.modificado_en = new Date().toISOString();
-        await fetch(`${API_URL}/sd01_documentos?id_documento=eq.${docId}`, {
+        await fetch(API_URL + '/sd01_documentos?id_documento=eq.' + docId, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(docData),
         });
       } else {
-        await fetch(`${API_URL}/sd01_documentos`, {
+        await fetch(API_URL + '/sd01_documentos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(docData),
         });
       }
 
-      // Guardar locales
       const localesFiltrados = rows.filter(r => r.codigoLocal);
       for (const row of localesFiltrados) {
         const localData = {
@@ -185,8 +183,7 @@ const SD01View: React.FC = () => {
           cantidad_pallet: row.cantidadPallet,
           total_carga: row.totalCarga,
         };
-
-        await fetch(`${API_URL}/sd01_documento_locales`, {
+        await fetch(API_URL + '/sd01_documento_locales', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(localData),
@@ -195,7 +192,7 @@ const SD01View: React.FC = () => {
 
       if (!idDocumentoActual) setIdDocumentoActual(docId);
       setEstadoDocumento(estado);
-      alert(`✅ Documento ${estado === "finalizado" ? "finalizado" : "guardado como borrador"} correctamente`);
+      alert('✅ Documento ' + (estado === "finalizado" ? "finalizado" : "guardado como borrador") + ' correctamente');
       if (estado === "finalizado") limpiarFormulario();
     } catch (error: any) {
       alert("Error al guardar: " + error.message);
