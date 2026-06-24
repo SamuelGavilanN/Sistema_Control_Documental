@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
-import { cargarLocales } from '../../../data/locales';
+import { locales as localesData, cargarLocales } from '../../../data/locales';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -115,7 +115,6 @@ const SD01View: React.FC = () => {
       if (l.id !== id) return l;
       const updated = { ...l, [field]: value };
       if (field === 'codigoLocal' && value.trim()) {
-        const localesData = (window as any).__locales || [];
         const loc = localesData.find((x: any) => x.codigo_local?.toUpperCase() === value.toUpperCase());
         if (loc) updated.nombreLocal = loc.nombre_local;
         else updated.nombreLocal = '';
@@ -140,27 +139,11 @@ const SD01View: React.FC = () => {
 
   const handleConductorKeyDown = (e: React.KeyboardEvent) => {
     if (!showConductorSuggestions || conductorSuggestions.length === 0) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setConductorHighlight(prev => prev < conductorSuggestions.length - 1 ? prev + 1 : 0);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setConductorHighlight(prev => prev > 0 ? prev - 1 : conductorSuggestions.length - 1);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const idx = conductorHighlight >= 0 ? conductorHighlight : 0;
-      if (conductorSuggestions[idx]) selectConductor(conductorSuggestions[idx]);
-    } else if (e.key === 'Tab') {
-      if (conductor.trim()) {
-        e.preventDefault();
-        const idx = conductorHighlight >= 0 ? conductorHighlight : 0;
-        if (conductorSuggestions[idx]) selectConductor(conductorSuggestions[idx]);
-      }
-    } else if (e.key === 'Escape') {
-      setShowConductorSuggestions(false);
-      setConductorHighlight(-1);
-    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setConductorHighlight(prev => prev < conductorSuggestions.length - 1 ? prev + 1 : 0); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setConductorHighlight(prev => prev > 0 ? prev - 1 : conductorSuggestions.length - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const idx = conductorHighlight >= 0 ? conductorHighlight : 0; if (conductorSuggestions[idx]) selectConductor(conductorSuggestions[idx]); }
+    else if (e.key === 'Tab') { if (conductor.trim()) { e.preventDefault(); const idx = conductorHighlight >= 0 ? conductorHighlight : 0; if (conductorSuggestions[idx]) selectConductor(conductorSuggestions[idx]); } }
+    else if (e.key === 'Escape') { setShowConductorSuggestions(false); setConductorHighlight(-1); }
   };
 
   const selectConductor = (c: any) => {
@@ -277,7 +260,6 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ============ RENDER ============
   return (
     <div className="sd01-view">
       <div className="sd01-header"><h2>SD01 · Gestión de Transportes</h2></div>
@@ -345,13 +327,7 @@ const SD01View: React.FC = () => {
                     <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '2px solid #3b82f6', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10, maxHeight: '180px', overflowY: 'auto' }}>
                       {conductorSuggestions.map((c: any, i: number) => (
                         <div key={c.id} onClick={() => selectConductor(c)}
-                          style={{
-                            padding: '10px 14px', fontSize: '14px', cursor: 'pointer',
-                            background: i === conductorHighlight ? '#1d4ed8' : 'white',
-                            color: i === conductorHighlight ? 'white' : '#1e293b',
-                            fontWeight: i === conductorHighlight ? 600 : 400,
-                            borderBottom: '1px solid #f1f5f9',
-                          }}>
+                          style={{ padding: '10px 14px', fontSize: '14px', cursor: 'pointer', background: i === conductorHighlight ? '#1d4ed8' : 'white', color: i === conductorHighlight ? 'white' : '#1e293b', fontWeight: i === conductorHighlight ? 600 : 400, borderBottom: '1px solid #f1f5f9' }}>
                           {c.nombre_completo}
                         </div>
                       ))}
