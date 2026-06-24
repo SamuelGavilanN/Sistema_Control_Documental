@@ -114,48 +114,52 @@ const SD01View: React.FC = () => {
     setLocales(locales.map(l => {
       if (l.id !== id) return l;
       const updated = { ...l, [field]: value };
-      if (field === 'codigoLocal') {
-        const loc = (window as any).__locales?.find((x: any) => x.codigo_local?.toUpperCase() === value.toUpperCase());
+      if (field === 'codigoLocal' && value.trim()) {
+        const localesData = (window as any).__locales || [];
+        const loc = localesData.find((x: any) => x.codigo_local?.toUpperCase() === value.toUpperCase());
         if (loc) updated.nombreLocal = loc.nombre_local;
+        else updated.nombreLocal = '';
       }
       return updated;
     }));
   };
 
-  // ============ AUTOCOMPLETE GENÉRICO ============
   const filterStartsWith = (list: any[], field: string, search: string) => {
+    if (!search) return [];
     return list.filter((item: any) => String(item[field] || '').toLowerCase().startsWith(search.toLowerCase()));
   };
 
-  // Conductor
+  // ============ CONDUCTOR AUTOCOMPLETE ============
   const handleConductorChange = (value: string) => {
     setConductor(value);
     const filtered = filterStartsWith(conductores, 'nombre_completo', value);
     setConductorSuggestions(filtered);
-    setShowConductorSuggestions(filtered.length > 0 && value.length > 0);
+    setShowConductorSuggestions(filtered.length > 0);
     setConductorHighlight(-1);
   };
 
   const handleConductorKeyDown = (e: React.KeyboardEvent) => {
+    if (!showConductorSuggestions || conductorSuggestions.length === 0) return;
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setConductorHighlight(prev => prev < conductorSuggestions.length - 1 ? prev + 1 : prev);
+      setConductorHighlight(prev => prev < conductorSuggestions.length - 1 ? prev + 1 : 0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setConductorHighlight(prev => prev > 0 ? prev - 1 : -1);
+      setConductorHighlight(prev => prev > 0 ? prev - 1 : conductorSuggestions.length - 1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (conductorHighlight >= 0 && conductorSuggestions[conductorHighlight]) {
-        selectConductor(conductorSuggestions[conductorHighlight]);
-      } else {
-        const first = filterStartsWith(conductores, 'nombre_completo', conductor)[0];
-        if (first) selectConductor(first);
-      }
+      const idx = conductorHighlight >= 0 ? conductorHighlight : 0;
+      if (conductorSuggestions[idx]) selectConductor(conductorSuggestions[idx]);
     } else if (e.key === 'Tab') {
-      const first = filterStartsWith(conductores, 'nombre_completo', conductor)[0];
-      if (first) { e.preventDefault(); selectConductor(first); }
+      if (conductor.trim()) {
+        e.preventDefault();
+        const idx = conductorHighlight >= 0 ? conductorHighlight : 0;
+        if (conductorSuggestions[idx]) selectConductor(conductorSuggestions[idx]);
+      }
     } else if (e.key === 'Escape') {
       setShowConductorSuggestions(false);
+      setConductorHighlight(-1);
     }
   };
 
@@ -166,26 +170,22 @@ const SD01View: React.FC = () => {
     setTimeout(() => patentePRef.current?.focus(), 100);
   };
 
-  // Patente Principal
+  // ============ PATENTE PRINCIPAL AUTOCOMPLETE ============
   const handlePatentePChange = (value: string) => {
     setPatentePrincipal(value);
     const filtered = filterStartsWith(patentes, 'numero_patente', value);
     setPatentePSuggestions(filtered);
-    setShowPatentePSuggestions(filtered.length > 0 && value.length > 0);
+    setShowPatentePSuggestions(filtered.length > 0);
     setPatentePHighlight(-1);
   };
 
   const handlePatentePKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setPatentePHighlight(prev => prev < patentePSuggestions.length - 1 ? prev + 1 : prev); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setPatentePHighlight(prev => prev > 0 ? prev - 1 : -1); }
-    else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (patentePHighlight >= 0 && patentePSuggestions[patentePHighlight]) { selectPatenteP(patentePSuggestions[patentePHighlight]); }
-      else { const first = filterStartsWith(patentes, 'numero_patente', patentePrincipal)[0]; if (first) selectPatenteP(first); }
-    } else if (e.key === 'Tab') {
-      const first = filterStartsWith(patentes, 'numero_patente', patentePrincipal)[0];
-      if (first) { e.preventDefault(); selectPatenteP(first); }
-    } else if (e.key === 'Escape') { setShowPatentePSuggestions(false); }
+    if (!showPatentePSuggestions || patentePSuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setPatentePHighlight(prev => prev < patentePSuggestions.length - 1 ? prev + 1 : 0); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setPatentePHighlight(prev => prev > 0 ? prev - 1 : patentePSuggestions.length - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const idx = patentePHighlight >= 0 ? patentePHighlight : 0; if (patentePSuggestions[idx]) selectPatenteP(patentePSuggestions[idx]); }
+    else if (e.key === 'Tab') { if (patentePrincipal.trim()) { e.preventDefault(); const idx = patentePHighlight >= 0 ? patentePHighlight : 0; if (patentePSuggestions[idx]) selectPatenteP(patentePSuggestions[idx]); } }
+    else if (e.key === 'Escape') { setShowPatentePSuggestions(false); setPatentePHighlight(-1); }
   };
 
   const selectPatenteP = (p: any) => {
@@ -195,26 +195,22 @@ const SD01View: React.FC = () => {
     setTimeout(() => patenteARef.current?.focus(), 100);
   };
 
-  // Patente Adicional
+  // ============ PATENTE ADICIONAL AUTOCOMPLETE ============
   const handlePatenteAChange = (value: string) => {
     setPatenteAdicional(value);
     const filtered = filterStartsWith(patentes, 'numero_patente', value);
     setPatenteASuggestions(filtered);
-    setShowPatenteASuggestions(filtered.length > 0 && value.length > 0);
+    setShowPatenteASuggestions(filtered.length > 0);
     setPatenteAHighlight(-1);
   };
 
   const handlePatenteAKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setPatenteAHighlight(prev => prev < patenteASuggestions.length - 1 ? prev + 1 : prev); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setPatenteAHighlight(prev => prev > 0 ? prev - 1 : -1); }
-    else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (patenteAHighlight >= 0 && patenteASuggestions[patenteAHighlight]) { selectPatenteA(patenteASuggestions[patenteAHighlight]); }
-      else { const first = filterStartsWith(patentes, 'numero_patente', patenteAdicional)[0]; if (first) selectPatenteA(first); }
-    } else if (e.key === 'Tab') {
-      const first = filterStartsWith(patentes, 'numero_patente', patenteAdicional)[0];
-      if (first) { e.preventDefault(); selectPatenteA(first); }
-    } else if (e.key === 'Escape') { setShowPatenteASuggestions(false); }
+    if (!showPatenteASuggestions || patenteASuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setPatenteAHighlight(prev => prev < patenteASuggestions.length - 1 ? prev + 1 : 0); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setPatenteAHighlight(prev => prev > 0 ? prev - 1 : patenteASuggestions.length - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const idx = patenteAHighlight >= 0 ? patenteAHighlight : 0; if (patenteASuggestions[idx]) selectPatenteA(patenteASuggestions[idx]); }
+    else if (e.key === 'Tab') { if (patenteAdicional.trim()) { e.preventDefault(); const idx = patenteAHighlight >= 0 ? patenteAHighlight : 0; if (patenteASuggestions[idx]) selectPatenteA(patenteASuggestions[idx]); } }
+    else if (e.key === 'Escape') { setShowPatenteASuggestions(false); setPatenteAHighlight(-1); }
   };
 
   const selectPatenteA = (p: any) => {
@@ -223,7 +219,7 @@ const SD01View: React.FC = () => {
     setPatenteAHighlight(-1);
   };
 
-  // Guardar
+  // ============ GUARDAR ============
   const handleGuardar = async (estado: string) => {
     if (!fechaProgramacion) { setMensaje('Selecciona fecha de programación'); setTipoMensaje('error'); return; }
     if (!conductor) { setMensaje('Selecciona un conductor'); setTipoMensaje('error'); return; }
@@ -281,11 +277,10 @@ const SD01View: React.FC = () => {
     }
   };
 
+  // ============ RENDER ============
   return (
     <div className="sd01-view">
-      <div className="sd01-header">
-        <h2>SD01 · Gestión de Transportes</h2>
-      </div>
+      <div className="sd01-header"><h2>SD01 · Gestión de Transportes</h2></div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <button className="sd01-btn-nueva" onClick={() => { limpiarFormulario(); setShowCrearModal(true); }}>+ Nuevo Transporte</button>
@@ -347,10 +342,16 @@ const SD01View: React.FC = () => {
                   <input ref={conductorRef} type="text" value={conductor} onChange={e => handleConductorChange(e.target.value)} onFocus={() => { if (conductor) handleConductorChange(conductor); }} onKeyDown={handleConductorKeyDown} placeholder="Buscar..." autoComplete="off"
                     style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
                   {showConductorSuggestions && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '150px', overflowY: 'auto' }}>
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '2px solid #3b82f6', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10, maxHeight: '180px', overflowY: 'auto' }}>
                       {conductorSuggestions.map((c: any, i: number) => (
-                        <div key={c.id} onClick={() => selectConductor(c)} style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', background: i === conductorHighlight ? '#eef2ff' : 'white', borderBottom: '1px solid #f1f5f9' }}
-                          onMouseEnter={e => (e.target as HTMLElement).style.background = '#eef2ff'} onMouseLeave={e => (e.target as HTMLElement).style.background = i === conductorHighlight ? '#eef2ff' : 'white'}>
+                        <div key={c.id} onClick={() => selectConductor(c)}
+                          style={{
+                            padding: '10px 14px', fontSize: '14px', cursor: 'pointer',
+                            background: i === conductorHighlight ? '#1d4ed8' : 'white',
+                            color: i === conductorHighlight ? 'white' : '#1e293b',
+                            fontWeight: i === conductorHighlight ? 600 : 400,
+                            borderBottom: '1px solid #f1f5f9',
+                          }}>
                           {c.nombre_completo}
                         </div>
                       ))}
@@ -364,9 +365,10 @@ const SD01View: React.FC = () => {
                   <input ref={patentePRef} type="text" value={patentePrincipal} onChange={e => handlePatentePChange(e.target.value)} onFocus={() => { if (patentePrincipal) handlePatentePChange(patentePrincipal); }} onKeyDown={handlePatentePKeyDown} placeholder="Buscar..." autoComplete="off"
                     style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
                   {showPatentePSuggestions && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '150px', overflowY: 'auto' }}>
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '2px solid #3b82f6', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10, maxHeight: '180px', overflowY: 'auto' }}>
                       {patentePSuggestions.map((p: any, i: number) => (
-                        <div key={p.id} onClick={() => selectPatenteP(p)} style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', background: i === patentePHighlight ? '#eef2ff' : 'white', borderBottom: '1px solid #f1f5f9' }}>
+                        <div key={p.id} onClick={() => selectPatenteP(p)}
+                          style={{ padding: '10px 14px', fontSize: '14px', cursor: 'pointer', background: i === patentePHighlight ? '#1d4ed8' : 'white', color: i === patentePHighlight ? 'white' : '#1e293b', fontWeight: i === patentePHighlight ? 600 : 400, borderBottom: '1px solid #f1f5f9' }}>
                           {p.numero_patente}
                         </div>
                       ))}
@@ -380,9 +382,10 @@ const SD01View: React.FC = () => {
                   <input ref={patenteARef} type="text" value={patenteAdicional} onChange={e => handlePatenteAChange(e.target.value)} onFocus={() => { if (patenteAdicional) handlePatenteAChange(patenteAdicional); }} onKeyDown={handlePatenteAKeyDown} placeholder="Buscar..." autoComplete="off"
                     style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '14px' }} />
                   {showPatenteASuggestions && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '150px', overflowY: 'auto' }}>
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '2px solid #3b82f6', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10, maxHeight: '180px', overflowY: 'auto' }}>
                       {patenteASuggestions.map((p: any, i: number) => (
-                        <div key={p.id} onClick={() => selectPatenteA(p)} style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', background: i === patenteAHighlight ? '#eef2ff' : 'white', borderBottom: '1px solid #f1f5f9' }}>
+                        <div key={p.id} onClick={() => selectPatenteA(p)}
+                          style={{ padding: '10px 14px', fontSize: '14px', cursor: 'pointer', background: i === patenteAHighlight ? '#1d4ed8' : 'white', color: i === patenteAHighlight ? 'white' : '#1e293b', fontWeight: i === patenteAHighlight ? 600 : 400, borderBottom: '1px solid #f1f5f9' }}>
                           {p.numero_patente}
                         </div>
                       ))}
