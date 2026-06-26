@@ -93,6 +93,9 @@ const SD01View: React.FC = () => {
   const patentePRef = useRef<HTMLInputElement>(null);
   const patenteARef = useRef<HTMLInputElement>(null);
 
+  // Flag para evitar generar ID duplicado
+  const [ultimoIdGenerado, setUltimoIdGenerado] = useState<string>('');
+
   useEffect(() => {
     cargarLocales();
     cargarDatosIniciales();
@@ -131,11 +134,9 @@ const SD01View: React.FC = () => {
       if (data) {
         const enriquecidos = [];
         for (const d of data) {
-          // Obtener locales
           const respLoc = await fetch(API_URL + '/sd01_documento_locales?select=id&documento_id=eq.' + d.id_documento, { headers: HEADERS });
           const locData = await respLoc.json();
 
-          // Obtener conductor
           const conductorData = conductores.find((c: any) => c.id === d.conductor_id);
           const patenteData = patentes.find((p: any) => p.id === d.patente_principal_id);
           const patenteAData = patentes.find((p: any) => p.id === d.patente_adicional_id);
@@ -157,6 +158,32 @@ const SD01View: React.FC = () => {
       console.error('Error cargando transportes:', e);
     }
     setCargando(false);
+  };
+
+  // ============ GENERAR ID ÚNICO ============
+  const generarIdDocumento = async (): Promise<string> => {
+    const now = new Date();
+    const fecha = String(now.getDate()).padStart(2, '0') + 
+                  String(now.getMonth() + 1).padStart(2, '0') + 
+                  now.getFullYear();
+    
+    // Obtener el último ID para el día actual
+    const resp = await fetch(
+      `${API_URL}/sd01_documentos?select=id_documento&id_documento=like.SD01-${fecha}-%&order=id_documento.desc&limit=1`,
+      { headers: HEADERS }
+    );
+    const data = await resp.json();
+    
+    let count = 1;
+    if (data && data.length > 0) {
+      const lastId = data[0].id_documento;
+      const match = lastId.match(/-(\d{4})$/);
+      if (match) {
+        count = parseInt(match[1]) + 1;
+      }
+    }
+    
+    return `SD01-${fecha}-${String(count).padStart(4, '0')}`;
   };
 
   // ============ MANUAL ============
@@ -199,7 +226,23 @@ const SD01View: React.FC = () => {
   };
 
   const handleConductorKeyDown = (e: React.KeyboardEvent) => {
-    if (!showConductorSuggestions || conductorSuggestions.length === 0) return;
+    if (e.key === 'Tab' && showConductorSuggestions && conductorSuggestions.length > 0) {
+      e.preventDefault();
+      const i = conductorHighlight >= 0 ? conductorHighlight : 0;
+      if (conductorSuggestions[i]) {
+        selectConductor(conductorSuggestions[i]);
+        return;
+      }
+    }
+    
+    if (!showConductorSuggestions || conductorSuggestions.length === 0) {
+      if (e.key === 'Tab') {
+        // Permitir tab normal si no hay sugerencias
+        return;
+      }
+      return;
+    }
+    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setConductorHighlight(p => p < conductorSuggestions.length - 1 ? p + 1 : 0);
@@ -221,7 +264,8 @@ const SD01View: React.FC = () => {
     setConductorId(c.id);
     setShowConductorSuggestions(false);
     setConductorHighlight(-1);
-    setTimeout(() => patentePRef.current?.focus(), 100);
+    // Enfocar siguiente campo después de la selección
+    setTimeout(() => patentePRef.current?.focus(), 50);
   };
 
   // Patente P autocomplete
@@ -235,7 +279,20 @@ const SD01View: React.FC = () => {
   };
 
   const handlePatentePKeyDown = (e: React.KeyboardEvent) => {
-    if (!showPatentePSuggestions || patentePSuggestions.length === 0) return;
+    if (e.key === 'Tab' && showPatentePSuggestions && patentePSuggestions.length > 0) {
+      e.preventDefault();
+      const i = patentePHighlight >= 0 ? patentePHighlight : 0;
+      if (patentePSuggestions[i]) {
+        selectPatenteP(patentePSuggestions[i]);
+        return;
+      }
+    }
+    
+    if (!showPatentePSuggestions || patentePSuggestions.length === 0) {
+      if (e.key === 'Tab') return;
+      return;
+    }
+    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setPatentePHighlight(p => p < patentePSuggestions.length - 1 ? p + 1 : 0);
@@ -257,7 +314,7 @@ const SD01View: React.FC = () => {
     setPatentePrincipalId(p.id);
     setShowPatentePSuggestions(false);
     setPatentePHighlight(-1);
-    setTimeout(() => patenteARef.current?.focus(), 100);
+    setTimeout(() => patenteARef.current?.focus(), 50);
   };
 
   // Patente A autocomplete
@@ -271,7 +328,20 @@ const SD01View: React.FC = () => {
   };
 
   const handlePatenteAKeyDown = (e: React.KeyboardEvent) => {
-    if (!showPatenteASuggestions || patenteASuggestions.length === 0) return;
+    if (e.key === 'Tab' && showPatenteASuggestions && patenteASuggestions.length > 0) {
+      e.preventDefault();
+      const i = patenteAHighlight >= 0 ? patenteAHighlight : 0;
+      if (patenteASuggestions[i]) {
+        selectPatenteA(patenteASuggestions[i]);
+        return;
+      }
+    }
+    
+    if (!showPatenteASuggestions || patenteASuggestions.length === 0) {
+      if (e.key === 'Tab') return;
+      return;
+    }
+    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setPatenteAHighlight(p => p < patenteASuggestions.length - 1 ? p + 1 : 0);
@@ -322,12 +392,10 @@ const SD01View: React.FC = () => {
     setGuardando(true);
     try {
       const user = auth.getUsuario();
-      const now = new Date();
-      const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
-      const respCount = await fetch(API_URL + '/sd01_documentos?select=id&order=creado_en.desc&limit=1', { headers: HEADERS });
-      const countData = await respCount.json();
-      const count = (countData?.length || 0) + 1;
-      const idDocumento = 'SD01-' + fecha + '-' + String(count).padStart(4, '0');
+      
+      // Generar ID único usando la función
+      const idDocumento = await generarIdDocumento();
+      console.log('ID generado:', idDocumento);
 
       const body = {
         id_documento: idDocumento,
@@ -351,6 +419,7 @@ const SD01View: React.FC = () => {
 
       if (!resp.ok) {
         const errorText = await resp.text();
+        console.error('Error response:', errorText);
         throw new Error('Error al crear transporte: ' + errorText);
       }
 
@@ -445,7 +514,6 @@ const SD01View: React.FC = () => {
     try {
       console.log('Guardando edición:', data);
 
-      // Actualizar documento
       await fetch(`${API_URL}/sd01_documentos?id_documento=eq.${data.id_documento}`, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -536,7 +604,6 @@ const SD01View: React.FC = () => {
         const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }) as any[][];
         console.log('Filas leídas:', sheet.length);
 
-        // Agrupar por transporte (separados por filas vacías)
         const transportesAgrupados: any[][] = [];
         let grupoActual: any[] = [];
 
@@ -555,7 +622,6 @@ const SD01View: React.FC = () => {
 
         console.log('Grupos encontrados:', transportesAgrupados.length);
 
-        // Procesar cada grupo (transporte)
         const vista: any[] = [];
         for (const grupo of transportesAgrupados) {
           if (grupo.length < 2) continue;
@@ -651,12 +717,7 @@ const SD01View: React.FC = () => {
           continue;
         }
 
-        const now = new Date();
-        const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
-        const respCount = await fetch(API_URL + '/sd01_documentos?select=id&order=creado_en.desc&limit=1', { headers: HEADERS });
-        const countData = await respCount.json();
-        const count = (countData?.length || 0) + 1;
-        const idDocumento = 'SD01-' + fecha + '-' + String(count).padStart(4, '0');
+        const idDocumento = await generarIdDocumento();
 
         await fetch(API_URL + '/sd01_documentos', {
           method: 'POST',
@@ -880,7 +941,7 @@ const SD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* MODAL CREAR MANUAL - Solo mostramos la parte clave, el resto es igual */}
+      {/* MODAL CREAR MANUAL */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '800px', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
@@ -1183,7 +1244,7 @@ const SD01View: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL EXCEL - Igual que antes */}
+      {/* MODAL EXCEL */}
       {showExcelModal && (
         <div className="ed01-modal-overlay" onClick={() => !procesandoExcel && setShowExcelModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '700px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
