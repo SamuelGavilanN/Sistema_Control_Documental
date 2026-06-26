@@ -47,8 +47,11 @@ const SD01View: React.FC = () => {
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [fechaProgramacion, setFechaProgramacion] = useState('');
   const [conductor, setConductor] = useState('');
+  const [conductorId, setConductorId] = useState<string | null>(null);
   const [patentePrincipal, setPatentePrincipal] = useState('');
+  const [patentePrincipalId, setPatentePrincipalId] = useState<string | null>(null);
   const [patenteAdicional, setPatenteAdicional] = useState('');
+  const [patenteAdicionalId, setPatenteAdicionalId] = useState<string | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [locales, setLocales] = useState<LocalRow[]>([
     { id: 1, codigoLocal: '', nombreLocal: '', fechaEntrega: '', horaEntrega: '' }
@@ -93,7 +96,6 @@ const SD01View: React.FC = () => {
   useEffect(() => {
     cargarLocales();
     cargarDatosIniciales();
-    cargarTransportes();
   }, []);
 
   useEffect(() => {
@@ -110,11 +112,14 @@ const SD01View: React.FC = () => {
       const conductoresData = await respCond.json();
       setConductores((conductoresData || []).map((c: any) => ({
         ...c,
-        nombre_completo: c.nombre + ' ' + c.apellido
+        nombre_completo: (c.nombre || '') + ' ' + (c.apellido || '')
       })));
-      setPatentes(await respPat.json() || []);
+      const patentesData = await respPat.json();
+      setPatentes(patentesData || []);
+      await cargarTransportes();
     } catch (e) {
       console.error('Error cargando datos iniciales:', e);
+      await cargarTransportes();
     }
   };
 
@@ -126,17 +131,24 @@ const SD01View: React.FC = () => {
       if (data) {
         const enriquecidos = [];
         for (const d of data) {
+          // Obtener locales
           const respLoc = await fetch(API_URL + '/sd01_documento_locales?select=id&documento_id=eq.' + d.id_documento, { headers: HEADERS });
           const locData = await respLoc.json();
+
+          // Obtener conductor
           const conductorData = conductores.find((c: any) => c.id === d.conductor_id);
           const patenteData = patentes.find((p: any) => p.id === d.patente_principal_id);
           const patenteAData = patentes.find((p: any) => p.id === d.patente_adicional_id);
+
           enriquecidos.push({
             ...d,
-            nombre_conductor: conductorData?.nombre_completo || '-',
+            nombre_conductor: conductorData?.nombre_completo || (conductorData?.nombre ? conductorData.nombre + ' ' + conductorData.apellido : '-'),
             numero_patente: patenteData?.numero_patente || '-',
             patente_adicional: patenteAData?.numero_patente || '-',
             total_locales: locData?.length || 0,
+            conductor_obj: conductorData || null,
+            patente_obj: patenteData || null,
+            patente_adicional_obj: patenteAData || null,
           });
         }
         setTransportes(enriquecidos);
@@ -179,6 +191,7 @@ const SD01View: React.FC = () => {
   // Conductor autocomplete
   const handleConductorChange = (v: string) => {
     setConductor(v);
+    setConductorId(null);
     const f = filterStartsWith(conductores, 'nombre_completo', v);
     setConductorSuggestions(f);
     setShowConductorSuggestions(f.length > 0);
@@ -197,12 +210,6 @@ const SD01View: React.FC = () => {
       e.preventDefault();
       const i = conductorHighlight >= 0 ? conductorHighlight : 0;
       if (conductorSuggestions[i]) selectConductor(conductorSuggestions[i]);
-    } else if (e.key === 'Tab') {
-      if (conductor.trim()) {
-        e.preventDefault();
-        const i = conductorHighlight >= 0 ? conductorHighlight : 0;
-        if (conductorSuggestions[i]) selectConductor(conductorSuggestions[i]);
-      }
     } else if (e.key === 'Escape') {
       setShowConductorSuggestions(false);
       setConductorHighlight(-1);
@@ -211,6 +218,7 @@ const SD01View: React.FC = () => {
 
   const selectConductor = (c: any) => {
     setConductor(c.nombre_completo || '');
+    setConductorId(c.id);
     setShowConductorSuggestions(false);
     setConductorHighlight(-1);
     setTimeout(() => patentePRef.current?.focus(), 100);
@@ -219,6 +227,7 @@ const SD01View: React.FC = () => {
   // Patente P autocomplete
   const handlePatentePChange = (v: string) => {
     setPatentePrincipal(v);
+    setPatentePrincipalId(null);
     const f = filterStartsWith(patentes, 'numero_patente', v);
     setPatentePSuggestions(f);
     setShowPatentePSuggestions(f.length > 0);
@@ -237,12 +246,6 @@ const SD01View: React.FC = () => {
       e.preventDefault();
       const i = patentePHighlight >= 0 ? patentePHighlight : 0;
       if (patentePSuggestions[i]) selectPatenteP(patentePSuggestions[i]);
-    } else if (e.key === 'Tab') {
-      if (patentePrincipal.trim()) {
-        e.preventDefault();
-        const i = patentePHighlight >= 0 ? patentePHighlight : 0;
-        if (patentePSuggestions[i]) selectPatenteP(patentePSuggestions[i]);
-      }
     } else if (e.key === 'Escape') {
       setShowPatentePSuggestions(false);
       setPatentePHighlight(-1);
@@ -251,6 +254,7 @@ const SD01View: React.FC = () => {
 
   const selectPatenteP = (p: any) => {
     setPatentePrincipal(p.numero_patente || '');
+    setPatentePrincipalId(p.id);
     setShowPatentePSuggestions(false);
     setPatentePHighlight(-1);
     setTimeout(() => patenteARef.current?.focus(), 100);
@@ -259,6 +263,7 @@ const SD01View: React.FC = () => {
   // Patente A autocomplete
   const handlePatenteAChange = (v: string) => {
     setPatenteAdicional(v);
+    setPatenteAdicionalId(null);
     const f = filterStartsWith(patentes, 'numero_patente', v);
     setPatenteASuggestions(f);
     setShowPatenteASuggestions(f.length > 0);
@@ -277,12 +282,6 @@ const SD01View: React.FC = () => {
       e.preventDefault();
       const i = patenteAHighlight >= 0 ? patenteAHighlight : 0;
       if (patenteASuggestions[i]) selectPatenteA(patenteASuggestions[i]);
-    } else if (e.key === 'Tab') {
-      if (patenteAdicional.trim()) {
-        e.preventDefault();
-        const i = patenteAHighlight >= 0 ? patenteAHighlight : 0;
-        if (patenteASuggestions[i]) selectPatenteA(patenteASuggestions[i]);
-      }
     } else if (e.key === 'Escape') {
       setShowPatenteASuggestions(false);
       setPatenteAHighlight(-1);
@@ -291,6 +290,7 @@ const SD01View: React.FC = () => {
 
   const selectPatenteA = (p: any) => {
     setPatenteAdicional(p.numero_patente || '');
+    setPatenteAdicionalId(p.id);
     setShowPatenteASuggestions(false);
     setPatenteAHighlight(-1);
   };
@@ -302,13 +302,13 @@ const SD01View: React.FC = () => {
       setTipoMensaje('error');
       return;
     }
-    if (!conductor) {
-      setMensaje('Selecciona un conductor');
+    if (!conductorId) {
+      setMensaje('Selecciona un conductor válido de la lista');
       setTipoMensaje('error');
       return;
     }
-    if (!patentePrincipal) {
-      setMensaje('Selecciona patente principal');
+    if (!patentePrincipalId) {
+      setMensaje('Selecciona una patente principal válida de la lista');
       setTipoMensaje('error');
       return;
     }
@@ -322,9 +322,6 @@ const SD01View: React.FC = () => {
     setGuardando(true);
     try {
       const user = auth.getUsuario();
-      const conductorData = conductores.find((c: any) => c.nombre_completo === conductor);
-      const patentePData = patentes.find((p: any) => p.numero_patente === patentePrincipal);
-      const patenteSData = patentes.find((p: any) => p.numero_patente === patenteAdicional);
       const now = new Date();
       const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
       const respCount = await fetch(API_URL + '/sd01_documentos?select=id&order=creado_en.desc&limit=1', { headers: HEADERS });
@@ -332,22 +329,32 @@ const SD01View: React.FC = () => {
       const count = (countData?.length || 0) + 1;
       const idDocumento = 'SD01-' + fecha + '-' + String(count).padStart(4, '0');
 
-      await fetch(API_URL + '/sd01_documentos', {
+      const body = {
+        id_documento: idDocumento,
+        conductor_id: conductorId,
+        patente_principal_id: patentePrincipalId,
+        patente_adicional_id: patenteAdicionalId || null,
+        fecha_programacion: fechaProgramacion,
+        observaciones: observaciones || '',
+        estado: estado,
+        creado_por: user?.id,
+        creado_en: new Date().toISOString(),
+      };
+
+      console.log('Guardando transporte:', body);
+
+      const resp = await fetch(API_URL + '/sd01_documentos', {
         method: 'POST',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_documento: idDocumento,
-          conductor_id: conductorData?.id || null,
-          patente_principal_id: patentePData?.id || null,
-          patente_adicional_id: patenteSData?.id || null,
-          fecha_programacion: fechaProgramacion,
-          administrativo: (user?.nombre || '') + ' ' + (user?.apellido || ''),
-          observaciones: observaciones,
-          estado: estado,
-          creado_por: user?.id,
-        }),
+        body: JSON.stringify(body),
       });
 
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error('Error al crear transporte: ' + errorText);
+      }
+
+      // Guardar locales
       for (const loc of localesValidos) {
         await fetch(API_URL + '/sd01_documento_locales', {
           method: 'POST',
@@ -374,6 +381,7 @@ const SD01View: React.FC = () => {
       }, 1500);
       cargarTransportes();
     } catch (e: any) {
+      console.error('Error guardando:', e);
       setMensaje('Error: ' + e.message);
       setTipoMensaje('error');
     } finally {
@@ -384,8 +392,11 @@ const SD01View: React.FC = () => {
   const limpiarFormulario = () => {
     setFechaProgramacion('');
     setConductor('');
+    setConductorId(null);
     setPatentePrincipal('');
+    setPatentePrincipalId(null);
     setPatenteAdicional('');
+    setPatenteAdicionalId(null);
     setObservaciones('');
     setLocales([{ id: 1, codigoLocal: '', nombreLocal: '', fechaEntrega: '', horaEntrega: '' }]);
   };
@@ -432,6 +443,8 @@ const SD01View: React.FC = () => {
 
   const handleGuardarEdicion = async (data: any) => {
     try {
+      console.log('Guardando edición:', data);
+
       // Actualizar documento
       await fetch(`${API_URL}/sd01_documentos?id_documento=eq.${data.id_documento}`, {
         method: 'PATCH',
@@ -440,8 +453,8 @@ const SD01View: React.FC = () => {
           fecha_programacion: data.fecha_programacion,
           conductor_id: data.conductor_id,
           patente_principal_id: data.patente_principal_id,
-          patente_adicional_id: data.patente_adicional_id,
-          observaciones: data.observaciones,
+          patente_adicional_id: data.patente_adicional_id || null,
+          observaciones: data.observaciones || '',
           modificado_por: auth.getUsuario()?.id,
           modificado_en: new Date().toISOString(),
         }),
@@ -477,6 +490,7 @@ const SD01View: React.FC = () => {
       setTipoMensaje('success');
       setTimeout(() => setMensaje(''), 3000);
     } catch (error: any) {
+      console.error('Error en edición:', error);
       setMensaje('Error: ' + error.message);
       setTipoMensaje('error');
     }
@@ -501,6 +515,7 @@ const SD01View: React.FC = () => {
       setTipoMensaje('success');
       setTimeout(() => setMensaje(''), 3000);
     } catch (error: any) {
+      console.error('Error en cancelación:', error);
       setMensaje('Error: ' + error.message);
       setTipoMensaje('error');
     }
@@ -543,7 +558,7 @@ const SD01View: React.FC = () => {
         // Procesar cada grupo (transporte)
         const vista: any[] = [];
         for (const grupo of transportesAgrupados) {
-          if (grupo.length < 2) continue; // Necesita al menos encabezado + 1 fila
+          if (grupo.length < 2) continue;
 
           const headerRow = grupo[0];
           const colCodTi = headerRow.findIndex((h: any) => {
@@ -615,6 +630,7 @@ const SD01View: React.FC = () => {
     try {
       const user = auth.getUsuario();
       let creados = 0;
+      let errores = 0;
 
       for (const t of vistaPrevia) {
         const conductorData = conductores.find((c: any) =>
@@ -623,6 +639,17 @@ const SD01View: React.FC = () => {
         const patenteData = patentes.find((p: any) =>
           p.numero_patente?.toUpperCase() === t.patente.toUpperCase()
         );
+
+        if (!conductorData) {
+          console.warn('Conductor no encontrado:', t.conductor);
+          errores++;
+          continue;
+        }
+        if (!patenteData) {
+          console.warn('Patente no encontrada:', t.patente);
+          errores++;
+          continue;
+        }
 
         const now = new Date();
         const fecha = String(now.getDate()).padStart(2, '0') + String(now.getMonth() + 1).padStart(2, '0') + now.getFullYear();
@@ -636,12 +663,13 @@ const SD01View: React.FC = () => {
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id_documento: idDocumento,
-            conductor_id: conductorData?.id || null,
-            patente_principal_id: patenteData?.id || null,
+            conductor_id: conductorData.id,
+            patente_principal_id: patenteData.id,
             fecha_programacion: new Date().toISOString().split('T')[0],
-            administrativo: (user?.nombre || '') + ' ' + (user?.apellido || ''),
+            observaciones: '',
             estado: 'Pendiente',
             creado_por: user?.id,
+            creado_en: new Date().toISOString(),
           }),
         });
 
@@ -664,7 +692,7 @@ const SD01View: React.FC = () => {
         creados++;
       }
 
-      setMensajeExcel('✅ ' + creados + ' transporte(s) creado(s) correctamente');
+      setMensajeExcel('✅ ' + creados + ' transporte(s) creado(s). ' + (errores > 0 ? '⚠️ ' + errores + ' con errores.' : ''));
       setTimeout(() => {
         setShowExcelModal(false);
         setVistaPrevia([]);
@@ -692,7 +720,6 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Verificar si se puede editar/cancelar según estado
   const puedeEditar = (estado: string) => {
     return estado !== 'Finalizado' && estado !== 'Cancelado';
   };
@@ -711,6 +738,7 @@ const SD01View: React.FC = () => {
             onClick={() => {
               limpiarFormulario();
               setShowCrearModal(true);
+              setTimeout(() => conductorRef.current?.focus(), 100);
             }}
           >
             + Nuevo Transporte
@@ -731,7 +759,6 @@ const SD01View: React.FC = () => {
         </div>
       </div>
 
-      {/* Mensaje de feedback */}
       {mensaje && (
         <div style={{
           marginBottom: '16px',
@@ -779,9 +806,9 @@ const SD01View: React.FC = () => {
                     <td>
                       {t.fecha_programacion ? new Date(t.fecha_programacion + 'T00:00:00').toLocaleDateString('es-CL') : '-'}
                     </td>
-                    <td>{t.nombre_conductor}</td>
-                    <td>{t.numero_patente}</td>
-                    <td style={{ textAlign: 'center' }}>{t.total_locales}</td>
+                    <td>{t.nombre_conductor || '-'}</td>
+                    <td>{t.numero_patente || '-'}</td>
+                    <td style={{ textAlign: 'center' }}>{t.total_locales || 0}</td>
                     <td>
                       <span style={{
                         padding: '3px 10px',
@@ -853,7 +880,7 @@ const SD01View: React.FC = () => {
         </table>
       </div>
 
-      {/* MODAL CREAR MANUAL */}
+      {/* MODAL CREAR MANUAL - Solo mostramos la parte clave, el resto es igual */}
       {showCrearModal && (
         <div className="ed01-modal-overlay" onClick={() => !guardando && setShowCrearModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '800px', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
@@ -875,7 +902,6 @@ const SD01View: React.FC = () => {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                {/* Conductor */}
                 <div style={{ position: 'relative' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                     Conductor *
@@ -926,7 +952,6 @@ const SD01View: React.FC = () => {
                   )}
                 </div>
 
-                {/* Patente Principal */}
                 <div style={{ position: 'relative' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                     Patente Principal *
@@ -977,7 +1002,6 @@ const SD01View: React.FC = () => {
                   )}
                 </div>
 
-                {/* Patente Adicional */}
                 <div style={{ position: 'relative' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                     Patente Adicional
@@ -1159,7 +1183,7 @@ const SD01View: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL EXCEL */}
+      {/* MODAL EXCEL - Igual que antes */}
       {showExcelModal && (
         <div className="ed01-modal-overlay" onClick={() => !procesandoExcel && setShowExcelModal(false)}>
           <div className="ed01-modal" style={{ maxWidth: '700px', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
@@ -1223,7 +1247,6 @@ const SD01View: React.FC = () => {
                 </button>
               )}
 
-              {/* Vista previa */}
               {vistaPrevia.length > 0 && (
                 <div style={{ marginBottom: '12px' }}>
                   <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
