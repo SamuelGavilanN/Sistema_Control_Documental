@@ -9,10 +9,20 @@ import SD01EditarModal from './SD01EditarModal';
 import SD01CancelarModal from './SD01CancelarModal';
 import './SD01.css';
 
+// Configuración de Supabase
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+const API_KEY = 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G';
+
+// HEADERS bien definidos para todas las peticiones
+const getHeaders = (includeContentType: boolean = true) => {
+  const headers: any = {
+    'apikey': API_KEY,
+    'Authorization': `Bearer ${API_KEY}`,
+  };
+  if (includeContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
 };
 
 interface LocalRow {
@@ -93,24 +103,22 @@ const SD01View: React.FC = () => {
   const patentePRef = useRef<HTMLInputElement>(null);
   const patenteARef = useRef<HTMLInputElement>(null);
 
-  // Flag para evitar generar ID duplicado
-  const [ultimoIdGenerado, setUltimoIdGenerado] = useState<string>('');
-
   useEffect(() => {
     cargarLocales();
     cargarDatosIniciales();
   }, []);
 
   useEffect(() => {
-    const intervalo = setInterval(cargarTransportes, 10000);
+    const intervalo = setInterval(cargarTransportes, 30000);
     return () => clearInterval(intervalo);
   }, []);
 
   const cargarDatosIniciales = async () => {
     try {
+      const headers = getHeaders(false);
       const [respCond, respPat] = await Promise.all([
-        fetch(API_URL + '/sd01_conductores?select=*&activo=eq.true&order=nombre,apellido', { headers: HEADERS }),
-        fetch(API_URL + '/sd01_patentes?select=*&activo=eq.true&order=numero_patente', { headers: HEADERS }),
+        fetch(`${API_URL}/sd01_conductores?select=*&activo=eq.true&order=nombre,apellido`, { headers }),
+        fetch(`${API_URL}/sd01_patentes?select=*&activo=eq.true&order=numero_patente`, { headers }),
       ]);
       const conductoresData = await respCond.json();
       setConductores((conductoresData || []).map((c: any) => ({
@@ -129,12 +137,18 @@ const SD01View: React.FC = () => {
   const cargarTransportes = async () => {
     setCargando(true);
     try {
-      const resp = await fetch(API_URL + '/sd01_documentos?select=*&order=creado_en.desc', { headers: HEADERS });
+      const headers = getHeaders(false);
+      const resp = await fetch(`${API_URL}/sd01_documentos?select=*&order=creado_en.desc`, { headers });
+      
+      if (!resp.ok) {
+        throw new Error(`Error ${resp.status}: ${resp.statusText}`);
+      }
+      
       const data = await resp.json();
-      if (data) {
+      if (data && Array.isArray(data)) {
         const enriquecidos = [];
         for (const d of data) {
-          const respLoc = await fetch(API_URL + '/sd01_documento_locales?select=id&documento_id=eq.' + d.id_documento, { headers: HEADERS });
+          const respLoc = await fetch(`${API_URL}/sd01_documento_locales?select=id&documento_id=eq.${d.id_documento}`, { headers });
           const locData = await respLoc.json();
 
           const conductorData = conductores.find((c: any) => c.id === d.conductor_id);
@@ -156,6 +170,8 @@ const SD01View: React.FC = () => {
       }
     } catch (e) {
       console.error('Error cargando transportes:', e);
+      setMensaje('Error al cargar transportes: ' + (e instanceof Error ? e.message : 'Error desconocido'));
+      setTipoMensaje('error');
     }
     setCargando(false);
   };
@@ -167,23 +183,33 @@ const SD01View: React.FC = () => {
                   String(now.getMonth() + 1).padStart(2, '0') + 
                   now.getFullYear();
     
-    // Obtener el último ID para el día actual
-    const resp = await fetch(
-      `${API_URL}/sd01_documentos?select=id_documento&id_documento=like.SD01-${fecha}-%&order=id_documento.desc&limit=1`,
-      { headers: HEADERS }
-    );
-    const data = await resp.json();
-    
-    let count = 1;
-    if (data && data.length > 0) {
-      const lastId = data[0].id_documento;
-      const match = lastId.match(/-(\d{4})$/);
-      if (match) {
-        count = parseInt(match[1]) + 1;
+    try {
+      const headers = getHeaders(false);
+      const resp = await fetch(
+        `${API_URL}/sd01_documentos?select=id_documento&id_documento=like.SD01-${fecha}-%&order=id_documento.desc&limit=1`,
+        { headers }
+      );
+      
+      if (!resp.ok) {
+        console.warn('No se pudo obtener el último ID, usando contador por defecto');
+        return `SD01-${fecha}-0001`;
       }
+      
+      const data = await resp.json();
+      let count = 1;
+      if (data && data.length > 0) {
+        const lastId = data[0].id_documento;
+        const match = lastId.match(/-(\d{4})$/);
+        if (match) {
+          count = parseInt(match[1]) + 1;
+        }
+      }
+      
+      return `SD01-${fecha}-${String(count).padStart(4, '0')}`;
+    } catch (e) {
+      console.warn('Error generando ID, usando contador por defecto:', e);
+      return `SD01-${fecha}-0001`;
     }
-    
-    return `SD01-${fecha}-${String(count).padStart(4, '0')}`;
   };
 
   // ============ MANUAL ============
@@ -236,10 +262,6 @@ const SD01View: React.FC = () => {
     }
     
     if (!showConductorSuggestions || conductorSuggestions.length === 0) {
-      if (e.key === 'Tab') {
-        // Permitir tab normal si no hay sugerencias
-        return;
-      }
       return;
     }
     
@@ -264,7 +286,6 @@ const SD01View: React.FC = () => {
     setConductorId(c.id);
     setShowConductorSuggestions(false);
     setConductorHighlight(-1);
-    // Enfocar siguiente campo después de la selección
     setTimeout(() => patentePRef.current?.focus(), 50);
   };
 
@@ -289,7 +310,6 @@ const SD01View: React.FC = () => {
     }
     
     if (!showPatentePSuggestions || patentePSuggestions.length === 0) {
-      if (e.key === 'Tab') return;
       return;
     }
     
@@ -338,7 +358,6 @@ const SD01View: React.FC = () => {
     }
     
     if (!showPatenteASuggestions || patenteASuggestions.length === 0) {
-      if (e.key === 'Tab') return;
       return;
     }
     
@@ -392,8 +411,6 @@ const SD01View: React.FC = () => {
     setGuardando(true);
     try {
       const user = auth.getUsuario();
-      
-      // Generar ID único usando la función
       const idDocumento = await generarIdDocumento();
       console.log('ID generado:', idDocumento);
 
@@ -411,23 +428,24 @@ const SD01View: React.FC = () => {
 
       console.log('Guardando transporte:', body);
 
-      const resp = await fetch(API_URL + '/sd01_documentos', {
+      const headers = getHeaders(true);
+      const resp = await fetch(`${API_URL}/sd01_documentos`, {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
       });
 
       if (!resp.ok) {
         const errorText = await resp.text();
         console.error('Error response:', errorText);
-        throw new Error('Error al crear transporte: ' + errorText);
+        throw new Error(`Error al crear transporte: ${resp.status} - ${errorText}`);
       }
 
       // Guardar locales
       for (const loc of localesValidos) {
-        await fetch(API_URL + '/sd01_documento_locales', {
+        await fetch(`${API_URL}/sd01_documento_locales`, {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          headers: getHeaders(true),
           body: JSON.stringify({
             documento_id: idDocumento,
             codigo_local: loc.codigoLocal,
@@ -441,7 +459,7 @@ const SD01View: React.FC = () => {
         });
       }
 
-      setMensaje('✅ Transporte ' + idDocumento + ' creado');
+      setMensaje(`✅ Transporte ${idDocumento} creado`);
       setTipoMensaje('success');
       setTimeout(() => {
         setShowCrearModal(false);
@@ -474,9 +492,10 @@ const SD01View: React.FC = () => {
   const handleVer = async (transporte: any) => {
     setTransporteSeleccionado(transporte);
     try {
+      const headers = getHeaders(false);
       const resp = await fetch(
         `${API_URL}/sd01_documento_locales?select=*&documento_id=eq.${transporte.id_documento}`,
-        { headers: HEADERS }
+        { headers }
       );
       const data = await resp.json();
       setLocalesSeleccionados(data || []);
@@ -491,9 +510,10 @@ const SD01View: React.FC = () => {
   const handleEditar = async (transporte: any) => {
     setTransporteSeleccionado(transporte);
     try {
+      const headers = getHeaders(false);
       const resp = await fetch(
         `${API_URL}/sd01_documento_locales?select=*&documento_id=eq.${transporte.id_documento}`,
-        { headers: HEADERS }
+        { headers }
       );
       const data = await resp.json();
       setLocalesSeleccionados(data || []);
@@ -514,9 +534,10 @@ const SD01View: React.FC = () => {
     try {
       console.log('Guardando edición:', data);
 
+      const headers = getHeaders(true);
       await fetch(`${API_URL}/sd01_documentos?id_documento=eq.${data.id_documento}`, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           fecha_programacion: data.fecha_programacion,
           conductor_id: data.conductor_id,
@@ -531,14 +552,14 @@ const SD01View: React.FC = () => {
       // Eliminar locales existentes
       await fetch(`${API_URL}/sd01_documento_locales?documento_id=eq.${data.id_documento}`, {
         method: 'DELETE',
-        headers: HEADERS,
+        headers: getHeaders(false),
       });
 
       // Insertar nuevos locales
       for (const loc of data.locales) {
         await fetch(`${API_URL}/sd01_documento_locales`, {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          headers: getHeaders(true),
           body: JSON.stringify({
             documento_id: data.id_documento,
             codigo_local: loc.codigoLocal,
@@ -566,9 +587,10 @@ const SD01View: React.FC = () => {
 
   const handleConfirmarCancelacion = async (motivo: string) => {
     try {
+      const headers = getHeaders(true);
       await fetch(`${API_URL}/sd01_documentos?id_documento=eq.${transporteSeleccionado.id_documento}`, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           estado: 'Cancelado',
           motivo_cancelacion: motivo,
@@ -675,7 +697,7 @@ const SD01View: React.FC = () => {
         if (vista.length === 0) {
           setMensajeExcel('⚠️ No se encontraron transportes válidos. Verifica el formato del archivo.');
         } else {
-          setMensajeExcel('✅ ' + vista.length + ' transporte(s) encontrado(s)');
+          setMensajeExcel(`✅ ${vista.length} transporte(s) encontrado(s)`);
         }
       } catch (error: any) {
         setMensajeExcel('Error al procesar archivo: ' + error.message);
@@ -718,10 +740,11 @@ const SD01View: React.FC = () => {
         }
 
         const idDocumento = await generarIdDocumento();
+        const headers = getHeaders(true);
 
-        await fetch(API_URL + '/sd01_documentos', {
+        await fetch(`${API_URL}/sd01_documentos`, {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             id_documento: idDocumento,
             conductor_id: conductorData.id,
@@ -735,9 +758,9 @@ const SD01View: React.FC = () => {
         });
 
         for (const loc of t.locales) {
-          await fetch(API_URL + '/sd01_documento_locales', {
+          await fetch(`${API_URL}/sd01_documento_locales`, {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
               documento_id: idDocumento,
               codigo_local: loc.codigo,
@@ -753,7 +776,7 @@ const SD01View: React.FC = () => {
         creados++;
       }
 
-      setMensajeExcel('✅ ' + creados + ' transporte(s) creado(s). ' + (errores > 0 ? '⚠️ ' + errores + ' con errores.' : ''));
+      setMensajeExcel(`✅ ${creados} transporte(s) creado(s). ${errores > 0 ? `⚠️ ${errores} con errores.` : ''}`);
       setTimeout(() => {
         setShowExcelModal(false);
         setVistaPrevia([]);
@@ -950,6 +973,7 @@ const SD01View: React.FC = () => {
               <button className="ed01-modal-close" onClick={() => setShowCrearModal(false)}>×</button>
             </div>
             <div className="ed01-modal-body">
+              {/* El contenido del modal es igual al anterior */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                   Fecha Programación *
@@ -1362,7 +1386,7 @@ const SD01View: React.FC = () => {
                   onClick={guardarTransportesExcel}
                   disabled={procesandoExcel}
                 >
-                  {procesandoExcel ? 'Creando...' : 'Crear ' + vistaPrevia.length + ' Transportes'}
+                  {procesandoExcel ? 'Creando...' : `Crear ${vistaPrevia.length} Transportes`}
                 </button>
               )}
             </div>
