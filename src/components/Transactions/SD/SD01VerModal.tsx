@@ -19,7 +19,9 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
   onEditar,
   onCancelar
 }) => {
-  if (!isOpen || !transporte) return null;
+  if (!isOpen || !transporte) {
+    return null;
+  }
 
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
@@ -35,13 +37,17 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
 
   const formatDate = (date: string | null) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('es-CL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(date).toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
   };
 
   const estadoInfo = getEstadoBadge(transporte.estado);
@@ -54,7 +60,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
       <div className="ed01-modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
         <div className="ed01-modal-header">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {transporte.id_documento}
+            {transporte.id_documento || 'Sin ID'}
             <span style={{
               padding: '4px 12px',
               borderRadius: '12px',
@@ -101,7 +107,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
               <div>
                 <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Administrativo</label>
                 <p style={{ fontSize: '14px', fontWeight: 500, color: '#1e293b' }}>
-                  {transporte.nombre_administrativo || 'Sin asignar'}
+                  {transporte.administrativo || 'Sin asignar'}
                 </p>
               </div>
               <div>
@@ -153,7 +159,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
                     <tr><td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>Sin locales asignados</td></tr>
                   ) : (
                     locales.map((loc: any) => (
-                      <tr key={loc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <tr key={loc.id || Math.random()} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 600, color: '#1d4ed8' }}>{loc.codigo_local}</td>
                         <td style={{ padding: '8px 12px' }}>{loc.nombre_local}</td>
                         <td style={{ padding: '8px 12px' }}>
@@ -182,7 +188,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
 
           {/* Metadata */}
           <div style={{ fontSize: '11px', color: '#94a3b8', borderTop: '1px solid #eef0f5', paddingTop: '12px' }}>
-            <span>Creado: {new Date(transporte.creado_en).toLocaleString('es-CL')}</span>
+            <span>Creado: {transporte.creado_en ? new Date(transporte.creado_en).toLocaleString('es-CL') : '-'}</span>
             {transporte.modificado_en && (
               <span> · Modificado: {new Date(transporte.modificado_en).toLocaleString('es-CL')}</span>
             )}
