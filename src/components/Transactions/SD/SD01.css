@@ -4,6 +4,9 @@
   background: white;
   border-radius: 12px;
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .sd01-header {
@@ -11,6 +14,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .sd01-header h2 {
@@ -36,4 +41,299 @@
 
 .sd01-btn-nueva:hover {
   background: #2d3748;
+}
+
+/* Estilos de los modales - reutilizamos los de ED01 */
+.ed01-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ed01-modal {
+  background: white;
+  border-radius: 16px;
+  width: 95%;
+  max-width: 550px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.ed01-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eef0f5;
+  flex-shrink: 0;
+}
+
+.ed01-modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.ed01-modal-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 20px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ed01-modal-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.ed01-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ed01-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #eef0f5;
+  flex-shrink: 0;
+}
+
+.ed01-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.ed01-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.ed01-field input,
+.ed01-field textarea,
+.ed01-field select {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  font-family: inherit;
+  transition: all 0.15s;
+  background: white;
+}
+
+.ed01-field input:focus,
+.ed01-field textarea:focus,
+.ed01-field select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.ed01-field input:disabled,
+.ed01-field textarea:disabled {
+  background: #f8fafd;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.ed01-field small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.ed01-row {
+  display: flex;
+  gap: 16px;
+}
+
+.ed01-row .ed01-field {
+  flex: 1;
+}
+
+.ed01-btn-cancel {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ed01-btn-cancel:hover {
+  background: #f8fafd;
+}
+
+.ed01-btn-save {
+  padding: 10px 20px;
+  background: #1a1f2e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ed01-btn-save:hover {
+  background: #2d3748;
+}
+
+/* Botones específicos para SD */
+.rd01-btn-editar {
+  padding: 5px 12px;
+  background: #b45309;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.rd01-btn-editar:hover {
+  background: #92400e;
+}
+
+.rd01-btn-eliminar {
+  padding: 5px 12px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.rd01-btn-eliminar:hover {
+  background: #b91c1c;
+}
+
+/* Tabla */
+.ed03-tabla-container {
+  border: 1px solid #eef0f5;
+  border-radius: 8px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.ed03-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 900px;
+}
+
+.ed03-tabla th {
+  background: #fafcff;
+  padding: 10px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #64748b;
+  text-align: left;
+  border-bottom: 1px solid #eef0f5;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.ed03-tabla td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ed03-tabla tr:hover {
+  background: #f8fafd;
+}
+
+.ed03-ticket-id {
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sd01-view {
+    padding: 12px;
+  }
+
+  .sd01-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sd01-btn-nueva {
+    justify-content: center;
+  }
+
+  .ed01-modal {
+    max-width: 95%;
+  }
+
+  .ed01-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .ed01-modal-body {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sd01-view {
+    padding: 8px;
+  }
+
+  .ed03-tabla {
+    font-size: 11px;
+    min-width: 700px;
+  }
+
+  .ed03-tabla th,
+  .ed03-tabla td {
+    padding: 6px 8px;
+  }
+
+  .ed01-modal-header h2 {
+    font-size: 16px;
+  }
+
+  .ed01-field input,
+  .ed01-field textarea,
+  .ed01-field select {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
 }
