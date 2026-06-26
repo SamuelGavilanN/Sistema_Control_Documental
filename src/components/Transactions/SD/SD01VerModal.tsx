@@ -1,8 +1,6 @@
 // src/components/Transactions/SD/SD01VerModal.tsx
 
 import React from 'react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 interface SD01VerModalProps {
   isOpen: boolean;
@@ -138,7 +136,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
           {/* Locales */}
           <div style={{ marginBottom: '16px' }}>
             <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-              📍 Locales ({transporte.total_locales || 0})
+              📍 Locales ({locales?.length || 0})
             </h4>
             <div style={{ border: '1px solid #eef0f5', borderRadius: '8px', overflow: 'auto', maxHeight: '200px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -151,7 +149,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {locales.length === 0 ? (
+                  {!locales || locales.length === 0 ? (
                     <tr><td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>Sin locales asignados</td></tr>
                   ) : (
                     locales.map((loc: any) => (
@@ -184,8 +182,7 @@ const SD01VerModal: React.FC<SD01VerModalProps> = ({
 
           {/* Metadata */}
           <div style={{ fontSize: '11px', color: '#94a3b8', borderTop: '1px solid #eef0f5', paddingTop: '12px' }}>
-            <span>Creado por: {transporte.creado_por_nombre || '-'} · </span>
-            <span>{new Date(transporte.creado_en).toLocaleString('es-CL')}</span>
+            <span>Creado: {new Date(transporte.creado_en).toLocaleString('es-CL')}</span>
             {transporte.modificado_en && (
               <span> · Modificado: {new Date(transporte.modificado_en).toLocaleString('es-CL')}</span>
             )}
