@@ -48,8 +48,11 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 }) => {
   const [fechaProgramacion, setFechaProgramacion] = useState('');
   const [conductor, setConductor] = useState('');
+  const [conductorId, setConductorId] = useState<string | null>(null);
   const [patentePrincipal, setPatentePrincipal] = useState('');
+  const [patentePrincipalId, setPatentePrincipalId] = useState<string | null>(null);
   const [patenteAdicional, setPatenteAdicional] = useState('');
+  const [patenteAdicionalId, setPatenteAdicionalId] = useState<string | null>(null);
   const [observaciones, setObservaciones] = useState('');
   const [locales, setLocales] = useState<LocalRow[]>([]);
   const [guardando, setGuardando] = useState(false);
@@ -71,12 +74,51 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
   const patentePRef = useRef<HTMLInputElement>(null);
   const patenteARef = useRef<HTMLInputElement>(null);
 
+  // Cargar datos al abrir el modal
   useEffect(() => {
     if (isOpen && transporte) {
+      console.log('Cargando datos para editar:', transporte);
+
+      // Fecha
       setFechaProgramacion(transporte.fecha_programacion || '');
-      setConductor(transporte.nombre_conductor || '');
-      setPatentePrincipal(transporte.numero_patente || '');
-      setPatenteAdicional(transporte.patente_adicional || '');
+
+      // Conductor
+      if (transporte.conductor_obj) {
+        setConductor(transporte.conductor_obj.nombre_completo || transporte.conductor_obj.nombre + ' ' + transporte.conductor_obj.apellido);
+        setConductorId(transporte.conductor_obj.id);
+      } else if (transporte.conductor_id) {
+        // Buscar en la lista de conductores
+        const found = conductores.find((c: any) => c.id === transporte.conductor_id);
+        if (found) {
+          setConductor(found.nombre_completo || found.nombre + ' ' + found.apellido);
+          setConductorId(found.id);
+        }
+      }
+
+      // Patente Principal
+      if (transporte.patente_obj) {
+        setPatentePrincipal(transporte.patente_obj.numero_patente || '');
+        setPatentePrincipalId(transporte.patente_obj.id);
+      } else if (transporte.patente_principal_id) {
+        const found = patentes.find((p: any) => p.id === transporte.patente_principal_id);
+        if (found) {
+          setPatentePrincipal(found.numero_patente || '');
+          setPatentePrincipalId(found.id);
+        }
+      }
+
+      // Patente Adicional
+      if (transporte.patente_adicional_obj) {
+        setPatenteAdicional(transporte.patente_adicional_obj.numero_patente || '');
+        setPatenteAdicionalId(transporte.patente_adicional_obj.id);
+      } else if (transporte.patente_adicional_id) {
+        const found = patentes.find((p: any) => p.id === transporte.patente_adicional_id);
+        if (found) {
+          setPatenteAdicional(found.numero_patente || '');
+          setPatenteAdicionalId(found.id);
+        }
+      }
+
       setObservaciones(transporte.observaciones || '');
 
       // Cargar locales
@@ -92,7 +134,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
         setLocales([{ id: 1, codigoLocal: '', nombreLocal: '', fechaEntrega: '', horaEntrega: '' }]);
       }
     }
-  }, [isOpen, transporte, localesAsignados]);
+  }, [isOpen, transporte, localesAsignados, conductores, patentes]);
 
   const addLocal = () => {
     const newId = Math.max(...locales.map(l => l.id), 0) + 1;
@@ -124,6 +166,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
   const handleConductorChange = (v: string) => {
     setConductor(v);
+    setConductorId(null);
     const f = filterStartsWith(conductores, 'nombre_completo', v);
     setConductorSuggestions(f);
     setShowConductorSuggestions(f.length > 0);
@@ -150,6 +193,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
   const selectConductor = (c: any) => {
     setConductor(c.nombre_completo || '');
+    setConductorId(c.id);
     setShowConductorSuggestions(false);
     setConductorHighlight(-1);
     setTimeout(() => patentePRef.current?.focus(), 100);
@@ -157,6 +201,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
   const handlePatentePChange = (v: string) => {
     setPatentePrincipal(v);
+    setPatentePrincipalId(null);
     const f = filterStartsWith(patentes, 'numero_patente', v);
     setPatentePSuggestions(f);
     setShowPatentePSuggestions(f.length > 0);
@@ -183,6 +228,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
   const selectPatenteP = (p: any) => {
     setPatentePrincipal(p.numero_patente || '');
+    setPatentePrincipalId(p.id);
     setShowPatentePSuggestions(false);
     setPatentePHighlight(-1);
     setTimeout(() => patenteARef.current?.focus(), 100);
@@ -190,6 +236,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
   const handlePatenteAChange = (v: string) => {
     setPatenteAdicional(v);
+    setPatenteAdicionalId(null);
     const f = filterStartsWith(patentes, 'numero_patente', v);
     setPatenteASuggestions(f);
     setShowPatenteASuggestions(f.length > 0);
@@ -216,6 +263,7 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
   const selectPatenteA = (p: any) => {
     setPatenteAdicional(p.numero_patente || '');
+    setPatenteAdicionalId(p.id);
     setShowPatenteASuggestions(false);
     setPatenteAHighlight(-1);
   };
@@ -226,13 +274,13 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
       setTipoMensaje('error');
       return;
     }
-    if (!conductor) {
-      setMensaje('Selecciona un conductor');
+    if (!conductorId) {
+      setMensaje('Selecciona un conductor válido de la lista');
       setTipoMensaje('error');
       return;
     }
-    if (!patentePrincipal) {
-      setMensaje('Selecciona patente principal');
+    if (!patentePrincipalId) {
+      setMensaje('Selecciona una patente principal válida de la lista');
       setTipoMensaje('error');
       return;
     }
@@ -245,20 +293,17 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
 
     setGuardando(true);
     try {
-      const conductorData = conductores.find((c: any) => c.nombre_completo === conductor);
-      const patentePData = patentes.find((p: any) => p.numero_patente === patentePrincipal);
-      const patenteAData = patentes.find((p: any) => p.numero_patente === patenteAdicional);
-
       const data = {
         id_documento: transporte.id_documento,
         fecha_programacion: fechaProgramacion,
-        conductor_id: conductorData?.id || null,
-        patente_principal_id: patentePData?.id || null,
-        patente_adicional_id: patenteAData?.id || null,
+        conductor_id: conductorId,
+        patente_principal_id: patentePrincipalId,
+        patente_adicional_id: patenteAdicionalId || null,
         observaciones: observaciones,
         locales: localesValidos,
       };
 
+      console.log('Enviando datos de edición:', data);
       onGuardar(data);
     } catch (error: any) {
       setMensaje('Error: ' + error.message);
