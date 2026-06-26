@@ -40,7 +40,7 @@ const SD01CancelarModal: React.FC<SD01CancelarModalProps> = ({
         <div className="ed01-modal-body">
           <div style={{ marginBottom: '16px' }}>
             <p style={{ fontSize: '14px', color: '#475569' }}>
-              ¿Estás seguro de cancelar el transporte <strong>{transporte.id_documento}</strong>?
+              ¿Estás seguro de cancelar el transporte <strong>{transporte.id_documento || 'Sin ID'}</strong>?
             </p>
             <p style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
               Conductor: {transporte.nombre_conductor || '-'} · Patente: {transporte.numero_patente || '-'}
