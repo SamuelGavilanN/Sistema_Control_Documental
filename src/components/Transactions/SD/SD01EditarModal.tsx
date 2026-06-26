@@ -117,7 +117,6 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
     }));
   };
 
-  // Autocomplete helpers
   const filterStartsWith = (list: any[], field: string, search: string) => {
     if (!search) return [];
     return list.filter((item: any) => String(item[field] || '').toLowerCase().startsWith(search.toLowerCase()));
@@ -156,7 +155,6 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
     setTimeout(() => patentePRef.current?.focus(), 100);
   };
 
-  // Similar para patentes...
   const handlePatentePChange = (v: string) => {
     setPatentePrincipal(v);
     const f = filterStartsWith(patentes, 'numero_patente', v);
@@ -294,7 +292,6 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-            {/* Conductor */}
             <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                 Conductor *
@@ -345,7 +342,6 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
               )}
             </div>
 
-            {/* Patente Principal */}
             <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                 Patente Principal *
@@ -396,7 +392,6 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
               )}
             </div>
 
-            {/* Patente Adicional */}
             <div style={{ position: 'relative' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                 Patente Adicional
@@ -448,7 +443,6 @@ const SD01EditarModal: React.FC<SD01EditarModalProps> = ({
             </div>
           </div>
 
-          {/* Locales */}
           <div style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Locales *</label>
