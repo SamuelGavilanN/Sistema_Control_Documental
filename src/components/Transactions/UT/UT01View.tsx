@@ -33,10 +33,11 @@ const UT01View: React.FC = () => {
 
     let etiquetasHTML = '';
 
-    for (let i = inicio; i <= fin; i++) {
+    // Generar de mayor a menor para que al enrollar quede la más baja al inicio
+    for (let i = fin; i >= inicio; i--) {
       const numero = String(i).padStart(digitos, '0');
       const valorCompleto = prefijo + numero;
-      const qrSize = esHorizontal ? 180 : 200;
+      const qrSize = esHorizontal ? 200 : 250;
       const qr = await QRCode.toDataURL(valorCompleto, { width: qrSize, margin: 2 });
 
       etiquetasHTML += `
@@ -164,7 +165,7 @@ const UT01View: React.FC = () => {
   );
 };
 
-// CSS Horizontal (100mm × 50mm) - Con márgenes internos
+// CSS Horizontal (100mm × 50mm)
 const cssHorizontal = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -224,7 +225,7 @@ body {
 }
 `;
 
-// CSS Vertical (50mm × 100mm) - Con márgenes internos
+// CSS Vertical (50mm × 100mm)
 const cssVertical = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
