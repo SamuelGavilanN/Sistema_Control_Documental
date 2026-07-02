@@ -49,7 +49,11 @@ const SD02AsignadorMovil: React.FC = () => {
           const locales = await respLocales.json();
 
           let conductorNombre = '';
+          let conductorRut = '';
+          let conductorTelefono = '';
+          let conductorEmpresa = '';
           let patenteNumero = '';
+          let patenteTipo = '';
 
           if (transporte.conductor_id) {
             try {
@@ -60,6 +64,9 @@ const SD02AsignadorMovil: React.FC = () => {
               const conductorData = await respConductor.json();
               if (conductorData && conductorData.length > 0) {
                 conductorNombre = conductorData[0].nombre + ' ' + conductorData[0].apellido;
+                conductorRut = conductorData[0].numero_documento || '';
+                conductorTelefono = conductorData[0].telefono || '';
+                conductorEmpresa = conductorData[0].empresa || '';
               }
             } catch (e) {}
           }
@@ -73,6 +80,7 @@ const SD02AsignadorMovil: React.FC = () => {
               const patenteData = await respPatente.json();
               if (patenteData && patenteData.length > 0) {
                 patenteNumero = patenteData[0].numero_patente;
+                patenteTipo = patenteData[0].tipo_vehiculo || '';
               }
             } catch (e) {}
           }
@@ -81,7 +89,11 @@ const SD02AsignadorMovil: React.FC = () => {
             ...transporte,
             locales: locales || [],
             conductor_nombre: conductorNombre,
-            patente_numero: patenteNumero
+            conductor_rut: conductorRut,
+            conductor_telefono: conductorTelefono,
+            conductor_empresa: conductorEmpresa,
+            patente_numero: patenteNumero,
+            patente_tipo: patenteTipo
           };
         }));
         setTransportes(transportesConDetalles);
@@ -116,11 +128,13 @@ const SD02AsignadorMovil: React.FC = () => {
     const filtrados = transportes.filter((t: any) => {
       const conductor = t.conductor_nombre.toLowerCase();
       const patente = t.patente_numero.toLowerCase();
-      const locales = t.locales.map((l: any) => l.codigo_local.toLowerCase() + ' ' + l.nombre_local.toLowerCase()).join(' ');
+      const localesNombres = t.locales.map((l: any) => 
+        l.codigo_local.toLowerCase() + ' ' + (l.nombre_local || '').toLowerCase()
+      ).join(' ');
       
       return conductor.includes(termino) || 
              patente.includes(termino) || 
-             locales.includes(termino);
+             localesNombres.includes(termino);
     });
 
     setTransportesFiltrados(filtrados);
@@ -231,8 +245,8 @@ const SD02AsignadorMovil: React.FC = () => {
               <div className="sd02-card-header">
                 <span className="sd02-card-id">{transporte.id_documento}</span>
                 <span className="sd02-card-estado" style={{
-                  color: '#b45309',
-                  background: '#fef3c7'
+                  color: 'var(--estado-pendiente-text)',
+                  background: 'var(--estado-pendiente-bg)'
                 }}>
                   Pendiente
                 </span>
@@ -253,7 +267,9 @@ const SD02AsignadorMovil: React.FC = () => {
                 {transporte.locales.length > 0 && (
                   <div className="sd02-card-locales">
                     {transporte.locales.slice(0, 3).map((local: any, idx: number) => (
-                      <span key={idx} className="sd02-card-local-badge">{local.codigo_local}</span>
+                      <span key={idx} className="sd02-card-local-badge">
+                        {local.codigo_local} {local.nombre_local ? '- ' + local.nombre_local : ''}
+                      </span>
                     ))}
                     {transporte.locales.length > 3 && (
                       <span className="sd02-card-local-badge">+{transporte.locales.length - 3}</span>
@@ -295,8 +311,32 @@ const SD02AsignadorMovil: React.FC = () => {
                   </div>
                   <div className="sd02-modal-info-item">
                     <span className="sd02-modal-info-label">Estado</span>
-                    <span className="sd02-modal-info-value" style={{ color: '#b45309', fontWeight: 600 }}>Pendiente</span>
+                    <span className="sd02-modal-info-value" style={{ color: 'var(--estado-pendiente-text)', fontWeight: 600 }}>Pendiente</span>
                   </div>
+                  {transporteSeleccionado.conductor_rut && (
+                    <div className="sd02-modal-info-item">
+                      <span className="sd02-modal-info-label">RUT Conductor</span>
+                      <span className="sd02-modal-info-value">{transporteSeleccionado.conductor_rut}</span>
+                    </div>
+                  )}
+                  {transporteSeleccionado.conductor_telefono && (
+                    <div className="sd02-modal-info-item">
+                      <span className="sd02-modal-info-label">Teléfono</span>
+                      <span className="sd02-modal-info-value">{transporteSeleccionado.conductor_telefono}</span>
+                    </div>
+                  )}
+                  {transporteSeleccionado.conductor_empresa && (
+                    <div className="sd02-modal-info-item">
+                      <span className="sd02-modal-info-label">Transportista</span>
+                      <span className="sd02-modal-info-value">{transporteSeleccionado.conductor_empresa}</span>
+                    </div>
+                  )}
+                  {transporteSeleccionado.patente_tipo && (
+                    <div className="sd02-modal-info-item">
+                      <span className="sd02-modal-info-label">Tipo Vehículo</span>
+                      <span className="sd02-modal-info-value">{transporteSeleccionado.patente_tipo}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -307,10 +347,14 @@ const SD02AsignadorMovil: React.FC = () => {
                 <div className="sd02-modal-locales-list">
                   {transporteSeleccionado.locales.map((local: any, idx: number) => (
                     <div key={idx} className="sd02-modal-local-item">
-                      <span className="sd02-modal-local-code">{local.codigo_local}</span>
-                      <span className="sd02-modal-local-name">{local.nombre_local || '-'}</span>
+                      <div>
+                        <span className="sd02-modal-local-code">{local.codigo_local}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                          {local.nombre_local || ''}
+                        </span>
+                      </div>
                       <span className="sd02-modal-local-date">
-                        {formatearFecha(local.fecha_entrega)}
+                        {formatearFecha(local.fecha_entrega)} {local.hora_entrega || ''}
                       </span>
                     </div>
                   ))}
