@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../../lib/auth';
 import SD01CrearTransporte from './SD01CrearTransporte';
+import SD01VerTransporte from './SD01VerTransporte';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -17,6 +18,8 @@ const SD01View: React.FC = () => {
   const [transporteSeleccionado, setTransporteSeleccionado]: any = useState(null);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
   const [mostrarCrearTransporte, setMostrarCrearTransporte]: any = useState(false);
+  const [mostrarEditarTransporte, setMostrarEditarTransporte]: any = useState(false);
+  const [mostrarVerTransporte, setMostrarVerTransporte]: any = useState(false);
   const [usuariosAdmin, setUsuariosAdmin]: any = useState([]);
   const [mostrarAsignarModal, setMostrarAsignarModal]: any = useState(false);
   const [usuarioAsignar, setUsuarioAsignar]: any = useState('');
@@ -122,6 +125,13 @@ const SD01View: React.FC = () => {
     mostrarMensaje('success', 'Transporte creado exitosamente');
   };
 
+  const handleTransporteEditado = () => {
+    setMostrarEditarTransporte(false);
+    setTransporteSeleccionado(null);
+    cargarTransportes();
+    mostrarMensaje('success', 'Transporte editado exitosamente');
+  };
+
   const handleCargarTransporte = () => {
     mostrarMensaje('info', 'Funcionalidad de carga masiva en desarrollo');
   };
@@ -135,7 +145,7 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'No se puede editar un transporte Cancelado o Finalizado');
       return;
     }
-    mostrarMensaje('info', 'Modal de edición en desarrollo');
+    setMostrarEditarTransporte(true);
   };
 
   const handleCancelarTransporte = async () => {
@@ -151,7 +161,19 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'No se puede cancelar un transporte finalizado');
       return;
     }
-    if (!window.confirm('¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?')) return;
+
+    const motivo = window.prompt(
+      '¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\n' +
+      'Por favor, ingrese el motivo de la cancelación:'
+    );
+
+    if (motivo === null) return;
+
+    if (!motivo.trim()) {
+      mostrarMensaje('warning', 'Debe ingresar un motivo para cancelar el transporte');
+      return;
+    }
+
     try {
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
         method: 'PATCH',
@@ -159,6 +181,7 @@ const SD01View: React.FC = () => {
         body: JSON.stringify({
           estado: 'Cancelado',
           cancelado_en: new Date().toISOString(),
+          observaciones: 'Cancelado: ' + motivo.trim(),
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
           modificado_en: new Date().toISOString()
         })
@@ -176,64 +199,7 @@ const SD01View: React.FC = () => {
       mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
       return;
     }
-    mostrarMensaje('info', 'Modal de visualización en desarrollo');
-  };
-
-  const handleIniciarTransporte = async () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden iniciar transportes en estado Pendiente');
-      return;
-    }
-    try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'En Proceso',
-          iniciado_en: new Date().toISOString(),
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte iniciado exitosamente');
-      setTransporteSeleccionado(null);
-      cargarTransportes();
-    } catch (e) {
-      mostrarMensaje('error', 'Error al iniciar transporte');
-    }
-  };
-
-  const handleFinalizarTransporte = async () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'En Proceso') {
-      mostrarMensaje('error', 'Solo se pueden finalizar transportes en estado En Proceso');
-      return;
-    }
-    if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporteSeleccionado.id_documento + '?')) return;
-    try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Finalizado',
-          finalizado_en: new Date().toISOString(),
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte finalizado exitosamente');
-      setTransporteSeleccionado(null);
-      cargarTransportes();
-    } catch (e) {
-      mostrarMensaje('error', 'Error al finalizar transporte');
-    }
+    setMostrarVerTransporte(true);
   };
 
   const handleAsignarTransporte = () => {
@@ -398,28 +364,6 @@ const SD01View: React.FC = () => {
           Ver
         </button>
 
-        <button 
-          className="sd01-btn" 
-          onClick={handleIniciarTransporte}
-          disabled={!transporteSeleccionado}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 2L13 8L3 14V2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Iniciar
-        </button>
-
-        <button 
-          className="sd01-btn" 
-          onClick={handleFinalizarTransporte}
-          disabled={!transporteSeleccionado}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M13.3337 4L6.00033 11.3333L2.66699 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Finalizar
-        </button>
-
         <div className="sd01-separator"></div>
 
         <button 
@@ -527,6 +471,21 @@ const SD01View: React.FC = () => {
         <SD01CrearTransporte
           onClose={() => setMostrarCrearTransporte(false)}
           onTransporteCreado={handleTransporteCreado}
+        />
+      )}
+
+      {mostrarEditarTransporte && (
+        <SD01CrearTransporte
+          onClose={() => setMostrarEditarTransporte(false)}
+          onTransporteCreado={handleTransporteEditado}
+          transporteEditar={transporteSeleccionado}
+        />
+      )}
+
+      {mostrarVerTransporte && (
+        <SD01VerTransporte
+          onClose={() => setMostrarVerTransporte(false)}
+          transporte={transporteSeleccionado}
         />
       )}
 
