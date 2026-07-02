@@ -1,3 +1,5 @@
+// src/components/Transactions/ED/ED02Dashboard.tsx
+
 import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -6,7 +8,10 @@ import {
 import './ED02Dashboard.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
+const HEADERS: any = { 
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' 
+};
 
 interface FiltrosDashboard {
   usuario: string;
@@ -15,17 +20,17 @@ interface FiltrosDashboard {
 }
 
 const ED02Dashboard: React.FC = () => {
-  const [filtros, setFiltros] = useState<FiltrosDashboard>({ usuario: '', desde: '', hasta: '' });
-  const [datosLinea, setDatosLinea] = useState<any[]>([]);
-  const [datosBarra, setDatosBarra] = useState<any[]>([]);
-  const [usuarios, setUsuarios] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [filtros, setFiltros]: any = useState({ usuario: '', desde: '', hasta: '' });
+  const [datosLinea, setDatosLinea]: any = useState([]);
+  const [datosBarra, setDatosBarra]: any = useState([]);
+  const [usuarios, setUsuarios]: any = useState([]);
+  const [cargando, setCargando]: any = useState(true);
 
   useEffect(() => { cargarUsuarios(); cargarDatos(); }, []);
 
   const cargarUsuarios = async () => {
     try {
-      const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
+      const resp = await fetch(API_URL + '/usuarios?select=id,nombre,apellido', { headers: HEADERS });
       const data = await resp.json();
       if (data) setUsuarios(data);
     } catch (e) {}
@@ -34,17 +39,15 @@ const ED02Dashboard: React.FC = () => {
   const cargarDatos = async () => {
     setCargando(true);
     try {
-      // Solo mostrar registros con estado Finalizado
-      let url = `${API_URL}/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc`;
-      if (filtros.usuario) url += `&creado_por=eq.${filtros.usuario}`;
-      if (filtros.desde) url += `&creado_en=gte.${filtros.desde}`;
-      if (filtros.hasta) url += `&creado_en=lte.${filtros.hasta}T23:59:59`;
+      let url = API_URL + '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc';
+      if (filtros.usuario) url += '&creado_por=eq.' + filtros.usuario;
+      if (filtros.desde) url += '&creado_en=gte.' + filtros.desde;
+      if (filtros.hasta) url += '&creado_en=lte.' + filtros.hasta + 'T23:59:59';
       
       const resp = await fetch(url, { headers: HEADERS });
       const data = await resp.json();
       
       if (data) {
-        // Datos para gráfico de línea: cada empaque como punto
         const puntosLinea = data.map((reg: any) => ({
           fechaHora: new Date(reg.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
           timestamp: new Date(reg.creado_en).getTime(),
@@ -54,7 +57,6 @@ const ED02Dashboard: React.FC = () => {
         }));
         setDatosLinea(puntosLinea);
 
-        // Datos para gráfico de barras: agrupado por día
         const agrupado: Record<string, any> = {};
         data.forEach((reg: any) => {
           const dia = new Date(reg.creado_en).toLocaleDateString('es-CL');
@@ -68,8 +70,8 @@ const ED02Dashboard: React.FC = () => {
     setCargando(false);
   };
 
-  const totalTareas = datosBarra.reduce((s, d) => s + d.tareas, 0);
-  const totalBultos = datosBarra.reduce((s, d) => s + d.bultos, 0);
+  const totalTareas = datosBarra.reduce((s: number, d: any) => s + d.tareas, 0);
+  const totalBultos = datosBarra.reduce((s: number, d: any) => s + d.bultos, 0);
 
   return (
     <div className="ed02-view">
@@ -78,7 +80,7 @@ const ED02Dashboard: React.FC = () => {
       <div className="ed02-filtros">
         <select value={filtros.usuario} onChange={e => setFiltros({ ...filtros, usuario: e.target.value })}>
           <option value="">Todos los usuarios</option>
-          {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
+          {usuarios.map((u: any) => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
         </select>
         <input type="date" value={filtros.desde} onChange={e => setFiltros({ ...filtros, desde: e.target.value })} />
         <input type="date" value={filtros.hasta} onChange={e => setFiltros({ ...filtros, hasta: e.target.value })} />
@@ -94,10 +96,10 @@ const ED02Dashboard: React.FC = () => {
         <h3>Flujo de Empaques por Fecha y Hora</h3>
         <ResponsiveContainer width="100%" height={350}>
           <LineChart data={datosLinea} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-            <XAxis dataKey="fechaHora" stroke="#64748b" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
-            <Tooltip labelFormatter={(label) => `Fecha: ${label}`} formatter={(value: any) => [value, 'Bultos']} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <XAxis dataKey="fechaHora" stroke="var(--text-muted)" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
+            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+            <Tooltip labelFormatter={(label: any) => 'Fecha: ' + label} formatter={(value: any) => [value, 'Bultos']} />
             <Legend />
             <Line type="monotone" dataKey="bultos" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} name="Bultos por empaque" />
           </LineChart>
@@ -108,9 +110,9 @@ const ED02Dashboard: React.FC = () => {
         <h3>Tareas y Bultos por Dia</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={datosBarra}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-            <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <XAxis dataKey="dia" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="tareas" fill="#3b82f6" radius={[4,4,0,0]} name="Tareas" />
@@ -123,9 +125,9 @@ const ED02Dashboard: React.FC = () => {
         <table className="ed02-tabla">
           <thead><tr><th>Dia</th><th>Tareas</th><th>Bultos</th></tr></thead>
           <tbody>
-            {cargando ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
-              datosBarra.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>Sin datos</td></tr> :
-              datosBarra.map((d, i) => <tr key={i}><td>{d.dia}</td><td>{d.tareas}</td><td>{d.bultos}</td></tr>)
+            {cargando ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Cargando...</td></tr> :
+              datosBarra.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Sin datos</td></tr> :
+              datosBarra.map((d: any, i: number) => <tr key={i}><td>{d.dia}</td><td>{d.tareas}</td><td>{d.bultos}</td></tr>)
             }
           </tbody>
         </table>
