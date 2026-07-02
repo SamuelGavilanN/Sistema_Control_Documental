@@ -44,7 +44,7 @@ const SD01View: React.FC = () => {
           
           if (transporte.conductor_id) {
             try {
-              const respConductor = await fetch(API_URL + '/sd01_conductores?select=nombre,apellido&id=eq.' + transporte.conductor_id, { headers: HEADERS });
+              const respConductor = await fetch(API_URL + '/conductores?select=nombre,apellido&id=eq.' + transporte.conductor_id, { headers: HEADERS });
               const conductorData = await respConductor.json();
               if (conductorData && conductorData.length > 0) {
                 conductorNombre = conductorData[0].nombre + ' ' + conductorData[0].apellido;
@@ -54,7 +54,7 @@ const SD01View: React.FC = () => {
           
           if (transporte.patente_principal_id) {
             try {
-              const respPatente = await fetch(API_URL + '/sd01_patentes?select=numero_patente&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
+              const respPatente = await fetch(API_URL + '/patentes?select=numero_patente&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
               const patenteData = await respPatente.json();
               if (patenteData && patenteData.length > 0) {
                 patenteNumero = patenteData[0].numero_patente;
