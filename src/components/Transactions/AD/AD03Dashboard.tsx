@@ -11,22 +11,9 @@ import { auth } from '../../../lib/auth';
 import './AD03.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
+const HEADERS: any = { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' };
 
 const COLORS = ['#15803d', '#dc2626', '#b45309'];
-
-interface TareaPorcentaje {
-  id: string;
-  numero_tarea: string;
-  codigo_local: string;
-  nombre_local: string;
-  estado: string;
-  totalSAP: number;
-  totalFisico: number;
-  diferenciaAbsoluta: number;
-  porcentajeDif: number;
-  creado_en: string;
-}
 
 const formatNum = (num: number): string => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -36,11 +23,11 @@ const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
+      <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
         <p style={{ fontWeight: 600, color: '#1d4ed8', margin: '0 0 4px' }}>{data.name}</p>
-        <p style={{ margin: '0 0 2px', color: '#475569' }}>Local: {data.local}</p>
-        <p style={{ margin: '0 0 2px', color: '#475569' }}>SAP: {formatNum(data.sap)} | Físico: {formatNum(data.fisico)}</p>
-        <p style={{ margin: '0', fontWeight: 700, color: data.y === 0 ? '#15803d' : data.y <= 5 ? '#b45309' : '#dc2626' }}>{data.y}%</p>
+        <p style={{ margin: '0 0 2px', color: 'var(--text-secondary)' }}>Local: {data.local}</p>
+        <p style={{ margin: '0 0 2px', color: 'var(--text-secondary)' }}>SAP: {formatNum(data.sap)} | Físico: {formatNum(data.fisico)}</p>
+        <p style={{ margin: '0', fontWeight: 700, color: data.y === 0 ? 'var(--success-text)' : data.y <= 5 ? 'var(--warning-text)' : 'var(--error-text)' }}>{data.y}%</p>
       </div>
     );
   }
@@ -50,8 +37,8 @@ const CustomScatterTooltip: React.FC<any> = ({ active, payload }: any) => {
 const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
-        <p style={{ fontWeight: 600, color: '#1e293b', margin: '0 0 4px' }}>{label}</p>
+      <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px' }}>
+        <p style={{ fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={index} style={{ margin: '2px 0', color: entry.color }}>{entry.name}: <strong>{formatNum(entry.value)}</strong></p>
         ))}
@@ -62,7 +49,7 @@ const CustomBarTooltip: React.FC<any> = ({ active, payload, label }: any) => {
 };
 
 const drawTablePDF = (
-  pdf: jsPDF, headers: string[], rows: string[][], colWidths: number[],
+  pdf: any, headers: string[], rows: string[][], colWidths: number[],
   startX: number, startY: number, pageWidth: number, margin: number,
   headerBg: number[] = [26, 31, 46], fontSize: number = 8
 ): number => {
@@ -72,20 +59,20 @@ const drawTablePDF = (
   pdf.rect(startX, y, pageWidth - margin * 2, rowHeight, 'F');
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(fontSize);
-  headers.forEach((header, i) => {
-    pdf.text(header, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0) + 2, y + 4);
+  headers.forEach((header: string, i: number) => {
+    pdf.text(header, startX + colWidths.slice(0, i).reduce((a: number, b: number) => a + b, 0) + 2, y + 4);
   });
   y += rowHeight;
   pdf.setTextColor(30, 41, 59);
   pdf.setFontSize(fontSize);
-  rows.forEach((row, rowIndex) => {
+  rows.forEach((row: string[], rowIndex: number) => {
     if (y > 275) { pdf.addPage(); y = margin; }
     if (rowIndex % 2 === 0) {
       pdf.setFillColor(248, 250, 253);
       pdf.rect(startX, y, pageWidth - margin * 2, rowHeight, 'F');
     }
-    row.forEach((cell, i) => {
-      pdf.text(String(cell), startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0) + 2, y + 4);
+    row.forEach((cell: string, i: number) => {
+      pdf.text(String(cell), startX + colWidths.slice(0, i).reduce((a: number, b: number) => a + b, 0) + 2, y + 4);
     });
     y += rowHeight;
   });
@@ -96,28 +83,28 @@ const drawTablePDF = (
 };
 
 const AD03Dashboard: React.FC = () => {
-  const [datos, setDatos] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [filtroLocal, setFiltroLocal] = useState('');
-  const [filtroDesde, setFiltroDesde] = useState('');
-  const [filtroHasta, setFiltroHasta] = useState('');
-  const [localesData, setLocalesData] = useState<{ codigo: string; nombre: string }[]>([]);
-  const [tareasPorcentaje, setTareasPorcentaje] = useState<TareaPorcentaje[]>([]);
-  const [cargandoPorcentajes, setCargandoPorcentajes] = useState(false);
-  const [showInformeModal, setShowInformeModal] = useState(false);
-  const [textoInforme, setTextoInforme] = useState('');
-  const [generandoPDF, setGenerandoPDF] = useState(false);
-  const [detalleDiferencias, setDetalleDiferencias] = useState<any[]>([]);
-  const chartBarRef = useRef<HTMLDivElement>(null);
-  const chartPieRef = useRef<HTMLDivElement>(null);
-  const chartScatterRef = useRef<HTMLDivElement>(null);
+  const [datos, setDatos]: any = useState([]);
+  const [cargando, setCargando]: any = useState(true);
+  const [filtroLocal, setFiltroLocal]: any = useState('');
+  const [filtroDesde, setFiltroDesde]: any = useState('');
+  const [filtroHasta, setFiltroHasta]: any = useState('');
+  const [localesData, setLocalesData]: any = useState([]);
+  const [tareasPorcentaje, setTareasPorcentaje]: any = useState([]);
+  const [cargandoPorcentajes, setCargandoPorcentajes]: any = useState(false);
+  const [showInformeModal, setShowInformeModal]: any = useState(false);
+  const [textoInforme, setTextoInforme]: any = useState('');
+  const [generandoPDF, setGenerandoPDF]: any = useState(false);
+  const [detalleDiferencias, setDetalleDiferencias]: any = useState([]);
+  const chartBarRef: any = useRef(null);
+  const chartPieRef: any = useRef(null);
+  const chartScatterRef: any = useRef(null);
 
   useEffect(() => { cargarLocales(); cargarDatos(); }, []);
   useEffect(() => { cargarDatos(); }, [filtroLocal, filtroDesde, filtroHasta]);
 
   const cargarLocales = async () => {
     try {
-      const resp = await fetch(`${API_URL}/ad_auditorias?select=codigo_local,nombre_local`, { headers: HEADERS });
+      const resp = await fetch(API_URL + '/ad_auditorias?select=codigo_local,nombre_local', { headers: HEADERS });
       const data = await resp.json();
       if (data) {
         const mapa = new Map<string, string>();
@@ -130,10 +117,10 @@ const AD03Dashboard: React.FC = () => {
   const cargarDatos = async () => {
     setCargando(true);
     try {
-      let url = `${API_URL}/ad_auditorias?select=*&order=creado_en.asc`;
-      if (filtroLocal) url += `&codigo_local=eq.${filtroLocal}`;
-      if (filtroDesde) url += `&creado_en=gte.${filtroDesde}`;
-      if (filtroHasta) url += `&creado_en=lte.${filtroHasta}T23:59:59`;
+      let url = API_URL + '/ad_auditorias?select=*&order=creado_en.asc';
+      if (filtroLocal) url += '&codigo_local=eq.' + filtroLocal;
+      if (filtroDesde) url += '&creado_en=gte.' + filtroDesde;
+      if (filtroHasta) url += '&creado_en=lte.' + filtroHasta + 'T23:59:59';
       const resp = await fetch(url, { headers: HEADERS });
       const data = await resp.json();
       setDatos(data || []);
@@ -144,23 +131,23 @@ const AD03Dashboard: React.FC = () => {
   const cargarPorcentajesTareas = async () => {
     setCargandoPorcentajes(true);
     try {
-      const resultados: TareaPorcentaje[] = [];
+      const resultados: any[] = [];
       const diferenciasDetalle: any[] = [];
       for (const auditoria of datos) {
-        const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=*&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
+        const respSAP = await fetch(API_URL + '/ad_datos_sap?select=*&auditoria_id=eq.' + auditoria.id, { headers: HEADERS });
         const sapData = await respSAP.json();
         const sapConsolidado: Record<string, any> = {};
         (sapData || []).forEach((s: any) => {
           if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = { sku: s.sku, denominacion: s.denominacion, cantidad_sap: 0 };
           sapConsolidado[s.sku].cantidad_sap += (s.cantidad_sap || 0);
         });
-        const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
+        const respCajas = await fetch(API_URL + '/ad_capturas_cajas?select=id&auditoria_id=eq.' + auditoria.id, { headers: HEADERS });
         const cajas = await respCajas.json();
         const cajaIds = (cajas || []).map((c: any) => c.id);
         let capturas: any[] = [];
         if (cajaIds.length > 0) {
-          const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
-          const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=*&caja_id=in.(${idsParam})`, { headers: HEADERS });
+          const idsParam = cajaIds.map((id: string) => '"' + id + '"').join(',');
+          const respCap = await fetch(API_URL + '/ad_capturas_skus?select=*&caja_id=in.(' + idsParam + ')', { headers: HEADERS });
           capturas = await respCap.json();
         }
         const fisicoConsolidado: Record<string, number> = {};
@@ -198,7 +185,7 @@ const AD03Dashboard: React.FC = () => {
     setCargandoPorcentajes(false);
   };
 
-  const [porcentajesGlobales, setPorcentajesGlobales] = useState({
+  const [porcentajesGlobales, setPorcentajesGlobales]: any = useState({
     totalUnidadesSAP: 0, totalUnidadesFisico: 0, unidadesDiferencia: 0, porcentajeDif: 0,
   });
 
@@ -214,20 +201,20 @@ const AD03Dashboard: React.FC = () => {
     try {
       let totalSAP = 0; let totalFisico = 0; let difAbsoluta = 0;
       for (const auditoria of datosFiltrados) {
-        const respSAP = await fetch(`${API_URL}/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
+        const respSAP = await fetch(API_URL + '/ad_datos_sap?select=sku,cantidad_sap&auditoria_id=eq.' + auditoria.id, { headers: HEADERS });
         const sapData = await respSAP.json();
         const sapConsolidado: Record<string, number> = {};
         (sapData || []).forEach((s: any) => {
           if (!sapConsolidado[s.sku]) sapConsolidado[s.sku] = 0;
           sapConsolidado[s.sku] += (s.cantidad_sap || 0);
         });
-        const respCajas = await fetch(`${API_URL}/ad_capturas_cajas?select=id&auditoria_id=eq.${auditoria.id}`, { headers: HEADERS });
+        const respCajas = await fetch(API_URL + '/ad_capturas_cajas?select=id&auditoria_id=eq.' + auditoria.id, { headers: HEADERS });
         const cajas = await respCajas.json();
         const cajaIds = (cajas || []).map((c: any) => c.id);
         let capturas: any[] = [];
         if (cajaIds.length > 0) {
-          const idsParam = cajaIds.map((id: string) => `"${id}"`).join(',');
-          const respCap = await fetch(`${API_URL}/ad_capturas_skus?select=sku,cantidad_fisica&caja_id=in.(${idsParam})`, { headers: HEADERS });
+          const idsParam = cajaIds.map((id: string) => '"' + id + '"').join(',');
+          const respCap = await fetch(API_URL + '/ad_capturas_skus?select=sku,cantidad_fisica&caja_id=in.(' + idsParam + ')', { headers: HEADERS });
           capturas = await respCap.json();
         }
         const fisicoConsolidado: Record<string, number> = {};
@@ -254,7 +241,7 @@ const AD03Dashboard: React.FC = () => {
   };
 
   const porDia: Record<string, any> = {};
-  datos.forEach(d => {
+  datos.forEach((d: any) => {
     const dia = new Date(d.creado_en).toLocaleDateString('es-CL');
     if (!porDia[dia]) porDia[dia] = { dia, total: 0, ok: 0, diferencias: 0 };
     porDia[dia].total++;
@@ -263,15 +250,15 @@ const AD03Dashboard: React.FC = () => {
   });
   const datosBarra = Object.values(porDia).map((d: any) => ({ ...d, porcentajeDif: d.total > 0 ? ((d.diferencias / d.total) * 100).toFixed(1) : '0' }));
   const total = datos.length;
-  const finalizadas = datos.filter(d => d.estado === 'Finalizado').length;
-  const conDiferencias = datos.filter(d => d.estado === 'Con Diferencias').length;
-  const pendientes = datos.filter(d => d.estado === 'Pendiente' || d.estado === 'En Proceso').length;
+  const finalizadas = datos.filter((d: any) => d.estado === 'Finalizado').length;
+  const conDiferencias = datos.filter((d: any) => d.estado === 'Con Diferencias').length;
+  const pendientes = datos.filter((d: any) => d.estado === 'Pendiente' || d.estado === 'En Proceso').length;
   const totalCerradas = finalizadas + conDiferencias;
   const porcentajeDiferenciasTareas = totalCerradas > 0 ? ((conDiferencias / totalCerradas) * 100).toFixed(1) : '0';
   const datosPie = [
     { name: 'OK', value: finalizadas }, { name: 'Con Diferencias', value: conDiferencias }, { name: 'Pendientes', value: pendientes },
-  ].filter(d => d.value > 0);
-  const datosScatter = tareasPorcentaje.map((t, index) => ({
+  ].filter((d: any) => d.value > 0);
+  const datosScatter = tareasPorcentaje.map((t: any, index: number) => ({
     x: index + 1, y: t.porcentajeDif, name: t.numero_tarea, local: t.codigo_local, sap: t.totalSAP, fisico: t.totalFisico,
     fill: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#f59e0b' : '#dc2626',
   }));
@@ -282,9 +269,9 @@ const AD03Dashboard: React.FC = () => {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210; const margin = 12; let yPos = margin;
       const usuario = auth.getUsuario();
-      const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario';
+      const nombreUsuario = usuario ? usuario.nombre + ' ' + usuario.apellido : 'Usuario';
       const fechaInforme = new Date().toLocaleDateString('es-CL');
-      const nombreLocal = filtroLocal ? localesData.find(l => l.codigo === filtroLocal)?.nombre || filtroLocal : 'Todos los locales';
+      const nombreLocal = filtroLocal ? localesData.find((l: any) => l.codigo === filtroLocal)?.nombre || filtroLocal : 'Todos los locales';
 
       pdf.setFillColor(26, 31, 46); pdf.rect(0, 0, pageWidth, 55, 'F');
       pdf.setFillColor(220, 38, 38); pdf.rect(0, 55, pageWidth, 3, 'F');
@@ -371,7 +358,7 @@ const AD03Dashboard: React.FC = () => {
         pdf.text('Análisis de Diferencias por Tarea', margin, yPos); yPos += 8;
         const headersTarea = ['Tarea', 'Local', 'SAP', 'Físico', 'Dif.', '% Dif.'];
         const colWidthsTarea = [38, 55, 25, 25, 22, 21];
-        const rowsTarea = tareasPorcentaje.map(t => [t.numero_tarea, t.codigo_local + ' - ' + t.nombre_local, formatNum(t.totalSAP), formatNum(t.totalFisico), formatNum(t.diferenciaAbsoluta), t.porcentajeDif + '%']);
+        const rowsTarea = tareasPorcentaje.map((t: any) => [t.numero_tarea, t.codigo_local + ' - ' + t.nombre_local, formatNum(t.totalSAP), formatNum(t.totalFisico), formatNum(t.diferenciaAbsoluta), t.porcentajeDif + '%']);
         yPos = drawTablePDF(pdf, headersTarea, rowsTarea, colWidthsTarea, margin, yPos, pageWidth, margin, [26, 31, 46], 8);
       }
       if (detalleDiferencias.length > 0) {
@@ -380,7 +367,7 @@ const AD03Dashboard: React.FC = () => {
         pdf.text('Detalle de Diferencias por SKU', margin, yPos); yPos += 8;
         const headersDif = ['Tarea', 'SKU', 'Descripción', 'SAP', 'Físico', 'Dif.', 'Est.'];
         const colWidthsDif = [35, 28, 52, 22, 22, 20, 15];
-        const rowsDif = detalleDiferencias.map(d => [d.tarea, d.sku, d.denominacion.length > 38 ? d.denominacion.substring(0, 35) + '...' : d.denominacion, formatNum(d.sap), formatNum(d.fisico), formatNum(d.diferencia), d.estado === 'Pendiente' ? 'Pend.' : d.estado === 'Con Diferencias' ? 'C/Dif.' : d.estado]);
+        const rowsDif = detalleDiferencias.map((d: any) => [d.tarea, d.sku, d.denominacion.length > 38 ? d.denominacion.substring(0, 35) + '...' : d.denominacion, formatNum(d.sap), formatNum(d.fisico), formatNum(d.diferencia), d.estado === 'Pendiente' ? 'Pend.' : d.estado === 'Con Diferencias' ? 'C/Dif.' : d.estado]);
         yPos = drawTablePDF(pdf, headersDif, rowsDif, colWidthsDif, margin, yPos, pageWidth, margin, [26, 31, 46], 7);
       }
       const totalPages = pdf.getNumberOfPages();
@@ -397,18 +384,18 @@ const AD03Dashboard: React.FC = () => {
     <div className="ad03-view">
       <div className="ad03-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Dashboard Auditoría</h2>
-        <button className="ad03-btn-aplicar" onClick={() => { setShowInformeModal(true); cargarPorcentajesTareas(); }} style={{ background: '#15803d' }}>📄 Generar Informe PDF</button>
+        <button className="ad03-btn-aplicar" onClick={() => { setShowInformeModal(true); cargarPorcentajesTareas(); }} style={{ background: '#15803d' }}>Generar Informe PDF</button>
       </div>
       <div className="ad03-filtros">
-        <select value={filtroLocal} onChange={e => setFiltroLocal(e.target.value)}>
+        <select value={filtroLocal} onChange={(e: any) => setFiltroLocal(e.target.value)}>
           <option value="">Todos los locales</option>
-          {localesData.map(l => <option key={l.codigo} value={l.codigo}>{l.codigo} - {l.nombre}</option>)}
+          {localesData.map((l: any) => <option key={l.codigo} value={l.codigo}>{l.codigo} - {l.nombre}</option>)}
         </select>
-        <input type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} placeholder="Desde" />
-        <input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} placeholder="Hasta" />
+        <input type="date" value={filtroDesde} onChange={(e: any) => setFiltroDesde(e.target.value)} placeholder="Desde" />
+        <input type="date" value={filtroHasta} onChange={(e: any) => setFiltroHasta(e.target.value)} placeholder="Hasta" />
         <button className="ad03-btn-aplicar" onClick={cargarDatos}>Aplicar Filtros</button>
         <button className="ad03-btn-aplicar" onClick={cargarPorcentajesTareas} disabled={cargandoPorcentajes} style={{ background: '#1d4ed8' }}>
-          {cargandoPorcentajes ? 'Calculando...' : '📊 Calcular % por Tarea'}
+          {cargandoPorcentajes ? 'Calculando...' : 'Calcular % por Tarea'}
         </button>
       </div>
       <div className="ad03-kpis">
@@ -417,10 +404,10 @@ const AD03Dashboard: React.FC = () => {
         <div className="ad03-kpi ad03-kpi-diff"><span>Con Diferencias</span><strong>{formatNum(conDiferencias)}</strong></div>
         <div className="ad03-kpi ad03-kpi-pend"><span>Pendientes</span><strong>{formatNum(pendientes)}</strong></div>
         <div className="ad03-kpi ad03-kpi-porc"><span>% Tareas con Dif.</span><strong>{porcentajeDiferenciasTareas}%</strong></div>
-        <div className="ad03-kpi ad03-kpi-porc" style={{ background: porcentajesGlobales.porcentajeDif > 0 ? '#fef2f2' : '#f8fafd' }}>
+        <div className="ad03-kpi ad03-kpi-porc" style={{ background: porcentajesGlobales.porcentajeDif > 0 ? 'var(--error-bg)' : 'var(--bg-card)' }}>
           <span>% Unidades con Dif.</span>
-          <strong style={{ color: porcentajesGlobales.porcentajeDif > 0 ? '#dc2626' : '#15803d' }}>{porcentajesGlobales.porcentajeDif}%</strong>
-          <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>{formatNum(porcentajesGlobales.unidadesDiferencia)} de {formatNum(porcentajesGlobales.totalUnidadesSAP)} un</small>
+          <strong style={{ color: porcentajesGlobales.porcentajeDif > 0 ? 'var(--error-text)' : 'var(--success-text)' }}>{porcentajesGlobales.porcentajeDif}%</strong>
+          <small style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>{formatNum(porcentajesGlobales.unidadesDiferencia)} de {formatNum(porcentajesGlobales.totalUnidadesSAP)} un</small>
         </div>
       </div>
       <div className="ad03-charts">
@@ -428,9 +415,9 @@ const AD03Dashboard: React.FC = () => {
           <h3>Auditorías por Día</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={datosBarra}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis dataKey="dia" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11, formatter: (val: number) => formatNum(val) }} allowDecimals={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="dia" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+              <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11, formatter: (val: number) => formatNum(val) }} allowDecimals={false} />
               <Tooltip content={<CustomBarTooltip />} /><Legend />
               <Bar dataKey="ok" fill="#15803d" radius={[4,4,0,0]} name="OK" />
               <Bar dataKey="diferencias" fill="#dc2626" radius={[4,4,0,0]} name="Con Diferencias" />
@@ -441,8 +428,8 @@ const AD03Dashboard: React.FC = () => {
           <h3>Distribución de Estados</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={datosPie} cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name}: ${formatNum(value)}`}>
-                {datosPie.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+              <Pie data={datosPie} cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value" label={({ name, value }) => name + ': ' + formatNum(value)}>
+                {datosPie.map((_: any, index: number) => <Cell key={'cell-' + index} fill={COLORS[index % COLORS.length]} />)}
               </Pie>
               <Tooltip formatter={(value: any) => formatNum(value)} /><Legend />
             </PieChart>
@@ -450,12 +437,12 @@ const AD03Dashboard: React.FC = () => {
         </div>
       </div>
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Resumen por Día</h3>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>Resumen por Día</h3>
         <table className="ed03-tabla">
           <thead><tr><th>Día</th><th>Total</th><th>OK</th><th>Diferencias</th><th>% Dif. Tareas</th></tr></thead>
           <tbody>
-            {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
-              datosBarra.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Sin datos</td></tr> :
+            {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Cargando...</td></tr> :
+              datosBarra.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Sin datos</td></tr> :
               datosBarra.map((d: any, i: number) => {
                 const cerradas = d.ok + d.diferencias; const pctTareas = cerradas > 0 ? ((d.diferencias / cerradas) * 100).toFixed(1) : '0';
                 return (<tr key={i}><td className="ed03-ticket-id">{d.dia}</td><td>{formatNum(d.total)}</td><td>{formatNum(d.ok)}</td><td style={{ color: '#dc2626', fontWeight: 600 }}>{formatNum(d.diferencias)}</td><td style={{ fontWeight: 600, color: '#dc2626' }}>{pctTareas}%</td></tr>);
@@ -464,19 +451,19 @@ const AD03Dashboard: React.FC = () => {
         </table>
       </div>
       <div className="ad03-tabla-container" style={{ marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Análisis de Diferencias por Tarea</h3>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>Análisis de Diferencias por Tarea</h3>
         <table className="ed03-tabla">
           <thead><tr><th>Tarea</th><th>Local</th><th>Estado</th><th>Total SAP</th><th>Total Físico</th><th>Dif. Absoluta</th><th>% Dif.</th><th>Fecha</th></tr></thead>
           <tbody>
             {tareasPorcentaje.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>{cargandoPorcentajes ? 'Calculando...' : 'Haz clic en "📊 Calcular % por Tarea"'}</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-placeholder)' }}>{cargandoPorcentajes ? 'Calculando...' : 'Haz clic en "Calcular % por Tarea"'}</td></tr>
             ) : (
-              tareasPorcentaje.map((t, i) => (
-                <tr key={t.id} style={{ background: t.porcentajeDif > 0 ? '#fff5f5' : 'transparent' }}>
+              tareasPorcentaje.map((t: any, i: number) => (
+                <tr key={t.id} style={{ background: t.porcentajeDif > 0 ? 'var(--error-bg)' : 'transparent' }}>
                   <td className="ed03-ticket-id">{t.numero_tarea}</td><td>{t.codigo_local} - {t.nombre_local}</td><td>{t.estado}</td>
                   <td style={{ textAlign: 'center' }}>{formatNum(t.totalSAP)}</td><td style={{ textAlign: 'center' }}>{formatNum(t.totalFisico)}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 600, color: t.diferenciaAbsoluta > 0 ? '#dc2626' : '#15803d' }}>{t.diferenciaAbsoluta > 0 ? formatNum(t.diferenciaAbsoluta) : '-'}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 700 }}><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '12px', background: t.porcentajeDif === 0 ? '#dcfce7' : t.porcentajeDif <= 5 ? '#fef3c7' : '#fef2f2', color: t.porcentajeDif === 0 ? '#15803d' : t.porcentajeDif <= 5 ? '#b45309' : '#dc2626' }}>{t.porcentajeDif}%</span></td>
+                  <td style={{ textAlign: 'center', fontWeight: 600, color: t.diferenciaAbsoluta > 0 ? 'var(--error-text)' : 'var(--success-text)' }}>{t.diferenciaAbsoluta > 0 ? formatNum(t.diferenciaAbsoluta) : '-'}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 700 }}><span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '12px', background: t.porcentajeDif === 0 ? 'var(--success-bg)' : t.porcentajeDif <= 5 ? 'var(--warning-bg)' : 'var(--error-bg)', color: t.porcentajeDif === 0 ? 'var(--success-text)' : t.porcentajeDif <= 5 ? 'var(--warning-text)' : 'var(--error-text)' }}>{t.porcentajeDif}%</span></td>
                   <td>{new Date(t.creado_en).toLocaleDateString('es-CL')}</td>
                 </tr>
               ))
@@ -489,9 +476,9 @@ const AD03Dashboard: React.FC = () => {
           <h3>% Diferencias de Unidades por Tarea</h3>
           <ResponsiveContainer width="100%" height={400}>
             <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
-              <XAxis type="number" dataKey="x" stroke="#64748b" tick={{ fontSize: 11 }} label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: '#64748b', fontSize: 12 } }} domain={[0, datosScatter.length + 1]} />
-              <YAxis type="number" dataKey="y" stroke="#64748b" tick={{ fontSize: 11 }} unit="%" label={{ value: '% Diferencias', angle: -90, position: 'left', offset: 20, style: { fill: '#64748b', fontSize: 12 } }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis type="number" dataKey="x" stroke="var(--text-muted)" tick={{ fontSize: 11 }} label={{ value: 'Tareas', position: 'bottom', offset: 40, style: { fill: 'var(--text-muted)', fontSize: 12 } }} domain={[0, datosScatter.length + 1]} />
+              <YAxis type="number" dataKey="y" stroke="var(--text-muted)" tick={{ fontSize: 11 }} unit="%" label={{ value: '% Diferencias', angle: -90, position: 'left', offset: 20, style: { fill: 'var(--text-muted)', fontSize: 12 } }} />
               <ZAxis range={[100, 100]} />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomScatterTooltip />} />
               <Scatter data={datosScatter} shape="circle" />
@@ -500,15 +487,15 @@ const AD03Dashboard: React.FC = () => {
         </div>
       )}
       {showInformeModal && (
-        <div className="ed01-modal-overlay" onClick={() => setShowInformeModal(false)}>
-          <div className="ed01-modal" style={{ maxWidth: '650px' }} onClick={e => e.stopPropagation()}>
-            <div className="ed01-modal-header"><h2>📄 Generar Informe PDF</h2><button className="ed01-modal-close" onClick={() => setShowInformeModal(false)}>×</button></div>
-            <div className="ed01-modal-body">
-              <div style={{ marginBottom: '12px', fontSize: '13px', color: '#475569' }}><strong>Período:</strong> {filtroDesde || 'Inicio'} - {filtroHasta || 'Fin'} | <strong>Local:</strong> {filtroLocal || 'Todos'}</div>
-              <div className="ed01-field"><label>Resumen Ejecutivo (opcional)</label><textarea value={textoInforme} onChange={e => setTextoInforme(e.target.value)} rows={6} placeholder="Escribe tus conclusiones..." style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }} /></div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>El PDF incluirá: Portada, KPIs, Gráficos, Tabla de Análisis y Detalle de Diferencias por SKU.</div>
+        <div className="sd01-modal-overlay" onClick={() => setShowInformeModal(false)}>
+          <div className="sd01-modal" style={{ maxWidth: '650px' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="sd01-modal-header"><h2>Generar Informe PDF</h2><button className="sd01-modal-close" onClick={() => setShowInformeModal(false)}>×</button></div>
+            <div className="sd01-modal-body">
+              <div style={{ marginBottom: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}><strong>Período:</strong> {filtroDesde || 'Inicio'} - {filtroHasta || 'Fin'} | <strong>Local:</strong> {filtroLocal || 'Todos'}</div>
+              <div className="sd01-form-group"><label className="sd01-form-label">Resumen Ejecutivo (opcional)</label><textarea value={textoInforme} onChange={(e: any) => setTextoInforme(e.target.value)} rows={6} placeholder="Escribe tus conclusiones..." style={{ width: '100%', padding: '10px', border: '1px solid var(--border-input)', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', background: 'var(--bg-input)', color: 'var(--text-primary)' }} /></div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>El PDF incluirá: Portada, KPIs, Gráficos, Tabla de Análisis y Detalle de Diferencias por SKU.</div>
             </div>
-            <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowInformeModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={generarPDF} disabled={generandoPDF} style={{ background: '#15803d' }}>{generandoPDF ? 'Generando PDF...' : '📄 Generar PDF'}</button></div>
+            <div className="sd01-modal-footer"><button className="sd01-btn-cancel" onClick={() => setShowInformeModal(false)}>Cancelar</button><button className="sd01-btn-save" onClick={generarPDF} disabled={generandoPDF} style={{ background: '#15803d' }}>{generandoPDF ? 'Generando PDF...' : 'Generar PDF'}</button></div>
           </div>
         </div>
       )}
