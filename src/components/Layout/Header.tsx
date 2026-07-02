@@ -24,6 +24,8 @@ const moduleTitles: Record<string, string> = {
   'ad': 'AD01 · Gestión Auditoría',
   'ad-captura': 'AD02 · Captura Física',
   'ad-dashboard': 'AD03 · Dashboard',
+  'rp': 'RP01 · Carga Revisión',
+  'rp-revision': 'RP02 · Revisar Pallet',
   'tk': 'TK01 · Crear Ticket',
   'tk-dashboard': 'TK02 · Dashboard',
   'bd-usuarios': 'BD01 · Usuarios',
@@ -190,18 +192,9 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         className="theme-toggle-btn"
         title={darkMode ? 'Modo Claro' : 'Modo Oscuro'}
         style={{
-          width: '34px',
-          height: '34px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--btn-bg)',
-          border: '1px solid var(--btn-border)',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          transition: 'all 0.15s',
-          marginRight: '10px',
-          color: 'var(--text-muted)'
+          width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--btn-bg)', border: '1px solid var(--btn-border)', borderRadius: '8px',
+          cursor: 'pointer', transition: 'all 0.15s', marginRight: '10px', color: 'var(--text-muted)'
         }}
       >
         {darkMode ? (
