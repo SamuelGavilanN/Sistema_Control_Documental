@@ -1,9 +1,5 @@
-.tk01-view { background: white; border-radius: 12px; padding: 24px; }
+/* src/components/Transactions/TK/TK01.css */
+
+.tk01-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
 .tk01-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.tk01-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
-.ed03-badge-sinleer { background: #dc2626; color: white; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; margin-left: 6px; display: inline-block; }
-.ed03-respuestas-lista { margin-bottom: 16px; max-height: 250px; overflow-y: auto; }
-.ed03-respuestas-lista h4 { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
-.ed03-respuesta-item { background: #f8fafd; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #eef0f5; }
-.ed03-respuesta-texto { font-size: 13px; color: #1e293b; margin: 0 0 4px; }
-.ed03-respuesta-info { font-size: 10px; color: #94a3b8; }
+.tk01-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
