@@ -50,6 +50,7 @@ const menuSections: MenuSection[] = [
     title: 'SD · Salida Despacho',
     items: [
       { id: 'sd', label: 'SD01 Salida Despacho', type: 'item' },
+      { id: 'sd-asignador', label: 'SD02 Asignador Móvil', type: 'subitem' },
     ]
   },
   {
