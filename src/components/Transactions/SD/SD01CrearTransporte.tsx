@@ -25,7 +25,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [conductorTexto, setConductorTexto]: any = useState('');
   const [patenteId, setPatenteId]: any = useState('');
   const [patenteTexto, setPatenteTexto]: any = useState('');
-  const [locales, setLocales]: any = useState([{ codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '' }]);
+  const [locales, setLocales]: any = useState([{ codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
   const [guardando, setGuardando]: any = useState(false);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
 
@@ -88,7 +88,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           codigo_local: l.codigo_local || '',
           nombre_local: l.nombre_local || '',
           fecha_entrega: l.fecha_entrega || '',
-          hora_entrega: l.hora_entrega || ''
+          hora_entrega: l.hora_entrega || '',
+          cantidad_solicitada: l.cantidad_solicitada || ''
         }));
         setLocales(localesData);
       }
@@ -296,7 +297,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   };
 
   const agregarLocal = () => {
-    setLocales([...locales, { codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '' }]);
+    setLocales([...locales, { codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
   };
 
   const eliminarLocal = (index: number) => {
@@ -379,7 +380,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
               codigo_local: local.codigo_local,
               nombre_local: local.nombre_local,
               fecha_entrega: local.fecha_entrega || null,
-              hora_entrega: local.hora_entrega || null
+              hora_entrega: local.hora_entrega || null,
+              cantidad_solicitada: local.cantidad_solicitada ? parseInt(local.cantidad_solicitada) : 0
             })
           });
         }
@@ -419,7 +421,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
               codigo_local: local.codigo_local,
               nombre_local: local.nombre_local,
               fecha_entrega: local.fecha_entrega || null,
-              hora_entrega: local.hora_entrega || null
+              hora_entrega: local.hora_entrega || null,
+              cantidad_solicitada: local.cantidad_solicitada ? parseInt(local.cantidad_solicitada) : 0
             })
           });
         }
@@ -593,6 +596,17 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                       className="sd01-form-input"
                       value={local.hora_entrega}
                       onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
+                    />
+                  </div>
+                  <div className="sd01-form-group">
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Cantidad Solicitada</label>
+                    <input
+                      type="number"
+                      className="sd01-form-input"
+                      value={local.cantidad_solicitada}
+                      onChange={(e: any) => handleLocalChange(index, 'cantidad_solicitada', e.target.value)}
+                      placeholder="0"
+                      min="0"
                     />
                   </div>
                   <button
