@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
+import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
 const HEADERS: any = {
@@ -51,7 +52,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       const resp = await fetch(API_URL + '/sd01_conductores?select=*&activo=eq.true&order=nombre.asc', { headers: HEADERS });
       const data = await resp.json();
       if (data) setConductores(data);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando conductores:', e);
+    }
   };
 
   const cargarPatentes = async () => {
@@ -59,7 +62,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       const resp = await fetch(API_URL + '/sd01_patentes?select=*&activo=eq.true&order=numero_patente.asc', { headers: HEADERS });
       const data = await resp.json();
       if (data) setPatentes(data);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando patentes:', e);
+    }
   };
 
   const cargarLocales = async () => {
@@ -67,7 +72,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       const resp = await fetch(API_URL + '/locales?select=*&activo=eq.true&order=codigo_local.asc', { headers: HEADERS });
       const data = await resp.json();
       if (data) setTodosLocales(data);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando locales:', e);
+    }
   };
 
   const filterStartsWith = (list: any[], field: string, search: string) => {
@@ -238,7 +245,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     return true;
   };
 
-  const handleGuardar = async (estado: string) => {
+  const handleGuardar = async () => {
     if (!validarFormulario()) {
       setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
       return;
@@ -248,33 +255,40 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     try {
       const idDocumento = generarIdDocumento();
       
+      const transporteData = {
+        id_documento: idDocumento,
+        conductor_id: conductorId,
+        patente_principal_id: patenteId,
+        fecha_programacion: fechaProgramacion,
+        estado: 'Pendiente',
+        creado_por: usuario?.id,
+        creado_por_nombre: usuario?.nombre + ' ' + usuario?.apellido,
+        modificado_por: usuario?.nombre + ' ' + usuario?.apellido
+      };
+
       const respTransporte = await fetch(API_URL + '/sd01_documentos', {
         method: 'POST',
         headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          id_documento: idDocumento,
-          conductor_id: conductorId,
-          patente_principal_id: patenteId,
-          fecha_programacion: fechaProgramacion,
-          estado: estado,
-          creado_por: usuario?.id,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          creado_por_nombre: usuario?.nombre + ' ' + usuario?.apellido
-        })
+        body: JSON.stringify(transporteData)
       });
-      
-      const transporteCreado = await respTransporte.json();
-      const transporte = Array.isArray(transporteCreado) ? transporteCreado[0] : transporteCreado;
+
+      if (!respTransporte.ok) {
+        const errorText = await respTransporte.text();
+        console.error('Error creando transporte:', errorText);
+        setMensaje({ tipo: 'error', texto: 'Error al crear el transporte' });
+        setGuardando(false);
+        return;
+      }
 
       for (const local of locales) {
         await fetch(API_URL + '/sd01_documento_locales', {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             documento_id: idDocumento,
             codigo_local: local.codigo_local,
             nombre_local: local.nombre_local,
-            fecha_entrega: local.fecha_entrega,
+            fecha_entrega: local.fecha_entrega || null,
             hora_entrega: local.hora_entrega || null
           })
         });
@@ -282,363 +296,180 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
       onTransporteCreado();
     } catch (e) {
+      console.error('Error:', e);
       setMensaje({ tipo: 'error', texto: 'Error al crear el transporte' });
-      setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
     }
     setGuardando(false);
   };
 
   return (
-    <div className="ed01-modal-overlay" onClick={onClose}>
-      <div className="ed01-modal" style={{ maxWidth: '800px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e: any) => e.stopPropagation()}>
-        <div className="ed01-modal-header">
+    <div className="sd01-modal-overlay" onClick={onClose}>
+      <div className="sd01-modal" onClick={(e: any) => e.stopPropagation()}>
+        <div className="sd01-modal-header">
           <h2>Crear Nuevo Transporte</h2>
-          <button className="ed01-modal-close" onClick={onClose}>×</button>
+          <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
-        <div className="ed01-modal-body">
+        <div className="sd01-modal-body">
           {mensaje.texto && (
-            <div style={{
-              padding: '10px 14px',
-              borderRadius: '6px',
-              marginBottom: '16px',
-              fontSize: '13px',
-              fontWeight: 500,
-              background: mensaje.tipo === 'error' ? '#fef2f2' : '#fef3c7',
-              color: mensaje.tipo === 'error' ? '#dc2626' : '#92400e',
-              border: mensaje.tipo === 'error' ? '1px solid #fca5a5' : '1px solid #fcd34d'
-            }}>
+            <div className={'sd01-alert ' + (mensaje.tipo === 'error' ? 'sd01-alert-error' : 'sd01-alert-warning')}>
               {mensaje.texto}
             </div>
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
-                Fecha Programación *
-              </label>
+            <div className="sd01-form-group">
+              <label className="sd01-form-label">Fecha Programación *</label>
               <input
                 type="date"
+                className="sd01-form-input"
                 value={fechaProgramacion}
                 onChange={(e: any) => setFechaProgramacion(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  color: '#1e293b',
-                  background: 'white'
-                }}
               />
             </div>
 
-            <div style={{ position: 'relative' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
-                Conductor *
-              </label>
-              <input
-                ref={inputConductorRef}
-                type="text"
-                value={conductorTexto}
-                onChange={(e: any) => handleBuscarConductor(e.target.value)}
-                onKeyDown={handleKeyDownConductor}
-                onFocus={() => {
-                  if (sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true);
-                }}
-                placeholder="Buscar conductor..."
-                autoComplete="off"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  color: '#1e293b',
-                  background: 'white'
-                }}
-              />
-              {conductorId && (
-                <span style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '38px',
-                  color: '#15803d',
-                  fontSize: '16px'
-                }}>✓</span>
-              )}
-              {mostrarSugerenciasConductor && sugerenciasConductor.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 1000,
-                  background: 'white',
-                  border: '2px solid #3b82f6',
-                  borderRadius: '6px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  marginTop: '2px'
-                }}>
-                  {sugerenciasConductor.map((conductor: any, index: number) => (
-                    <div
-                      key={conductor.id}
-                      onClick={() => handleSeleccionarConductor(conductor)}
-                      onMouseEnter={() => setIndiceSeleccionadoConductor(index)}
-                      style={{
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        color: index === indiceSeleccionadoConductor ? 'white' : '#1e293b',
-                        background: index === indiceSeleccionadoConductor ? '#1d4ed8' : 'white',
-                        borderBottom: '1px solid #f1f5f9'
-                      }}
-                    >
-                      {conductor.nombre} {conductor.apellido}
-                      {conductor.empresa && <span style={{ color: index === indiceSeleccionadoConductor ? '#dbeafe' : '#94a3b8', fontSize: '11px', marginLeft: '8px' }}>({conductor.empresa})</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="sd01-form-group">
+              <label className="sd01-form-label">Conductor *</label>
+              <div className="sd01-autocomplete-wrapper">
+                <input
+                  ref={inputConductorRef}
+                  type="text"
+                  className="sd01-autocomplete-input"
+                  value={conductorTexto}
+                  onChange={(e: any) => handleBuscarConductor(e.target.value)}
+                  onKeyDown={handleKeyDownConductor}
+                  onFocus={() => {
+                    if (sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true);
+                  }}
+                  placeholder="Buscar conductor..."
+                  autoComplete="off"
+                />
+                {conductorId && <span className="sd01-autocomplete-check">✓</span>}
+                {mostrarSugerenciasConductor && sugerenciasConductor.length > 0 && (
+                  <div className="sd01-autocomplete-dropdown">
+                    {sugerenciasConductor.map((conductor: any, index: number) => (
+                      <div
+                        key={conductor.id}
+                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoConductor ? 'sd01-autocomplete-item-highlighted' : '')}
+                        onClick={() => handleSeleccionarConductor(conductor)}
+                        onMouseEnter={() => setIndiceSeleccionadoConductor(index)}
+                      >
+                        {conductor.nombre} {conductor.apellido}
+                        {conductor.empresa && <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>({conductor.empresa})</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={{ position: 'relative' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
-                Patente *
-              </label>
-              <input
-                ref={inputPatenteRef}
-                type="text"
-                value={patenteTexto}
-                onChange={(e: any) => handleBuscarPatente(e.target.value)}
-                onKeyDown={handleKeyDownPatente}
-                onFocus={() => {
-                  if (sugerenciasPatente.length > 0) setMostrarSugerenciasPatente(true);
-                }}
-                placeholder="Buscar patente..."
-                autoComplete="off"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  color: '#1e293b',
-                  background: 'white',
-                  textTransform: 'uppercase'
-                }}
-              />
-              {patenteId && (
-                <span style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '38px',
-                  color: '#15803d',
-                  fontSize: '16px'
-                }}>✓</span>
-              )}
-              {mostrarSugerenciasPatente && sugerenciasPatente.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 1000,
-                  background: 'white',
-                  border: '2px solid #3b82f6',
-                  borderRadius: '6px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  marginTop: '2px'
-                }}>
-                  {sugerenciasPatente.map((patente: any, index: number) => (
-                    <div
-                      key={patente.id}
-                      onClick={() => handleSeleccionarPatente(patente)}
-                      onMouseEnter={() => setIndiceSeleccionadoPatente(index)}
-                      style={{
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        color: index === indiceSeleccionadoPatente ? 'white' : '#1e293b',
-                        background: index === indiceSeleccionadoPatente ? '#1d4ed8' : 'white',
-                        borderBottom: '1px solid #f1f5f9'
-                      }}
-                    >
-                      {patente.numero_patente}
-                      <span style={{ color: index === indiceSeleccionadoPatente ? '#dbeafe' : '#94a3b8', fontSize: '11px', marginLeft: '8px' }}>
-                        ({patente.tipo_vehiculo || 'Otro'})
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="sd01-form-group">
+              <label className="sd01-form-label">Patente *</label>
+              <div className="sd01-autocomplete-wrapper">
+                <input
+                  ref={inputPatenteRef}
+                  type="text"
+                  className="sd01-autocomplete-input"
+                  value={patenteTexto}
+                  onChange={(e: any) => handleBuscarPatente(e.target.value)}
+                  onKeyDown={handleKeyDownPatente}
+                  onFocus={() => {
+                    if (sugerenciasPatente.length > 0) setMostrarSugerenciasPatente(true);
+                  }}
+                  placeholder="Buscar patente..."
+                  autoComplete="off"
+                  style={{ textTransform: 'uppercase' }}
+                />
+                {patenteId && <span className="sd01-autocomplete-check">✓</span>}
+                {mostrarSugerenciasPatente && sugerenciasPatente.length > 0 && (
+                  <div className="sd01-autocomplete-dropdown">
+                    {sugerenciasPatente.map((patente: any, index: number) => (
+                      <div
+                        key={patente.id}
+                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatente ? 'sd01-autocomplete-item-highlighted' : '')}
+                        onClick={() => handleSeleccionarPatente(patente)}
+                        onMouseEnter={() => setIndiceSeleccionadoPatente(index)}
+                      >
+                        {patente.numero_patente}
+                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
+                          ({patente.tipo_vehiculo || 'Otro'})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#475569', margin: 0 }}>Locales de Entrega</h3>
-              <button
-                onClick={agregarLocal}
-                style={{
-                  padding: '6px 14px',
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
+          <div className="sd01-locales-section">
+            <div className="sd01-locales-header">
+              <h3 className="sd01-locales-title">Locales de Entrega</h3>
+              <button className="sd01-btn-add-local" onClick={agregarLocal}>
                 <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Agregar Local
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="sd01-locales-list">
               {locales.map((local: any, index: number) => (
-                <div
-                  key={index}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1.5fr 1fr 1fr auto',
-                    gap: '12px',
-                    alignItems: 'end',
-                    padding: '16px',
-                    background: '#f8fafd',
-                    borderRadius: '8px',
-                    border: '1px solid #eef0f5'
-                  }}
-                >
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                      Código Local *
-                    </label>
+                <div key={index} className="sd01-local-card">
+                  <div className="sd01-form-group">
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Código Local *</label>
                     <input
                       type="text"
+                      className="sd01-form-input"
                       value={local.codigo_local}
                       onChange={(e: any) => handleCodigoLocalChange(index, e.target.value)}
                       placeholder="Ej: D001"
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        color: '#1e293b',
-                        background: 'white',
-                        textTransform: 'uppercase'
-                      }}
+                      style={{ textTransform: 'uppercase' }}
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                      Nombre Local
-                    </label>
+                  <div className="sd01-form-group">
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Nombre Local</label>
                     <input
                       type="text"
+                      className="sd01-form-input"
                       value={local.nombre_local}
                       readOnly
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        color: '#64748b',
-                        background: '#f1f5f9'
-                      }}
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                      Fecha Entrega *
-                    </label>
+                  <div className="sd01-form-group">
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Fecha Entrega *</label>
                     <input
                       type="date"
+                      className="sd01-form-input"
                       value={local.fecha_entrega}
                       onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        color: '#1e293b',
-                        background: 'white'
-                      }}
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                      Hora Entrega
-                    </label>
+                  <div className="sd01-form-group">
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Hora Entrega</label>
                     <input
                       type="time"
+                      className="sd01-form-input"
                       value={local.hora_entrega}
                       onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        color: '#1e293b',
-                        background: 'white'
-                      }}
                     />
                   </div>
-                  <div>
-                    <button
-                      onClick={() => eliminarLocal(index)}
-                      style={{
-                        padding: '8px 10px',
-                        background: '#fef2f2',
-                        color: '#dc2626',
-                        border: '1px solid #fca5a5',
-                        borderRadius: '6px',
-                        fontSize: '16px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '36px'
-                      }}
-                      title="Eliminar local"
-                    >
-                      ×
-                    </button>
-                  </div>
+                  <button
+                    className="sd01-btn-delete-local"
+                    onClick={() => eliminarLocal(index)}
+                    title="Eliminar local"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div className="ed01-modal-footer">
-          <div style={{ display: 'flex', gap: '10px', flex: 1 }}>
-            <button
-              className="ed01-btn-save"
-              onClick={() => handleGuardar('Borrador')}
-              disabled={guardando}
-              style={{ background: '#64748b' }}
-            >
-              {guardando ? 'Guardando...' : 'Guardar Borrador'}
-            </button>
-            <button
-              className="ed01-btn-save"
-              onClick={() => handleGuardar('Pendiente')}
-              disabled={guardando}
-            >
-              {guardando ? 'Guardando...' : 'Crear Transporte'}
+        <div className="sd01-modal-footer">
+          <div></div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="sd01-btn-cancel" onClick={onClose}>Cancelar</button>
+            <button className="sd01-btn-save" onClick={handleGuardar} disabled={guardando}>
+              {guardando ? 'Creando...' : 'Crear Transporte'}
             </button>
           </div>
-          <button className="ed01-btn-cancel" onClick={onClose}>Cancelar</button>
         </div>
       </div>
     </div>
