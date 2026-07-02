@@ -23,8 +23,10 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [fechaProgramacion, setFechaProgramacion]: any = useState('');
   const [conductorId, setConductorId]: any = useState('');
   const [conductorTexto, setConductorTexto]: any = useState('');
-  const [patenteId, setPatenteId]: any = useState('');
-  const [patenteTexto, setPatenteTexto]: any = useState('');
+  const [patentePrincipalId, setPatentePrincipalId]: any = useState('');
+  const [patentePrincipalTexto, setPatentePrincipalTexto]: any = useState('');
+  const [patenteAdicionalId, setPatenteAdicionalId]: any = useState('');
+  const [patenteAdicionalTexto, setPatenteAdicionalTexto]: any = useState('');
   const [locales, setLocales]: any = useState([{ codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
   const [guardando, setGuardando]: any = useState(false);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
@@ -37,12 +39,17 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [sugerenciasConductor, setSugerenciasConductor]: any = useState([]);
   const [indiceSeleccionadoConductor, setIndiceSeleccionadoConductor]: any = useState(-1);
 
-  const [mostrarSugerenciasPatente, setMostrarSugerenciasPatente]: any = useState(false);
-  const [sugerenciasPatente, setSugerenciasPatente]: any = useState([]);
-  const [indiceSeleccionadoPatente, setIndiceSeleccionadoPatente]: any = useState(-1);
+  const [mostrarSugerenciasPatentePrincipal, setMostrarSugerenciasPatentePrincipal]: any = useState(false);
+  const [sugerenciasPatentePrincipal, setSugerenciasPatentePrincipal]: any = useState([]);
+  const [indiceSeleccionadoPatentePrincipal, setIndiceSeleccionadoPatentePrincipal]: any = useState(-1);
+
+  const [mostrarSugerenciasPatenteAdicional, setMostrarSugerenciasPatenteAdicional]: any = useState(false);
+  const [sugerenciasPatenteAdicional, setSugerenciasPatenteAdicional]: any = useState([]);
+  const [indiceSeleccionadoPatenteAdicional, setIndiceSeleccionadoPatenteAdicional]: any = useState(-1);
 
   const inputConductorRef: any = useRef(null);
-  const inputPatenteRef: any = useRef(null);
+  const inputPatentePrincipalRef: any = useRef(null);
+  const inputPatenteAdicionalRef: any = useRef(null);
   const sugerenciasConductorRef: any = useRef(null);
 
   useEffect(() => {
@@ -74,8 +81,19 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
         const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id, { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) {
-          setPatenteId(data[0].id);
-          setPatenteTexto(data[0].numero_patente);
+          setPatentePrincipalId(data[0].id);
+          setPatentePrincipalTexto(data[0].numero_patente);
+        }
+      } catch (e) {}
+    }
+
+    if (transporteEditar.patente_adicional_id) {
+      try {
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_adicional_id, { headers: HEADERS });
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          setPatenteAdicionalId(data[0].id);
+          setPatenteAdicionalTexto(data[0].numero_patente);
         }
       } catch (e) {}
     }
@@ -212,14 +230,14 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  const handleBuscarPatente = (valor: string) => {
-    setPatenteTexto(valor.toUpperCase());
-    setPatenteId('');
+  const handleBuscarPatentePrincipal = (valor: string) => {
+    setPatentePrincipalTexto(valor.toUpperCase());
+    setPatentePrincipalId('');
     
     if (valor.trim() === '') {
-      setSugerenciasPatente([]);
-      setMostrarSugerenciasPatente(false);
-      setIndiceSeleccionadoPatente(-1);
+      setSugerenciasPatentePrincipal([]);
+      setMostrarSugerenciasPatentePrincipal(false);
+      setIndiceSeleccionadoPatentePrincipal(-1);
       return;
     }
     
@@ -229,24 +247,24 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       return numeroPatente.startsWith(busqueda);
     });
     
-    setSugerenciasPatente(sugerencias);
-    setMostrarSugerenciasPatente(sugerencias.length > 0);
-    setIndiceSeleccionadoPatente(-1);
+    setSugerenciasPatentePrincipal(sugerencias);
+    setMostrarSugerenciasPatentePrincipal(sugerencias.length > 0);
+    setIndiceSeleccionadoPatentePrincipal(-1);
   };
 
-  const handleSeleccionarPatente = (patente: any) => {
-    setPatenteId(patente.id);
-    setPatenteTexto(patente.numero_patente);
-    setMostrarSugerenciasPatente(false);
-    setSugerenciasPatente([]);
-    setIndiceSeleccionadoPatente(-1);
-    if (inputPatenteRef.current) {
-      inputPatenteRef.current.focus();
+  const handleSeleccionarPatentePrincipal = (patente: any) => {
+    setPatentePrincipalId(patente.id);
+    setPatentePrincipalTexto(patente.numero_patente);
+    setMostrarSugerenciasPatentePrincipal(false);
+    setSugerenciasPatentePrincipal([]);
+    setIndiceSeleccionadoPatentePrincipal(-1);
+    if (inputPatentePrincipalRef.current) {
+      inputPatentePrincipalRef.current.focus();
     }
   };
 
-  const handleKeyDownPatente = (e: any) => {
-    if (!mostrarSugerenciasPatente || sugerenciasPatente.length === 0) {
+  const handleKeyDownPatentePrincipal = (e: any) => {
+    if (!mostrarSugerenciasPatentePrincipal || sugerenciasPatentePrincipal.length === 0) {
       if (e.key === 'Enter') {
         e.preventDefault();
         return;
@@ -256,23 +274,87 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setIndiceSeleccionadoPatente((prev: number) => 
-        prev < sugerenciasPatente.length - 1 ? prev + 1 : 0
+      setIndiceSeleccionadoPatentePrincipal((prev: number) => 
+        prev < sugerenciasPatentePrincipal.length - 1 ? prev + 1 : 0
       );
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setIndiceSeleccionadoPatente((prev: number) => 
-        prev > 0 ? prev - 1 : sugerenciasPatente.length - 1
+      setIndiceSeleccionadoPatentePrincipal((prev: number) => 
+        prev > 0 ? prev - 1 : sugerenciasPatentePrincipal.length - 1
       );
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      if (indiceSeleccionadoPatente >= 0 && indiceSeleccionadoPatente < sugerenciasPatente.length) {
-        handleSeleccionarPatente(sugerenciasPatente[indiceSeleccionadoPatente]);
-      } else if (sugerenciasPatente.length === 1) {
-        handleSeleccionarPatente(sugerenciasPatente[0]);
+      if (indiceSeleccionadoPatentePrincipal >= 0 && indiceSeleccionadoPatentePrincipal < sugerenciasPatentePrincipal.length) {
+        handleSeleccionarPatentePrincipal(sugerenciasPatentePrincipal[indiceSeleccionadoPatentePrincipal]);
+      } else if (sugerenciasPatentePrincipal.length === 1) {
+        handleSeleccionarPatentePrincipal(sugerenciasPatentePrincipal[0]);
       }
     } else if (e.key === 'Escape') {
-      setMostrarSugerenciasPatente(false);
+      setMostrarSugerenciasPatentePrincipal(false);
+    }
+  };
+
+  const handleBuscarPatenteAdicional = (valor: string) => {
+    setPatenteAdicionalTexto(valor.toUpperCase());
+    setPatenteAdicionalId('');
+    
+    if (valor.trim() === '') {
+      setSugerenciasPatenteAdicional([]);
+      setMostrarSugerenciasPatenteAdicional(false);
+      setIndiceSeleccionadoPatenteAdicional(-1);
+      return;
+    }
+    
+    const busqueda = valor.toUpperCase();
+    const sugerencias = patentes.filter((p: any) => {
+      const numeroPatente = String(p.numero_patente || '').toUpperCase();
+      return numeroPatente.startsWith(busqueda) && p.id !== patentePrincipalId;
+    });
+    
+    setSugerenciasPatenteAdicional(sugerencias);
+    setMostrarSugerenciasPatenteAdicional(sugerencias.length > 0);
+    setIndiceSeleccionadoPatenteAdicional(-1);
+  };
+
+  const handleSeleccionarPatenteAdicional = (patente: any) => {
+    setPatenteAdicionalId(patente.id);
+    setPatenteAdicionalTexto(patente.numero_patente);
+    setMostrarSugerenciasPatenteAdicional(false);
+    setSugerenciasPatenteAdicional([]);
+    setIndiceSeleccionadoPatenteAdicional(-1);
+    if (inputPatenteAdicionalRef.current) {
+      inputPatenteAdicionalRef.current.focus();
+    }
+  };
+
+  const handleKeyDownPatenteAdicional = (e: any) => {
+    if (!mostrarSugerenciasPatenteAdicional || sugerenciasPatenteAdicional.length === 0) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceSeleccionadoPatenteAdicional((prev: number) => 
+        prev < sugerenciasPatenteAdicional.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceSeleccionadoPatenteAdicional((prev: number) => 
+        prev > 0 ? prev - 1 : sugerenciasPatenteAdicional.length - 1
+      );
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (indiceSeleccionadoPatenteAdicional >= 0 && indiceSeleccionadoPatenteAdicional < sugerenciasPatenteAdicional.length) {
+        handleSeleccionarPatenteAdicional(sugerenciasPatenteAdicional[indiceSeleccionadoPatenteAdicional]);
+      } else if (sugerenciasPatenteAdicional.length === 1) {
+        handleSeleccionarPatenteAdicional(sugerenciasPatenteAdicional[0]);
+      }
+    } else if (e.key === 'Escape') {
+      setMostrarSugerenciasPatenteAdicional(false);
     }
   };
 
@@ -328,8 +410,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       setMensaje({ tipo: 'error', texto: 'Debe seleccionar un conductor de la lista' });
       return false;
     }
-    if (!patenteId) {
-      setMensaje({ tipo: 'error', texto: 'Debe seleccionar una patente de la lista' });
+    if (!patentePrincipalId) {
+      setMensaje({ tipo: 'error', texto: 'Debe seleccionar una patente principal' });
       return false;
     }
     for (let i = 0; i < locales.length; i++) {
@@ -359,7 +441,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conductor_id: conductorId,
-            patente_principal_id: patenteId,
+            patente_principal_id: patentePrincipalId,
+            patente_adicional_id: patenteAdicionalId || null,
             fecha_programacion: fechaProgramacion,
             modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
             modificado_en: new Date().toISOString()
@@ -391,7 +474,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
         const transporteData = {
           id_documento: idDocumento,
           conductor_id: conductorId,
-          patente_principal_id: patenteId,
+          patente_principal_id: patentePrincipalId,
+          patente_adicional_id: patenteAdicionalId || null,
           fecha_programacion: fechaProgramacion,
           estado: 'Pendiente',
           creado_por: usuario?.id,
@@ -450,7 +534,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
             <div className="sd01-form-group">
               <label className="sd01-form-label">Fecha Programación *</label>
               <input
@@ -506,36 +590,79 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             </div>
 
             <div className="sd01-form-group">
-              <label className="sd01-form-label">Patente *</label>
+              <label className="sd01-form-label">Patente Principal *</label>
               <div className="sd01-autocomplete-wrapper">
                 <input
-                  ref={inputPatenteRef}
+                  ref={inputPatentePrincipalRef}
                   type="text"
                   className="sd01-autocomplete-input"
-                  value={patenteTexto}
-                  onChange={(e: any) => handleBuscarPatente(e.target.value)}
-                  onKeyDown={handleKeyDownPatente}
+                  value={patentePrincipalTexto}
+                  onChange={(e: any) => handleBuscarPatentePrincipal(e.target.value)}
+                  onKeyDown={handleKeyDownPatentePrincipal}
                   onFocus={() => {
-                    if (patenteTexto.trim() && sugerenciasPatente.length > 0) {
-                      setMostrarSugerenciasPatente(true);
+                    if (patentePrincipalTexto.trim() && sugerenciasPatentePrincipal.length > 0) {
+                      setMostrarSugerenciasPatentePrincipal(true);
                     }
                   }}
                   onBlur={() => {
-                    setTimeout(() => setMostrarSugerenciasPatente(false), 200);
+                    setTimeout(() => setMostrarSugerenciasPatentePrincipal(false), 200);
                   }}
-                  placeholder="Buscar patente..."
+                  placeholder="Buscar patente principal..."
                   autoComplete="off"
                   style={{ textTransform: 'uppercase' }}
                 />
-                {patenteId && <span className="sd01-autocomplete-check">✓</span>}
-                {mostrarSugerenciasPatente && sugerenciasPatente.length > 0 && (
+                {patentePrincipalId && <span className="sd01-autocomplete-check">✓</span>}
+                {mostrarSugerenciasPatentePrincipal && sugerenciasPatentePrincipal.length > 0 && (
                   <div className="sd01-autocomplete-dropdown">
-                    {sugerenciasPatente.map((patente: any, index: number) => (
+                    {sugerenciasPatentePrincipal.map((patente: any, index: number) => (
                       <div
                         key={patente.id}
-                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatente ? 'sd01-autocomplete-item-highlighted' : '')}
-                        onClick={() => handleSeleccionarPatente(patente)}
-                        onMouseEnter={() => setIndiceSeleccionadoPatente(index)}
+                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatentePrincipal ? 'sd01-autocomplete-item-highlighted' : '')}
+                        onClick={() => handleSeleccionarPatentePrincipal(patente)}
+                        onMouseEnter={() => setIndiceSeleccionadoPatentePrincipal(index)}
+                      >
+                        <strong>{patente.numero_patente}</strong>
+                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
+                          - {patente.tipo_vehiculo || 'Otro'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sd01-form-group">
+              <label className="sd01-form-label">Patente Adicional (opcional)</label>
+              <div className="sd01-autocomplete-wrapper">
+                <input
+                  ref={inputPatenteAdicionalRef}
+                  type="text"
+                  className="sd01-autocomplete-input"
+                  value={patenteAdicionalTexto}
+                  onChange={(e: any) => handleBuscarPatenteAdicional(e.target.value)}
+                  onKeyDown={handleKeyDownPatenteAdicional}
+                  onFocus={() => {
+                    if (patenteAdicionalTexto.trim() && sugerenciasPatenteAdicional.length > 0) {
+                      setMostrarSugerenciasPatenteAdicional(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setMostrarSugerenciasPatenteAdicional(false), 200);
+                  }}
+                  placeholder="Buscar patente adicional..."
+                  autoComplete="off"
+                  style={{ textTransform: 'uppercase' }}
+                />
+                {patenteAdicionalId && <span className="sd01-autocomplete-check">✓</span>}
+                {mostrarSugerenciasPatenteAdicional && sugerenciasPatenteAdicional.length > 0 && (
+                  <div className="sd01-autocomplete-dropdown">
+                    {sugerenciasPatenteAdicional.map((patente: any, index: number) => (
+                      <div
+                        key={patente.id}
+                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatenteAdicional ? 'sd01-autocomplete-item-highlighted' : '')}
+                        onClick={() => handleSeleccionarPatenteAdicional(patente)}
+                        onMouseEnter={() => setIndiceSeleccionadoPatenteAdicional(index)}
                       >
                         <strong>{patente.numero_patente}</strong>
                         <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
