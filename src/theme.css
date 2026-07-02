@@ -1,0 +1,233 @@
+/* src/theme.css */
+
+:root {
+  /* Fondos */
+  --bg-app: #f5f7fb;
+  --bg-panel: #ffffff;
+  --bg-section: #f8fafd;
+  --bg-hover: #f8fafd;
+  --bg-selected: #eff6ff;
+  --bg-input: #ffffff;
+  --bg-readonly: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --bg-header: #ffffff;
+  --bg-tab-hover: #f8fafd;
+  --bg-menu-hover: #f8fafd;
+  --bg-card: #f8fafd;
+  --bg-badge: #f1f5f9;
+  --bg-tooltip: #1e293b;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+  
+  /* Bordes */
+  --border: #eef0f5;
+  --border-input: #e2e8f0;
+  --border-focus: #3b82f6;
+  --border-sidebar: #eef0f5;
+  --border-header: #eef0f5;
+  --border-table: #eef0f5;
+  --border-cell: #f1f5f9;
+  --border-card: #eef0f5;
+  
+  /* Textos */
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-placeholder: #94a3b8;
+  --text-inverse: #ffffff;
+  --text-link: #1d4ed8;
+  
+  /* Botones */
+  --btn-bg: #ffffff;
+  --btn-border: #e2e8f0;
+  --btn-text: #475569;
+  --btn-hover-bg: #f8fafd;
+  --btn-hover-border: #cbd5e1;
+  --btn-primary-bg: #1e293b;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #334155;
+  --btn-danger-text: #dc2626;
+  --btn-danger-hover-bg: #fef2f2;
+  --btn-danger-hover-border: #fca5a5;
+  --btn-warning-text: #d97706;
+  --btn-warning-hover-bg: #fffbeb;
+  --btn-warning-hover-border: #fcd34d;
+  
+  /* Sidebar */
+  --sidebar-text: #4a5568;
+  --sidebar-text-muted: #64748b;
+  --sidebar-section-title: #64748b;
+  --sidebar-item-hover: #f8fafd;
+  --sidebar-item-active-bg: #1a1f2e;
+  --sidebar-item-active-text: #ffffff;
+  --sidebar-subitem-hover: #f1f5f9;
+  --sidebar-subitem-active-bg: #eef2ff;
+  --sidebar-subitem-active-text: #1d4ed8;
+  --sidebar-indicator: #cbd5e1;
+  
+  /* Header */
+  --header-tab-text: #64748b;
+  --header-tab-active-text: #1d4ed8;
+  --header-tab-active-border: #1d4ed8;
+  --header-avatar-bg: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  
+  /* Tablas */
+  --table-header-bg: #fafcff;
+  --table-header-text: #64748b;
+  --table-row-hover: #f8fafd;
+  --table-row-selected: #eef2ff;
+  --table-border: #eef0f5;
+  --table-cell-border: #f1f5f9;
+  
+  /* Estados */
+  --estado-pendiente-text: #b45309;
+  --estado-pendiente-bg: #fef3c7;
+  --estado-proceso-text: #1d4ed8;
+  --estado-proceso-bg: #dbeafe;
+  --estado-finalizado-text: #15803d;
+  --estado-finalizado-bg: #dcfce7;
+  --estado-cancelado-text: #64748b;
+  --estado-cancelado-bg: #f1f5f9;
+  
+  /* Mensajes */
+  --success-bg: #dcfce7;
+  --success-text: #15803d;
+  --success-border: #86efac;
+  --error-bg: #fef2f2;
+  --error-text: #dc2626;
+  --error-border: #fca5a5;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
+  --warning-border: #fcd34d;
+  --info-bg: #eff6ff;
+  --info-text: #1e40af;
+  --info-border: #93c5fd;
+  
+  /* Sombras */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.15);
+  --shadow-sidebar: 2px 0 12px rgba(0,0,0,0.02);
+  
+  /* Scrollbar */
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  
+  /* Separador */
+  --separator: #e2e8f0;
+}
+
+[data-theme="dark"] {
+  /* Fondos */
+  --bg-app: #0f172a;
+  --bg-panel: #1e293b;
+  --bg-section: #1e293b;
+  --bg-hover: #334155;
+  --bg-selected: #1e3a5f;
+  --bg-input: #334155;
+  --bg-readonly: #1e293b;
+  --bg-sidebar: #1e293b;
+  --bg-header: #1e293b;
+  --bg-tab-hover: #334155;
+  --bg-menu-hover: #334155;
+  --bg-card: #1e293b;
+  --bg-badge: #334155;
+  --bg-tooltip: #f1f5f9;
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+  
+  /* Bordes */
+  --border: #334155;
+  --border-input: #475569;
+  --border-focus: #3b82f6;
+  --border-sidebar: #334155;
+  --border-header: #334155;
+  --border-table: #334155;
+  --border-cell: #334155;
+  --border-card: #334155;
+  
+  /* Textos */
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-placeholder: #64748b;
+  --text-inverse: #0f172a;
+  --text-link: #60a5fa;
+  
+  /* Botones */
+  --btn-bg: #334155;
+  --btn-border: #475569;
+  --btn-text: #cbd5e1;
+  --btn-hover-bg: #475569;
+  --btn-hover-border: #64748b;
+  --btn-primary-bg: #3b82f6;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #2563eb;
+  --btn-danger-text: #f87171;
+  --btn-danger-hover-bg: #7f1d1d;
+  --btn-danger-hover-border: #991b1b;
+  --btn-warning-text: #fbbf24;
+  --btn-warning-hover-bg: #78350f;
+  --btn-warning-hover-border: #92400e;
+  
+  /* Sidebar */
+  --sidebar-text: #cbd5e1;
+  --sidebar-text-muted: #94a3b8;
+  --sidebar-section-title: #94a3b8;
+  --sidebar-item-hover: #334155;
+  --sidebar-item-active-bg: #3b82f6;
+  --sidebar-item-active-text: #ffffff;
+  --sidebar-subitem-hover: #334155;
+  --sidebar-subitem-active-bg: #1e3a5f;
+  --sidebar-subitem-active-text: #60a5fa;
+  --sidebar-indicator: #475569;
+  
+  /* Header */
+  --header-tab-text: #94a3b8;
+  --header-tab-active-text: #60a5fa;
+  --header-tab-active-border: #3b82f6;
+  --header-avatar-bg: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  
+  /* Tablas */
+  --table-header-bg: #1e293b;
+  --table-header-text: #94a3b8;
+  --table-row-hover: #334155;
+  --table-row-selected: #1e3a5f;
+  --table-border: #334155;
+  --table-cell-border: #334155;
+  
+  /* Estados */
+  --estado-pendiente-text: #fbbf24;
+  --estado-pendiente-bg: #78350f;
+  --estado-proceso-text: #60a5fa;
+  --estado-proceso-bg: #1e3a5f;
+  --estado-finalizado-text: #34d399;
+  --estado-finalizado-bg: #064e3b;
+  --estado-cancelado-text: #94a3b8;
+  --estado-cancelado-bg: #334155;
+  
+  /* Mensajes */
+  --success-bg: #064e3b;
+  --success-text: #34d399;
+  --success-border: #065f46;
+  --error-bg: #7f1d1d;
+  --error-text: #f87171;
+  --error-border: #991b1b;
+  --warning-bg: #78350f;
+  --warning-text: #fbbf24;
+  --warning-border: #92400e;
+  --info-bg: #1e3a5f;
+  --info-text: #60a5fa;
+  --info-border: #1e40af;
+  
+  /* Sombras */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.5);
+  --shadow-sidebar: 2px 0 12px rgba(0,0,0,0.3);
+  
+  /* Scrollbar */
+  --scrollbar-track: #1e293b;
+  --scrollbar-thumb: #475569;
+  
+  /* Separador */
+  --separator: #475569;
+}
