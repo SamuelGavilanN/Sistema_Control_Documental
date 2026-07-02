@@ -1,18 +1,69 @@
 // src/components/Transactions/UT/UT01View.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import './UT01.css';
 
 const UT01View: React.FC = () => {
-  const [prefijo, setPrefijo] = useState('');
-  const [inicio, setInicio] = useState(1);
-  const [fin, setFin] = useState(100);
-  const [digitos, setDigitos] = useState(4);
-  const [orientacion, setOrientacion] = useState<'horizontal' | 'vertical'>('horizontal');
-  const [qrPreview, setQrPreview] = useState('');
+  const [prefijo, setPrefijo]: any = useState('');
+  const [inicio, setInicio]: any = useState(1);
+  const [fin, setFin]: any = useState(100);
+  const [digitos, setDigitos]: any = useState(4);
+  const [orientacion, setOrientacion]: any = useState('horizontal');
+  const [qrPreview, setQrPreview]: any = useState('');
+  const styleRef: any = useRef(null);
 
-  // Generar vista previa
+  useEffect(() => {
+    if (!styleRef.current) {
+      const style = document.createElement('style');
+      style.textContent = `
+        .ut01-preview-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 20px;
+          background: var(--bg-input);
+          border-radius: 8px;
+        }
+        .etiqueta-preview {
+          border: 2px solid var(--text-primary);
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px;
+          gap: 12px;
+          background: var(--bg-panel);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .preview-horizontal {
+          width: 300px;
+          height: 150px;
+          flex-direction: row;
+        }
+        .preview-vertical {
+          width: 150px;
+          height: 300px;
+          flex-direction: column;
+        }
+        .etiqueta-preview-numero {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 24px;
+          font-weight: 900;
+          color: var(--text-primary);
+          text-align: center;
+          word-break: break-all;
+          line-height: 1.2;
+        }
+        .etiqueta-preview img {
+          image-rendering: auto;
+        }
+      `;
+      document.head.appendChild(style);
+      styleRef.current = style;
+    }
+  }, []);
+
   const generarPreview = async () => {
     const numero = String(inicio).padStart(digitos, '0');
     const valorCompleto = prefijo + numero;
@@ -20,7 +71,6 @@ const UT01View: React.FC = () => {
     setQrPreview(qr);
   };
 
-  // Generar HTML con todas las etiquetas
   const generarEtiquetas = async () => {
     const total = fin - inicio + 1;
     if (total <= 0 || total > 1000) {
@@ -33,7 +83,6 @@ const UT01View: React.FC = () => {
 
     let etiquetasHTML = '';
 
-    // Generar de mayor a menor para que al enrollar quede la más baja al inicio
     for (let i = fin; i >= inicio; i--) {
       const numero = String(i).padStart(digitos, '0');
       const valorCompleto = prefijo + numero;
@@ -91,7 +140,7 @@ const UT01View: React.FC = () => {
           <input
             type="text"
             value={prefijo}
-            onChange={e => setPrefijo(e.target.value)}
+            onChange={(e: any) => setPrefijo(e.target.value)}
             placeholder="Ej: LPN-"
             onBlur={generarPreview}
           />
@@ -101,7 +150,7 @@ const UT01View: React.FC = () => {
           <input
             type="number"
             value={inicio}
-            onChange={e => { setInicio(parseInt(e.target.value) || 1); }}
+            onChange={(e: any) => { setInicio(parseInt(e.target.value) || 1); }}
             min={1}
             onBlur={generarPreview}
           />
@@ -111,7 +160,7 @@ const UT01View: React.FC = () => {
           <input
             type="number"
             value={fin}
-            onChange={e => { setFin(parseInt(e.target.value) || 1); }}
+            onChange={(e: any) => { setFin(parseInt(e.target.value) || 1); }}
             min={1}
             onBlur={generarPreview}
           />
@@ -121,7 +170,7 @@ const UT01View: React.FC = () => {
           <input
             type="number"
             value={digitos}
-            onChange={e => { setDigitos(parseInt(e.target.value) || 1); }}
+            onChange={(e: any) => { setDigitos(parseInt(e.target.value) || 1); }}
             min={1}
             max={10}
             onBlur={generarPreview}
@@ -131,18 +180,26 @@ const UT01View: React.FC = () => {
           <label>Orientación</label>
           <select
             value={orientacion}
-            onChange={e => {
-              setOrientacion(e.target.value as 'horizontal' | 'vertical');
+            onChange={(e: any) => {
+              setOrientacion(e.target.value);
               setTimeout(generarPreview, 100);
             }}
-            style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', height: '42px' }}
+            style={{ 
+              padding: '10px 12px', 
+              border: '1px solid var(--border-input)', 
+              borderRadius: '8px', 
+              fontSize: '14px', 
+              height: '42px',
+              background: 'var(--bg-input)',
+              color: 'var(--text-primary)'
+            }}
           >
             <option value="horizontal">Horizontal (100×50mm)</option>
             <option value="vertical">Vertical (50×100mm)</option>
           </select>
         </div>
         <button className="ut01-btn-generar" onClick={generarEtiquetas}>
-          🖨️ Generar {fin - inicio + 1} Etiquetas
+          Generar {fin - inicio + 1} Etiquetas
         </button>
       </div>
 
@@ -165,7 +222,6 @@ const UT01View: React.FC = () => {
   );
 };
 
-// CSS Horizontal (100mm × 50mm)
 const cssHorizontal = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -225,7 +281,6 @@ body {
 }
 `;
 
-// CSS Vertical (50mm × 100mm)
 const cssVertical = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -282,52 +337,5 @@ body {
   .etiqueta-qr { width: 26mm; height: 26mm; }
 }
 `;
-
-// Estilos para la vista previa
-const stylePreview = document.createElement('style');
-stylePreview.textContent = `
-.ut01-preview-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: #f1f5f9;
-  border-radius: 8px;
-}
-.etiqueta-preview {
-  border: 2px solid #1a1f2e;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  gap: 12px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-.preview-horizontal {
-  width: 300px;
-  height: 150px;
-  flex-direction: row;
-}
-.preview-vertical {
-  width: 150px;
-  height: 300px;
-  flex-direction: column;
-}
-.etiqueta-preview-numero {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 24px;
-  font-weight: 900;
-  color: #000;
-  text-align: center;
-  word-break: break-all;
-  line-height: 1.2;
-}
-.etiqueta-preview img {
-  image-rendering: auto;
-}
-`;
-document.head.appendChild(stylePreview);
 
 export default UT01View;
