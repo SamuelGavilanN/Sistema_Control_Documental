@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../../lib/auth';
+import SD01CrearTransporte from './SD01CrearTransporte';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
 const HEADERS: any = {
@@ -13,11 +14,16 @@ const SD01View: React.FC = () => {
   const [transportes, setTransportes]: any = useState([]);
   const [cargando, setCargando]: any = useState(true);
   const [transporteSeleccionado, setTransporteSeleccionado]: any = useState(null);
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
+  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
+  const [mostrarCrearTransporte, setMostrarCrearTransporte]: any = useState(false);
+  const [usuariosAdmin, setUsuariosAdmin]: any = useState([]);
+  const [mostrarAsignarModal, setMostrarAsignarModal]: any = useState(false);
+  const [usuarioAsignar, setUsuarioAsignar]: any = useState('');
   const usuario: any = auth.getUsuario();
 
   useEffect(() => {
     cargarTransportes();
+    cargarUsuariosAdmin();
     const intervalo = setInterval(cargarTransportes, 10000);
     return () => clearInterval(intervalo);
   }, []);
@@ -27,12 +33,37 @@ const SD01View: React.FC = () => {
       const resp = await fetch(API_URL + '/sd01_documentos?select=*&order=creado_en.desc', { headers: HEADERS });
       const data = await resp.json();
       if (data && data.length > 0) {
-        const transportesConLocales = await Promise.all(data.map(async (transporte: any) => {
+        const transportesConDetalles = await Promise.all(data.map(async (transporte: any) => {
           const respLocales = await fetch(API_URL + '/sd01_documento_locales?select=id&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
           const locales = await respLocales.json();
-          return { ...transporte, cantidad_locales: locales ? locales.length : 0 };
+          
+          let conductorNombre = '-';
+          let patenteNumero = '-';
+          
+          if (transporte.conductor_id) {
+            const respConductor = await fetch(API_URL + '/sd01_conductores?select=nombre,apellido&id=eq.' + transporte.conductor_id, { headers: HEADERS });
+            const conductorData = await respConductor.json();
+            if (conductorData && conductorData.length > 0) {
+              conductorNombre = conductorData[0].nombre + ' ' + conductorData[0].apellido;
+            }
+          }
+          
+          if (transporte.patente_principal_id) {
+            const respPatente = await fetch(API_URL + '/sd01_patentes?select=numero_patente&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
+            const patenteData = await respPatente.json();
+            if (patenteData && patenteData.length > 0) {
+              patenteNumero = patenteData[0].numero_patente;
+            }
+          }
+          
+          return { 
+            ...transporte, 
+            cantidad_locales: locales ? locales.length : 0,
+            conductor_nombre: conductorNombre,
+            patente_principal: patenteNumero
+          };
         }));
-        setTransportes(transportesConLocales);
+        setTransportes(transportesConDetalles);
       } else {
         setTransportes([]);
       }
@@ -42,9 +73,17 @@ const SD01View: React.FC = () => {
     }
   };
 
+  const cargarUsuariosAdmin = async () => {
+    try {
+      const resp = await fetch(API_URL + '/usuarios?select=id,nombre,apellido,rol&or=(rol.eq.Administrativo,rol.eq.Lider)&activo=eq.true', { headers: HEADERS });
+      const data = await resp.json();
+      if (data) setUsuariosAdmin(data);
+    } catch (e) {}
+  };
+
   const mostrarMensaje = (tipo: string, texto: string) => {
-    setMensaje({ tipo, texto });
-    setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
+    setMensaje({ tipo, texto, visible: true });
+    setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
   const handleSeleccionarTransporte = (transporte: any) => {
@@ -56,9 +95,13 @@ const SD01View: React.FC = () => {
   };
 
   const handleCrearTransporte = () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Esta funcionalidad se implementará en el modal de creación');
-    }
+    setMostrarCrearTransporte(true);
+  };
+
+  const handleTransporteCreado = () => {
+    setMostrarCrearTransporte(false);
+    cargarTransportes();
+    mostrarMensaje('success', 'Transporte creado exitosamente');
   };
 
   const handleCargarTransporte = () => {
@@ -175,6 +218,74 @@ const SD01View: React.FC = () => {
     }
   };
 
+  const handleAsignarTransporte = () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
+      return;
+    }
+    if (transporteSeleccionado.estado === 'Cancelado' || transporteSeleccionado.estado === 'Finalizado') {
+      mostrarMensaje('error', 'No se puede asignar un transporte Cancelado o Finalizado');
+      return;
+    }
+    setUsuarioAsignar(transporteSeleccionado.asignado_a || '');
+    setMostrarAsignarModal(true);
+  };
+
+  const handleConfirmarAsignacion = async () => {
+    if (!usuarioAsignar) {
+      mostrarMensaje('warning', 'Debe seleccionar un usuario');
+      return;
+    }
+    try {
+      const usuarioSeleccionado = usuariosAdmin.find((u: any) => u.id === usuarioAsignar);
+      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asignado_a: usuarioAsignar,
+          administrativo: usuarioSeleccionado ? usuarioSeleccionado.nombre + ' ' + usuarioSeleccionado.apellido : '',
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: new Date().toISOString()
+        })
+      });
+      mostrarMensaje('success', 'Transporte asignado exitosamente');
+      setMostrarAsignarModal(false);
+      setTransporteSeleccionado(null);
+      cargarTransportes();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al asignar transporte');
+    }
+  };
+
+  const handleReabrirTransporte = async () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
+      return;
+    }
+    if (transporteSeleccionado.estado !== 'Finalizado') {
+      mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado');
+      return;
+    }
+    if (!window.confirm('¿Está seguro de reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a estado Pendiente.')) return;
+    try {
+      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'Pendiente',
+          finalizado_en: null,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: new Date().toISOString()
+        })
+      });
+      mostrarMensaje('success', 'Transporte reabierto exitosamente');
+      setTransporteSeleccionado(null);
+      cargarTransportes();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al reabrir transporte');
+    }
+  };
+
   const getEstadoBadge = (estado: string) => {
     const badges: any = {
       'Pendiente': { color: '#b45309', bg: '#fef3c7' },
@@ -229,18 +340,20 @@ const SD01View: React.FC = () => {
 
   return (
     <div style={{ padding: '24px', background: '#f5f7fb', minHeight: '100vh' }}>
-      {mensaje.texto && (
+      {mensaje.visible && (
         <div style={{
           position: 'fixed',
-          top: '20px',
-          right: '20px',
+          bottom: '24px',
+          right: '24px',
           zIndex: 2000,
-          padding: '12px 20px',
-          borderRadius: '8px',
+          padding: '14px 24px',
+          borderRadius: '10px',
           fontSize: '14px',
           fontWeight: 500,
           ...getMensajeStyle(),
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          animation: 'slideInRight 0.3s ease',
+          maxWidth: '420px'
         }}>
           {mensaje.texto}
         </div>
@@ -429,6 +542,58 @@ const SD01View: React.FC = () => {
             </svg>
             Finalizar Transporte
           </button>
+
+          <div style={{ width: '1px', height: '28px', background: '#e2e8f0', margin: '0 4px' }}></div>
+
+          <button
+            onClick={handleAsignarTransporte}
+            style={{
+              padding: '8px 16px',
+              background: transporteSeleccionado ? '#7c3aed' : '#e2e8f0',
+              color: transporteSeleccionado ? 'white' : '#94a3b8',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: transporteSeleccionado ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10.6667 14V12.6667C10.6667 11.9594 10.3857 11.2811 9.88562 10.781C9.38552 10.281 8.70724 10 8 10H4C3.29276 10 2.61448 10.281 2.11438 10.781C1.61428 11.2811 1.33333 11.9594 1.33333 12.6667V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 7.33333C7.47276 7.33333 8.66667 6.13943 8.66667 4.66667C8.66667 3.19391 7.47276 2 6 2C4.52724 2 3.33333 3.19391 3.33333 4.66667C3.33333 6.13943 4.52724 7.33333 6 7.33333Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14.6667 14V12.6667C14.6667 11.9594 14.3857 11.2811 13.8856 10.781C13.3855 10.281 12.7072 10 12 10H11.3333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10.6667 2.08667C11.2403 2.23354 11.7487 2.56713 12.1118 3.03487C12.4748 3.50261 12.6719 4.07789 12.6719 4.67C12.6719 5.26211 12.4748 5.83739 12.1118 6.30513C11.7487 6.77287 11.2403 7.10646 10.6667 7.25333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Asignar Transporte
+          </button>
+
+          <button
+            onClick={handleReabrirTransporte}
+            style={{
+              padding: '8px 16px',
+              background: transporteSeleccionado ? '#d97706' : '#e2e8f0',
+              color: transporteSeleccionado ? 'white' : '#94a3b8',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: transporteSeleccionado ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4.66667 5.33337V10.6667L7.33333 8.00004L10 10.6667V5.33337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Reabrir Transporte
+          </button>
         </div>
 
         {transporteSeleccionado && (
@@ -483,6 +648,7 @@ const SD01View: React.FC = () => {
               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Fecha Programación</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Conductor</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Patente</th>
+              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Asignado A</th>
               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Locales</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Estado</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Creado Por</th>
@@ -494,7 +660,7 @@ const SD01View: React.FC = () => {
           <tbody>
             {transportes.length === 0 ? (
               <tr>
-                <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                   No hay transportes registrados. Haga clic en "+ Crear Transporte" para comenzar.
                 </td>
               </tr>
@@ -541,6 +707,9 @@ const SD01View: React.FC = () => {
                   <td style={{ padding: '12px 16px', fontSize: '13px', color: '#475569' }}>
                     {transporte.patente_principal || '-'}
                   </td>
+                  <td style={{ padding: '12px 16px', fontSize: '13px', color: '#475569' }}>
+                    {transporte.administrativo || '-'}
+                  </td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: '#475569' }}>
                     <span style={{
                       display: 'inline-block',
@@ -586,6 +755,71 @@ const SD01View: React.FC = () => {
       }}>
         Total de transportes: <strong style={{ color: '#1e293b' }}>{transportes.length}</strong>
       </div>
+
+      {mostrarCrearTransporte && (
+        <SD01CrearTransporte
+          onClose={() => setMostrarCrearTransporte(false)}
+          onTransporteCreado={handleTransporteCreado}
+        />
+      )}
+
+      {mostrarAsignarModal && (
+        <div className="ed01-modal-overlay" onClick={() => setMostrarAsignarModal(false)}>
+          <div className="ed01-modal" style={{ maxWidth: '480px' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>Asignar Transporte</h2>
+              <button className="ed01-modal-close" onClick={() => setMostrarAsignarModal(false)}>×</button>
+            </div>
+            <div className="ed01-modal-body">
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                  Transporte: <strong>{transporteSeleccionado?.id_documento}</strong>
+                </label>
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                  Asignar a (Administrativo o Líder)
+                </label>
+                <select
+                  value={usuarioAsignar}
+                  onChange={(e: any) => setUsuarioAsignar(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#1e293b',
+                    background: 'white'
+                  }}
+                >
+                  <option value="">Seleccionar usuario...</option>
+                  {usuariosAdmin.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.nombre} {u.apellido} ({u.rol})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="ed01-modal-footer">
+              <button className="ed01-btn-cancel" onClick={() => setMostrarAsignarModal(false)}>Cancelar</button>
+              <button className="ed01-btn-save" onClick={handleConfirmarAsignacion}>Asignar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 };
