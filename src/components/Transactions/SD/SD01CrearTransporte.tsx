@@ -13,11 +13,14 @@ const HEADERS: any = {
 interface SD01CrearTransporteProps {
   onClose: () => void;
   onTransporteCreado: () => void;
+  transporteEditar?: any;
 }
 
-const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTransporteCreado }) => {
+const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTransporteCreado, transporteEditar }) => {
   const usuario: any = auth.getUsuario();
-  const [fechaProgramacion, setFechaProgramacion]: any = useState(new Date().toISOString().split('T')[0]);
+  const esEdicion = !!transporteEditar;
+  
+  const [fechaProgramacion, setFechaProgramacion]: any = useState('');
   const [conductorId, setConductorId]: any = useState('');
   const [conductorTexto, setConductorTexto]: any = useState('');
   const [patenteId, setPatenteId]: any = useState('');
@@ -46,7 +49,51 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     cargarConductores();
     cargarPatentes();
     cargarLocales();
+    
+    if (esEdicion && transporteEditar) {
+      cargarDatosEdicion();
+    }
   }, []);
+
+  const cargarDatosEdicion = async () => {
+    setFechaProgramacion(transporteEditar.fecha_programacion || '');
+    
+    if (transporteEditar.conductor_id) {
+      try {
+        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporteEditar.conductor_id, { headers: HEADERS });
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          setConductorId(data[0].id);
+          setConductorTexto(data[0].nombre + ' ' + data[0].apellido);
+        }
+      } catch (e) {}
+    }
+    
+    if (transporteEditar.patente_principal_id) {
+      try {
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id, { headers: HEADERS });
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          setPatenteId(data[0].id);
+          setPatenteTexto(data[0].numero_patente);
+        }
+      } catch (e) {}
+    }
+    
+    try {
+      const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
+      const data = await resp.json();
+      if (data && data.length > 0) {
+        const localesData = data.map((l: any) => ({
+          codigo_local: l.codigo_local || '',
+          nombre_local: l.nombre_local || '',
+          fecha_entrega: l.fecha_entrega || '',
+          hora_entrega: l.hora_entrega || ''
+        }));
+        setLocales(localesData);
+      }
+    } catch (e) {}
+  };
 
   const cargarConductores = async () => {
     try {
@@ -80,17 +127,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     } catch (e) {
       console.error('Error cargando locales:', e);
     }
-  };
-
-  const filterStartsWith = (list: any[], fields: string[], search: string) => {
-    if (!search) return [];
-    const searchLower = search.toLowerCase();
-    return list.filter((item: any) => {
-      return fields.some((field: string) => {
-        const valor = String(item[field] || '').toLowerCase();
-        return valor.startsWith(searchLower);
-      });
-    });
   };
 
   const handleBuscarConductor = (valor: string) => {
@@ -316,50 +352,83 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
     setGuardando(true);
     try {
-      const idDocumento = generarIdDocumento();
-      
-      const transporteData = {
-        id_documento: idDocumento,
-        conductor_id: conductorId,
-        patente_principal_id: patenteId,
-        fecha_programacion: fechaProgramacion,
-        estado: 'Pendiente',
-        creado_por: usuario?.id,
-        modificado_por: usuario?.nombre + ' ' + usuario?.apellido
-      };
-
-      const respTransporte = await fetch(API_URL + '/sd01_documentos', {
-        method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify(transporteData)
-      });
-
-      if (!respTransporte.ok) {
-        const errorData = await respTransporte.json();
-        console.error('Error creando transporte:', errorData);
-        setMensaje({ tipo: 'error', texto: 'Error al crear el transporte: ' + (errorData.message || 'Error desconocido') });
-        setGuardando(false);
-        return;
-      }
-
-      for (const local of locales) {
-        await fetch(API_URL + '/sd01_documento_locales', {
-          method: 'POST',
+      if (esEdicion) {
+        await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
+          method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            documento_id: idDocumento,
-            codigo_local: local.codigo_local,
-            nombre_local: local.nombre_local,
-            fecha_entrega: local.fecha_entrega || null,
-            hora_entrega: local.hora_entrega || null
+            conductor_id: conductorId,
+            patente_principal_id: patenteId,
+            fecha_programacion: fechaProgramacion,
+            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+            modificado_en: new Date().toISOString()
           })
         });
+
+        await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + transporteEditar.id_documento, {
+          method: 'DELETE',
+          headers: HEADERS
+        });
+
+        for (const local of locales) {
+          await fetch(API_URL + '/sd01_documento_locales', {
+            method: 'POST',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documento_id: transporteEditar.id_documento,
+              codigo_local: local.codigo_local,
+              nombre_local: local.nombre_local,
+              fecha_entrega: local.fecha_entrega || null,
+              hora_entrega: local.hora_entrega || null
+            })
+          });
+        }
+      } else {
+        const idDocumento = generarIdDocumento();
+        
+        const transporteData = {
+          id_documento: idDocumento,
+          conductor_id: conductorId,
+          patente_principal_id: patenteId,
+          fecha_programacion: fechaProgramacion,
+          estado: 'Pendiente',
+          creado_por: usuario?.id,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido
+        };
+
+        const respTransporte = await fetch(API_URL + '/sd01_documentos', {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: JSON.stringify(transporteData)
+        });
+
+        if (!respTransporte.ok) {
+          const errorData = await respTransporte.json();
+          console.error('Error creando transporte:', errorData);
+          setMensaje({ tipo: 'error', texto: 'Error al crear el transporte: ' + (errorData.message || 'Error desconocido') });
+          setGuardando(false);
+          return;
+        }
+
+        for (const local of locales) {
+          await fetch(API_URL + '/sd01_documento_locales', {
+            method: 'POST',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documento_id: idDocumento,
+              codigo_local: local.codigo_local,
+              nombre_local: local.nombre_local,
+              fecha_entrega: local.fecha_entrega || null,
+              hora_entrega: local.hora_entrega || null
+            })
+          });
+        }
       }
 
       onTransporteCreado();
     } catch (e) {
       console.error('Error:', e);
-      setMensaje({ tipo: 'error', texto: 'Error al crear el transporte' });
+      setMensaje({ tipo: 'error', texto: 'Error al ' + (esEdicion ? 'editar' : 'crear') + ' el transporte' });
     }
     setGuardando(false);
   };
@@ -368,7 +437,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     <div className="sd01-modal-overlay" onClick={onClose}>
       <div className="sd01-modal" onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
-          <h2>Crear Nuevo Transporte</h2>
+          <h2>{esEdicion ? 'Editar Transporte' : 'Crear Nuevo Transporte'}</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
@@ -543,7 +612,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           <div style={{ display: 'flex', gap: '10px' }}>
             <button className="sd01-btn-cancel" onClick={onClose}>Cancelar</button>
             <button className="sd01-btn-save" onClick={handleGuardar} disabled={guardando}>
-              {guardando ? 'Creando...' : 'Crear Transporte'}
+              {guardando ? (esEdicion ? 'Guardando...' : 'Creando...') : (esEdicion ? 'Guardar Cambios' : 'Crear Transporte')}
             </button>
           </div>
         </div>
