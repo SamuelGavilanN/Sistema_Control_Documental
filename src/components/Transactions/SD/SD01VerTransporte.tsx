@@ -111,196 +111,125 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
             {transporte.estado}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
-            <div style={{
-              background: '#f8fafd',
-              borderRadius: '10px',
-              padding: '16px',
-              border: '1px solid #eef0f5'
-            }}>
-              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                📅 Programación
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Fecha Programación</span>
-                  <span style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
-                    {formatearFecha(transporte.fecha_programacion)}
-                  </span>
-                </div>
+          <div className="sd01-ver-grid">
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Programación</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Fecha Programación</span>
+                <span className="sd01-ver-field-value">
+                  {formatearFecha(transporte.fecha_programacion)}
+                </span>
               </div>
             </div>
 
-            <div style={{
-              background: '#f8fafd',
-              borderRadius: '10px',
-              padding: '16px',
-              border: '1px solid #eef0f5'
-            }}>
-              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                🚛 Conductor
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Nombre</span>
-                  <span style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
-                    {detallesConductor ? detallesConductor.nombre + ' ' + detallesConductor.apellido : '-'}
-                  </span>
-                </div>
-                {detallesConductor && (
-                  <>
-                    <div>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>RUT</span>
-                      <span style={{ fontSize: '14px', color: '#475569' }}>
-                        {formatearRut(detallesConductor.numero_documento)}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Teléfono</span>
-                      <span style={{ fontSize: '14px', color: '#475569' }}>
-                        {detallesConductor.telefono || '-'}
-                      </span>
-                    </div>
-                    {detallesConductor.empresa && (
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Transportista</span>
-                        <span style={{ fontSize: '14px', color: '#475569' }}>
-                          {detallesConductor.empresa}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Conductor</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Nombre</span>
+                <span className="sd01-ver-field-value">
+                  {detallesConductor ? detallesConductor.nombre + ' ' + detallesConductor.apellido : '-'}
+                </span>
               </div>
-            </div>
-
-            <div style={{
-              background: '#f8fafd',
-              borderRadius: '10px',
-              padding: '16px',
-              border: '1px solid #eef0f5'
-            }}>
-              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                🚗 Patente
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Patente</span>
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', fontFamily: 'Courier New, monospace' }}>
-                    {detallesPatente ? detallesPatente.numero_patente : '-'}
-                  </span>
-                </div>
-                {detallesPatente && (
-                  <div>
-                    <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Tipo de Vehículo</span>
-                    <span style={{ fontSize: '14px', color: '#475569' }}>
-                      {detallesPatente.tipo_vehiculo || 'Otro'}
+              {detallesConductor && (
+                <>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">RUT</span>
+                    <span className="sd01-ver-field-value">
+                      {formatearRut(detallesConductor.numero_documento)}
                     </span>
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{
-              background: '#f8fafd',
-              borderRadius: '10px',
-              padding: '16px',
-              border: '1px solid #eef0f5'
-            }}>
-              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                👤 Información
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Creado Por</span>
-                  <span style={{ fontSize: '14px', color: '#475569' }}>
-                    {transporte.creado_por_nombre || '-'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Asignado A</span>
-                  <span style={{ fontSize: '14px', color: '#475569' }}>
-                    {transporte.administrativo || 'No asignado'}
-                  </span>
-                </div>
-                {transporte.observaciones && (
-                  <div>
-                    <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Observaciones</span>
-                    <span style={{ fontSize: '14px', color: '#dc2626' }}>
-                      {transporte.observaciones}
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Teléfono</span>
+                    <span className="sd01-ver-field-value">
+                      {detallesConductor.telefono || '-'}
                     </span>
                   </div>
-                )}
+                  {detallesConductor.empresa && (
+                    <div className="sd01-ver-field">
+                      <span className="sd01-ver-field-label">Transportista</span>
+                      <span className="sd01-ver-field-value">
+                        {detallesConductor.empresa}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Patente</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Patente</span>
+                <span className="sd01-ver-field-value-large">
+                  {detallesPatente ? detallesPatente.numero_patente : '-'}
+                </span>
               </div>
+              {detallesPatente && (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Tipo de Vehículo</span>
+                  <span className="sd01-ver-field-value">
+                    {detallesPatente.tipo_vehiculo || 'Otro'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Información</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Creado Por</span>
+                <span className="sd01-ver-field-value">
+                  {transporte.creado_por_nombre || '-'}
+                </span>
+              </div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Asignado A</span>
+                <span className="sd01-ver-field-value">
+                  {transporte.administrativo || 'No asignado'}
+                </span>
+              </div>
+              {transporte.observaciones && (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Observaciones</span>
+                  <span className="sd01-ver-field-value" style={{ color: '#dc2626' }}>
+                    {transporte.observaciones}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           <div>
-            <h3 style={{
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#475569',
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              📍 Locales de Entrega
-              <span style={{
-                fontSize: '12px',
-                fontWeight: 500,
-                color: '#64748b',
-                background: '#f1f5f9',
-                padding: '2px 10px',
-                borderRadius: '10px'
-              }}>
+            <div className="sd01-ver-locales-title">
+              Locales de Entrega
+              <span className="sd01-ver-locales-count">
                 {locales.length} {locales.length === 1 ? 'local' : 'locales'}
               </span>
-            </h3>
+            </div>
             
             {locales.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#f8fafd', borderRadius: '8px' }}>
                 No hay locales registrados
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
                 {locales.map((local: any, index: number) => (
-                  <div
-                    key={local.id || index}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1.5fr 1fr 1fr',
-                      gap: '12px',
-                      padding: '14px 16px',
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      border: '1px solid #eef0f5',
-                      alignItems: 'center'
-                    }}
-                  >
+                  <div key={local.id || index} className="sd01-ver-local-item">
                     <div>
                       <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Código</span>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', fontFamily: 'Courier New, monospace' }}>
-                        {local.codigo_local}
-                      </span>
+                      <span className="sd01-ver-local-code">{local.codigo_local}</span>
                     </div>
                     <div>
                       <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Nombre Local</span>
-                      <span style={{ fontSize: '14px', color: '#475569' }}>
-                        {local.nombre_local || '-'}
-                      </span>
+                      <span className="sd01-ver-local-name">{local.nombre_local || '-'}</span>
                     </div>
                     <div>
                       <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Fecha Entrega</span>
-                      <span style={{ fontSize: '14px', fontWeight: 500, color: '#1e293b' }}>
-                        {formatearFecha(local.fecha_entrega)}
-                      </span>
+                      <span className="sd01-ver-local-date">{formatearFecha(local.fecha_entrega)}</span>
                     </div>
                     <div>
                       <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Hora Entrega</span>
-                      <span style={{ fontSize: '14px', fontWeight: 500, color: '#1e293b' }}>
-                        {local.hora_entrega || '-'}
-                      </span>
+                      <span className="sd01-ver-local-time">{local.hora_entrega || '-'}</span>
                     </div>
                   </div>
                 ))}
