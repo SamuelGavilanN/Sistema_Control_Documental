@@ -33,6 +33,7 @@ const moduleTitles: Record<string, string> = {
   'rd-informe': 'RD03 · Informe',
   'rd-dashboard': 'RD04 · Dashboard Devolución',
   'sd': 'SD01 · Salida Despacho',
+  'sd-asignador': 'SD02 · Asignador Móvil',
   'lp': 'LP01 · Crear Pedido',
   'lp-captura': 'LP02 · Capturar LPN',
   'ut': 'UT01 · Correlativo QR',
