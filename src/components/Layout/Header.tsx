@@ -16,8 +16,6 @@ interface HeaderProps {
   onOpenModule?: (moduleId: string) => void;
 }
 
-// En src/components/Layout/Header.tsx, solo cambia moduleTitles:
-
 const moduleTitles: Record<string, string> = {
   'dashboard': 'Ventana de Trabajo',
   'ed': 'ED01 · Reg Empaque',
@@ -62,11 +60,20 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const [respuestaTexto, setRespuestaTexto] = useState('');
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
   const [toastMostrado, setToastMostrado] = useState<Set<string>>(new Set());
+  const [darkMode, setDarkMode] = useState(false);
 
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase() : '??';
   const nombreCompleto = usuario ? `${usuario.nombre || ''} ${usuario.apellido || ''}`.trim() : 'Usuario';
   const noVistas = notificaciones.filter(n => !n.visto).length;
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setDarkMode(true);
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
 
   useEffect(() => {
     if (!usuario) return;
@@ -87,9 +94,21 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    if (newDarkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('theme', 'light');
+    }
+  };
+
   const cargarNombresUsuarios = async () => {
     try {
-      const resp = await fetch(`${API_URL}/usuarios?select=id,nombre,apellido`, { headers: HEADERS });
+      const resp = await fetch(API_URL + '/usuarios?select=id,nombre,apellido', { headers: HEADERS });
       const data = await resp.json();
       if (data) { const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
     } catch (e) {}
@@ -97,10 +116,10 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
 
   const abrirModalDesdeToast = async (n: Notificacion) => {
     setToastActual(null);
-    await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
-    const resp = await fetch(`${API_URL}/tickets?select=*&id=eq.${n.ticket_id}`, { headers: HEADERS });
+    await fetch(API_URL + '/ticket_notificaciones?id=eq.' + n.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
+    const resp = await fetch(API_URL + '/tickets?select=*&id=eq.' + n.ticket_id, { headers: HEADERS });
     const tickets = await resp.json(); const ticket = tickets?.[0];
-    const resp2 = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticket?.id}&order=creado_en.asc`, { headers: HEADERS });
+    const resp2 = await fetch(API_URL + '/ticket_respuestas?select=*&ticket_id=eq.' + ticket?.id + '&order=creado_en.asc', { headers: HEADERS });
     setTicketModalData(ticket); setTicketRespuestas(await resp2.json() || []); setRespuestaTexto(''); setShowTicketModal(true);
     cargarNotificaciones();
   };
@@ -108,12 +127,12 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const cargarNotificaciones = async () => {
     try {
       if (!usuario?.id) return;
-      const resp = await fetch(`${API_URL}/ticket_notificaciones?usuario_id=eq.${usuario.id}&visto=eq.false&order=creado_en.desc&limit=20`, { headers: HEADERS });
+      const resp = await fetch(API_URL + '/ticket_notificaciones?usuario_id=eq.' + usuario.id + '&visto=eq.false&order=creado_en.desc&limit=20', { headers: HEADERS });
       const notifs = await resp.json();
       if (!notifs || notifs.length === 0) return;
       const nuevas: Notificacion[] = [];
       for (const n of notifs) {
-        const resp2 = await fetch(`${API_URL}/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.${n.ticket_id}`, { headers: HEADERS });
+        const resp2 = await fetch(API_URL + '/tickets?select=numero_ticket,tipo_problema,prioridad,area&id=eq.' + n.ticket_id, { headers: HEADERS });
         const tickets = await resp2.json(); const ticket = tickets?.[0];
         nuevas.push({ id: n.id, ticket_id: n.ticket_id, ticket_numero: ticket?.numero_ticket || '', tipo_problema: ticket?.tipo_problema || '', prioridad: ticket?.prioridad || '', area: ticket?.area || '', creado_en: n.creado_en, visto: n.visto });
       }
@@ -124,29 +143,29 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const marcarVisto = async (notifId: string) => {
-    await fetch(`${API_URL}/ticket_notificaciones?id=eq.${notifId}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
+    await fetch(API_URL + '/ticket_notificaciones?id=eq.' + notifId, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) });
     cargarNotificaciones();
   };
 
   const marcarTodasVisto = async () => {
-    for (const n of notificaciones) { await fetch(`${API_URL}/ticket_notificaciones?id=eq.${n.id}`, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }); }
+    for (const n of notificaciones) { await fetch(API_URL + '/ticket_notificaciones?id=eq.' + n.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ visto: true }) }); }
     cargarNotificaciones();
   };
 
   const handleNotifClick = async (n: Notificacion) => {
     marcarVisto(n.id); setShowNotifMenu(false);
-    const resp = await fetch(`${API_URL}/tickets?select=*&id=eq.${n.ticket_id}`, { headers: HEADERS });
+    const resp = await fetch(API_URL + '/tickets?select=*&id=eq.' + n.ticket_id, { headers: HEADERS });
     const tickets = await resp.json(); const ticket = tickets?.[0];
-    const resp2 = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticket?.id}&order=creado_en.asc`, { headers: HEADERS });
+    const resp2 = await fetch(API_URL + '/ticket_respuestas?select=*&ticket_id=eq.' + ticket?.id + '&order=creado_en.asc', { headers: HEADERS });
     setTicketModalData(ticket); setTicketRespuestas(await resp2.json() || []); setRespuestaTexto(''); setShowTicketModal(true);
   };
 
   const handleResponderDesdeModal = async () => {
     if (!respuestaTexto.trim() || !ticketModalData) return;
-    await fetch(`${API_URL}/ticket_respuestas`, { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, mensaje: respuestaTexto, creado_por: usuario?.id }) });
-    if (ticketModalData.creado_por !== usuario?.id) { await fetch(`${API_URL}/ticket_notificaciones`, { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, usuario_id: ticketModalData.creado_por }) }); }
+    await fetch(API_URL + '/ticket_respuestas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, mensaje: respuestaTexto, creado_por: usuario?.id }) });
+    if (ticketModalData.creado_por !== usuario?.id) { await fetch(API_URL + '/ticket_notificaciones', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket_id: ticketModalData.id, usuario_id: ticketModalData.creado_por }) }); }
     setRespuestaTexto('');
-    const resp = await fetch(`${API_URL}/ticket_respuestas?select=*&ticket_id=eq.${ticketModalData.id}&order=creado_en.asc`, { headers: HEADERS });
+    const resp = await fetch(API_URL + '/ticket_respuestas?select=*&ticket_id=eq.' + ticketModalData.id + '&order=creado_en.asc', { headers: HEADERS });
     setTicketRespuestas(await resp.json());
   };
 
@@ -164,6 +183,37 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           </div>
         ))}
       </div>
+
+      <button 
+        onClick={toggleDarkMode} 
+        className="theme-toggle-btn"
+        title={darkMode ? 'Modo Claro' : 'Modo Oscuro'}
+        style={{
+          width: '34px',
+          height: '34px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'white',
+          border: '1px solid #e2e8f0',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          transition: 'all 0.15s',
+          marginRight: '10px'
+        }}
+      >
+        {darkMode ? (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="3" stroke="#64748b" strokeWidth="1.5"/>
+            <path d="M8 1V2M8 14V15M1 8H2M14 8H15M3.05 3.05L3.76 3.76M12.24 12.24L12.95 12.95M3.05 12.95L3.76 12.24M12.24 3.76L12.95 3.05" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M13.5 8.5C12.5 11 10 13 7.5 13C5.5 13 3.5 12 2.5 10C4 11 7 10.5 8.5 8C10 5.5 9.5 3 8.5 2C12 2.5 14 5.5 13.5 8.5Z" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </button>
+
       <div className="notif-area" style={{ position: 'relative', marginRight: '10px' }}>
         <button className="notif-btn" onClick={(e) => { e.stopPropagation(); setShowNotifMenu(!showNotifMenu); setShowUserMenu(false); }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M7 2C5.34315 2 4 3.34315 4 5V9L2 12H14L12 9V5C12 3.34315 10.6569 2 9 2H7Z" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/><path d="M7 15C7 16.1046 7.89543 17 9 17C10.1046 17 11 16.1046 11 15" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -181,6 +231,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
           </div>
         )}
       </div>
+
       <div className="user-area">
         <div className="user-info" onClick={(e) => { e.stopPropagation(); setShowUserMenu(!showUserMenu); setShowNotifMenu(false); }}>
           <div className="user-avatar"><span>{iniciales}</span></div><span className="user-name">{nombreCompleto}</span>
@@ -223,7 +274,13 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
       )}
 
-      <style>{`@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}.notif-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s;position:relative}.notif-btn:hover{background:#f8fafd}`}</style>
+      <style>{`
+        @keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+        .notif-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s;position:relative}
+        .notif-btn:hover{background:#f8fafd}
+        .theme-toggle-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:white;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s}
+        .theme-toggle-btn:hover{background:#f8fafd}
+      `}</style>
     </div>
   );
 };
