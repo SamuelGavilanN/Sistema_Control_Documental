@@ -40,6 +40,7 @@ const SD01View: React.FC = () => {
           
           let conductorNombre = '-';
           let patenteNumero = '-';
+          let creadoPorNombre = '-';
           
           if (transporte.conductor_id) {
             try {
@@ -60,12 +61,23 @@ const SD01View: React.FC = () => {
               }
             } catch (e) {}
           }
+
+          if (transporte.creado_por) {
+            try {
+              const respUsuario = await fetch(API_URL + '/usuarios?select=nombre,apellido&id=eq.' + transporte.creado_por, { headers: HEADERS });
+              const usuarioData = await respUsuario.json();
+              if (usuarioData && usuarioData.length > 0) {
+                creadoPorNombre = usuarioData[0].nombre + ' ' + usuarioData[0].apellido;
+              }
+            } catch (e) {}
+          }
           
           return { 
             ...transporte, 
             cantidad_locales: locales ? locales.length : 0,
             conductor_nombre: conductorNombre,
-            patente_principal: patenteNumero
+            patente_principal: patenteNumero,
+            creado_por_nombre: creadoPorNombre
           };
         }));
         setTransportes(transportesConDetalles);
