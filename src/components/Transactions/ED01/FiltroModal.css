@@ -18,4 +18,10 @@
 .filtro-fila select { padding: 8px 10px; border: 1px solid var(--border-input); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text-primary); flex: 2; }
 .filtro-fila input { padding: 8px 10px; border: 1px solid var(--border-input); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text-primary); flex: 3; }
 .filtro-fila input:disabled { background: var(--bg-readonly); }
-.filtro-eliminar { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 6px; color: #ef4444; font-size: 16px; cursor: pointer; flex-s
+.filtro-eliminar { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 6px; color: #ef4444; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+.filtro-eliminar:hover { background: var(--btn-danger-hover-bg); }
+.filtro-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--border); }
+.filtro-btn-cancelar { padding: 10px 20px; background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--btn-text); cursor: pointer; }
+.filtro-btn-cancelar:hover { background: var(--btn-hover-bg); }
+.filtro-btn-aplicar { padding: 10px 20px; background: var(--btn-primary-bg); color: var(--btn-primary-text); border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.filtro-btn-aplicar:hover { background: var(--btn-primary-hover); }
