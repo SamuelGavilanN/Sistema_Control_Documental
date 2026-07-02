@@ -1,3 +1,5 @@
-.bd01-view { background: white; border-radius: 12px; padding: 24px; }
+/* src/components/Transactions/BD/BD01.css */
+
+.bd01-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
 .bd01-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.bd01-header h2 { font-size: 20px; font-weight: 600; color: #1e293b; }
+.bd01-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
