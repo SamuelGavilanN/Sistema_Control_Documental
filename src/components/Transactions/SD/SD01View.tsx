@@ -141,8 +141,8 @@ const SD01View: React.FC = () => {
       mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
       return;
     }
-    if (transporteSeleccionado.estado === 'Cancelado' || transporteSeleccionado.estado === 'Finalizado') {
-      mostrarMensaje('error', 'No se puede editar un transporte Cancelado o Finalizado');
+    if (transporteSeleccionado.estado !== 'Pendiente') {
+      mostrarMensaje('error', 'Solo se pueden editar transportes en estado Pendiente');
       return;
     }
     setMostrarEditarTransporte(true);
@@ -153,12 +153,8 @@ const SD01View: React.FC = () => {
       mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
       return;
     }
-    if (transporteSeleccionado.estado === 'Cancelado') {
-      mostrarMensaje('error', 'El transporte ya está cancelado');
-      return;
-    }
-    if (transporteSeleccionado.estado === 'Finalizado') {
-      mostrarMensaje('error', 'No se puede cancelar un transporte finalizado');
+    if (transporteSeleccionado.estado !== 'Pendiente') {
+      mostrarMensaje('error', 'Solo se pueden cancelar transportes en estado Pendiente');
       return;
     }
 
@@ -207,8 +203,8 @@ const SD01View: React.FC = () => {
       mostrarMensaje('warning', 'Debe seleccionar un transporte de la tabla');
       return;
     }
-    if (transporteSeleccionado.estado === 'Cancelado' || transporteSeleccionado.estado === 'Finalizado') {
-      mostrarMensaje('error', 'No se puede asignar un transporte Cancelado o Finalizado');
+    if (transporteSeleccionado.estado !== 'Pendiente') {
+      mostrarMensaje('error', 'Solo se pueden asignar transportes en estado Pendiente');
       return;
     }
     setUsuarioAsignar(transporteSeleccionado.asignado_a || '');
