@@ -16,7 +16,8 @@ interface SD01VerTransporteProps {
 
 const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transporte }) => {
   const [detallesConductor, setDetallesConductor]: any = useState(null);
-  const [detallesPatente, setDetallesPatente]: any = useState(null);
+  const [detallesPatentePrincipal, setDetallesPatentePrincipal]: any = useState(null);
+  const [detallesPatenteAdicional, setDetallesPatenteAdicional]: any = useState(null);
   const [locales, setLocales]: any = useState([]);
   const [cargando, setCargando]: any = useState(true);
 
@@ -40,7 +41,15 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
         const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) {
-          setDetallesPatente(data[0]);
+          setDetallesPatentePrincipal(data[0]);
+        }
+      }
+
+      if (transporte.patente_adicional_id) {
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id, { headers: HEADERS });
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          setDetallesPatenteAdicional(data[0]);
         }
       }
 
@@ -79,7 +88,7 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
             <button className="sd01-modal-close" onClick={onClose}>×</button>
           </div>
           <div className="sd01-modal-body">
-            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Cargando detalles...</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Cargando detalles...</div>
           </div>
         </div>
       </div>
@@ -88,7 +97,7 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
 
   return (
     <div className="sd01-modal-overlay" onClick={onClose}>
-      <div className="sd01-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
+      <div className="sd01-modal" style={{ maxWidth: '750px' }} onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Transporte {transporte.id_documento}</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
@@ -101,12 +110,12 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
             fontSize: '12px',
             fontWeight: 600,
             marginBottom: '20px',
-            color: transporte.estado === 'Pendiente' ? '#b45309' : 
-                   transporte.estado === 'En Proceso' ? '#1d4ed8' : 
-                   transporte.estado === 'Finalizado' ? '#15803d' : '#64748b',
-            background: transporte.estado === 'Pendiente' ? '#fef3c7' : 
-                       transporte.estado === 'En Proceso' ? '#dbeafe' : 
-                       transporte.estado === 'Finalizado' ? '#dcfce7' : '#f1f5f9'
+            color: transporte.estado === 'Pendiente' ? 'var(--estado-pendiente-text)' : 
+                   transporte.estado === 'En Proceso' ? 'var(--estado-proceso-text)' : 
+                   transporte.estado === 'Finalizado' ? 'var(--estado-finalizado-text)' : 'var(--estado-cancelado-text)',
+            background: transporte.estado === 'Pendiente' ? 'var(--estado-pendiente-bg)' : 
+                       transporte.estado === 'En Proceso' ? 'var(--estado-proceso-bg)' : 
+                       transporte.estado === 'Finalizado' ? 'var(--estado-finalizado-bg)' : 'var(--estado-cancelado-bg)'
           }}>
             {transporte.estado}
           </div>
@@ -157,45 +166,71 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
             </div>
 
             <div className="sd01-ver-card">
-              <div className="sd01-ver-card-title">Patente</div>
+              <div className="sd01-ver-card-title">Patente Principal</div>
               <div className="sd01-ver-field">
                 <span className="sd01-ver-field-label">Patente</span>
                 <span className="sd01-ver-field-value-large">
-                  {detallesPatente ? detallesPatente.numero_patente : '-'}
+                  {detallesPatentePrincipal ? detallesPatentePrincipal.numero_patente : '-'}
                 </span>
               </div>
-              {detallesPatente && (
+              {detallesPatentePrincipal && (
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Tipo de Vehículo</span>
                   <span className="sd01-ver-field-value">
-                    {detallesPatente.tipo_vehiculo || 'Otro'}
+                    {detallesPatentePrincipal.tipo_vehiculo || 'Otro'}
                   </span>
                 </div>
               )}
             </div>
 
             <div className="sd01-ver-card">
-              <div className="sd01-ver-card-title">Información</div>
-              <div className="sd01-ver-field">
-                <span className="sd01-ver-field-label">Creado Por</span>
-                <span className="sd01-ver-field-value">
-                  {transporte.creado_por_nombre || '-'}
-                </span>
-              </div>
-              <div className="sd01-ver-field">
-                <span className="sd01-ver-field-label">Asignado A</span>
-                <span className="sd01-ver-field-value">
-                  {transporte.administrativo || 'No asignado'}
-                </span>
-              </div>
-              {transporte.observaciones && (
+              <div className="sd01-ver-card-title">Patente Adicional</div>
+              {detallesPatenteAdicional ? (
+                <>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Patente</span>
+                    <span className="sd01-ver-field-value-large">
+                      {detallesPatenteAdicional.numero_patente}
+                    </span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Tipo de Vehículo</span>
+                    <span className="sd01-ver-field-value">
+                      {detallesPatenteAdicional.tipo_vehiculo || 'Otro'}
+                    </span>
+                  </div>
+                </>
+              ) : (
                 <div className="sd01-ver-field">
-                  <span className="sd01-ver-field-label">Observaciones</span>
-                  <span className="sd01-ver-field-value" style={{ color: '#dc2626' }}>
-                    {transporte.observaciones}
-                  </span>
+                  <span className="sd01-ver-field-value" style={{ color: 'var(--text-muted)' }}>No asignada</span>
                 </div>
               )}
+            </div>
+
+            <div className="sd01-ver-card" style={{ gridColumn: '1 / -1' }}>
+              <div className="sd01-ver-card-title">Información</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Creado Por</span>
+                  <span className="sd01-ver-field-value">
+                    {transporte.creado_por_nombre || '-'}
+                  </span>
+                </div>
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Asignado A</span>
+                  <span className="sd01-ver-field-value">
+                    {transporte.administrativo || 'No asignado'}
+                  </span>
+                </div>
+                {transporte.observaciones && (
+                  <div className="sd01-ver-field" style={{ gridColumn: '1 / -1' }}>
+                    <span className="sd01-ver-field-label">Observaciones</span>
+                    <span className="sd01-ver-field-value" style={{ color: 'var(--error-text)' }}>
+                      {transporte.observaciones}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -208,7 +243,7 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
             </div>
             
             {locales.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#f8fafd', borderRadius: '8px' }}>
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-placeholder)', fontSize: '13px', background: 'var(--bg-section)', borderRadius: '8px' }}>
                 No hay locales registrados
               </div>
             ) : (
@@ -216,23 +251,23 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
                 {locales.map((local: any, index: number) => (
                   <div key={local.id || index} className="sd01-ver-local-item">
                     <div>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Código</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-placeholder)', display: 'block', marginBottom: '2px' }}>Código</span>
                       <span className="sd01-ver-local-code">{local.codigo_local}</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Nombre Local</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-placeholder)', display: 'block', marginBottom: '2px' }}>Nombre Local</span>
                       <span className="sd01-ver-local-name">{local.nombre_local || '-'}</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Fecha Entrega</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-placeholder)', display: 'block', marginBottom: '2px' }}>Fecha Entrega</span>
                       <span className="sd01-ver-local-date">{formatearFecha(local.fecha_entrega)}</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Hora Entrega</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-placeholder)', display: 'block', marginBottom: '2px' }}>Hora Entrega</span>
                       <span className="sd01-ver-local-time">{local.hora_entrega || '-'}</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Cant. Solicitada</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-placeholder)', display: 'block', marginBottom: '2px' }}>Cant. Solicitada</span>
                       <span className="sd01-ver-local-code">{local.cantidad_solicitada || 0}</span>
                     </div>
                   </div>
