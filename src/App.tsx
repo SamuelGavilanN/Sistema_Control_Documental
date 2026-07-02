@@ -16,6 +16,7 @@ import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
 import BD02Locales from './components/Transactions/BD/BD02Locales';
 import RD01View from './components/Transactions/RD/RD01View';
 import SD01View from './components/Transactions/SD/SD01View';
+import SD02AsignadorMovil from './components/Transactions/SD/SD02AsignadorMovil';
 import LP01View from './components/Transactions/LP/LP01View';
 import LP02View from './components/Transactions/LP/LP02View';
 import UT01View from './components/Transactions/UT/UT01View';
@@ -99,10 +100,11 @@ const App: React.FC = () => {
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
           {tabsMontadas.has('rd') && <div style={{ display: activeTab === 'rd' ? 'block' : 'none' }}><RD01View key="rd01" /></div>}
           {tabsMontadas.has('sd') && <div style={{ display: activeTab === 'sd' ? 'block' : 'none' }}><SD01View key="sd01" /></div>}
+          {tabsMontadas.has('sd-asignador') && <div style={{ display: activeTab === 'sd-asignador' ? 'block' : 'none' }}><SD02AsignadorMovil key="sd02" /></div>}
           {tabsMontadas.has('lp') && <div style={{ display: activeTab === 'lp' ? 'block' : 'none' }}><LP01View key="lp01" /></div>}
           {tabsMontadas.has('lp-captura') && <div style={{ display: activeTab === 'lp-captura' ? 'block' : 'none' }}><LP02View key="lp02" /></div>}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'lp', 'lp-captura', 'ut'].includes(activeTab) && (
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'sd-asignador', 'lp', 'lp-captura', 'ut'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
