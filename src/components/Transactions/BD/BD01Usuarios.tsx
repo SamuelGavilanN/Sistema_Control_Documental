@@ -1,7 +1,6 @@
 // src/components/Transactions/BD/BD01Usuarios.tsx
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import './BD01.css';
 
@@ -51,33 +50,119 @@ const BD01Usuarios: React.FC = () => {
   const [usuarioEditar, setUsuarioEditar]: any = useState(null);
   const [permisosUsuario, setPermisosUsuario]: any = useState([]);
   const [form, setForm]: any = useState({ nombre: '', apellido: '', usuario: '', password: '', rol: 'Auditor' });
+  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
 
   useEffect(() => { cargarUsuarios(); }, []);
 
   const cargarUsuarios = async () => {
     setCargando(true);
-    const { data } = await supabase.from('usuarios').select('*').order('nombre') as any;
-    if (data) setUsuarios(data);
+    try {
+      const resp = await fetch(API_URL + '/usuarios?select=*&order=nombre.asc', { headers: HEADERS });
+      const data = await resp.json();
+      if (data) setUsuarios(data);
+    } catch (e) {
+      console.error('Error cargando usuarios:', e);
+    }
     setCargando(false);
   };
 
+  const mostrarMensaje = (tipo: string, texto: string) => {
+    setMensaje({ tipo, texto });
+    setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
+  };
+
   const handleGuardar = async () => {
-    if (!form.nombre || !form.apellido || !form.usuario) { alert('Completa todos los campos'); return; }
-    if (usuarioEditar) {
-      await supabase.from('usuarios').update({ nombre: form.nombre, apellido: form.apellido, usuario: form.usuario, password: form.password || undefined, rol: form.rol }).eq('id', usuarioEditar.id) as any;
-    } else {
-      if (!form.password) { alert('Ingresa una contraseña'); return; }
-      await supabase.from('usuarios').insert([{ nombre: form.nombre, apellido: form.apellido, usuario: form.usuario, password: form.password, rol: form.rol, activo: true }]) as any;
+    if (!form.nombre || !form.apellido || !form.usuario) {
+      mostrarMensaje('error', 'Completa todos los campos');
+      return;
     }
-    setShowModal(false); setUsuarioEditar(null); cargarUsuarios();
+
+    try {
+      if (usuarioEditar) {
+        const updateData: any = {
+          nombre: form.nombre,
+          apellido: form.apellido,
+          usuario: form.usuario,
+          rol: form.rol
+        };
+        
+        if (form.password) {
+          updateData.password = form.password;
+        }
+
+        const resp = await fetch(API_URL + '/usuarios?id=eq.' + usuarioEditar.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData)
+        });
+
+        if (!resp.ok) {
+          const errorData = await resp.json();
+          mostrarMensaje('error', 'Error al actualizar: ' + (errorData.message || 'Error desconocido'));
+          return;
+        }
+      } else {
+        if (!form.password) {
+          mostrarMensaje('error', 'Ingresa una contraseña');
+          return;
+        }
+
+        const resp = await fetch(API_URL + '/usuarios', {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            nombre: form.nombre,
+            apellido: form.apellido,
+            usuario: form.usuario,
+            password: form.password,
+            rol: form.rol,
+            activo: true
+          })
+        });
+
+        if (!resp.ok) {
+          const errorData = await resp.json();
+          mostrarMensaje('error', 'Error al crear: ' + (errorData.message || 'Error desconocido'));
+          return;
+        }
+      }
+
+      setShowModal(false);
+      setUsuarioEditar(null);
+      cargarUsuarios();
+      mostrarMensaje('success', usuarioEditar ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente');
+    } catch (e: any) {
+      console.error('Error:', e);
+      mostrarMensaje('error', 'Error al guardar usuario');
+    }
   };
 
   const handleEditar = (u: Usuario) => {
-    setUsuarioEditar(u); setForm({ nombre: u.nombre, apellido: u.apellido, usuario: u.usuario, password: '', rol: u.rol }); setShowModal(true);
+    setUsuarioEditar(u);
+    setForm({ nombre: u.nombre, apellido: u.apellido, usuario: u.usuario, password: '', rol: u.rol });
+    setShowModal(true);
   };
 
   const handleToggleActivo = async (u: Usuario) => {
-    await supabase.from('usuarios').update({ activo: !u.activo }).eq('id', u.id) as any; cargarUsuarios();
+    try {
+      const resp = await fetch(API_URL + '/usuarios?id=eq.' + u.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: !u.activo })
+      });
+
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        mostrarMensaje('error', 'Error: ' + (errorData.message || 'Error desconocido'));
+        return;
+      }
+
+      cargarUsuarios();
+      mostrarMensaje('success', u.activo ? 'Usuario desactivado' : 'Usuario activado');
+    } catch (e: any) {
+      console.error('Error:', e);
+      mostrarMensaje('error', 'Error al cambiar estado');
+    }
   };
 
   const handleAbrirPermisos = async (u: Usuario) => {
@@ -100,10 +185,18 @@ const BD01Usuarios: React.FC = () => {
     try {
       await fetch(API_URL + '/usuario_permisos?usuario_id=eq.' + usuarioEditar.id, { method: 'DELETE', headers: HEADERS });
       if (permisosUsuario.length > 0) {
-        await fetch(API_URL + '/usuario_permisos', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify(permisosUsuario.map((tid: string) => ({ usuario_id: usuarioEditar.id, transaccion_id: tid, activo: true }))) });
+        await fetch(API_URL + '/usuario_permisos', { 
+          method: 'POST', 
+          headers: { ...HEADERS, 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(permisosUsuario.map((tid: string) => ({ usuario_id: usuarioEditar.id, transaccion_id: tid, activo: true }))) 
+        });
       }
-    } catch (e) {}
-    setShowPermisosModal(false); cargarUsuarios();
+      setShowPermisosModal(false);
+      cargarUsuarios();
+      mostrarMensaje('success', 'Permisos actualizados correctamente');
+    } catch (e) {
+      mostrarMensaje('error', 'Error al guardar permisos');
+    }
   };
 
   const getRolBadge = (rol: string) => {
@@ -132,6 +225,26 @@ const BD01Usuarios: React.FC = () => {
 
   return (
     <div className="bd01-view">
+      {mensaje.texto && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 2000,
+          padding: '14px 24px',
+          borderRadius: '10px',
+          fontSize: '14px',
+          fontWeight: 500,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          animation: 'sd01SlideIn 0.3s ease',
+          background: mensaje.tipo === 'success' ? 'var(--success-bg)' : 'var(--error-bg)',
+          color: mensaje.tipo === 'success' ? 'var(--success-text)' : 'var(--error-text)',
+          border: mensaje.tipo === 'success' ? '1px solid var(--success-border)' : '1px solid var(--error-border)'
+        }}>
+          {mensaje.texto}
+        </div>
+      )}
+
       <div className="bd01-header">
         <h2>Administración de Usuarios</h2>
         <button className="ad01-btn-nueva" onClick={() => { setUsuarioEditar(null); setForm({ nombre: '', apellido: '', usuario: '', password: '', rol: 'Auditor' }); setShowModal(true); }}>+ Nuevo Usuario</button>
