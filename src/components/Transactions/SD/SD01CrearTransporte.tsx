@@ -262,7 +262,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
         fecha_programacion: fechaProgramacion,
         estado: 'Pendiente',
         creado_por: usuario?.id,
-        creado_por_nombre: usuario?.nombre + ' ' + usuario?.apellido,
         modificado_por: usuario?.nombre + ' ' + usuario?.apellido
       };
 
@@ -273,9 +272,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       });
 
       if (!respTransporte.ok) {
-        const errorText = await respTransporte.text();
-        console.error('Error creando transporte:', errorText);
-        setMensaje({ tipo: 'error', texto: 'Error al crear el transporte' });
+        const errorData = await respTransporte.json();
+        console.error('Error creando transporte:', errorData);
+        setMensaje({ tipo: 'error', texto: 'Error al crear el transporte: ' + (errorData.message || 'Error desconocido') });
         setGuardando(false);
         return;
       }
