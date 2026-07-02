@@ -52,8 +52,10 @@ const SD02AsignadorMovil: React.FC = () => {
           let conductorRut = '';
           let conductorTelefono = '';
           let conductorEmpresa = '';
-          let patenteNumero = '';
-          let patenteTipo = '';
+          let patentePrincipalNumero = '';
+          let patentePrincipalTipo = '';
+          let patenteAdicionalNumero = '';
+          let patenteAdicionalTipo = '';
 
           if (transporte.conductor_id) {
             try {
@@ -79,8 +81,22 @@ const SD02AsignadorMovil: React.FC = () => {
               );
               const patenteData = await respPatente.json();
               if (patenteData && patenteData.length > 0) {
-                patenteNumero = patenteData[0].numero_patente;
-                patenteTipo = patenteData[0].tipo_vehiculo || '';
+                patentePrincipalNumero = patenteData[0].numero_patente;
+                patentePrincipalTipo = patenteData[0].tipo_vehiculo || '';
+              }
+            } catch (e) {}
+          }
+
+          if (transporte.patente_adicional_id) {
+            try {
+              const respPatente = await fetch(
+                API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id,
+                { headers: HEADERS }
+              );
+              const patenteData = await respPatente.json();
+              if (patenteData && patenteData.length > 0) {
+                patenteAdicionalNumero = patenteData[0].numero_patente;
+                patenteAdicionalTipo = patenteData[0].tipo_vehiculo || '';
               }
             } catch (e) {}
           }
@@ -92,8 +108,10 @@ const SD02AsignadorMovil: React.FC = () => {
             conductor_rut: conductorRut,
             conductor_telefono: conductorTelefono,
             conductor_empresa: conductorEmpresa,
-            patente_numero: patenteNumero,
-            patente_tipo: patenteTipo
+            patente_principal_numero: patentePrincipalNumero,
+            patente_principal_tipo: patentePrincipalTipo,
+            patente_adicional_numero: patenteAdicionalNumero,
+            patente_adicional_tipo: patenteAdicionalTipo
           };
         }));
         setTransportes(transportesConDetalles);
@@ -127,13 +145,15 @@ const SD02AsignadorMovil: React.FC = () => {
     const termino = busqueda.toLowerCase();
     const filtrados = transportes.filter((t: any) => {
       const conductor = t.conductor_nombre.toLowerCase();
-      const patente = t.patente_numero.toLowerCase();
+      const patentePrincipal = t.patente_principal_numero.toLowerCase();
+      const patenteAdicional = t.patente_adicional_numero.toLowerCase();
       const localesNombres = t.locales.map((l: any) => 
         l.codigo_local.toLowerCase() + ' ' + (l.nombre_local || '').toLowerCase()
       ).join(' ');
       
       return conductor.includes(termino) || 
-             patente.includes(termino) || 
+             patentePrincipal.includes(termino) || 
+             patenteAdicional.includes(termino) || 
              localesNombres.includes(termino);
     });
 
@@ -258,7 +278,14 @@ const SD02AsignadorMovil: React.FC = () => {
                 </div>
                 <div className="sd02-card-row">
                   <span className="sd02-card-label">Patente</span>
-                  <span className="sd02-card-value">{transporte.patente_numero || '-'}</span>
+                  <span className="sd02-card-value">
+                    {transporte.patente_principal_numero || '-'}
+                    {transporte.patente_adicional_numero && (
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '6px', fontSize: '12px' }}>
+                        + {transporte.patente_adicional_numero}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div className="sd02-card-row">
                   <span className="sd02-card-label">Locales</span>
@@ -302,9 +329,15 @@ const SD02AsignadorMovil: React.FC = () => {
                     <span className="sd02-modal-info-value">{transporteSeleccionado.conductor_nombre || '-'}</span>
                   </div>
                   <div className="sd02-modal-info-item">
-                    <span className="sd02-modal-info-label">Patente</span>
-                    <span className="sd02-modal-info-value-large">{transporteSeleccionado.patente_numero || '-'}</span>
+                    <span className="sd02-modal-info-label">Patente Principal</span>
+                    <span className="sd02-modal-info-value-large">{transporteSeleccionado.patente_principal_numero || '-'}</span>
                   </div>
+                  {transporteSeleccionado.patente_adicional_numero && (
+                    <div className="sd02-modal-info-item">
+                      <span className="sd02-modal-info-label">Patente Adicional</span>
+                      <span className="sd02-modal-info-value-large">{transporteSeleccionado.patente_adicional_numero}</span>
+                    </div>
+                  )}
                   <div className="sd02-modal-info-item">
                     <span className="sd02-modal-info-label">Fecha Programación</span>
                     <span className="sd02-modal-info-value">{formatearFecha(transporteSeleccionado.fecha_programacion)}</span>
@@ -331,10 +364,16 @@ const SD02AsignadorMovil: React.FC = () => {
                       <span className="sd02-modal-info-value">{transporteSeleccionado.conductor_empresa}</span>
                     </div>
                   )}
-                  {transporteSeleccionado.patente_tipo && (
+                  {transporteSeleccionado.patente_principal_tipo && (
                     <div className="sd02-modal-info-item">
-                      <span className="sd02-modal-info-label">Tipo Vehículo</span>
-                      <span className="sd02-modal-info-value">{transporteSeleccionado.patente_tipo}</span>
+                      <span className="sd02-modal-info-label">Tipo Vehículo Principal</span>
+                      <span className="sd02-modal-info-value">{transporteSeleccionado.patente_principal_tipo}</span>
+                    </div>
+                  )}
+                  {transporteSeleccionado.patente_adicional_tipo && (
+                    <div className="sd02-modal-info-item">
+                      <span className="sd02-modal-info-label">Tipo Vehículo Adicional</span>
+                      <span className="sd02-modal-info-value">{transporteSeleccionado.patente_adicional_tipo}</span>
                     </div>
                   )}
                 </div>
