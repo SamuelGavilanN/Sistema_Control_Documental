@@ -40,6 +40,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
   const inputConductorRef: any = useRef(null);
   const inputPatenteRef: any = useRef(null);
+  const sugerenciasConductorRef: any = useRef(null);
 
   useEffect(() => {
     cargarConductores();
@@ -49,9 +50,11 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
   const cargarConductores = async () => {
     try {
-      const resp = await fetch(API_URL + '/sd01_conductores?select=*&activo=eq.true&order=nombre.asc', { headers: HEADERS });
+      const resp = await fetch(API_URL + '/conductores?select=*&activo=eq.true&order=nombre.asc', { headers: HEADERS });
       const data = await resp.json();
-      if (data) setConductores(data);
+      if (data) {
+        setConductores(data);
+      }
     } catch (e) {
       console.error('Error cargando conductores:', e);
     }
@@ -59,9 +62,11 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
   const cargarPatentes = async () => {
     try {
-      const resp = await fetch(API_URL + '/sd01_patentes?select=*&activo=eq.true&order=numero_patente.asc', { headers: HEADERS });
+      const resp = await fetch(API_URL + '/patentes?select=*&activo=eq.true&order=numero_patente.asc', { headers: HEADERS });
       const data = await resp.json();
-      if (data) setPatentes(data);
+      if (data) {
+        setPatentes(data);
+      }
     } catch (e) {
       console.error('Error cargando patentes:', e);
     }
@@ -77,22 +82,54 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  const filterStartsWith = (list: any[], field: string, search: string) => {
+  const filterStartsWith = (list: any[], fields: string[], search: string) => {
     if (!search) return [];
-    return list.filter((item: any) => String(item[field] || '').toLowerCase().startsWith(search.toLowerCase()));
+    const searchLower = search.toLowerCase();
+    return list.filter((item: any) => {
+      return fields.some((field: string) => {
+        const valor = String(item[field] || '').toLowerCase();
+        return valor.startsWith(searchLower);
+      });
+    });
   };
 
   const handleBuscarConductor = (valor: string) => {
     setConductorTexto(valor);
     setConductorId('');
-    const sugerencias = filterStartsWith(conductores, 'nombre', valor);
+    
     if (valor.trim() === '') {
       setSugerenciasConductor([]);
       setMostrarSugerenciasConductor(false);
-    } else {
-      setSugerenciasConductor(sugerencias);
-      setMostrarSugerenciasConductor(sugerencias.length > 0);
+      setIndiceSeleccionadoConductor(-1);
+      return;
     }
+    
+    const palabras = valor.trim().split(/\s+/);
+    let sugerencias: any[] = [];
+    
+    if (palabras.length === 1) {
+      const busqueda = palabras[0];
+      sugerencias = conductores.filter((c: any) => {
+        const nombre = String(c.nombre || '').toLowerCase();
+        const apellido = String(c.apellido || '').toLowerCase();
+        const empresa = String(c.empresa || '').toLowerCase();
+        return nombre.startsWith(busqueda.toLowerCase()) || 
+               apellido.startsWith(busqueda.toLowerCase()) ||
+               empresa.startsWith(busqueda.toLowerCase());
+      });
+    } else if (palabras.length >= 2) {
+      const busqueda1 = palabras[0].toLowerCase();
+      const busqueda2 = palabras[1].toLowerCase();
+      sugerencias = conductores.filter((c: any) => {
+        const nombre = String(c.nombre || '').toLowerCase();
+        const apellido = String(c.apellido || '').toLowerCase();
+        return (nombre.startsWith(busqueda1) && apellido.startsWith(busqueda2)) ||
+               (apellido.startsWith(busqueda1) && nombre.startsWith(busqueda2));
+      });
+    }
+    
+    setSugerenciasConductor(sugerencias);
+    setMostrarSugerenciasConductor(sugerencias.length > 0);
     setIndiceSeleccionadoConductor(-1);
   };
 
@@ -102,10 +139,19 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setMostrarSugerenciasConductor(false);
     setSugerenciasConductor([]);
     setIndiceSeleccionadoConductor(-1);
+    if (inputConductorRef.current) {
+      inputConductorRef.current.focus();
+    }
   };
 
   const handleKeyDownConductor = (e: any) => {
-    if (!mostrarSugerenciasConductor || sugerenciasConductor.length === 0) return;
+    if (!mostrarSugerenciasConductor || sugerenciasConductor.length === 0) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
     
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -119,7 +165,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       );
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      if (indiceSeleccionadoConductor >= 0) {
+      if (indiceSeleccionadoConductor >= 0 && indiceSeleccionadoConductor < sugerenciasConductor.length) {
         handleSeleccionarConductor(sugerenciasConductor[indiceSeleccionadoConductor]);
       } else if (sugerenciasConductor.length === 1) {
         handleSeleccionarConductor(sugerenciasConductor[0]);
@@ -132,14 +178,22 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const handleBuscarPatente = (valor: string) => {
     setPatenteTexto(valor.toUpperCase());
     setPatenteId('');
-    const sugerencias = filterStartsWith(patentes, 'numero_patente', valor);
+    
     if (valor.trim() === '') {
       setSugerenciasPatente([]);
       setMostrarSugerenciasPatente(false);
-    } else {
-      setSugerenciasPatente(sugerencias);
-      setMostrarSugerenciasPatente(sugerencias.length > 0);
+      setIndiceSeleccionadoPatente(-1);
+      return;
     }
+    
+    const busqueda = valor.toUpperCase();
+    const sugerencias = patentes.filter((p: any) => {
+      const numeroPatente = String(p.numero_patente || '').toUpperCase();
+      return numeroPatente.startsWith(busqueda);
+    });
+    
+    setSugerenciasPatente(sugerencias);
+    setMostrarSugerenciasPatente(sugerencias.length > 0);
     setIndiceSeleccionadoPatente(-1);
   };
 
@@ -149,10 +203,19 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setMostrarSugerenciasPatente(false);
     setSugerenciasPatente([]);
     setIndiceSeleccionadoPatente(-1);
+    if (inputPatenteRef.current) {
+      inputPatenteRef.current.focus();
+    }
   };
 
   const handleKeyDownPatente = (e: any) => {
-    if (!mostrarSugerenciasPatente || sugerenciasPatente.length === 0) return;
+    if (!mostrarSugerenciasPatente || sugerenciasPatente.length === 0) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
     
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -166,7 +229,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       );
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      if (indiceSeleccionadoPatente >= 0) {
+      if (indiceSeleccionadoPatente >= 0 && indiceSeleccionadoPatente < sugerenciasPatente.length) {
         handleSeleccionarPatente(sugerenciasPatente[indiceSeleccionadoPatente]);
       } else if (sugerenciasPatente.length === 1) {
         handleSeleccionarPatente(sugerenciasPatente[0]);
@@ -225,11 +288,11 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       return false;
     }
     if (!conductorId) {
-      setMensaje({ tipo: 'error', texto: 'Debe seleccionar un conductor' });
+      setMensaje({ tipo: 'error', texto: 'Debe seleccionar un conductor de la lista' });
       return false;
     }
     if (!patenteId) {
-      setMensaje({ tipo: 'error', texto: 'Debe seleccionar una patente' });
+      setMensaje({ tipo: 'error', texto: 'Debe seleccionar una patente de la lista' });
       return false;
     }
     for (let i = 0; i < locales.length; i++) {
@@ -337,14 +400,19 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                   onChange={(e: any) => handleBuscarConductor(e.target.value)}
                   onKeyDown={handleKeyDownConductor}
                   onFocus={() => {
-                    if (sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true);
+                    if (conductorTexto.trim() && sugerenciasConductor.length > 0) {
+                      setMostrarSugerenciasConductor(true);
+                    }
                   }}
-                  placeholder="Buscar conductor..."
+                  onBlur={() => {
+                    setTimeout(() => setMostrarSugerenciasConductor(false), 200);
+                  }}
+                  placeholder="Buscar por nombre o apellido..."
                   autoComplete="off"
                 />
                 {conductorId && <span className="sd01-autocomplete-check">✓</span>}
                 {mostrarSugerenciasConductor && sugerenciasConductor.length > 0 && (
-                  <div className="sd01-autocomplete-dropdown">
+                  <div className="sd01-autocomplete-dropdown" ref={sugerenciasConductorRef}>
                     {sugerenciasConductor.map((conductor: any, index: number) => (
                       <div
                         key={conductor.id}
@@ -352,8 +420,12 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                         onClick={() => handleSeleccionarConductor(conductor)}
                         onMouseEnter={() => setIndiceSeleccionadoConductor(index)}
                       >
-                        {conductor.nombre} {conductor.apellido}
-                        {conductor.empresa && <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>({conductor.empresa})</span>}
+                        <strong>{conductor.nombre} {conductor.apellido}</strong>
+                        {conductor.empresa && (
+                          <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
+                            - {conductor.empresa}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -372,7 +444,12 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                   onChange={(e: any) => handleBuscarPatente(e.target.value)}
                   onKeyDown={handleKeyDownPatente}
                   onFocus={() => {
-                    if (sugerenciasPatente.length > 0) setMostrarSugerenciasPatente(true);
+                    if (patenteTexto.trim() && sugerenciasPatente.length > 0) {
+                      setMostrarSugerenciasPatente(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setMostrarSugerenciasPatente(false), 200);
                   }}
                   placeholder="Buscar patente..."
                   autoComplete="off"
@@ -388,9 +465,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                         onClick={() => handleSeleccionarPatente(patente)}
                         onMouseEnter={() => setIndiceSeleccionadoPatente(index)}
                       >
-                        {patente.numero_patente}
+                        <strong>{patente.numero_patente}</strong>
                         <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
-                          ({patente.tipo_vehiculo || 'Otro'})
+                          - {patente.tipo_vehiculo || 'Otro'}
                         </span>
                       </div>
                     ))}
