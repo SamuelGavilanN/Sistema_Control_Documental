@@ -231,6 +231,10 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
                       <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Hora Entrega</span>
                       <span className="sd01-ver-local-time">{local.hora_entrega || '-'}</span>
                     </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Cant. Solicitada</span>
+                      <span className="sd01-ver-local-code">{local.cantidad_solicitada || 0}</span>
+                    </div>
                   </div>
                 ))}
               </div>
