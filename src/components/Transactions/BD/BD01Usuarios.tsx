@@ -106,6 +106,30 @@ const BD01Usuarios: React.FC = () => {
     setShowPermisosModal(false); cargarUsuarios();
   };
 
+  const getRolBadge = (rol: string) => {
+    const badges: any = {
+      'Owner': { color: '#1d4ed8', bg: '#dbeafe' },
+      'Admin': { color: '#7c3aed', bg: '#ede9fe' },
+      'Administrativo': { color: '#0891b2', bg: '#cffafe' },
+      'Lider': { color: '#059669', bg: '#d1fae5' },
+      'Auditor': { color: '#d97706', bg: '#fef3c7' },
+      'Portico': { color: '#dc2626', bg: '#fef2f2' },
+    };
+    const badge = badges[rol] || { color: '#64748b', bg: '#f1f5f9' };
+    return (
+      <span style={{ 
+        padding: '3px 10px', 
+        borderRadius: '10px', 
+        fontSize: '11px', 
+        fontWeight: 600, 
+        background: badge.bg, 
+        color: badge.color 
+      }}>
+        {rol}
+      </span>
+    );
+  };
+
   return (
     <div className="bd01-view">
       <div className="bd01-header">
@@ -120,7 +144,9 @@ const BD01Usuarios: React.FC = () => {
             {cargando ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Cargando...</td></tr> :
               usuarios.map((u: any) => (
                 <tr key={u.id} style={{ opacity: u.activo ? 1 : 0.5 }}>
-                  <td>{u.nombre} {u.apellido}</td><td>{u.usuario}</td><td>{u.rol}</td>
+                  <td>{u.nombre} {u.apellido}</td>
+                  <td>{u.usuario}</td>
+                  <td>{getRolBadge(u.rol)}</td>
                   <td><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: u.activo ? 'var(--success-bg)' : 'var(--error-bg)', color: u.activo ? 'var(--success-text)' : 'var(--error-text)' }}>{u.activo ? 'Activo' : 'Inactivo'}</span></td>
                   <td>
                     <div className="ad01-acciones">
@@ -165,6 +191,7 @@ const BD01Usuarios: React.FC = () => {
                   <option value="Auditor">Auditor</option>
                   <option value="Portico">Portico</option>
                   <option value="Lider">Lider</option>
+                  <option value="Administrativo">Administrativo</option>
                   <option value="Admin">Admin</option>
                   <option value="Owner">Owner</option>
                 </select>
