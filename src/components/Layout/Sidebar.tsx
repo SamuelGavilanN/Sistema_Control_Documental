@@ -36,6 +36,14 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
+    id: 'rp',
+    title: 'RP · Revisión Pallet',
+    items: [
+      { id: 'rp', label: 'RP01 Carga Revisión', type: 'item' },
+      { id: 'rp-revision', label: 'RP02 Revisar Pallet', type: 'subitem' },
+    ]
+  },
+  {
     id: 'rd',
     title: 'RD · Recepción Devolución',
     items: [
