@@ -13,12 +13,6 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' 
 };
 
-interface FiltrosDashboard {
-  usuario: string;
-  desde: string;
-  hasta: string;
-}
-
 const ED02Dashboard: React.FC = () => {
   const [filtros, setFiltros]: any = useState({ usuario: '', desde: '', hasta: '' });
   const [datosLinea, setDatosLinea]: any = useState([]);
@@ -39,7 +33,8 @@ const ED02Dashboard: React.FC = () => {
   const cargarDatos = async () => {
     setCargando(true);
     try {
-      let url = API_URL + '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc';
+      // Obtener TODOS los registros sin límite
+      let url = API_URL + '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc&limit=10000';
       if (filtros.usuario) url += '&creado_por=eq.' + filtros.usuario;
       if (filtros.desde) url += '&creado_en=gte.' + filtros.desde;
       if (filtros.hasta) url += '&creado_en=lte.' + filtros.hasta + 'T23:59:59';
@@ -92,34 +87,38 @@ const ED02Dashboard: React.FC = () => {
         <div className="ed02-card"><span>Total Bultos</span><strong>{totalBultos}</strong></div>
       </div>
 
-      <div className="ed02-chart">
-        <h3>Flujo de Empaques por Fecha y Hora</h3>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={datosLinea} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="fechaHora" stroke="var(--text-muted)" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
-            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-            <Tooltip labelFormatter={(label: any) => 'Fecha: ' + label} formatter={(value: any) => [value, 'Bultos']} />
-            <Legend />
-            <Line type="monotone" dataKey="bultos" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} name="Bultos por empaque" />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {datosBarra.length > 0 && (
+        <>
+          <div className="ed02-chart">
+            <h3>Flujo de Empaques por Fecha y Hora</h3>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={datosLinea} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="fechaHora" stroke="var(--text-muted)" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+                <Tooltip labelFormatter={(label: any) => 'Fecha: ' + label} formatter={(value: any) => [value, 'Bultos']} />
+                <Legend />
+                <Line type="monotone" dataKey="bultos" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} name="Bultos por empaque" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-      <div className="ed02-chart">
-        <h3>Tareas y Bultos por Dia</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={datosBarra}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="dia" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="tareas" fill="#3b82f6" radius={[4,4,0,0]} name="Tareas" />
-            <Bar dataKey="bultos" fill="#10b981" radius={[4,4,0,0]} name="Bultos" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          <div className="ed02-chart">
+            <h3>Tareas y Bultos por Dia</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={datosBarra}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="dia" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+                <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="tareas" fill="#3b82f6" radius={[4,4,0,0]} name="Tareas" />
+                <Bar dataKey="bultos" fill="#10b981" radius={[4,4,0,0]} name="Bultos" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
 
       <div className="ed02-tabla-container">
         <table className="ed02-tabla">
