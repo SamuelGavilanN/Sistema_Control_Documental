@@ -22,15 +22,31 @@ const ED04Lotes: React.FC = () => {
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
-  useEffect(() => { cargarLotes(); }, []);
+  useEffect(() => {
+    cargarLotes();
+    const intervalo = setInterval(cargarLotes, 10000);
+    return () => clearInterval(intervalo);
+  }, []);
 
   const cargarLotes = async () => {
-    setCargando(true);
     try {
       const resp = await fetch(API_URL + '/ed04_lotes?select=*&order=creado_en.desc', { headers: HEADERS });
       const data = await resp.json();
-      setLotes(data || []);
-    } catch (e) {}
+      if (data) {
+        setLotes(data);
+        // Actualizar lote seleccionado si aún existe
+        if (loteSeleccionado) {
+          const actualizado = data.find((l: any) => l.id === loteSeleccionado.id);
+          if (actualizado) {
+            setLoteSeleccionado(actualizado);
+          } else {
+            setLoteSeleccionado(null);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando lotes:', e);
+    }
     setCargando(false);
   };
 
@@ -63,6 +79,7 @@ const ED04Lotes: React.FC = () => {
         return;
       }
 
+      // Extraer empaques de la primera columna
       const empaques = rows.slice(1)
         .map((row: any) => String(row[0] || '').trim())
         .filter((e: string) => e.length > 0);
@@ -73,8 +90,27 @@ const ED04Lotes: React.FC = () => {
         return;
       }
 
+      // Verificar que no haya empaques duplicados con lotes existentes
+      const todosLosEmpaquesExistentes: string[] = [];
+      try {
+        const respExistente = await fetch(API_URL + '/ed04_lote_empaques?select=numero_empaque&limit=10000', { headers: HEADERS });
+        const existentes = await respExistente.json();
+        if (existentes) {
+          existentes.forEach((e: any) => todosLosEmpaquesExistentes.push(e.numero_empaque));
+        }
+      } catch (e) {}
+
+      const duplicados = empaques.filter((e: string) => todosLosEmpaquesExistentes.includes(e));
+      if (duplicados.length > 0) {
+        if (!window.confirm('Hay ' + duplicados.length + ' empaques que ya existen en otros lotes. ¿Continuar de todas formas?')) {
+          setSubiendo(false);
+          return;
+        }
+      }
+
       const idLote = generarIdLote();
 
+      // Crear el lote
       const respLote = await fetch(API_URL + '/ed04_lotes', {
         method: 'POST',
         headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -90,7 +126,7 @@ const ED04Lotes: React.FC = () => {
 
       if (!respLote.ok) {
         const err = await respLote.json();
-        mostrarMensaje('error', 'Error al crear lote: ' + (err.message || ''));
+        mostrarMensaje('error', 'Error al crear lote: ' + (err.message || 'Error desconocido'));
         setSubiendo(false);
         return;
       }
@@ -99,38 +135,99 @@ const ED04Lotes: React.FC = () => {
       const lote = Array.isArray(loteData) ? loteData[0] : loteData;
 
       // Insertar empaques en lotes de 100
+      let insertados = 0;
       for (let i = 0; i < empaques.length; i += 100) {
         const batch = empaques.slice(i, i + 100).map((emp: string) => ({
           lote_id: lote.id,
           numero_empaque: emp
         }));
 
-        await fetch(API_URL + '/ed04_lote_empaques', {
+        const respBatch = await fetch(API_URL + '/ed04_lote_empaques', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(batch)
         });
+
+        if (respBatch.ok) {
+          insertados += batch.length;
+        }
       }
 
-      mostrarMensaje('success', 'Lote ' + idLote + ' creado con ' + empaques.length + ' empaques');
+      mostrarMensaje('success', 'Lote ' + idLote + ' creado con ' + insertados + ' empaques');
       setMostrarUpload(false);
       setArchivoNombre('');
       cargarLotes();
-    } catch (e) {
-      mostrarMensaje('error', 'Error al procesar archivo');
+    } catch (e: any) {
+      console.error('Error procesando archivo:', e);
+      mostrarMensaje('error', 'Error al procesar archivo: ' + (e.message || 'Error desconocido'));
     }
     setSubiendo(false);
   };
 
   const handleEliminarLote = async () => {
-    if (!loteSeleccionado) { mostrarMensaje('warning', 'Seleccione un lote'); return; }
-    if (!window.confirm('¿Eliminar el lote ' + loteSeleccionado.id_lote + '?')) return;
+    if (!loteSeleccionado) {
+      mostrarMensaje('warning', 'Seleccione un lote');
+      return;
+    }
+    if (!window.confirm('¿Está seguro de eliminar el lote ' + loteSeleccionado.id_lote + '?\n\nSe eliminarán todos los empaques asociados.')) return;
+    
     try {
-      await fetch(API_URL + '/ed04_lotes?id=eq.' + loteSeleccionado.id, { method: 'DELETE', headers: HEADERS });
-      mostrarMensaje('success', 'Lote eliminado');
+      // Eliminar empaques primero (por cascada debería ser automático, pero por si acaso)
+      await fetch(API_URL + '/ed04_lote_empaques?lote_id=eq.' + loteSeleccionado.id, {
+        method: 'DELETE',
+        headers: HEADERS
+      });
+      
+      // Eliminar lote
+      const resp = await fetch(API_URL + '/ed04_lotes?id=eq.' + loteSeleccionado.id, {
+        method: 'DELETE',
+        headers: HEADERS
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        mostrarMensaje('error', 'Error al eliminar: ' + (err.message || 'Error desconocido'));
+        return;
+      }
+
+      mostrarMensaje('success', 'Lote ' + loteSeleccionado.id_lote + ' eliminado correctamente');
       setLoteSeleccionado(null);
       cargarLotes();
-    } catch (e) { mostrarMensaje('error', 'Error al eliminar'); }
+    } catch (e: any) {
+      console.error('Error eliminando lote:', e);
+      mostrarMensaje('error', 'Error al eliminar lote');
+    }
+  };
+
+  const handleToggleActivo = async () => {
+    if (!loteSeleccionado) {
+      mostrarMensaje('warning', 'Seleccione un lote');
+      return;
+    }
+
+    const nuevoEstado = !loteSeleccionado.activo;
+    const accion = nuevoEstado ? 'activar' : 'desactivar';
+
+    if (!window.confirm('¿' + (nuevoEstado ? 'Activar' : 'Desactivar') + ' el lote ' + loteSeleccionado.id_lote + '?')) return;
+
+    try {
+      const resp = await fetch(API_URL + '/ed04_lotes?id=eq.' + loteSeleccionado.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: nuevoEstado })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        mostrarMensaje('error', 'Error al ' + accion + ': ' + (err.message || 'Error desconocido'));
+        return;
+      }
+
+      mostrarMensaje('success', 'Lote ' + accion + ' correctamente');
+      cargarLotes();
+    } catch (e: any) {
+      mostrarMensaje('error', 'Error al ' + accion + ' lote');
+    }
   };
 
   const getPorcentajeUso = (usados: number, total: number) => {
@@ -150,21 +247,21 @@ const ED04Lotes: React.FC = () => {
     return '#dcfce7';
   };
 
-  const getColorBorde = (porcentaje: number) => {
-    if (porcentaje >= 90) return '#fca5a5';
-    if (porcentaje >= 60) return '#fcd34d';
-    return '#86efac';
-  };
-
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL');
+    return new Date(fecha + 'T00:00:00').toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
-  if (cargando) {
+  if (cargando && lotes.length === 0) {
     return (
       <div className="ed04-view">
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Cargando lotes...</div>
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+          Cargando lotes...
+        </div>
       </div>
     );
   }
@@ -172,7 +269,9 @@ const ED04Lotes: React.FC = () => {
   return (
     <div className="ed04-view">
       {mensaje.visible && (
-        <div className={'ed04-toast ed04-toast-' + mensaje.tipo}>{mensaje.texto}</div>
+        <div className={'ed04-toast ed04-toast-' + mensaje.tipo}>
+          {mensaje.texto}
+        </div>
       )}
 
       <div className="ed04-header">
@@ -180,47 +279,128 @@ const ED04Lotes: React.FC = () => {
       </div>
 
       <div className="ed04-toolbar">
-        <button className="ed04-btn ed04-btn-primary" onClick={() => setMostrarUpload(true)}>
+        <button className="ed04-btn ed04-btn-primary" onClick={() => setMostrarUpload(!mostrarUpload)}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Cargar Lote
+          {mostrarUpload ? 'Ocultar Carga' : 'Cargar Lote'}
         </button>
         <div className="ed04-separator"></div>
+        <button className="ed04-btn" onClick={handleToggleActivo} disabled={!loteSeleccionado}>
+          {loteSeleccionado?.activo ? 'Desactivar Lote' : 'Activar Lote'}
+        </button>
         <button className="ed04-btn ed04-btn-danger" onClick={handleEliminarLote} disabled={!loteSeleccionado}>
           Eliminar Lote
         </button>
       </div>
 
+      {loteSeleccionado && (
+        <div style={{
+          marginBottom: '16px',
+          padding: '10px 14px',
+          background: 'var(--bg-section)',
+          borderRadius: '8px',
+          border: '1px solid var(--info-border)',
+          fontSize: '13px',
+          color: 'var(--info-text)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 14.6667C11.6819 14.6667 14.6667 11.6819 14.6667 8.00004C14.6667 4.31814 11.6819 1.33337 8 1.33337C4.3181 1.33337 1.33333 4.31814 1.33333 8.00004C1.33333 11.6819 4.3181 14.6667 8 14.6667Z" stroke="#1d4ed8" strokeWidth="1.5"/>
+            <path d="M8 5.33337V8.66671" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="8" cy="11" r="0.666667" fill="#1d4ed8"/>
+          </svg>
+          <span>Lote seleccionado: <strong>{loteSeleccionado.id_lote}</strong></span>
+          <button
+            onClick={() => setLoteSeleccionado(null)}
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '16px',
+              padding: '0 4px'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {mostrarUpload && (
         <div className="ed04-upload-area">
-          <div className="ed04-upload-box" onClick={() => fileInputRef.current?.click()}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
-            <span>{archivoNombre ? archivoNombre : 'Seleccionar archivo Excel con números de empaque'}</span>
-            {subiendo && <span style={{ color: 'var(--text-muted)' }}>Procesando...</span>}
-            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
-              onChange={(e: any) => { const file = e.target.files?.[0]; if (file) procesarArchivo(file); }} />
+          <div
+            className="ed04-upload-box"
+            onClick={() => !subiendo && fileInputRef.current?.click()}
+            style={{ cursor: subiendo ? 'wait' : 'pointer', opacity: subiendo ? 0.7 : 1 }}
+          >
+            {subiendo ? (
+              <>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+                <span>Procesando archivo...</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{archivoNombre}</span>
+              </>
+            ) : (
+              <>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                <span>{archivoNombre ? archivoNombre : 'Seleccionar archivo Excel con números de empaque'}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  El archivo debe contener una columna con los números de empaque (formato PLT...)
+                </span>
+                {archivoNombre && <span className="ed04-upload-nombre">Click para cambiar archivo</span>}
+              </>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={(e: any) => {
+                const file = e.target.files?.[0];
+                if (file) procesarArchivo(file);
+              }}
+              disabled={subiendo}
+            />
           </div>
         </div>
       )}
 
       <div className="ed04-grid">
-        {lotes.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>
-            No hay lotes registrados
+        {lotes.length === 0 && !cargando ? (
+          <div style={{
+            gridColumn: '1 / -1',
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: 'var(--text-placeholder)',
+            background: 'var(--bg-section)',
+            borderRadius: '12px',
+            border: '1px solid var(--border)'
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ marginBottom: '12px', opacity: 0.5 }}>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <p style={{ fontSize: '15px', marginBottom: '4px' }}>No hay lotes registrados</p>
+            <p style={{ fontSize: '13px' }}>Cargue un archivo Excel para crear un nuevo lote de empaques</p>
           </div>
         ) : (
           lotes.map((lote: any) => {
             const porcentaje = getPorcentajeUso(lote.empaques_usados, lote.total_empaques);
             const colorProgreso = getColorProgreso(porcentaje);
             const colorFondo = getColorFondoProgreso(porcentaje);
-            const colorBorde = getColorBorde(porcentaje);
             const agotado = porcentaje >= 100;
+            const disponible = lote.total_empaques - lote.empaques_usados;
 
             return (
               <div
@@ -229,8 +409,13 @@ const ED04Lotes: React.FC = () => {
                 onClick={() => setLoteSeleccionado(loteSeleccionado && loteSeleccionado.id === lote.id ? null : lote)}
                 style={{
                   cursor: 'pointer',
-                  borderColor: loteSeleccionado && loteSeleccionado.id === lote.id ? 'var(--border-focus)' : (agotado ? '#fca5a5' : 'var(--border-card)'),
-                  opacity: agotado ? 0.7 : 1
+                  borderColor: loteSeleccionado && loteSeleccionado.id === lote.id
+                    ? 'var(--border-focus)'
+                    : (agotado ? '#fca5a5' : 'var(--border-card)'),
+                  opacity: agotado ? 0.75 : 1,
+                  boxShadow: loteSeleccionado && loteSeleccionado.id === lote.id
+                    ? '0 0 0 2px var(--border-focus)'
+                    : 'var(--shadow-sm)'
                 }}
               >
                 <div className="ed04-card-header">
@@ -242,6 +427,7 @@ const ED04Lotes: React.FC = () => {
                     {lote.activo ? 'Activo' : 'Inactivo'}
                   </span>
                 </div>
+
                 <div className="ed04-card-body">
                   <div className="ed04-card-row">
                     <span>Fecha Registro</span>
@@ -249,34 +435,67 @@ const ED04Lotes: React.FC = () => {
                   </div>
                   <div className="ed04-card-row">
                     <span>Total Empaques</span>
-                    <strong>{lote.total_empaques}</strong>
+                    <strong>{lote.total_empaques.toLocaleString('es-CL')}</strong>
                   </div>
                   <div className="ed04-card-row">
                     <span>Usados</span>
-                    <strong style={{ color: colorProgreso }}>{lote.empaques_usados}</strong>
+                    <strong style={{ color: colorProgreso }}>{lote.empaques_usados.toLocaleString('es-CL')}</strong>
                   </div>
                   <div className="ed04-card-row">
                     <span>Disponibles</span>
-                    <strong>{lote.total_empaques - lote.empaques_usados}</strong>
+                    <strong style={{ color: disponible <= 10 ? '#dc2626' : 'var(--text-primary)' }}>
+                      {disponible.toLocaleString('es-CL')}
+                    </strong>
                   </div>
                 </div>
+
                 <div className="ed04-progress">
                   <div className="ed04-progress-info">
-                    <span>Uso del lote</span>
+                    <span>Progreso de uso</span>
                     <span style={{ color: colorProgreso, fontWeight: 600 }}>{porcentaje}%</span>
                   </div>
                   <div className="ed04-progress-bar" style={{ background: colorFondo }}>
-                    <div className="ed04-progress-fill" style={{ width: porcentaje + '%', background: colorProgreso }}></div>
+                    <div
+                      className="ed04-progress-fill"
+                      style={{
+                        width: Math.min(porcentaje, 100) + '%',
+                        background: colorProgreso,
+                        transition: 'width 0.5s ease'
+                      }}
+                    ></div>
                   </div>
                 </div>
+
                 <div className="ed04-card-footer">
-                  <span>Registrado por: {usuario?.nombre} {usuario?.apellido}</span>
-                  {agotado && <span style={{ color: '#dc2626', fontWeight: 600 }}>AGOTADO</span>}
+                  <span>Creado: {formatearFecha(lote.fecha_registro)}</span>
+                  {agotado && (
+                    <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '12px' }}>
+                      AGOTADO
+                    </span>
+                  )}
+                  {!agotado && lote.activo && disponible <= 10 && (
+                    <span style={{ color: '#f59e0b', fontWeight: 600, fontSize: '12px' }}>
+                      ¡Quedan {disponible}!
+                    </span>
+                  )}
                 </div>
               </div>
             );
           })
         )}
+      </div>
+
+      <div style={{
+        marginTop: '20px',
+        padding: '10px 16px',
+        background: 'var(--bg-panel)',
+        borderRadius: '8px',
+        border: '1px solid var(--border)',
+        fontSize: '12px',
+        color: 'var(--text-muted)',
+        textAlign: 'right'
+      }}>
+        Total de lotes: <strong style={{ color: 'var(--text-primary)' }}>{lotes.length}</strong>
       </div>
     </div>
   );
