@@ -40,7 +40,6 @@ const HEADERS: any = {
 const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [favoritos, setFavoritos] = useState<string[]>([]);
-  const [cargandoFavoritos, setCargandoFavoritos] = useState(true);
   const usuario = auth.getUsuario();
 
   useEffect(() => {
@@ -49,173 +48,83 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Cargar favoritos del usuario
+  // Cargar favoritos con polling
   useEffect(() => {
+    if (!usuario?.id) return;
+    
+    const cargarFavoritos = async () => {
+      try {
+        const resp = await fetch(
+          API_URL + '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id,
+          { headers: HEADERS }
+        );
+        const data = await resp.json();
+        if (data) {
+          setFavoritos(data.map((f: any) => f.transaccion_id));
+        }
+      } catch (e) {}
+    };
+
     cargarFavoritos();
     const intervalo = setInterval(cargarFavoritos, 5000);
     return () => clearInterval(intervalo);
   }, [usuario?.id]);
 
-  const cargarFavoritos = async () => {
-    if (!usuario?.id) {
-      setCargandoFavoritos(false);
-      return;
-    }
-    try {
-      const resp = await fetch(
-        API_URL + '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id,
-        { headers: HEADERS }
-      );
-      const data = await resp.json();
-      if (data) {
-        setFavoritos(data.map((f: any) => f.transaccion_id));
-      }
-    } catch (e) {
-      // Si la tabla no existe aún, no pasa nada
-      console.error('Error cargando favoritos:', e);
-    }
-    setCargandoFavoritos(false);
-  };
-
-  const toggleFavorito = async (transaccionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!usuario?.id) return;
-
-    const esFavorito = favoritos.includes(transaccionId);
-    
-    try {
-      if (esFavorito) {
-        // Eliminar de favoritos
-        await fetch(
-          API_URL + '/usuario_favoritos?usuario_id=eq.' + usuario.id + '&transaccion_id=eq.' + transaccionId,
-          { method: 'DELETE', headers: HEADERS }
-        );
-        setFavoritos(favoritos.filter(f => f !== transaccionId));
-      } else {
-        // Agregar a favoritos
-        await fetch(
-          API_URL + '/usuario_favoritos',
-          {
-            method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              usuario_id: usuario.id,
-              transaccion_id: transaccionId
-            })
-          }
-        );
-        setFavoritos([...favoritos, transaccionId]);
-      }
-    } catch (e) {
-      console.error('Error toggle favorito:', e);
-    }
-  };
-
-  const itemPermitido = (itemId: string): boolean => {
-    if (!permisos || permisos.length === 0) {
-      if (itemId === 'ed-history' && rol === 'Portico') return false;
-      if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
-      if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
-      if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin') return false;
-      if ((itemId === 'rd-salida' || itemId === 'rd-informe' || itemId === 'rd-dashboard') && rol !== 'Admin' && rol !== 'Owner') return false;
-      return true;
-    }
-    return permisos.includes(itemId);
-  };
-
-  const trans = transacciones.filter(t => itemPermitido(t.id));
-
-  // Separar favoritos y resto
-  const transFavoritas = trans.filter(t => favoritos.includes(t.id));
-  const transResto = trans.filter(t => !favoritos.includes(t.id));
+  // Filtrar solo favoritos que estén permitidos
+  const transFavoritas = transacciones.filter(t => favoritos.includes(t.id));
 
   return (
-    <div style={{ 
-      background: 'var(--bg-panel)', 
-      borderRadius: '16px', 
-      padding: isMobile ? '16px' : '40px', 
-      border: '1px solid var(--border)' 
+    <div style={{
+      background: 'var(--bg-panel)',
+      borderRadius: '16px',
+      padding: isMobile ? '16px' : '40px',
+      border: '1px solid var(--border)'
     }}>
-      <h1 style={{ 
-        fontSize: isMobile ? '18px' : '24px', 
-        fontWeight: 600, 
-        color: 'var(--text-primary)', 
-        marginBottom: '6px' 
+      <h1 style={{
+        fontSize: isMobile ? '18px' : '24px',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+        marginBottom: '6px'
       }}>
         FASHIONSPARK
       </h1>
-      <p style={{ 
-        fontSize: isMobile ? '12px' : '14px', 
-        color: 'var(--text-muted)', 
-        marginBottom: isMobile ? '16px' : '24px' 
+      <p style={{
+        fontSize: isMobile ? '12px' : '14px',
+        color: 'var(--text-muted)',
+        marginBottom: isMobile ? '16px' : '24px'
       }}>
         Sistema de Gestion Documental
       </p>
 
-      {isMobile ? (
+      {transFavoritas.length === 0 ? (
+        <div style={{
+          textAlign: 'center',
+          padding: isMobile ? '30px 16px' : '50px 20px',
+          color: 'var(--text-placeholder)'
+        }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ marginBottom: '12px', opacity: 0.5 }}>
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+          <p style={{ fontSize: '15px', marginBottom: '4px' }}>No tienes transacciones favoritas</p>
+          <p style={{ fontSize: '13px' }}>
+            Marca tus transacciones favoritas en el menú lateral con ★
+          </p>
+        </div>
+      ) : isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {/* Favoritos */}
-          {transFavoritas.length > 0 && (
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingLeft: '4px' }}>
-                Favoritos
-              </div>
-              {transFavoritas.map(t => (
-                <div 
-                  key={t.id} 
-                  onClick={() => onModuleClick?.(t.id)} 
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '10px', 
-                    padding: '12px 14px', 
-                    background: 'var(--bg-section)', 
-                    borderRadius: '10px', 
-                    border: '1px solid var(--border)', 
-                    cursor: 'pointer',
-                    marginBottom: '6px'
-                  }}
-                >
-                  <div style={{ width: '4px', height: '36px', background: t.color, borderRadius: '2px', flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{t.label}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.desc}</div>
-                  </div>
-                  <button
-                    onClick={(e) => toggleFavorito(t.id, e)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      color: '#f59e0b',
-                      fontSize: '18px',
-                      flexShrink: 0
-                    }}
-                    title="Quitar de favoritos"
-                  >
-                    ★
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Resto */}
-          {transResto.map(t => (
-            <div 
-              key={t.id} 
-              onClick={() => onModuleClick?.(t.id)} 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '10px', 
-                padding: '12px 14px', 
-                background: 'var(--bg-section)', 
-                borderRadius: '10px', 
-                border: '1px solid var(--border)', 
-                cursor: 'pointer',
-                marginBottom: '6px'
+          {transFavoritas.map(t => (
+            <div
+              key={t.id}
+              onClick={() => onModuleClick?.(t.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 14px',
+                background: 'var(--bg-section)',
+                borderRadius: '10px',
+                border: '1px solid var(--border)',
+                cursor: 'pointer'
               }}
             >
               <div style={{ width: '4px', height: '36px', background: t.color, borderRadius: '2px', flexShrink: 0 }} />
@@ -223,136 +132,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{t.label}</div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.desc}</div>
               </div>
-              <button
-                onClick={(e) => toggleFavorito(t.id, e)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  color: 'var(--text-muted)',
-                  fontSize: '18px',
-                  flexShrink: 0
-                }}
-                title="Agregar a favoritos"
-              >
-                ☆
-              </button>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M6 3L11 8L6 13" stroke="var(--text-placeholder)" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
             </div>
           ))}
         </div>
       ) : (
         <>
           <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>
-            Selecciona una transaccion en el menu lateral para comenzar.
+            Accesos rapidos a tus transacciones favoritas
           </p>
-
-          {/* Favoritos */}
-          {transFavoritas.length > 0 && (
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ 
-                fontSize: '12px', 
-                fontWeight: 600, 
-                color: 'var(--text-muted)', 
-                textTransform: 'uppercase', 
-                letterSpacing: '0.5px', 
-                marginBottom: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <span style={{ color: '#f59e0b' }}>★</span> Favoritos
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {transFavoritas.map(t => (
-                  <div 
-                    key={t.id} 
-                    onClick={() => onModuleClick?.(t.id)} 
-                    style={{ 
-                      padding: '20px', 
-                      background: 'var(--bg-section)', 
-                      borderRadius: '12px', 
-                      border: '1px solid var(--border)', 
-                      cursor: 'pointer', 
-                      transition: 'all 0.15s', 
-                      borderLeft: `4px solid ${t.color}`,
-                      position: 'relative'
-                    }}
-                    onMouseEnter={(e: any) => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                    onMouseLeave={(e: any) => { e.currentTarget.style.background = 'var(--bg-section)'; }}
-                  >
-                    <button
-                      onClick={(e) => toggleFavorito(t.id, e)}
-                      style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        color: '#f59e0b',
-                        fontSize: '18px'
-                      }}
-                      title="Quitar de favoritos"
-                    >
-                      ★
-                    </button>
-                    <h3 style={{ fontSize: '14px', fontWeight: 600, color: t.color, margin: '0 0 6px', paddingRight: '30px' }}>{t.label}</h3>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{t.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Todas las transacciones */}
-          <div style={{ 
-            fontSize: '12px', 
-            fontWeight: 600, 
-            color: 'var(--text-muted)', 
-            textTransform: 'uppercase', 
-            letterSpacing: '0.5px', 
-            marginBottom: '12px' 
-          }}>
-            Todas las Transacciones
-          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {transResto.map(t => (
-              <div 
-                key={t.id} 
-                onClick={() => onModuleClick?.(t.id)} 
-                style={{ 
-                  padding: '20px', 
-                  background: 'var(--bg-section)', 
-                  borderRadius: '12px', 
-                  border: '1px solid var(--border)', 
-                  cursor: 'pointer', 
-                  transition: 'all 0.15s', 
-                  borderLeft: `4px solid ${t.color}`,
-                  position: 'relative'
+            {transFavoritas.map(t => (
+              <div
+                key={t.id}
+                onClick={() => onModuleClick?.(t.id)}
+                style={{
+                  padding: '20px',
+                  background: 'var(--bg-section)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  borderLeft: `4px solid ${t.color}`
                 }}
                 onMouseEnter={(e: any) => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
                 onMouseLeave={(e: any) => { e.currentTarget.style.background = 'var(--bg-section)'; }}
               >
-                <button
-                  onClick={(e) => toggleFavorito(t.id, e)}
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '12px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '4px',
-                    color: 'var(--text-muted)',
-                    fontSize: '18px'
-                  }}
-                  title="Agregar a favoritos"
-                >
-                  ☆
-                </button>
-                <h3 style={{ fontSize: '14px', fontWeight: 600, color: t.color, margin: '0 0 6px', paddingRight: '30px' }}>{t.label}</h3>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, color: t.color, margin: '0 0 6px' }}>{t.label}</h3>
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{t.desc}</p>
               </div>
             ))}
