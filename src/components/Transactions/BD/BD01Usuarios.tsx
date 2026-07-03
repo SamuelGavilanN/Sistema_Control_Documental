@@ -20,12 +20,11 @@ interface Usuario {
   activo: boolean;
 }
 
-// src/components/Transactions/BD/BD01Usuarios.tsx - Agregar RP en TRANSACCIONES
-
 const TRANSACCIONES = [
   { id: 'ed', label: 'ED01 Registro Empaque' },
   { id: 'ed-history', label: 'ED02 Dashboard Produccion' },
   { id: 'ed-tickets', label: 'ED03 BT Portico' },
+  { id: 'ed-lotes', label: 'ED04 Almacén Lotes' },
   { id: 'ad', label: 'AD01 Gestión Auditoría' },
   { id: 'ad-captura', label: 'AD02 Captura Física' },
   { id: 'ad-dashboard', label: 'AD03 Dashboard' },
