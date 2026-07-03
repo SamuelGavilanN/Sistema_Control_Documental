@@ -113,8 +113,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
   const [permisosActuales, setPermisosActuales] = useState<string[]>(permisos || []);
+  const [favoritos, setFavoritos] = useState<string[]>([]);
 
-  // Polling para actualizar permisos
+  // Polling para permisos y favoritos
   useEffect(() => {
     setPermisosActuales(permisos || []);
   }, [permisos]);
@@ -123,26 +124,69 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     const usuario = auth.getUsuario();
     if (!usuario?.id) return;
 
-    const cargarPermisos = async () => {
+    const cargarDatos = async () => {
       try {
-        const resp = await fetch(
+        // Cargar permisos
+        const respPermisos = await fetch(
           API_URL + '/usuario_permisos?select=transaccion_id&usuario_id=eq.' + usuario.id + '&activo=eq.true',
           { headers: HEADERS }
         );
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          const nuevosPermisos = data.map((p: any) => p.transaccion_id);
-          setPermisosActuales(nuevosPermisos);
+        const dataPermisos = await respPermisos.json();
+        if (dataPermisos && dataPermisos.length > 0) {
+          setPermisosActuales(dataPermisos.map((p: any) => p.transaccion_id));
         } else {
           setPermisosActuales([]);
+        }
+
+        // Cargar favoritos
+        const respFavoritos = await fetch(
+          API_URL + '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id,
+          { headers: HEADERS }
+        );
+        const dataFavoritos = await respFavoritos.json();
+        if (dataFavoritos) {
+          setFavoritos(dataFavoritos.map((f: any) => f.transaccion_id));
         }
       } catch (e) {}
     };
 
-    cargarPermisos();
-    const intervalo = setInterval(cargarPermisos, 5000);
+    cargarDatos();
+    const intervalo = setInterval(cargarDatos, 5000);
     return () => clearInterval(intervalo);
   }, []);
+
+  const toggleFavorito = async (transaccionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const usuario = auth.getUsuario();
+    if (!usuario?.id) return;
+
+    const esFavorito = favoritos.includes(transaccionId);
+
+    try {
+      if (esFavorito) {
+        await fetch(
+          API_URL + '/usuario_favoritos?usuario_id=eq.' + usuario.id + '&transaccion_id=eq.' + transaccionId,
+          { method: 'DELETE', headers: HEADERS }
+        );
+        setFavoritos(favoritos.filter(f => f !== transaccionId));
+      } else {
+        await fetch(
+          API_URL + '/usuario_favoritos',
+          {
+            method: 'POST',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              usuario_id: usuario.id,
+              transaccion_id: transaccionId
+            })
+          }
+        );
+        setFavoritos([...favoritos, transaccionId]);
+      }
+    } catch (e) {
+      console.error('Error toggle favorito:', e);
+    }
+  };
 
   const toggleSection = (sectionId: string) => {
     if (expandedSections.includes(sectionId)) {
@@ -157,8 +201,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     const term = searchTerm.toLowerCase();
     return menuSections.map(section => {
       const filteredItems = section.items.filter(item =>
-        item.label.toLowerCase().includes(term) || 
-        section.title.toLowerCase().includes(term) || 
+        item.label.toLowerCase().includes(term) ||
+        section.title.toLowerCase().includes(term) ||
         item.id.toLowerCase().includes(term)
       );
       return { ...section, items: filteredItems };
@@ -220,7 +264,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
             const isExpanded = expandedSections.includes(section.id);
             const itemsVisibles = section.items.filter(item => itemPermitido(item.id));
             if (itemsVisibles.length === 0) return null;
-            
+
             return (
               <div key={section.id} className="nav-section">
                 <div
@@ -242,6 +286,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
                   <div className="nav-section-content">
                     {section.items.map(item => {
                       if (!itemPermitido(item.id)) return null;
+                      const esFavorito = favoritos.includes(item.id);
                       return item.type === 'item' ? (
                         <div
                           key={item.id}
@@ -249,15 +294,46 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
                           onClick={() => onModuleClick(item.id)}
                         >
                           <span className="nav-indicator"></span>
-                          {item.label}
+                          <span style={{ flex: 1 }}>{item.label}</span>
+                          <span
+                            onClick={(e) => toggleFavorito(item.id, e)}
+                            style={{
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
+                              padding: '2px 4px',
+                              transition: 'color 0.15s',
+                              flexShrink: 0
+                            }}
+                            title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                          >
+                            {esFavorito ? '★' : '☆'}
+                          </span>
                         </div>
                       ) : (
                         <div
                           key={item.id}
                           className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`}
-                          onClick={() => onModuleClick(item.id)}
+                          style={{ display: 'flex', alignItems: 'center' }}
                         >
-                          {item.label}
+                          <span style={{ flex: 1 }} onClick={() => onModuleClick(item.id)}>
+                            {item.label}
+                          </span>
+                          <span
+                            onClick={(e) => toggleFavorito(item.id, e)}
+                            style={{
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
+                              padding: '2px 4px',
+                              transition: 'color 0.15s',
+                              flexShrink: 0,
+                              marginRight: '4px'
+                            }}
+                            title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                          >
+                            {esFavorito ? '★' : '☆'}
+                          </span>
                         </div>
                       );
                     })}
