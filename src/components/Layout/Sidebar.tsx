@@ -23,7 +23,8 @@ const menuSections: MenuSection[] = [
     items: [
       { id: 'ed', label: 'ED01 Registro Empaque', type: 'item' },
       { id: 'ed-history', label: 'ED02 Dashboard Produccion', type: 'subitem' },
-      { id: 'ed-tickets', label: 'ED03 BT Portico', type: 'subitem' }
+      { id: 'ed-tickets', label: 'ED03 BT Portico', type: 'subitem' },
+      { id: 'ed-lotes', label: 'ED04 Almacén Lotes', type: 'subitem' },
     ]
   },
   {
