@@ -1,3 +1,5 @@
+// src/components/Transactions/ED/EtiquetaModal.tsx
+
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
@@ -21,8 +23,8 @@ const generarHTML = (
   nombreCreador: string
 ): string => {
   const fecha = registro?.creado_en
-    ? new Date(registro.creado_en).toLocaleDateString('es-CL').replace(/\//g, '-')
-    : '';
+    ? new Date(registro.creado_en).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : new Date().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const nombreTienda = `${registro.codigo_local}-${registro.nombre_local}`;
 
   return `
@@ -59,7 +61,7 @@ const generarHTML = (
 
 const cssEtiqueta = `
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!important}
+body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .etiqueta-wrapper{width:100mm;height:130mm;margin:0 auto;box-sizing:border-box;padding:0}
 .contenedor-exterior{width:100%;height:100%;background:white;padding:15mm 4.5mm 0.5mm 0.5mm;box-sizing:border-box}
 .etiqueta{width:100%;height:100%;border:2px solid black;display:flex;flex-direction:column;background:white;padding:0.5mm;font-family:Arial,Helvetica,sans-serif!important}
@@ -84,10 +86,12 @@ body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!
 .footer-texto{font-size:16px;font-weight:900;font-family:Arial,Helvetica,sans-serif!important}
 @media print{
   @page{size:100mm 130mm;margin:0}
-  body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!important}
+  body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .etiqueta-wrapper{page-break-after:always;padding:0}
   .etiqueta-wrapper:last-child{page-break-after:auto}
   .contenedor-exterior{padding:15mm 4.5mm 0.5mm 0.5mm}
+  .recuadro{border:2px solid black}
+  .fecha-texto{font-size:16px}
 }
 `;
 
@@ -116,15 +120,15 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro
     const ventana = window.open('', '_blank');
     if (!ventana) return;
     const nombre = nombreCreador || 'Usuario';
-    let htmlCompleto = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquetas</title><style>${cssEtiqueta}</style></head><body>`;
+    let htmlCompleto = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquetas</title><style>' + cssEtiqueta + '</style></head><body>';
     for (let i = 1; i <= totalPallets; i++) {
-      htmlCompleto += `<div class="etiqueta-wrapper">${generarHTML(registro, i, totalPallets, qrGrande, qrPequeno, barcodeSvg, nombre)}</div>`;
+      htmlCompleto += '<div class="etiqueta-wrapper">' + generarHTML(registro, i, totalPallets, qrGrande, qrPequeno, barcodeSvg, nombre) + '</div>';
     }
     htmlCompleto += '</body></html>';
     ventana.document.write(htmlCompleto);
     ventana.document.close();
     ventana.focus();
-    setTimeout(() => ventana.print(), 500);
+    setTimeout(() => ventana.print(), 800);
   };
 
   if (!isOpen || !registro) return null;
@@ -140,7 +144,7 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro
             <div className="etiqueta-dato"><span>Bultos:</span> <strong>{registro.cantidad_bultos}</strong></div>
             <div className="etiqueta-dato"><span>Pallets:</span> <strong>{registro.cantidad_pallet}</strong></div>
           </div>
-          <p style={{ fontSize: '13px', color: '#64748b', marginTop: '12px' }}>Se generaran <strong>{registro.cantidad_pallet}</strong> etiqueta(s).</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px' }}>Se generaran <strong>{registro.cantidad_pallet}</strong> etiqueta(s).</p>
         </div>
         <div className="etiqueta-modal-footer">
           <button className="ed01-btn-cancel" onClick={onClose}>Cancelar</button>
