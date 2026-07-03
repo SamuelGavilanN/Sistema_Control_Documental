@@ -1,8 +1,9 @@
 // src/components/Layout/Sidebar.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import logoPath from '../../assets/fashions-park-logo2.png';
 import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
+import { auth } from '../../lib/auth';
 
 interface MenuSection {
   id: string;
@@ -102,13 +103,53 @@ interface SidebarProps {
   permisos?: string[];
 }
 
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS: any = {
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+};
+
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permisos }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
+  const [permisosActuales, setPermisosActuales] = useState<string[]>(permisos || []);
+
+  // Polling para actualizar permisos
+  useEffect(() => {
+    setPermisosActuales(permisos || []);
+  }, [permisos]);
+
+  useEffect(() => {
+    const usuario = auth.getUsuario();
+    if (!usuario?.id) return;
+
+    const cargarPermisos = async () => {
+      try {
+        const resp = await fetch(
+          API_URL + '/usuario_permisos?select=transaccion_id&usuario_id=eq.' + usuario.id + '&activo=eq.true',
+          { headers: HEADERS }
+        );
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          const nuevosPermisos = data.map((p: any) => p.transaccion_id);
+          setPermisosActuales(nuevosPermisos);
+        } else {
+          setPermisosActuales([]);
+        }
+      } catch (e) {}
+    };
+
+    cargarPermisos();
+    const intervalo = setInterval(cargarPermisos, 5000);
+    return () => clearInterval(intervalo);
+  }, []);
 
   const toggleSection = (sectionId: string) => {
-    if (expandedSections.includes(sectionId)) setExpandedSections(expandedSections.filter(id => id !== sectionId));
-    else setExpandedSections([...expandedSections, sectionId]);
+    if (expandedSections.includes(sectionId)) {
+      setExpandedSections(expandedSections.filter(id => id !== sectionId));
+    } else {
+      setExpandedSections([...expandedSections, sectionId]);
+    }
   };
 
   const filterMenuSections = () => {
@@ -116,7 +157,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     const term = searchTerm.toLowerCase();
     return menuSections.map(section => {
       const filteredItems = section.items.filter(item =>
-        item.label.toLowerCase().includes(term) || section.title.toLowerCase().includes(term) || item.id.toLowerCase().includes(term)
+        item.label.toLowerCase().includes(term) || 
+        section.title.toLowerCase().includes(term) || 
+        item.id.toLowerCase().includes(term)
       );
       return { ...section, items: filteredItems };
     }).filter(section => section.items.length > 0);
@@ -124,12 +167,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
   const filteredSections = filterMenuSections();
 
-  React.useEffect(() => {
-    if (searchTerm.trim()) setExpandedSections(filteredSections.map(s => s.id));
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      setExpandedSections(filteredSections.map(s => s.id));
+    }
   }, [searchTerm]);
 
   const itemPermitido = (itemId: string): boolean => {
-    if (!permisos || permisos.length === 0) {
+    if (!permisosActuales || permisosActuales.length === 0) {
       if (itemId === 'ed-history' && rol === 'Portico') return false;
       if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
       if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
@@ -137,52 +182,97 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
       if ((itemId === 'rd-salida' || itemId === 'rd-informe' || itemId === 'rd-dashboard') && rol !== 'Admin' && rol !== 'Owner') return false;
       return true;
     }
-    return permisos.includes(itemId);
+    return permisosActuales.includes(itemId);
   };
 
   return (
     <div className="sidebar">
-      <div className="logo-area"><div className="logo"><img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" /></div></div>
+      <div className="logo-area">
+        <div className="logo">
+          <img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" />
+        </div>
+      </div>
+
       <div className="search-container">
         <div className="search-wrapper">
           <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M14 14L11.1 11.1" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <input type="text" className="search-input" placeholder="Buscar transaccion..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          {searchTerm && <button className="search-clear" onClick={() => setSearchTerm('')}>×</button>}
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Buscar transaccion..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button className="search-clear" onClick={() => setSearchTerm('')}>×</button>
+          )}
         </div>
       </div>
+
       <div className="nav-menu">
-        {filteredSections.length === 0 ? <div className="search-no-results">No se encontraron resultados</div> :
+        {filteredSections.length === 0 ? (
+          <div className="search-no-results">No se encontraron resultados</div>
+        ) : (
           filteredSections.map(section => {
             const isExpanded = expandedSections.includes(section.id);
             const itemsVisibles = section.items.filter(item => itemPermitido(item.id));
             if (itemsVisibles.length === 0) return null;
+            
             return (
               <div key={section.id} className="nav-section">
-                <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
+                <div
+                  className="nav-section-header"
+                  onClick={() => toggleSection(section.id)}
+                >
                   <span className="nav-section-title">{section.title}</span>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`section-arrow ${isExpanded ? 'expanded' : ''}`}><path d="M3 4.5L6 7.5L9 4.5" stroke="#8a93a5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    className={`section-arrow ${isExpanded ? 'expanded' : ''}`}
+                  >
+                    <path d="M3 4.5L6 7.5L9 4.5" stroke="#8a93a5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </div>
                 {isExpanded && (
                   <div className="nav-section-content">
                     {section.items.map(item => {
                       if (!itemPermitido(item.id)) return null;
                       return item.type === 'item' ? (
-                        <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => onModuleClick(item.id)}><span className="nav-indicator"></span>{item.label}</div>
+                        <div
+                          key={item.id}
+                          className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                          onClick={() => onModuleClick(item.id)}
+                        >
+                          <span className="nav-indicator"></span>
+                          {item.label}
+                        </div>
                       ) : (
-                        <div key={item.id} className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`} onClick={() => onModuleClick(item.id)}>{item.label}</div>
+                        <div
+                          key={item.id}
+                          className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`}
+                          onClick={() => onModuleClick(item.id)}
+                        >
+                          {item.label}
+                        </div>
                       );
                     })}
                   </div>
                 )}
               </div>
             );
-          })}
+          })
+        )}
       </div>
+
       <div className="sidebar-footer">
-        <div className="logo"><img src={docxentraLogo} alt="Docxentra" className="logo-image-docxentra" /></div>
+        <div className="logo">
+          <img src={docxentraLogo} alt="Docxentra" className="logo-image-docxentra" />
+        </div>
         <p className="sidebar-footer-text">Control Documental Inteligente</p>
       </div>
     </div>
