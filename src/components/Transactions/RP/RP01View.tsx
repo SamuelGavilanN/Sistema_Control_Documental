@@ -1,6 +1,6 @@
 // src/components/Transactions/RP/RP01View.tsx
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
 import './RP01.css';
@@ -12,18 +12,48 @@ const HEADERS: any = {
 };
 
 const RP01View: React.FC = () => {
-  const [cargando, setCargando]: any = useState(false);
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
-  const [archivoNombre, setArchivoNombre]: any = useState('');
-  const [resumen, setResumen]: any = useState(null);
+  const [empaques, setEmpaques]: any = useState([]);
+  const [cargando, setCargando]: any = useState(true);
+  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
+  const [empaqueExpandido, setEmpaqueExpandido]: any = useState(null);
+  const [empaqueSeleccionado, setEmpaqueSeleccionado]: any = useState(null);
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
-  const procesarArchivo = async (file: File) => {
-    setArchivoNombre(file.name);
-    setCargando(true);
-    setMensaje({ tipo: '', texto: '' });
+  useEffect(() => {
+    cargarInventario();
+  }, []);
 
+  const cargarInventario = async () => {
+    setCargando(true);
+    try {
+      const resp = await fetch(API_URL + '/rp_inventario_empaques?select=*&order=creado_en.desc', { headers: HEADERS });
+      const data = await resp.json();
+      if (data && data.length > 0) {
+        const empaquesConBoms = await Promise.all(data.map(async (empaque: any) => {
+          const respBoms = await fetch(API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empaque.id + '&order=bom_sku.asc', { headers: HEADERS });
+          const boms = await respBoms.json();
+          const cantidadTotal = boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
+          return { ...empaque, boms: boms || [], cantidad_total: cantidadTotal };
+        }));
+        setEmpaques(empaquesConBoms);
+      } else {
+        setEmpaques([]);
+      }
+      setCargando(false);
+    } catch (e) {
+      console.error('Error cargando inventario:', e);
+      setCargando(false);
+    }
+  };
+
+  const mostrarMensaje = (tipo: string, texto: string) => {
+    setMensaje({ tipo, texto, visible: true });
+    setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
+  };
+
+  const procesarArchivo = async (file: File) => {
+    setCargando(true);
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
@@ -31,7 +61,7 @@ const RP01View: React.FC = () => {
       const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
       if (rows.length < 2) {
-        setMensaje({ tipo: 'error', texto: 'El archivo está vacío' });
+        mostrarMensaje('error', 'El archivo está vacío');
         setCargando(false);
         return;
       }
@@ -40,232 +70,232 @@ const RP01View: React.FC = () => {
       const dataRows = rows.slice(1).filter((row: any) => row.length > 0);
 
       const colEmpaque = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('empaque'));
-      const colCarga = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('carga'));
-      const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('destino')));
-      const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('destino') && colCodDestino >= 0 && headers.indexOf(h) !== colCodDestino);
+      const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
+      const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
       const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
 
-      if (colEmpaque < 0 || colBOM < 0 || colCantidad < 0) {
-        setMensaje({ tipo: 'error', texto: 'Columnas requeridas no encontradas: Número de Empaque, BOM/SKU, Cantidad' });
+      if (colEmpaque < 0 || colBOM < 0) {
+        mostrarMensaje('error', 'Columnas requeridas no encontradas');
         setCargando(false);
         return;
       }
 
-      const consolidado: Record<string, any> = {};
-      const cargasSet = new Set<string>();
+      const empaquesMap: Record<string, any> = {};
 
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
-        const carga = colCarga >= 0 ? String(row[colCarga] || '').trim() : '';
         const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         const bom = String(row[colBOM] || '').trim();
-        const cantidad = parseInt(row[colCantidad]) || 1;
+        const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
 
         if (!empaque || !bom) return;
-        if (carga) cargasSet.add(carga);
 
-        const key = empaque + '|' + bom;
-        if (!consolidado[key]) {
-          consolidado[key] = { empaque, carga, codDestino, destino, bom, cantidad };
+        if (!empaquesMap[empaque]) {
+          empaquesMap[empaque] = { empaque, codDestino, destino, boms: {} };
+        }
+
+        if (!empaquesMap[empaque].boms[bom]) {
+          empaquesMap[empaque].boms[bom] = cantidad;
         } else {
-          if (cantidad > consolidado[key].cantidad) {
-            consolidado[key].cantidad = cantidad;
+          if (cantidad > empaquesMap[empaque].boms[bom]) {
+            empaquesMap[empaque].boms[bom] = cantidad;
           }
         }
       });
 
-      const consolidadoArray = Object.values(consolidado);
-
-      const agrupadoPorCarga: Record<string, any> = {};
-      consolidadoArray.forEach((item: any) => {
-        if (!agrupadoPorCarga[item.carga]) {
-          agrupadoPorCarga[item.carga] = { carga: item.carga, pallets: new Set(), boms: 0 };
-        }
-        agrupadoPorCarga[item.carga].pallets.add(item.empaque);
-        agrupadoPorCarga[item.carga].boms++;
-      });
-
-      setResumen({
-        totalCargas: Object.keys(agrupadoPorCarga).length,
-        totalPallets: new Set(consolidadoArray.map((i: any) => i.empaque)).size,
-        totalBOMs: consolidadoArray.length,
-        agrupadoPorCarga,
-        consolidado: consolidadoArray
-      });
-
-      setMensaje({ tipo: 'success', texto: 'Archivo procesado correctamente' });
-    } catch (e) {
-      console.error('Error procesando archivo:', e);
-      setMensaje({ tipo: 'error', texto: 'Error al procesar el archivo' });
-    }
-    setCargando(false);
-  };
-
-  const handleGuardar = async () => {
-    if (!resumen) return;
-    setCargando(true);
-
-    try {
-      const cargasGuardadas: Record<string, string> = {};
-
-      for (const item of resumen.consolidado) {
-        if (!cargasGuardadas[item.carga]) {
-          const respCarga = await fetch(API_URL + '/rp_cargas', {
-            method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-            body: JSON.stringify({
-              numero_carga: item.carga,
-              estado: 'Pendiente',
-              creado_por: usuario?.id
-            })
-          });
-
-          if (respCarga.ok) {
-            const cargaData = await respCarga.json();
-            const carga = Array.isArray(cargaData) ? cargaData[0] : cargaData;
-            cargasGuardadas[item.carga] = carga.id;
-          } else {
-            const respExistente = await fetch(API_URL + '/rp_cargas?select=id&numero_carga=eq.' + encodeURIComponent(item.carga), { headers: HEADERS });
-            const existenteData = await respExistente.json();
-            if (existenteData && existenteData.length > 0) {
-              cargasGuardadas[item.carga] = existenteData[0].id;
-            }
-          }
-        }
-
-        const cargaId = cargasGuardadas[item.carga];
-        if (!cargaId) continue;
-
-        const respPallet = await fetch(API_URL + '/rp_pallets', {
+      let creados = 0;
+      for (const key of Object.keys(empaquesMap)) {
+        const emp = empaquesMap[key];
+        
+        const respEmpaque = await fetch(API_URL + '/rp_inventario_empaques', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
           body: JSON.stringify({
-            carga_id: cargaId,
-            numero_empaque: item.empaque,
-            cod_destino: item.codDestino,
-            destino: item.destino
+            numero_empaque: emp.empaque,
+            cod_destino: emp.codDestino,
+            destino: emp.destino,
+            creado_por: usuario?.id
           })
         });
 
-        if (respPallet.ok) {
-          const palletData = await respPallet.json();
-          const pallet = Array.isArray(palletData) ? palletData[0] : palletData;
+        if (respEmpaque.ok) {
+          const empaqueData = await respEmpaque.json();
+          const empaqueCreado = Array.isArray(empaqueData) ? empaqueData[0] : empaqueData;
 
-          await fetch(API_URL + '/rp_pallet_boms', {
-            method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              pallet_id: pallet.id,
-              bom_sku: item.bom,
-              cantidad_maxima: item.cantidad
-            })
-          });
+          for (const bom of Object.keys(emp.boms)) {
+            await fetch(API_URL + '/rp_inventario_boms', {
+              method: 'POST',
+              headers: { ...HEADERS, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                empaque_id: empaqueCreado.id,
+                bom_sku: bom,
+                cantidad_maxima: emp.boms[bom]
+              })
+            });
+          }
+          creados++;
         }
       }
 
-      setMensaje({ tipo: 'success', texto: 'Datos guardados correctamente. ' + Object.keys(cargasGuardadas).length + ' cargas creadas.' });
-      setResumen(null);
-      setArchivoNombre('');
+      mostrarMensaje('success', creados + ' empaques cargados correctamente');
+      cargarInventario();
     } catch (e) {
-      console.error('Error guardando:', e);
-      setMensaje({ tipo: 'error', texto: 'Error al guardar los datos' });
+      console.error('Error procesando archivo:', e);
+      mostrarMensaje('error', 'Error al procesar el archivo');
     }
     setCargando(false);
   };
 
+  const handleEliminarEmpaque = async () => {
+    if (!empaqueSeleccionado) {
+      mostrarMensaje('warning', 'Seleccione un empaque de la tabla');
+      return;
+    }
+    if (!window.confirm('¿Eliminar el empaque ' + empaqueSeleccionado.numero_empaque + '?')) return;
+    try {
+      await fetch(API_URL + '/rp_inventario_empaques?id=eq.' + empaqueSeleccionado.id, {
+        method: 'DELETE',
+        headers: HEADERS
+      });
+      mostrarMensaje('success', 'Empaque eliminado');
+      setEmpaqueSeleccionado(null);
+      cargarInventario();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al eliminar');
+    }
+  };
+
+  const toggleExpandir = (empaque: any) => {
+    setEmpaqueExpandido(empaqueExpandido && empaqueExpandido.id === empaque.id ? null : empaque);
+  };
+
+  if (cargando && empaques.length === 0) {
+    return (
+      <div className="rp01-view">
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Cargando inventario...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="rp01-view">
-      <div className="rp01-header">
-        <h2>RP01 · Carga de Revisión Pallet</h2>
-      </div>
-
-      <div className="rp01-upload-area">
-        <label className="rp01-upload-label">Archivo Excel</label>
-        <div
-          className="rp01-upload-box"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="12" y1="18" x2="12" y2="12" />
-            <line x1="9" y1="15" x2="15" y2="15" />
-          </svg>
-          <span>{archivoNombre ? archivoNombre : 'Haga clic para cargar archivo Excel'}</span>
-          {archivoNombre && <span className="rp01-upload-nombre">Click para cambiar</span>}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: 'none' }}
-            onChange={(e: any) => {
-              const file = e.target.files?.[0];
-              if (file) procesarArchivo(file);
-            }}
-          />
-        </div>
-      </div>
-
-      {mensaje.texto && (
+      {mensaje.visible && (
         <div className="rp01-mensaje" style={{
-          background: mensaje.tipo === 'success' ? 'var(--success-bg)' : 'var(--error-bg)',
-          color: mensaje.tipo === 'success' ? 'var(--success-text)' : 'var(--error-text)',
-          border: mensaje.tipo === 'success' ? '1px solid var(--success-border)' : '1px solid var(--error-border)'
+          position: 'fixed', bottom: '24px', right: '24px', zIndex: 2000,
+          background: mensaje.tipo === 'success' ? 'var(--success-bg)' : mensaje.tipo === 'error' ? 'var(--error-bg)' : 'var(--warning-bg)',
+          color: mensaje.tipo === 'success' ? 'var(--success-text)' : mensaje.tipo === 'error' ? 'var(--error-text)' : 'var(--warning-text)',
+          border: mensaje.tipo === 'success' ? '1px solid var(--success-border)' : mensaje.tipo === 'error' ? '1px solid var(--error-border)' : '1px solid var(--warning-border)',
+          boxShadow: 'var(--shadow-md)', maxWidth: '420px', fontSize: '14px', fontWeight: 500
         }}>
           {mensaje.texto}
         </div>
       )}
 
-      {resumen && (
-        <>
-          <div className="rp01-resumen">
-            <div className="rp01-resumen-card">
-              <span>Cargas</span>
-              <strong>{resumen.totalCargas}</strong>
-            </div>
-            <div className="rp01-resumen-card">
-              <span>Pallets</span>
-              <strong>{resumen.totalPallets}</strong>
-            </div>
-            <div className="rp01-resumen-card">
-              <span>BOMs</span>
-              <strong>{resumen.totalBOMs}</strong>
-            </div>
-          </div>
+      <div className="rp01-header">
+        <h2>RP01 · Inventario de Empaques</h2>
+      </div>
 
-          <div className="ed03-tabla-container" style={{ marginBottom: '20px' }}>
-            <table className="ed03-tabla">
-              <thead>
-                <tr>
-                  <th>N° Carga</th>
-                  <th>Pallets</th>
-                  <th>BOMs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(resumen.agrupadoPorCarga).map((item: any, idx: number) => (
-                  <tr key={idx}>
-                    <td className="ed03-ticket-id">{item.carga}</td>
-                    <td>{item.pallets.size}</td>
-                    <td>{item.boms}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="rp01-toolbar">
+        <button className="rp01-btn rp01-btn-primary" onClick={() => fileInputRef.current?.click()}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Cargar Excel
+        </button>
+        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
+          onChange={(e: any) => { const file = e.target.files?.[0]; if (file) procesarArchivo(file); }} />
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="sd01-btn-cancel" onClick={() => { setResumen(null); setArchivoNombre(''); }}>
-              Cancelar
-            </button>
-            <button className="sd01-btn-save" onClick={handleGuardar} disabled={cargando}>
-              {cargando ? 'Guardando...' : 'Guardar Datos'}
-            </button>
-          </div>
-        </>
+        <div className="rp01-separator"></div>
+
+        <button className="rp01-btn" onClick={() => empaqueSeleccionado && toggleExpandir(empaqueSeleccionado)}
+          disabled={!empaqueSeleccionado}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Ver Detalle
+        </button>
+
+        <button className="rp01-btn rp01-btn-danger" onClick={handleEliminarEmpaque} disabled={!empaqueSeleccionado}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Eliminar
+        </button>
+      </div>
+
+      {empaqueSeleccionado && (
+        <div className="rp02-selected-info">
+          <span>Empaque seleccionado: <strong>{empaqueSeleccionado.numero_empaque}</strong></span>
+          <button className="rp02-selected-close" onClick={() => setEmpaqueSeleccionado(null)}>×</button>
+        </div>
       )}
+
+      <div className="ed03-tabla-container">
+        <table className="ed03-tabla">
+          <thead>
+            <tr>
+              <th style={{ width: '40px' }}></th>
+              <th>Número de Empaque</th>
+              <th>Cod. Destino</th>
+              <th>Destino</th>
+              <th style={{ textAlign: 'center' }}>Cantidad Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {empaques.length === 0 ? (
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>No hay empaques en el inventario</td></tr>
+            ) : (
+              empaques.map((empaque: any) => (
+                <React.Fragment key={empaque.id}>
+                  <tr onClick={() => {
+                    if (empaqueSeleccionado && empaqueSeleccionado.id === empaque.id) {
+                      setEmpaqueSeleccionado(null);
+                    } else {
+                      setEmpaqueSeleccionado(empaque);
+                    }
+                  }} style={{
+                    cursor: 'pointer',
+                    background: empaqueSeleccionado && empaqueSeleccionado.id === empaque.id ? 'var(--table-row-selected)' : 'transparent'
+                  }}>
+                    <td>
+                      <input type="radio" className="sd01-radio"
+                        checked={empaqueSeleccionado && empaqueSeleccionado.id === empaque.id}
+                        onChange={() => setEmpaqueSeleccionado(empaque)}
+                        onClick={(e: any) => e.stopPropagation()} />
+                    </td>
+                    <td className="rp01-empaque-id">{empaque.numero_empaque}</td>
+                    <td>{empaque.cod_destino || '-'}</td>
+                    <td>{empaque.destino || '-'}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{empaque.cantidad_total}</td>
+                  </tr>
+                  {empaqueExpandido && empaqueExpandido.id === empaque.id && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '0' }}>
+                        <div style={{ padding: '16px', background: 'var(--bg-section)' }}>
+                          <table className="rp01-bom-tabla">
+                            <thead><tr><th>BOM/SKU</th><th style={{ textAlign: 'center' }}>Cantidad</th></tr></thead>
+                            <tbody>
+                              {empaque.boms.map((bom: any) => (
+                                <tr key={bom.id}>
+                                  <td className="rp01-bom-sku">{bom.bom_sku}</td>
+                                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
