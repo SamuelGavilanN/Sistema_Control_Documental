@@ -1,6 +1,6 @@
 // src/components/Transactions/RP/RP02Revision.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
 import './RP02.css';
 
@@ -32,10 +32,15 @@ const RP02Revision: React.FC = () => {
   const [palletsDoc, setPalletsDoc]: any = useState([]);
   const [palletActual, setPalletActual]: any = useState(null);
   const [revisiones, setRevisiones]: any = useState([]);
+  const [bomsPendientes, setBomsPendientes]: any = useState([]);
+  const [capturandoBOMs, setCapturandoBOMs]: any = useState(false);
   const [mostrarAgregarManual, setMostrarAgregarManual]: any = useState(false);
+  const [manualEmpaque, setManualEmpaque]: any = useState('');
   const [manualSKU, setManualSKU]: any = useState('');
+  const [manualCantidad, setManualCantidad]: any = useState('1');
   const [manualOrigen, setManualOrigen]: any = useState(ORIGENES_MANUALES[0]);
-  const [inventarioEmpaques, setInventarioEmpaques]: any = useState([]);
+  const inputEmpaqueRef: any = useRef(null);
+  const inputManualSKURef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
   useEffect(() => { cargarDocumentos(); }, []);
@@ -83,31 +88,25 @@ const RP02Revision: React.FC = () => {
     }
   };
 
-  const handleSeleccionarDocumento = async (doc: any) => {
+  const handleAbrirDocumento = async (doc: any) => {
     setDocumentoSeleccionado(doc);
-    await cargarPalletsDocumento(doc);
-    await cargarInventarioEmpaques();
+    await cargarPallets(doc);
     setMostrarRevisar(true);
   };
 
-  const cargarPalletsDocumento = async (doc: any) => {
+  const cargarPallets = async (doc: any) => {
     try {
       const resp = await fetch(API_URL + '/rp_documento_pallets?select=*&documento_id=eq.' + doc.id_documento + '&order=creado_en.asc', { headers: HEADERS });
       const pallets = await resp.json();
       
-      const palletsConRevisiones = await Promise.all((pallets || []).map(async (pallet: any) => {
-        const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + pallet.id, { headers: HEADERS });
-        return { ...pallet, revisiones: await respRev.json() || [] };
+      const palletsConRev = await Promise.all((pallets || []).map(async (pallet: any) => {
+        const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + pallet.id + '&order=creado_en.asc', { headers: HEADERS });
+        const revisiones = await respRev.json() || [];
+        const total = revisiones.reduce((s: number, r: any) => s + (r.cantidad_revisada || 0), 0);
+        return { ...pallet, revisiones, total_revisado: total };
       }));
       
-      setPalletsDoc(palletsConRevisiones);
-    } catch (e) {}
-  };
-
-  const cargarInventarioEmpaques = async () => {
-    try {
-      const resp = await fetch(API_URL + '/rp_inventario_empaques?select=*&order=numero_empaque.asc', { headers: HEADERS });
-      setInventarioEmpaques(await resp.json() || []);
+      setPalletsDoc(palletsConRev);
     } catch (e) {}
   };
 
@@ -120,108 +119,176 @@ const RP02Revision: React.FC = () => {
         headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
         body: JSON.stringify({
           documento_id: documentoSeleccionado.id_documento,
-          numero_pallet: numeroPallet,
-          origen: 'INVENTARIO'
+          numero_pallet: numeroPallet
         })
       });
       if (resp.ok) {
-        await cargarPalletsDocumento(documentoSeleccionado);
+        const palletData = await resp.json();
+        const nuevoPallet = Array.isArray(palletData) ? palletData[0] : palletData;
+        await cargarPallets(documentoSeleccionado);
+        setPalletActual(nuevoPallet);
+        setRevisiones([]);
+        setBomsPendientes([]);
         mostrarMensaje('success', numeroPallet + ' iniciado');
+        setTimeout(() => inputEmpaqueRef.current?.focus(), 300);
       }
     } catch (e) {
       mostrarMensaje('error', 'Error al iniciar pallet');
     }
   };
 
-  const handleCapturarEmpaque = async (empaque: any) => {
-    if (!documentoSeleccionado || palletsDoc.length === 0) {
-      mostrarMensaje('warning', 'Inicie un pallet primero');
+  const handleSeleccionarPallet = async (pallet: any) => {
+    setPalletActual(pallet);
+    setCapturandoBOMs(false);
+    setBomsPendientes([]);
+    const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + pallet.id + '&order=creado_en.asc', { headers: HEADERS });
+    setRevisiones(await respRev.json() || []);
+  };
+
+  const handleCapturarEmpaque = async () => {
+    const valor = (document.getElementById('rp02-input-empaque') as HTMLInputElement)?.value?.trim();
+    if (!valor) {
+      mostrarMensaje('warning', 'Ingrese un número de empaque');
       return;
     }
-    const ultimoPallet = palletsDoc[palletsDoc.length - 1];
-    
+    if (!palletActual) {
+      mostrarMensaje('warning', 'Seleccione un pallet primero');
+      return;
+    }
+
+    // Verificar si es un origen manual
+    const esOrigenManual = ORIGENES_MANUALES.some(o => o.toLowerCase().startsWith(valor.toLowerCase().substring(0, 3)));
+
+    if (esOrigenManual) {
+      // Abrir formulario manual
+      setManualEmpaque(valor);
+      setMostrarAgregarManual(true);
+      setTimeout(() => inputManualSKURef.current?.focus(), 200);
+      return;
+    }
+
+    // Buscar en inventario
     try {
-      await fetch(API_URL + '/rp_documento_pallets?id=eq.' + ultimoPallet.id, {
+      const resp = await fetch(API_URL + '/rp_inventario_empaques?select=*&numero_empaque=eq.' + encodeURIComponent(valor), { headers: HEADERS });
+      const empaques = await resp.json();
+
+      if (!empaques || empaques.length === 0) {
+        // No encontrado, abrir manual con este número como origen
+        setManualEmpaque(valor);
+        setMostrarAgregarManual(true);
+        setTimeout(() => inputManualSKURef.current?.focus(), 200);
+        return;
+      }
+
+      const empaque = empaques[0];
+      
+      // Actualizar pallet con número empaque
+      await fetch(API_URL + '/rp_documento_pallets?id=eq.' + palletActual.id, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ numero_empaque: empaque.numero_empaque })
+        body: JSON.stringify({ numero_empaque: valor })
       });
 
-      const respBoms = await fetch(API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empaque.id, { headers: HEADERS });
+      // Cargar BOMs del inventario
+      const respBoms = await fetch(API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empaque.id + '&order=bom_sku.asc', { headers: HEADERS });
       const boms = await respBoms.json();
 
       if (boms && boms.length > 0) {
-        for (const bom of boms) {
-          await fetch(API_URL + '/rp_documento_revisiones', {
+        // Crear revisiones pendientes
+        const nuevasRevisiones = await Promise.all(boms.map(async (bom: any) => {
+          const respRev = await fetch(API_URL + '/rp_documento_revisiones', {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
             body: JSON.stringify({
               documento_id: documentoSeleccionado.id_documento,
-              pallet_id: ultimoPallet.id,
+              pallet_id: palletActual.id,
               bom_sku: bom.bom_sku,
               cantidad_sistema: bom.cantidad_maxima,
-              cantidad_revisada: 1,
+              cantidad_revisada: 0,
               origen: 'SISTEMA',
-              revisado_por: usuario?.id
+              revisado_por: null
             })
           });
-        }
-      }
+          const revData = await respRev.json();
+          return Array.isArray(revData) ? revData[0] : revData;
+        }));
 
-      await cargarPalletsDocumento(documentoSeleccionado);
-      setPalletActual(ultimoPallet);
-      const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + ultimoPallet.id, { headers: HEADERS });
-      setRevisiones(await respRev.json() || []);
+        setBomsPendientes(nuevasRevisiones);
+        setCapturandoBOMs(true);
+        await cargarPallets(documentoSeleccionado);
+        
+        // Actualizar revisiones del pallet
+        const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + palletActual.id + '&order=creado_en.asc', { headers: HEADERS });
+        setRevisiones(await respRev.json() || []);
+
+        mostrarMensaje('success', boms.length + ' BOMs cargados del empaque ' + valor);
+      }
     } catch (e) {
-      mostrarMensaje('error', 'Error al capturar empaque');
+      mostrarMensaje('error', 'Error al buscar empaque');
     }
   };
 
-  const handleRevisarBOM = async (bom: any) => {
-    const yaRevisado = revisiones.find((r: any) => r.bom_sku === bom.bom_sku && r.id === bom.id);
-    if (yaRevisado) return;
-
+  const handleConfirmarBOM = async (bom: any) => {
     try {
       await fetch(API_URL + '/rp_documento_revisiones?id=eq.' + bom.id, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cantidad_revisada: 1, revisado_por: usuario?.id })
+        body: JSON.stringify({
+          cantidad_revisada: bom.cantidad_sistema,
+          revisado_por: usuario?.id
+        })
       });
-      const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + palletActual.id, { headers: HEADERS });
+
+      // Actualizar listas
+      setBomsPendientes(bomsPendientes.filter((b: any) => b.id !== bom.id));
+      const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + palletActual.id + '&order=creado_en.asc', { headers: HEADERS });
       setRevisiones(await respRev.json() || []);
-    } catch (e) {}
+      await cargarPallets(documentoSeleccionado);
+    } catch (e) {
+      mostrarMensaje('error', 'Error al confirmar BOM');
+    }
   };
 
   const handleAgregarManual = async () => {
     if (!manualSKU.trim() || !palletActual) return;
+
     try {
+      const cantidad = parseInt(manualCantidad) || 1;
       await fetch(API_URL + '/rp_documento_revisiones', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
         body: JSON.stringify({
           documento_id: documentoSeleccionado.id_documento,
           pallet_id: palletActual.id,
           bom_sku: manualSKU.trim().toUpperCase(),
           cantidad_sistema: 0,
-          cantidad_revisada: 1,
-          origen: manualOrigen,
+          cantidad_revisada: cantidad,
+          origen: manualEmpaque || manualOrigen,
           revisado_por: usuario?.id
         })
       });
+
+      // Actualizar pallet con el número de empaque manual
+      if (manualEmpaque && palletActual.numero_empaque !== manualEmpaque) {
+        await fetch(API_URL + '/rp_documento_pallets?id=eq.' + palletActual.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ numero_empaque: manualEmpaque, origen: manualOrigen })
+        });
+      }
+
       setManualSKU('');
+      setManualCantidad('1');
       setMostrarAgregarManual(false);
-      const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + palletActual.id, { headers: HEADERS });
+      
+      const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + palletActual.id + '&order=creado_en.asc', { headers: HEADERS });
       setRevisiones(await respRev.json() || []);
-      await cargarPalletsDocumento(documentoSeleccionado);
+      await cargarPallets(documentoSeleccionado);
+      
+      mostrarMensaje('success', 'SKU agregado correctamente');
     } catch (e) {
       mostrarMensaje('error', 'Error al agregar SKU');
     }
-  };
-
-  const seleccionarPalletParaVer = async (pallet: any) => {
-    setPalletActual(pallet);
-    const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + pallet.id, { headers: HEADERS });
-    setRevisiones(await respRev.json() || []);
   };
 
   if (cargando) {
@@ -247,9 +314,9 @@ const RP02Revision: React.FC = () => {
           + Nuevo Documento
         </button>
         <div className="rp02-separator"></div>
-        <button className="rp02-btn" onClick={() => documentoSeleccionado && handleSeleccionarDocumento(documentoSeleccionado)}
+        <button className="rp02-btn" onClick={() => documentoSeleccionado && handleAbrirDocumento(documentoSeleccionado)}
           disabled={!documentoSeleccionado}>
-          Ver Documento
+          Abrir Documento
         </button>
       </div>
 
@@ -260,7 +327,7 @@ const RP02Revision: React.FC = () => {
         </div>
       )}
 
-      <div className="ed03-tabla-container">
+      <div style={{ overflowX: 'auto' }}>
         <table className="ed03-tabla">
           <thead><tr><th style={{ width: '40px' }}></th><th>ID Documento</th><th>Estado</th><th>Creado En</th></tr></thead>
           <tbody>
@@ -276,7 +343,7 @@ const RP02Revision: React.FC = () => {
                   background: documentoSeleccionado && documentoSeleccionado.id === doc.id ? 'var(--table-row-selected)' : 'transparent'
                 }}>
                   <td><input type="radio" className="sd01-radio" checked={documentoSeleccionado && documentoSeleccionado.id === doc.id} onChange={() => setDocumentoSeleccionado(doc)} onClick={(e: any) => e.stopPropagation()} /></td>
-                  <td className="rp02-pallet-numero">{doc.id_documento}</td>
+                  <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{doc.id_documento}</td>
                   <td>{doc.estado}</td>
                   <td>{new Date(doc.creado_en).toLocaleString('es-CL')}</td>
                 </tr>
@@ -302,11 +369,11 @@ const RP02Revision: React.FC = () => {
       )}
 
       {mostrarRevisar && documentoSeleccionado && (
-        <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>
-          <div className="rp02-modal" onClick={(e: any) => e.stopPropagation()}>
+        <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setCapturandoBOMs(false); }}>
+          <div className="rp02-modal" style={{ maxWidth: '650px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
-              <h2>{documentoSeleccionado.id_documento} - Pallets</h2>
-              <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>×</button>
+              <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
+              <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setCapturandoBOMs(false); }}>×</button>
             </div>
             <div className="rp02-modal-body">
               {!palletActual ? (
@@ -315,12 +382,13 @@ const RP02Revision: React.FC = () => {
                     + Iniciar Pallet_{palletsDoc.length + 1}
                   </button>
 
+                  <div className="rp02-modal-section-title" style={{ marginBottom: '10px' }}>Pallets del Documento</div>
                   {palletsDoc.map((pallet: any) => (
-                    <div key={pallet.id} className="rp02-pallet-card" onClick={() => seleccionarPalletParaVer(pallet)} style={{ cursor: 'pointer' }}>
+                    <div key={pallet.id} className="rp02-pallet-card" onClick={() => handleSeleccionarPallet(pallet)} style={{ cursor: 'pointer' }}>
                       <div className="rp02-pallet-header">
                         <span className="rp02-pallet-numero">{pallet.numero_pallet}</span>
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {pallet.numero_empaque || 'Sin empaque'} | {pallet.revisiones.length} BOMs
+                          {pallet.numero_empaque || 'Sin empaque'} | {pallet.total_revisado} items
                         </span>
                       </div>
                     </div>
@@ -328,64 +396,102 @@ const RP02Revision: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <button onClick={() => setPalletActual(null)} style={{
-                    padding: '8px 14px', background: 'var(--btn-bg)', color: 'var(--btn-text)',
-                    border: '1px solid var(--btn-border)', borderRadius: '6px', cursor: 'pointer',
-                    marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
-                  }}>
+                  <button onClick={() => { setPalletActual(null); setCapturandoBOMs(false); setBomsPendientes([]); }} className="rp02-btn" style={{ marginBottom: '16px' }}>
                     ← Volver a Pallets
                   </button>
 
-                  <div className="rp02-form-group">
-                    <label className="rp02-form-label">Capturar Número de Empaque</label>
-                    <select className="rp02-form-input" onChange={(e: any) => {
-                      const emp = inventarioEmpaques.find((inv: any) => inv.numero_empaque === e.target.value);
-                      if (emp) handleCapturarEmpaque(emp);
-                    }} value="">
-                      <option value="">Seleccionar empaque del inventario...</option>
-                      {inventarioEmpaques.map((emp: any) => (
-                        <option key={emp.id} value={emp.numero_empaque}>{emp.numero_empaque} - {emp.destino}</option>
-                      ))}
-                    </select>
+                  <div style={{ background: 'var(--bg-section)', borderRadius: '8px', padding: '14px', marginBottom: '16px', border: '1px solid var(--border)' }}>
+                    <div className="rp02-form-label" style={{ marginBottom: '8px' }}>{palletActual.numero_pallet}</div>
+                    
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        id="rp02-input-empaque"
+                        ref={inputEmpaqueRef}
+                        type="text"
+                        className="rp02-form-input"
+                        placeholder="Escanear o escribir N° Empaque..."
+                        onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleCapturarEmpaque(); } }}
+                        autoFocus
+                      />
+                      <button className="rp02-btn-save" onClick={handleCapturarEmpaque} style={{ whiteSpace: 'nowrap' }}>
+                        Capturar
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Empaque actual: {palletActual.numero_empaque || 'Ninguno'}
+                    </span>
                   </div>
 
-                  <div className="rp02-form-group">
-                    <label className="rp02-form-label">BOMs del Pallet ({revisiones.length})</label>
-                    {revisiones.map((rev: any) => (
-                      <div key={rev.id} className="rp02-bom-item" style={{
-                        background: rev.origen !== 'SISTEMA' ? 'var(--warning-bg)' : 'var(--bg-panel)',
-                        borderColor: rev.origen !== 'SISTEMA' ? 'var(--warning-border)' : 'var(--border)'
-                      }}>
-                        <div>
-                          <span className="rp02-bom-sku">{rev.bom_sku}</span>
-                          {rev.origen !== 'SISTEMA' && (
-                            <span style={{ fontSize: '10px', color: 'var(--warning-text)', display: 'block' }}>{rev.origen}</span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {rev.cantidad_sistema > 0 && (
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Sist: {rev.cantidad_sistema}</span>
-                          )}
-                          <div className={'rp02-bom-check revisado'}>✓</div>
-                        </div>
+                  {capturandoBOMs && bomsPendientes.length > 0 && (
+                    <div className="rp02-modal-section">
+                      <div className="rp02-modal-section-title">
+                        BOMs por Confirmar ({bomsPendientes.length})
                       </div>
-                    ))}
+                      {bomsPendientes.map((bom: any) => (
+                        <div key={bom.id} className="rp02-bom-item" style={{ marginBottom: '6px' }}>
+                          <div>
+                            <span className="rp02-bom-sku">{bom.bom_sku}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                              Sistema: {bom.cantidad_sistema}
+                            </span>
+                          </div>
+                          <button
+                            className="rp02-btn-save"
+                            onClick={() => handleConfirmarBOM(bom)}
+                            style={{ padding: '6px 14px', fontSize: '12px' }}
+                          >
+                            Confirmar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                    {mostrarAgregarManual && (
+                  {revisiones.filter((r: any) => r.cantidad_revisada > 0).length > 0 && (
+                    <div className="rp02-modal-section">
+                      <div className="rp02-modal-section-title">
+                        BOMs Revisados ({revisiones.filter((r: any) => r.cantidad_revisada > 0).length})
+                      </div>
+                      {revisiones.filter((r: any) => r.cantidad_revisada > 0).map((rev: any) => (
+                        <div key={rev.id} className="rp02-bom-item" style={{
+                          background: rev.origen !== 'SISTEMA' ? 'var(--warning-bg)' : 'var(--success-bg)',
+                          borderColor: rev.origen !== 'SISTEMA' ? 'var(--warning-border)' : 'var(--success-border)',
+                          marginBottom: '4px'
+                        }}>
+                          <div>
+                            <span className="rp02-bom-sku">{rev.bom_sku}</span>
+                            {rev.origen !== 'SISTEMA' && (
+                              <span style={{ fontSize: '10px', color: 'var(--warning-text)', display: 'block' }}>{rev.origen}</span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--success-text)' }}>
+                            {rev.cantidad_revisada}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {mostrarAgregarManual && (
+                    <div className="rp02-modal-section" style={{ background: 'var(--warning-bg)', padding: '14px', borderRadius: '8px', border: '1px solid var(--warning-border)' }}>
+                      <div className="rp02-modal-section-title" style={{ color: 'var(--warning-text)' }}>Agregar SKU Manual</div>
                       <div className="rp02-manual-form">
-                        <input type="text" value={manualSKU} onChange={(e: any) => setManualSKU(e.target.value)}
-                          placeholder="SKU" />
-                        <select value={manualOrigen} onChange={(e: any) => setManualOrigen(e.target.value)}>
+                        <input ref={inputManualSKURef} type="text" value={manualSKU} onChange={(e: any) => setManualSKU(e.target.value)}
+                          onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleAgregarManual(); } }}
+                          placeholder="SKU" style={{ flex: 2 }} />
+                        <input type="number" value={manualCantidad} onChange={(e: any) => setManualCantidad(e.target.value)}
+                          placeholder="Cant" min="1" style={{ flex: 1, minWidth: '60px' }} />
+                        <select value={manualOrigen} onChange={(e: any) => setManualOrigen(e.target.value)} style={{ flex: 2 }}>
                           {ORIGENES_MANUALES.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                         <button className="rp02-btn-save" onClick={handleAgregarManual} style={{ whiteSpace: 'nowrap' }}>Agregar</button>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    <button className="rp02-btn-agregar" onClick={() => setMostrarAgregarManual(!mostrarAgregarManual)}>
-                      {mostrarAgregarManual ? 'Cancelar' : '+ Agregar SKU Manual'}
-                    </button>
-                  </div>
+                  <button className="rp02-btn-agregar" onClick={() => { setMostrarAgregarManual(!mostrarAgregarManual); setManualSKU(''); setManualCantidad('1'); }}>
+                    {mostrarAgregarManual ? 'Cancelar' : '+ Agregar SKU Manual'}
+                  </button>
                 </>
               )}
             </div>
