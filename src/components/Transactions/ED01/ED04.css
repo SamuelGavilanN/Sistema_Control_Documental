@@ -1,0 +1,45 @@
+/* src/components/Transactions/ED/ED04.css */
+
+.ed04-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
+.ed04-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.ed04-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+.ed04-toolbar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.ed04-btn { padding: 8px 16px; border: 1px solid var(--btn-border); border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s; background: var(--btn-bg); color: var(--btn-text); white-space: nowrap; }
+.ed04-btn:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+.ed04-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-bg); }
+.ed04-btn-primary:hover { background: var(--btn-primary-hover); }
+.ed04-btn-danger { color: var(--btn-danger-text); }
+.ed04-btn-danger:hover { background: var(--btn-danger-hover-bg); border-color: var(--btn-danger-hover-border); }
+.ed04-separator { width: 1px; height: 28px; background: var(--separator); margin: 0 4px; }
+.ed04-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.ed04-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 12px; padding: 20px; transition: all 0.15s; }
+.ed04-card:hover { border-color: var(--border-focus); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.ed04-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.ed04-card-id { font-size: 16px; font-weight: 700; color: var(--text-primary); font-family: 'Courier New', monospace; }
+.ed04-card-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.ed04-card-body { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.ed04-card-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+.ed04-card-row span:first-child { color: var(--text-muted); }
+.ed04-card-row strong { color: var(--text-primary); }
+.ed04-progress { margin-top: 8px; }
+.ed04-progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.ed04-progress-bar { width: 100%; height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+.ed04-progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+.ed04-card-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+.ed04-mensaje { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+.ed04-upload-area { margin-bottom: 20px; }
+.ed04-upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px; border: 2px dashed var(--border-input); border-radius: 10px; cursor: pointer; transition: all 0.15s; background: var(--bg-section); color: var(--text-placeholder); font-size: 14px; }
+.ed04-upload-box:hover { border-color: var(--border-focus); background: var(--bg-hover); }
+.ed04-upload-nombre { color: var(--text-primary); font-weight: 500; }
+.ed04-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.ed04-modal { background: var(--bg-panel); border-radius: 12px; width: 95%; max-width: 500px; box-shadow: var(--shadow-lg); }
+.ed04-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.ed04-modal-header h2 { font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0; }
+.ed04-modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 8px; font-size: 20px; color: var(--text-muted); cursor: pointer; }
+.ed04-modal-close:hover { background: var(--bg-hover); }
+.ed04-modal-body { padding: 24px; }
+.ed04-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border); }
+.ed04-toast { position: fixed; bottom: 24px; right: 24px; z-index: 2000; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-md); max-width: 420px; }
+.ed04-toast-success { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.ed04-toast-error { background: var(--error-bg); color: var(--error-text); border: 1px solid var(--error-border); }
+.ed04-toast-warning { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
