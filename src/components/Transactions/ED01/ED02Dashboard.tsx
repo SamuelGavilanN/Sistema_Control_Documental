@@ -13,6 +13,10 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' 
 };
 
+const formatNum = (num: number): string => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
 const ED02Dashboard: React.FC = () => {
   const [filtros, setFiltros]: any = useState({ usuario: '', desde: '', hasta: '' });
   const [datosLinea, setDatosLinea]: any = useState([]);
@@ -45,7 +49,6 @@ const ED02Dashboard: React.FC = () => {
         todosLosDatos = [...todosLosDatos, ...data];
         offset += limit;
         
-        // Si recibimos menos del límite, ya no hay más
         if (data.length < limit) {
           hayMas = false;
         }
@@ -85,7 +88,6 @@ const ED02Dashboard: React.FC = () => {
           agrupado[dia].bultos += reg.cantidad_bultos || 0;
         });
         
-        // Ordenar por fecha
         const barrasOrdenadas = Object.values(agrupado).sort((a: any, b: any) => {
           const fechaA = a.dia.split('-').reverse().join('');
           const fechaB = b.dia.split('-').reverse().join('');
@@ -121,21 +123,33 @@ const ED02Dashboard: React.FC = () => {
       </div>
 
       <div className="ed02-resumen">
-        <div className="ed02-card"><span>Tareas Procesadas</span><strong>{totalTareas}</strong></div>
-        <div className="ed02-card"><span>Total Bultos</span><strong>{totalBultos}</strong></div>
-        <div className="ed02-card"><span>Días Trabajados</span><strong>{datosBarra.length}</strong></div>
+        <div className="ed02-card">
+          <span>Tareas Procesadas</span>
+          <strong>{formatNum(totalTareas)}</strong>
+        </div>
+        <div className="ed02-card">
+          <span>Total Bultos</span>
+          <strong>{formatNum(totalBultos)}</strong>
+        </div>
+        <div className="ed02-card">
+          <span>Días Trabajados</span>
+          <strong>{formatNum(datosBarra.length)}</strong>
+        </div>
       </div>
 
       {datosBarra.length > 0 && (
         <>
           <div className="ed02-chart">
-            <h3>Flujo de Empaques por Fecha y Hora ({datosLinea.length} registros)</h3>
+            <h3>Flujo de Empaques por Fecha y Hora ({formatNum(datosLinea.length)} registros)</h3>
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={datosLinea} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="fechaHora" stroke="var(--text-muted)" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
                 <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-                <Tooltip labelFormatter={(label: any) => 'Fecha: ' + label} formatter={(value: any) => [value, 'Bultos']} />
+                <Tooltip 
+                  labelFormatter={(label: any) => 'Fecha: ' + label} 
+                  formatter={(value: any) => [formatNum(value), 'Bultos']} 
+                />
                 <Legend />
                 <Line type="monotone" dataKey="bultos" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} name="Bultos por empaque" />
               </LineChart>
@@ -149,7 +163,7 @@ const ED02Dashboard: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="dia" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
                 <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-                <Tooltip />
+                <Tooltip formatter={(value: any) => formatNum(value)} />
                 <Legend />
                 <Bar dataKey="tareas" fill="#3b82f6" radius={[4,4,0,0]} name="Tareas" />
                 <Bar dataKey="bultos" fill="#10b981" radius={[4,4,0,0]} name="Bultos" />
@@ -161,12 +175,35 @@ const ED02Dashboard: React.FC = () => {
 
       <div className="ed02-tabla-container">
         <table className="ed02-tabla">
-          <thead><tr><th>Dia</th><th>Tareas</th><th>Bultos</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th style={{ textAlign: 'center' }}>Tareas</th>
+              <th style={{ textAlign: 'center' }}>Bultos</th>
+            </tr>
+          </thead>
           <tbody>
-            {cargando ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Cargando...</td></tr> :
-              datosBarra.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Sin datos</td></tr> :
-              datosBarra.map((d: any, i: number) => <tr key={i}><td>{d.dia}</td><td>{d.tareas}</td><td>{d.bultos}</td></tr>)
-            }
+            {cargando ? (
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                  Cargando...
+                </td>
+              </tr>
+            ) : datosBarra.length === 0 ? (
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                  Sin datos
+                </td>
+              </tr>
+            ) : (
+              datosBarra.map((d: any, i: number) => (
+                <tr key={i}>
+                  <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{d.dia}</td>
+                  <td style={{ textAlign: 'center' }}>{formatNum(d.tareas)}</td>
+                  <td style={{ textAlign: 'center' }}>{formatNum(d.bultos)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
