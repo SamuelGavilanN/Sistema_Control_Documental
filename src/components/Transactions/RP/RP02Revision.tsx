@@ -32,12 +32,15 @@ const RP02Revision: React.FC = () => {
   const [mostrarRevisar, setMostrarRevisar]: any = useState(false);
   const [palletsDoc, setPalletsDoc]: any = useState([]);
   const [palletActual, setPalletActual]: any = useState(null);
-  const [etapa, setEtapa]: any = useState('empaques'); // 'empaques' | 'revision'
+  const [etapa, setEtapa]: any = useState('empaques');
   const [empaquesAgregados, setEmpaquesAgregados]: any = useState([]);
   const [bomsConsolidados, setBomsConsolidados]: any = useState([]);
   const [capturasBOM, setCapturasBOM]: any = useState([]);
+  const [cajaActual, setCajaActual]: any = useState(1);
   const [inputEmpaque, setInputEmpaque]: any = useState('');
   const [inputBOM, setInputBOM]: any = useState('');
+  const [origenManualSeleccionado, setOrigenManualSeleccionado]: any = useState(ORIGENES_MANUALES[0]);
+  const [mostrarOrigenesManuales, setMostrarOrigenesManuales]: any = useState(false);
   const inputEmpaqueRef: any = useRef(null);
   const inputBOMRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
@@ -83,6 +86,24 @@ const RP02Revision: React.FC = () => {
     }
   };
 
+  const handleEliminarDocumento = async () => {
+    if (!documentoSeleccionado) {
+      mostrarMensaje('warning', 'Seleccione un documento');
+      return;
+    }
+    if (!window.confirm('¿Eliminar el documento ' + documentoSeleccionado.id_documento + ' y todas sus revisiones?')) return;
+    try {
+      await fetch(API_URL + '/rp_documento_revisiones?documento_id=eq.' + documentoSeleccionado.id_documento, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/rp_documento_pallets?documento_id=eq.' + documentoSeleccionado.id_documento, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/rp_documentos?id=eq.' + documentoSeleccionado.id, { method: 'DELETE', headers: HEADERS });
+      mostrarMensaje('success', 'Documento eliminado');
+      setDocumentoSeleccionado(null);
+      cargarDocumentos();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al eliminar');
+    }
+  };
+
   const handleAbrirDocumento = async (doc: any) => {
     setDocumentoSeleccionado(doc);
     await cargarPallets(doc);
@@ -121,7 +142,9 @@ const RP02Revision: React.FC = () => {
         setEmpaquesAgregados([]);
         setBomsConsolidados([]);
         setCapturasBOM([]);
+        setCajaActual(1);
         setInputEmpaque('');
+        setInputBOM('');
         mostrarMensaje('success', numeroPallet + ' iniciado');
         setTimeout(() => inputEmpaqueRef.current?.focus(), 300);
       }
@@ -136,40 +159,93 @@ const RP02Revision: React.FC = () => {
     setEmpaquesAgregados([]);
     setBomsConsolidados([]);
     setCapturasBOM([]);
+    setCajaActual(1);
     setInputEmpaque('');
-    
-    // Cargar empaques ya registrados en este pallet
-    try {
-      const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + pallet.id + '&order=creado_en.asc', { headers: HEADERS });
-      const revisiones = await respRev.json() || [];
-      
+    setInputBOM('');
+
+    // Cargar empaques guardados
+    const respRev = await fetch(API_URL + '/rp_documento_revisiones?select=*&pallet_id=eq.' + pallet.id + '&order=creado_en.asc', { headers: HEADERS });
+    const revisiones = await respRev.json() || [];
+
+    if (revisiones.length > 0) {
       // Extraer empaques únicos
       const empaquesUnicos: any[] = [];
       const visto = new Set();
-      (revisiones || []).forEach((r: any) => {
-        const key = r.origen + '|' + (r.bom_sku || '');
-        if (!visto.has(r.origen) && r.origen !== 'SISTEMA') {
+      
+      revisiones.forEach((r: any) => {
+        if (r.origen !== 'SISTEMA' && !visto.has(r.origen)) {
           visto.add(r.origen);
           empaquesUnicos.push({ numero_empaque: r.origen, tipo: 'manual' });
         }
       });
-      
-      // Buscar empaques del inventario
-      const respPallets = await fetch(API_URL + '/rp_documento_pallets?select=*&id=eq.' + pallet.id, { headers: HEADERS });
-      const palletData = await respPallets.json();
-      if (palletData && palletData.length > 0 && palletData[0].numero_empaque) {
-        const empaquesStr = palletData[0].numero_empaque;
+
+      // Empaques del inventario
+      if (pallet.numero_empaque) {
+        const empaquesStr = pallet.numero_empaque;
         const empaquesList = empaquesStr.split(',').map((e: string) => e.trim()).filter((e: string) => e);
         for (const emp of empaquesList) {
           if (!visto.has(emp)) {
             visto.add(emp);
-            empaquesUnicos.push({ numero_empaque: emp, tipo: 'inventario' });
+            // Verificar si existe en inventario
+            try {
+              const resp = await fetch(API_URL + '/rp_inventario_empaques?select=*&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
+              const data = await resp.json();
+              if (data && data.length > 0) {
+                empaquesUnicos.push({
+                  numero_empaque: emp,
+                  tipo: 'inventario',
+                  empaque_id: data[0].id,
+                  cod_destino: data[0].cod_destino,
+                  destino: data[0].destino
+                });
+              } else {
+                empaquesUnicos.push({ numero_empaque: emp, tipo: 'manual' });
+              }
+            } catch (e) {
+              empaquesUnicos.push({ numero_empaque: emp, tipo: 'manual' });
+            }
           }
         }
       }
-      
+
       setEmpaquesAgregados(empaquesUnicos);
-    } catch (e) {}
+
+      // Cargar BOMs consolidados
+      const bomsSistema = revisiones.filter((r: any) => r.origen === 'SISTEMA');
+      const bomsManuales = revisiones.filter((r: any) => r.origen !== 'SISTEMA');
+
+      const bomsConsolidadosTemp: any[] = [];
+      bomsSistema.forEach((r: any) => {
+        const existente = bomsConsolidadosTemp.find((b: any) => b.bom_sku === r.bom_sku);
+        if (existente) {
+          existente.cantidad_revisada += r.cantidad_revisada;
+        } else {
+          bomsConsolidadosTemp.push({
+            bom_sku: r.bom_sku,
+            cantidad_sistema: r.cantidad_sistema,
+            cantidad_revisada: r.cantidad_revisada
+          });
+        }
+      });
+
+      // Agregar BOMs manuales como capturas
+      const capturasTemp: any[] = [];
+      bomsManuales.forEach((r: any) => {
+        for (let i = 0; i < r.cantidad_revisada; i++) {
+          capturasTemp.push({
+            caja: capturasTemp.length + 1,
+            bom_sku: r.bom_sku,
+            estado: 'manual',
+            mensaje: r.origen,
+            creado_en: r.creado_en
+          });
+        }
+      });
+
+      setBomsConsolidados(bomsConsolidadosTemp);
+      setCapturasBOM(capturasTemp);
+      setCajaActual(capturasTemp.length + 1);
+    }
   };
 
   const handleAgregarEmpaque = async () => {
@@ -180,56 +256,58 @@ const RP02Revision: React.FC = () => {
     }
     if (!palletActual) return;
 
-    // Verificar si ya fue agregado
     if (empaquesAgregados.find((e: any) => e.numero_empaque === valor)) {
       mostrarMensaje('warning', 'Este empaque ya fue agregado');
       setInputEmpaque('');
       return;
     }
 
-    // Verificar si es origen manual
-    const esOrigenManual = ORIGENES_MANUALES.some(o => o.toLowerCase().startsWith(valor.toLowerCase().substring(0, 3)));
+    const esOrigenManual = ORIGENES_MANUALES.some(o => o === valor);
 
     if (esOrigenManual) {
       setEmpaquesAgregados([...empaquesAgregados, { numero_empaque: valor, tipo: 'manual' }]);
       setInputEmpaque('');
-      mostrarMensaje('success', 'Empaque manual agregado');
       setTimeout(() => inputEmpaqueRef.current?.focus(), 200);
       return;
     }
 
-    // Verificar si existe en inventario
     try {
       const resp = await fetch(API_URL + '/rp_inventario_empaques?select=*&numero_empaque=eq.' + encodeURIComponent(valor), { headers: HEADERS });
       const empaques = await resp.json();
 
       if (!empaques || empaques.length === 0) {
-        // No existe en inventario, agregar como manual
         setEmpaquesAgregados([...empaquesAgregados, { numero_empaque: valor, tipo: 'manual' }]);
         setInputEmpaque('');
-        mostrarMensaje('warning', 'No encontrado en inventario, agregado como manual');
         setTimeout(() => inputEmpaqueRef.current?.focus(), 200);
         return;
       }
 
-      setEmpaquesAgregados([...empaquesAgregados, { 
-        numero_empaque: valor, 
+      setEmpaquesAgregados([...empaquesAgregados, {
+        numero_empaque: valor,
         tipo: 'inventario',
         empaque_id: empaques[0].id,
         cod_destino: empaques[0].cod_destino,
         destino: empaques[0].destino
       }]);
       setInputEmpaque('');
-      mostrarMensaje('success', 'Empaque ' + valor + ' agregado');
       setTimeout(() => inputEmpaqueRef.current?.focus(), 200);
     } catch (e) {
       mostrarMensaje('error', 'Error al buscar empaque');
     }
   };
 
+  const handleAgregarOrigenManual = (origen: string) => {
+    if (empaquesAgregados.find((e: any) => e.numero_empaque === origen)) {
+      mostrarMensaje('warning', 'Este origen ya fue agregado');
+      return;
+    }
+    setEmpaquesAgregados([...empaquesAgregados, { numero_empaque: origen, tipo: 'manual' }]);
+    setMostrarOrigenesManuales(false);
+    setTimeout(() => inputEmpaqueRef.current?.focus(), 200);
+  };
+
   const handleEliminarEmpaque = (index: number) => {
-    const nuevos = empaquesAgregados.filter((_: any, i: number) => i !== index);
-    setEmpaquesAgregados(nuevos);
+    setEmpaquesAgregados(empaquesAgregados.filter((_: any, i: number) => i !== index));
   };
 
   const handleIniciarRevision = async () => {
@@ -238,7 +316,6 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
-    // Guardar empaques en el pallet
     const empaquesStr = empaquesAgregados.map((e: any) => e.numero_empaque).join(',');
     await fetch(API_URL + '/rp_documento_pallets?id=eq.' + palletActual.id, {
       method: 'PATCH',
@@ -246,28 +323,23 @@ const RP02Revision: React.FC = () => {
       body: JSON.stringify({ numero_empaque: empaquesStr })
     });
 
-    // Consolidar BOMs de empaques del inventario
     let bomsConsolidadosTemp: any[] = [];
-    
+
     for (const emp of empaquesAgregados) {
       if (emp.tipo === 'inventario' && emp.empaque_id) {
         const respBoms = await fetch(API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + emp.empaque_id + '&order=bom_sku.asc', { headers: HEADERS });
         const boms = await respBoms.json();
-        
+
         if (boms) {
           for (const bom of boms) {
             const existente = bomsConsolidadosTemp.find((b: any) => b.bom_sku === bom.bom_sku);
             if (existente) {
               existente.cantidad_sistema += bom.cantidad_maxima;
-              if (!existente.empaques.includes(emp.numero_empaque)) {
-                existente.empaques.push(emp.numero_empaque);
-              }
             } else {
               bomsConsolidadosTemp.push({
                 bom_sku: bom.bom_sku,
                 cantidad_sistema: bom.cantidad_maxima,
-                cantidad_revisada: 0,
-                empaques: [emp.numero_empaque]
+                cantidad_revisada: 0
               });
             }
           }
@@ -277,73 +349,75 @@ const RP02Revision: React.FC = () => {
 
     setBomsConsolidados(bomsConsolidadosTemp);
     setCapturasBOM([]);
+    setCajaActual(1);
     setEtapa('revision');
     setTimeout(() => inputBOMRef.current?.focus(), 300);
   };
 
   const handleCapturarBOM = () => {
     const valor = inputBOM.trim();
-    if (!valor) {
-      mostrarMensaje('warning', 'Ingrese un BOM/SKU');
-      return;
-    }
+    if (!valor) return;
 
-    const bomsEnSistema = [...bomsConsolidados.map((b: any) => b.bom_sku)];
-    const bomsManuales = empaquesAgregados.filter((e: any) => e.tipo === 'manual').map((e: any) => e.numero_empaque);
-    
-    // Verificar si coincide con algún BOM del sistema
     const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === valor);
-    
-    let estado = 'no_corresponde';
-    let mensajeCaptura = '';
-    
+
+    let estado = 'no_encontrado';
+    let mensajeCaptura = 'No encontrado en sistema';
+
     if (bomEsperado) {
-      const capturasActuales = capturasBOM.filter((c: any) => c.bom_sku === valor).length;
-      const nuevaCantidad = capturasActuales + 1;
-      
+      const nuevaCantidad = bomEsperado.cantidad_revisada + 1;
+
       if (nuevaCantidad < bomEsperado.cantidad_sistema) {
         estado = 'falta';
-        mensajeCaptura = 'Falta ' + (bomEsperado.cantidad_sistema - nuevaCantidad) + ' unidad(es)';
+        mensajeCaptura = 'Falta ' + (bomEsperado.cantidad_sistema - nuevaCantidad);
       } else if (nuevaCantidad === bomEsperado.cantidad_sistema) {
         estado = 'completo';
         mensajeCaptura = 'Completo';
       } else {
         estado = 'sobra';
-        mensajeCaptura = 'Sobra ' + (nuevaCantidad - bomEsperado.cantidad_sistema) + ' unidad(es)';
+        mensajeCaptura = 'Sobra ' + (nuevaCantidad - bomEsperado.cantidad_sistema);
       }
-      
-      // Actualizar cantidad revisada
+
       setBomsConsolidados(bomsConsolidados.map((b: any) => {
-        if (b.bom_sku === valor) {
-          return { ...b, cantidad_revisada: nuevaCantidad };
-        }
+        if (b.bom_sku === valor) return { ...b, cantidad_revisada: nuevaCantidad };
         return b;
       }));
     }
 
-    const nuevaCaptura = {
+    setCapturasBOM([{
+      caja: cajaActual,
       bom_sku: valor,
       estado,
       mensaje: mensajeCaptura,
       creado_en: new Date().toISOString()
-    };
+    }, ...capturasBOM]);
 
-    setCapturasBOM([nuevaCaptura, ...capturasBOM]);
+    setCajaActual(cajaActual + 1);
     setInputBOM('');
     setTimeout(() => inputBOMRef.current?.focus(), 100);
   };
 
-  const handleFinalizarPallet = async () => {
+  const handleEliminarCaptura = (index: number) => {
+    const captura = capturasBOM[index];
+    if (captura.estado !== 'no_encontrado') {
+      const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
+      if (bomEsperado && bomEsperado.cantidad_revisada > 0) {
+        setBomsConsolidados(bomsConsolidados.map((b: any) => {
+          if (b.bom_sku === captura.bom_sku) return { ...b, cantidad_revisada: b.cantidad_revisada - 1 };
+          return b;
+        }));
+      }
+    }
+    setCapturasBOM(capturasBOM.filter((_: any, i: number) => i !== index));
+  };
+
+  const handleFinalizarRevision = async () => {
     if (!palletActual || !documentoSeleccionado) return;
 
-    // Verificar si hay BOMs sin completar
-    const incompletos = bomsConsolidados.filter((b: any) => b.cantidad_revisada < b.cantidad_sistema);
-    if (incompletos.length > 0) {
-      if (!window.confirm('Hay ' + incompletos.length + ' BOM(s) sin completar. ¿Desea finalizar igual?')) return;
-    }
-
     try {
-      // Guardar todas las revisiones de BOMs del sistema
+      // Eliminar revisiones anteriores
+      await fetch(API_URL + '/rp_documento_revisiones?pallet_id=eq.' + palletActual.id, { method: 'DELETE', headers: HEADERS });
+
+      // Guardar revisiones de BOMs del sistema
       for (const bom of bomsConsolidados) {
         if (bom.cantidad_revisada > 0) {
           await fetch(API_URL + '/rp_documento_revisiones', {
@@ -362,23 +436,18 @@ const RP02Revision: React.FC = () => {
         }
       }
 
-      // Guardar capturas manuales (BOMs que no están en sistema)
+      // Guardar BOMs no encontrados (manuales/sobrantes)
       const bomsSistema = bomsConsolidados.map((b: any) => b.bom_sku);
-      const capturasManuales = capturasBOM.filter((c: any) => !bomsSistema.includes(c.bom_sku));
-      
-      // Agrupar capturas manuales por BOM
-      const manualesAgrupados: Record<string, number> = {};
-      capturasManuales.forEach((c: any) => {
-        if (!manualesAgrupados[c.bom_sku]) manualesAgrupados[c.bom_sku] = 0;
-        manualesAgrupados[c.bom_sku]++;
+      const capturasNoSistema = capturasBOM.filter((c: any) => !bomsSistema.includes(c.bom_sku));
+
+      // Agrupar por BOM
+      const agrupados: Record<string, number> = {};
+      capturasNoSistema.forEach((c: any) => {
+        if (!agrupados[c.bom_sku]) agrupados[c.bom_sku] = 0;
+        agrupados[c.bom_sku]++;
       });
 
-      for (const bomSku of Object.keys(manualesAgrupados)) {
-        // Buscar si este BOM viene de un empaque manual
-        const empaqueManual = empaquesAgregados.find((e: any) => 
-          e.tipo === 'manual' && bomSku.startsWith(e.numero_empaque.substring(0, 3))
-        );
-        
+      for (const bomSku of Object.keys(agrupados)) {
         await fetch(API_URL + '/rp_documento_revisiones', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -387,30 +456,31 @@ const RP02Revision: React.FC = () => {
             pallet_id: palletActual.id,
             bom_sku: bomSku,
             cantidad_sistema: 0,
-            cantidad_revisada: manualesAgrupados[bomSku],
-            origen: empaqueManual ? empaqueManual.numero_empaque : 'MANUAL',
+            cantidad_revisada: agrupados[bomSku],
+            origen: 'NO_ENCONTRADO',
             revisado_por: usuario?.id
           })
         });
       }
 
       await cargarPallets(documentoSeleccionado);
-      mostrarMensaje('success', 'Pallet finalizado correctamente');
+      mostrarMensaje('success', 'Revisión finalizada correctamente');
       setPalletActual(null);
       setEtapa('empaques');
       setEmpaquesAgregados([]);
       setBomsConsolidados([]);
       setCapturasBOM([]);
+      setCajaActual(1);
     } catch (e) {
-      mostrarMensaje('error', 'Error al finalizar pallet');
+      mostrarMensaje('error', 'Error al finalizar revisión');
     }
   };
 
-  // Calcular totales
   const totalSistema = bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_sistema, 0);
   const totalRevisado = bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_revisada, 0);
   const totalCapturas = capturasBOM.length;
   const diferencia = totalRevisado - totalSistema;
+  const bomsNoEncontrados = capturasBOM.filter((c: any) => c.estado === 'no_encontrado');
 
   if (cargando) {
     return (
@@ -434,10 +504,13 @@ const RP02Revision: React.FC = () => {
         <button className="rp02-btn rp02-btn-primary" onClick={() => setMostrarCrearDoc(true)}>
           + Nuevo Documento
         </button>
-        <div className="rp02-separator"></div>
         <button className="rp02-btn" onClick={() => documentoSeleccionado && handleAbrirDocumento(documentoSeleccionado)}
           disabled={!documentoSeleccionado}>
           Abrir Documento
+        </button>
+        <div className="rp02-separator"></div>
+        <button className="rp02-btn rp01-btn-danger" onClick={handleEliminarDocumento} disabled={!documentoSeleccionado}>
+          Eliminar Documento
         </button>
       </div>
 
@@ -491,7 +564,7 @@ const RP02Revision: React.FC = () => {
 
       {mostrarRevisar && documentoSeleccionado && (
         <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEtapa('empaques'); }}>
-          <div className="rp02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
+          <div className="rp02-modal" style={{ maxWidth: '750px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
               <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEtapa('empaques'); }}>×</button>
@@ -503,7 +576,9 @@ const RP02Revision: React.FC = () => {
                     + Iniciar Pallet_{palletsDoc.length + 1}
                   </button>
 
-                  <div className="rp02-modal-section-title" style={{ marginBottom: '10px' }}>Pallets del Documento</div>
+                  {palletsDoc.length > 0 && (
+                    <div className="rp02-modal-section-title" style={{ marginBottom: '10px' }}>Pallets del Documento</div>
+                  )}
                   {palletsDoc.map((pallet: any) => (
                     <div key={pallet.id} className="rp02-pallet-card" onClick={() => handleSeleccionarPallet(pallet)} style={{ cursor: 'pointer' }}>
                       <div className="rp02-pallet-header">
@@ -542,13 +617,29 @@ const RP02Revision: React.FC = () => {
                             value={inputEmpaque}
                             onChange={(e: any) => setInputEmpaque(e.target.value)}
                             onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleAgregarEmpaque(); } }}
-                            placeholder="Número de Empaque o código manual (CD12, SG01...)"
+                            placeholder="Número de Empaque"
                             autoFocus
                           />
                           <button className="rp02-btn-save" onClick={handleAgregarEmpaque} style={{ whiteSpace: 'nowrap' }}>
                             Agregar
                           </button>
                         </div>
+
+                        <button className="rp02-btn" onClick={() => setMostrarOrigenesManuales(!mostrarOrigenesManuales)}
+                          style={{ marginBottom: '10px', width: '100%', justifyContent: 'center' }}>
+                          {mostrarOrigenesManuales ? 'Ocultar' : 'Mostrar'} Otros Centros / Orígenes
+                        </button>
+
+                        {mostrarOrigenesManuales && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '12px' }}>
+                            {ORIGENES_MANUALES.map((origen: string) => (
+                              <button key={origen} className="rp02-btn" onClick={() => handleAgregarOrigenManual(origen)}
+                                style={{ fontSize: '11px', padding: '8px 10px', textAlign: 'left' }}>
+                                {origen}
+                              </button>
+                            ))}
+                          </div>
+                        )}
 
                         {empaquesAgregados.length > 0 && (
                           <>
@@ -595,19 +686,18 @@ const RP02Revision: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        {/* Etapa 2: Revisión de BOMs */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                           <div className="rp01-resumen-card" style={{ padding: '10px' }}>
-                            <span style={{ fontSize: '10px' }}>Total Sistema</span>
+                            <span style={{ fontSize: '10px' }}>Sistema</span>
                             <strong style={{ fontSize: '18px' }}>{totalSistema}</strong>
                           </div>
                           <div className="rp01-resumen-card" style={{ padding: '10px' }}>
-                            <span style={{ fontSize: '10px' }}>Total Revisado</span>
+                            <span style={{ fontSize: '10px' }}>Revisado</span>
                             <strong style={{ fontSize: '18px', color: totalRevisado >= totalSistema ? 'var(--success-text)' : 'var(--error-text)' }}>{totalRevisado}</strong>
                           </div>
                           <div className="rp01-resumen-card" style={{ padding: '10px' }}>
-                            <span style={{ fontSize: '10px' }}>Capturas</span>
-                            <strong style={{ fontSize: '18px' }}>{totalCapturas}</strong>
+                            <span style={{ fontSize: '10px' }}>Caja #</span>
+                            <strong style={{ fontSize: '18px' }}>{cajaActual}</strong>
                           </div>
                           <div className="rp01-resumen-card" style={{ padding: '10px' }}>
                             <span style={{ fontSize: '10px' }}>Diferencia</span>
@@ -633,7 +723,6 @@ const RP02Revision: React.FC = () => {
                           </button>
                         </div>
 
-                        {/* BOMs del sistema */}
                         {bomsConsolidados.length > 0 && (
                           <div style={{ marginBottom: '10px' }}>
                             <div className="rp02-modal-section-title" style={{ marginBottom: '6px' }}>
@@ -653,13 +742,10 @@ const RP02Revision: React.FC = () => {
                               }}>
                                 <div>
                                   <span className="rp02-bom-sku">{bom.bom_sku}</span>
-                                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px' }}>
-                                    {bom.empaques.join(', ')}
-                                  </span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                    Sistema: {bom.cantidad_sistema}
+                                    Sist: {bom.cantidad_sistema}
                                   </span>
                                   <span style={{
                                     fontSize: '13px', fontWeight: 700,
@@ -676,46 +762,61 @@ const RP02Revision: React.FC = () => {
                           </div>
                         )}
 
-                        {/* Últimas capturas */}
                         {capturasBOM.length > 0 && (
                           <div style={{ marginBottom: '10px' }}>
-                            <div className="rp02-modal-section-title" style={{ marginBottom: '6px' }}>
-                              Últimas Capturas
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <span className="rp02-modal-section-title">Capturas ({capturasBOM.length})</span>
+                              <span className="rp02-modal-section-title" style={{ color: 'var(--text-muted)' }}>Total cajas: {cajaActual - 1}</span>
                             </div>
                             <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                              {capturasBOM.slice(0, 20).map((cap: any, idx: number) => (
+                              {capturasBOM.map((cap: any, idx: number) => (
                                 <div key={idx} className="rp02-bom-item" style={{
                                   marginBottom: '3px', padding: '8px 10px',
                                   background: cap.estado === 'completo' ? 'var(--success-bg)' :
                                     cap.estado === 'falta' ? 'var(--warning-bg)' :
                                     cap.estado === 'sobra' ? 'var(--error-bg)' :
-                                    'var(--bg-panel)',
+                                    'var(--error-bg)',
                                   borderColor: cap.estado === 'completo' ? 'var(--success-border)' :
                                     cap.estado === 'falta' ? 'var(--warning-border)' :
                                     cap.estado === 'sobra' ? 'var(--error-border)' :
-                                    'var(--border)'
+                                    'var(--error-border)'
                                 }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 600, fontFamily: 'Courier New, monospace' }}>
-                                    {cap.bom_sku}
-                                  </span>
-                                  <span style={{
-                                    fontSize: '10px',
-                                    color: cap.estado === 'completo' ? 'var(--success-text)' :
-                                      cap.estado === 'falta' ? 'var(--warning-text)' :
-                                      cap.estado === 'sobra' ? 'var(--error-text)' :
-                                      'var(--text-muted)'
-                                  }}>
-                                    {cap.mensaje || 'No corresponde'}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span className="rp01-badge" style={{
+                                      background: 'var(--btn-primary-bg)',
+                                      color: 'var(--btn-primary-text)',
+                                      fontSize: '10px', minWidth: '30px', textAlign: 'center'
+                                    }}>
+                                      #{cap.caja}
+                                    </span>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, fontFamily: 'Courier New, monospace' }}>
+                                      {cap.bom_sku}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{
+                                      fontSize: '10px',
+                                      color: cap.estado === 'completo' ? 'var(--success-text)' :
+                                        cap.estado === 'falta' ? 'var(--warning-text)' :
+                                        'var(--error-text)'
+                                    }}>
+                                      {cap.mensaje}
+                                    </span>
+                                    <button onClick={() => handleEliminarCaptura(idx)} style={{
+                                      width: '18px', height: '18px', background: 'transparent', color: 'var(--error-text)',
+                                      border: '1px solid var(--error-border)', borderRadius: '3px', cursor: 'pointer',
+                                      fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>×</button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        <button className="rp02-btn rp02-btn-primary" onClick={handleFinalizarPallet}
+                        <button className="rp02-btn rp02-btn-primary" onClick={handleFinalizarRevision}
                           style={{ marginTop: '12px', width: '100%', justifyContent: 'center' }}>
-                          Finalizar Pallet
+                          Finalizar Revisión
                         </button>
                       </>
                     )}
