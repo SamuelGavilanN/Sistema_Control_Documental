@@ -30,19 +30,44 @@ const ED02Dashboard: React.FC = () => {
     } catch (e) {}
   };
 
-  const cargarDatos = async () => {
-    setCargando(true);
-    try {
-      // Obtener TODOS los registros sin límite
-      let url = API_URL + '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc&limit=10000';
-      if (filtros.usuario) url += '&creado_por=eq.' + filtros.usuario;
-      if (filtros.desde) url += '&creado_en=gte.' + filtros.desde;
-      if (filtros.hasta) url += '&creado_en=lte.' + filtros.hasta + 'T23:59:59';
-      
+  const cargarTodosLosRegistros = async (urlBase: string) => {
+    let todosLosDatos: any[] = [];
+    let offset = 0;
+    const limit = 1000;
+    let hayMas = true;
+
+    while (hayMas) {
+      const url = urlBase + '&limit=' + limit + '&offset=' + offset;
       const resp = await fetch(url, { headers: HEADERS });
       const data = await resp.json();
       
-      if (data) {
+      if (data && data.length > 0) {
+        todosLosDatos = [...todosLosDatos, ...data];
+        offset += limit;
+        
+        // Si recibimos menos del límite, ya no hay más
+        if (data.length < limit) {
+          hayMas = false;
+        }
+      } else {
+        hayMas = false;
+      }
+    }
+
+    return todosLosDatos;
+  };
+
+  const cargarDatos = async () => {
+    setCargando(true);
+    try {
+      let urlBase = API_URL + '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc';
+      if (filtros.usuario) urlBase += '&creado_por=eq.' + filtros.usuario;
+      if (filtros.desde) urlBase += '&creado_en=gte.' + filtros.desde;
+      if (filtros.hasta) urlBase += '&creado_en=lte.' + filtros.hasta + 'T23:59:59';
+      
+      const data = await cargarTodosLosRegistros(urlBase);
+      
+      if (data && data.length > 0) {
         const puntosLinea = data.map((reg: any) => ({
           fechaHora: new Date(reg.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
           timestamp: new Date(reg.creado_en).getTime(),
@@ -59,9 +84,22 @@ const ED02Dashboard: React.FC = () => {
           agrupado[dia].tareas++;
           agrupado[dia].bultos += reg.cantidad_bultos || 0;
         });
-        setDatosBarra(Object.values(agrupado));
+        
+        // Ordenar por fecha
+        const barrasOrdenadas = Object.values(agrupado).sort((a: any, b: any) => {
+          const fechaA = a.dia.split('-').reverse().join('');
+          const fechaB = b.dia.split('-').reverse().join('');
+          return fechaA.localeCompare(fechaB);
+        });
+        
+        setDatosBarra(barrasOrdenadas);
+      } else {
+        setDatosLinea([]);
+        setDatosBarra([]);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando datos:', e);
+    }
     setCargando(false);
   };
 
@@ -85,12 +123,13 @@ const ED02Dashboard: React.FC = () => {
       <div className="ed02-resumen">
         <div className="ed02-card"><span>Tareas Procesadas</span><strong>{totalTareas}</strong></div>
         <div className="ed02-card"><span>Total Bultos</span><strong>{totalBultos}</strong></div>
+        <div className="ed02-card"><span>Días Trabajados</span><strong>{datosBarra.length}</strong></div>
       </div>
 
       {datosBarra.length > 0 && (
         <>
           <div className="ed02-chart">
-            <h3>Flujo de Empaques por Fecha y Hora</h3>
+            <h3>Flujo de Empaques por Fecha y Hora ({datosLinea.length} registros)</h3>
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={datosLinea} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
