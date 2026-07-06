@@ -235,7 +235,8 @@ const RP02Revision: React.FC = () => {
     let capturasConEstado = [...capturasTemp];
     
     bomsVerificar.forEach((bom: any) => {
-      const cantidadSistema = capturasTemp.find((c: any) => c.bom_sku === bom && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
+      const encontrado = capturasTemp.find((c: any) => c.bom_sku === bom && c.cantidad_sistema > 0);
+      const cantidadSistema = encontrado ? encontrado.cantidad_sistema : 0;
       capturasConEstado = capturasConEstado.map((c: any) => {
         if (c.bom_sku === bom && (c.origen === 'CD01' || c.origen === 'CD16')) {
           return { ...c, estado: calcularEstado(capturasConEstado, bom, cantidadSistema) };
@@ -265,7 +266,6 @@ const RP02Revision: React.FC = () => {
     let cantidadSistema = 0;
     let numeroEmpaque = '';
 
-    // Si no hay origen seleccionado pero hay BOM, buscar automáticamente (CD01/CD16)
     if (!origenSeleccionado && bom) {
       const resultado = await buscarBOMEnInventario(bom);
       if (resultado.encontrado) {
@@ -276,7 +276,6 @@ const RP02Revision: React.FC = () => {
         origenFinal = 'CD01';
       }
     } else if (origenSeleccionado && bom) {
-      // Si hay origen manual, buscar en inventario para obtener datos
       const resultado = await buscarBOMEnInventario(bom);
       if (resultado.encontrado) {
         cantidadSistema = resultado.cantidad_sistema;
@@ -308,7 +307,8 @@ const RP02Revision: React.FC = () => {
     const bomsVerificar = [...new Set(nuevasCapturas.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     
     bomsVerificar.forEach((bomSku: any) => {
-      const sistema = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
+      const encontrado = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0);
+      const sistema = encontrado ? encontrado.cantidad_sistema : 0;
       const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
       nuevasCapturas = nuevasCapturas.map((c: any) => {
         if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
@@ -331,7 +331,8 @@ const RP02Revision: React.FC = () => {
     const bomsVerificar = [...new Set(nuevasCapturas.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     
     bomsVerificar.forEach((bomSku: any) => {
-      const sistema = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
+      const encontrado = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0);
+      const sistema = encontrado ? encontrado.cantidad_sistema : 0;
       const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
       nuevasCapturas = nuevasCapturas.map((c: any) => {
         if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
@@ -444,7 +445,6 @@ const RP02Revision: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal Nuevo Documento */}
       {mostrarCrearDoc && (
         <div className="rp02-modal-overlay" onClick={() => setMostrarCrearDoc(false)}>
           <div className="rp02-modal" style={{ maxWidth: '450px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -458,7 +458,6 @@ const RP02Revision: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Revisión */}
       {mostrarRevisar && documentoSeleccionado && (
         <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>
           <div className="rp02-modal" style={{ maxWidth: '950px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -500,7 +499,6 @@ const RP02Revision: React.FC = () => {
                     ← Volver a Pallets
                   </button>
 
-                  {/* Panel de captura */}
                   <div style={{ background: 'var(--bg-section)', borderRadius: '8px', padding: '14px', border: '1px solid var(--border)', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <span className="rp02-pallet-numero" style={{ fontSize: '16px' }}>{palletActual.numero_pallet}</span>
@@ -544,7 +542,6 @@ const RP02Revision: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Tabla de capturas */}
                   {capturas.length > 0 && (
                     <div style={{ marginBottom: '16px' }}>
                       <div className="rp02-modal-section-title" style={{ marginBottom: '8px' }}>
@@ -644,7 +641,6 @@ const RP02Revision: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Detalle Pallet */}
       {mostrarDetallePallet && palletDetalle && (
         <div className="rp02-modal-overlay" onClick={() => setMostrarDetallePallet(false)}>
           <div className="rp02-modal" style={{ maxWidth: '850px' }} onClick={(e: any) => e.stopPropagation()}>
