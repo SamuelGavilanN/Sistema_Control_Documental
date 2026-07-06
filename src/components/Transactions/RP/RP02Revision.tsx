@@ -11,17 +11,17 @@ const HEADERS: any = {
 };
 
 const ORIGENES = [
-  { codigo: 'CD01', nombre: 'Centro Distribución Central', requiereBOM: true },
-  { codigo: 'CD12', nombre: 'Bodegas Lampa', requiereBOM: true },
-  { codigo: 'CD30', nombre: 'Bodegas Renca', requiereBOM: true },
-  { codigo: 'C144', nombre: 'Bodega Holly Concept', requiereBOM: true },
-  { codigo: 'CD16', nombre: 'Bodega San Francisco', requiereBOM: true },
-  { codigo: 'SG01', nombre: 'Internet', requiereBOM: true },
-  { codigo: 'SG02', nombre: 'Insumos', requiereBOM: true },
-  { codigo: 'SG03', nombre: 'Traspasos', requiereBOM: true },
-  { codigo: 'SG04', nombre: 'Valija', requiereBOM: true },
-  { codigo: 'SG05', nombre: 'Bultos Regularizar Stock', requiereBOM: true },
-  { codigo: 'SG06', nombre: 'Bultos Quedados en Camion', requiereBOM: true },
+  { codigo: 'CD01', nombre: 'Centro Distribución Central' },
+  { codigo: 'CD12', nombre: 'Bodegas Lampa' },
+  { codigo: 'CD30', nombre: 'Bodegas Renca' },
+  { codigo: 'C144', nombre: 'Bodega Holly Concept' },
+  { codigo: 'CD16', nombre: 'Bodega San Francisco' },
+  { codigo: 'SG01', nombre: 'Internet' },
+  { codigo: 'SG02', nombre: 'Insumos' },
+  { codigo: 'SG03', nombre: 'Traspasos' },
+  { codigo: 'SG04', nombre: 'Valija' },
+  { codigo: 'SG05', nombre: 'Bultos Regularizar Stock' },
+  { codigo: 'SG06', nombre: 'Bultos Quedados en Camion' },
 ];
 
 const RP02Revision: React.FC = () => {
@@ -34,7 +34,6 @@ const RP02Revision: React.FC = () => {
   const [palletsDoc, setPalletsDoc]: any = useState([]);
   const [palletActual, setPalletActual]: any = useState(null);
   const [capturas, setCapturas]: any = useState([]);
-  const [cajaActual, setCajaActual]: any = useState(1);
   const [origenSeleccionado, setOrigenSeleccionado]: any = useState('');
   const [bomInput, setBomInput]: any = useState('');
   const [cantidadInput, setCantidadInput]: any = useState('1');
@@ -67,6 +66,24 @@ const RP02Revision: React.FC = () => {
     const anio = ahora.getFullYear();
     const random = String(Math.floor(Math.random() * 90000) + 10000);
     return 'RPE' + dia + mes + anio + random;
+  };
+
+  // Obtener el siguiente número de caja disponible (busca huecos)
+  const obtenerSiguienteCaja = () => {
+    if (capturas.length === 0) return 1;
+    
+    // Ordenar por número de caja
+    const cajasOrdenadas = capturas.map((c: any) => c.caja).sort((a: number, b: number) => a - b);
+    
+    // Buscar el primer hueco
+    for (let i = 0; i < cajasOrdenadas.length; i++) {
+      if (cajasOrdenadas[i] !== i + 1) {
+        return i + 1;
+      }
+    }
+    
+    // Si no hay huecos, devolver el siguiente número
+    return cajasOrdenadas.length + 1;
   };
 
   const handleCrearDocumento = async () => {
@@ -129,7 +146,6 @@ const RP02Revision: React.FC = () => {
         await cargarPallets(documentoSeleccionado);
         setPalletActual(nuevoPallet);
         setCapturas([]);
-        setCajaActual(1);
         setOrigenSeleccionado('');
         setBomInput('');
         setCantidadInput('1');
@@ -142,25 +158,19 @@ const RP02Revision: React.FC = () => {
     setPalletActual(pallet);
     const revisiones = pallet.revisiones || [];
     
-    // Reconstruir capturas
-    const capturasTemp: any[] = [];
-    let maxCaja = 0;
+    const capturasTemp = revisiones.map((r: any) => ({
+      caja: r.caja_numero,
+      origen: r.origen,
+      bom_sku: r.bom_sku,
+      cantidad: r.cantidad_revisada,
+      cantidad_sistema: r.cantidad_sistema,
+      estado: r.estado || 'OK'
+    }));
     
-    revisiones.forEach((r: any) => {
-      if (r.caja_numero > maxCaja) maxCaja = r.caja_numero;
-      
-      capturasTemp.push({
-        caja: r.caja_numero,
-        origen: r.origen,
-        bom_sku: r.bom_sku,
-        cantidad: r.cantidad_revisada,
-        cantidad_sistema: r.cantidad_sistema,
-        estado: r.estado || 'OK'
-      });
-    });
+    // Ordenar por caja ascendente
+    capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
     
-    setCapturas(capturasTemp.sort((a: any, b: any) => a.caja - b.caja));
-    setCajaActual(maxCaja + 1);
+    setCapturas(capturasTemp);
     setOrigenSeleccionado('');
     setBomInput('');
     setCantidadInput('1');
@@ -173,9 +183,9 @@ const RP02Revision: React.FC = () => {
     }
     if (!palletActual) return;
 
-    const origenData = ORIGENES.find(o => o.codigo === origenSeleccionado);
     const cantidad = parseInt(cantidadInput) || 1;
     const bom = bomInput.trim().toUpperCase();
+    const nuevoId = obtenerSiguienteCaja();
 
     let cantidadSistema = 0;
     let estado = 'OK';
@@ -183,8 +193,7 @@ const RP02Revision: React.FC = () => {
     // Si es CD01, verificar contra inventario
     if (origenSeleccionado === 'CD01' && bom) {
       try {
-        // Buscar en todos los BOMs del inventario
-        const resp = await fetch(API_URL + '/rp_inventario_boms?select=*,rp_inventario_empaques!inner(numero_empaque,cod_destino,destino)&bom_sku=eq.' + encodeURIComponent(bom), { headers: HEADERS });
+        const resp = await fetch(API_URL + '/rp_inventario_boms?select=*&bom_sku=eq.' + encodeURIComponent(bom), { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) {
           cantidadSistema = data.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
@@ -196,7 +205,7 @@ const RP02Revision: React.FC = () => {
     }
 
     const nuevaCaptura = {
-      caja: cajaActual,
+      caja: nuevoId,
       origen: origenSeleccionado,
       bom_sku: bom || '-',
       cantidad,
@@ -204,15 +213,17 @@ const RP02Revision: React.FC = () => {
       estado
     };
 
-    setCapturas([...capturas, nuevaCaptura]);
-    setCajaActual(cajaActual + 1);
+    // Insertar en orden
+    const nuevasCapturas = [...capturas, nuevaCaptura].sort((a: any, b: any) => a.caja - b.caja);
+    setCapturas(nuevasCapturas);
     setBomInput('');
     setCantidadInput('1');
     setTimeout(() => bomInputRef.current?.focus(), 100);
   };
 
   const handleEliminarCaptura = (index: number) => {
-    setCapturas(capturas.filter((_: any, i: number) => i !== index));
+    const nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
+    setCapturas(nuevasCapturas);
   };
 
   const handleFinalizarRevision = async () => {
@@ -249,7 +260,6 @@ const RP02Revision: React.FC = () => {
       mostrarMensaje('success', 'Revisión finalizada - ' + capturas.length + ' cajas guardadas');
       setPalletActual(null);
       setCapturas([]);
-      setCajaActual(1);
     } catch (e) { mostrarMensaje('error', 'Error al finalizar revisión'); }
   };
 
@@ -334,7 +344,7 @@ const RP02Revision: React.FC = () => {
       {/* Modal de Revisión */}
       {mostrarRevisar && documentoSeleccionado && (
         <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>
-          <div className="rp02-modal" style={{ maxWidth: '800px' }} onClick={(e: any) => e.stopPropagation()}>
+          <div className="rp02-modal" style={{ maxWidth: '850px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
               <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>×</button>
@@ -378,13 +388,13 @@ const RP02Revision: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <span className="rp02-pallet-numero" style={{ fontSize: '16px' }}>{palletActual.numero_pallet}</span>
                       <span className="rp01-badge" style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '12px', padding: '4px 10px' }}>
-                        Caja #{cajaActual}
+                        Caja #{obtenerSiguienteCaja()}
                       </span>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr auto', gap: '8px', alignItems: 'end' }}>
                       <div className="rp02-form-group">
-                        <label className="rp02-form-label">Origen</label>
+                        <label className="rp02-form-label">Origen *</label>
                         <select className="rp02-form-input" value={origenSeleccionado} onChange={(e: any) => setOrigenSeleccionado(e.target.value)}>
                           <option value="">Seleccionar...</option>
                           {ORIGENES.map(o => <option key={o.codigo} value={o.codigo}>{o.codigo} - {o.nombre}</option>)}
@@ -414,18 +424,18 @@ const RP02Revision: React.FC = () => {
                   {capturas.length > 0 && (
                     <div style={{ marginBottom: '16px' }}>
                       <div className="rp02-modal-section-title" style={{ marginBottom: '8px' }}>
-                        Capturas ({capturas.length} cajas)
+                        Registro de Capturas ({capturas.length} cajas)
                       </div>
                       <div style={{ overflowX: 'auto' }}>
-                        <table className="ed03-tabla" style={{ minWidth: '700px' }}>
+                        <table className="ed03-tabla" style={{ minWidth: '750px' }}>
                           <thead>
                             <tr>
-                              <th style={{ width: '60px', textAlign: 'center' }}>Caja #</th>
+                              <th style={{ width: '70px', textAlign: 'center' }}>ID Caja</th>
                               <th>Origen</th>
                               <th>BOM</th>
                               <th style={{ textAlign: 'center', width: '80px' }}>Cantidad</th>
                               <th style={{ textAlign: 'center', width: '100px' }}>Cant. Sistema</th>
-                              <th style={{ textAlign: 'center', width: '100px' }}>Estado</th>
+                              <th style={{ textAlign: 'center', width: '110px' }}>Estado</th>
                               <th style={{ width: '40px' }}></th>
                             </tr>
                           </thead>
@@ -435,12 +445,12 @@ const RP02Revision: React.FC = () => {
                               return (
                                 <tr key={idx}>
                                   <td style={{ textAlign: 'center' }}>
-                                    <span className="rp01-badge" style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '11px', padding: '2px 8px' }}>
+                                    <span className="rp01-badge" style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '11px', padding: '3px 10px', fontWeight: 700 }}>
                                       #{cap.caja}
                                     </span>
                                   </td>
                                   <td style={{ fontWeight: 500 }}>{cap.origen}</td>
-                                  <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600 }}>{cap.bom_sku}</td>
+                                  <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, fontSize: '12px' }}>{cap.bom_sku}</td>
                                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{cap.cantidad}</td>
                                   <td style={{ textAlign: 'center' }}>
                                     {cap.cantidad_sistema > 0 ? cap.cantidad_sistema : '-'}
@@ -461,8 +471,9 @@ const RP02Revision: React.FC = () => {
                                   </td>
                                   <td style={{ textAlign: 'center' }}>
                                     <button onClick={() => handleEliminarCaptura(idx)} style={{
-                                      width: '22px', height: '22px', background: 'var(--error-bg)', color: 'var(--error-text)',
-                                      border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px'
+                                      width: '24px', height: '24px', background: 'var(--error-bg)', color: 'var(--error-text)',
+                                      border: '1px solid var(--error-border)', borderRadius: '4px', cursor: 'pointer', fontSize: '14px',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center'
                                     }}>×</button>
                                   </td>
                                 </tr>
@@ -474,19 +485,19 @@ const RP02Revision: React.FC = () => {
 
                       {/* Resumen */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '12px' }}>
-                        <div className="rp01-resumen-card" style={{ padding: '8px' }}>
+                        <div className="rp01-resumen-card" style={{ padding: '10px' }}>
                           <span style={{ fontSize: '10px' }}>Total Cajas</span>
-                          <strong style={{ fontSize: '16px' }}>{capturas.length}</strong>
+                          <strong style={{ fontSize: '18px' }}>{capturas.length}</strong>
                         </div>
-                        <div className="rp01-resumen-card" style={{ padding: '8px' }}>
+                        <div className="rp01-resumen-card" style={{ padding: '10px' }}>
                           <span style={{ fontSize: '10px' }}>Total Unidades</span>
-                          <strong style={{ fontSize: '16px' }}>{capturas.reduce((s: number, c: any) => s + c.cantidad, 0)}</strong>
+                          <strong style={{ fontSize: '18px' }}>{capturas.reduce((s: number, c: any) => s + c.cantidad, 0)}</strong>
                         </div>
-                        <div className="rp01-resumen-card" style={{ padding: '8px' }}>
-                          <span style={{ fontSize: '10px' }}>OK / Diferencias</span>
-                          <strong style={{ fontSize: '16px' }}>
+                        <div className="rp01-resumen-card" style={{ padding: '10px' }}>
+                          <span style={{ fontSize: '10px' }}>OK / Con Dif.</span>
+                          <strong style={{ fontSize: '18px' }}>
                             <span style={{ color: 'var(--success-text)' }}>{capturas.filter((c: any) => c.estado === 'OK').length}</span>
-                            <span style={{ color: 'var(--text-muted)' }}> / </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}> / </span>
                             <span style={{ color: 'var(--error-text)' }}>{capturas.filter((c: any) => c.estado !== 'OK').length}</span>
                           </strong>
                         </div>
@@ -496,6 +507,12 @@ const RP02Revision: React.FC = () => {
                         style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}>
                         Finalizar Revisión
                       </button>
+                    </div>
+                  )}
+
+                  {capturas.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-placeholder)', fontSize: '13px' }}>
+                      No hay capturas registradas. Seleccione un origen y agregue cajas.
                     </div>
                   )}
                 </>
@@ -508,17 +525,17 @@ const RP02Revision: React.FC = () => {
       {/* Modal Detalle Pallet */}
       {mostrarDetallePallet && palletDetalle && (
         <div className="rp02-modal-overlay" onClick={() => setMostrarDetallePallet(false)}>
-          <div className="rp02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
+          <div className="rp02-modal" style={{ maxWidth: '750px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{palletDetalle.numero_pallet} - Detalle</h2>
               <button className="rp02-modal-close" onClick={() => setMostrarDetallePallet(false)}>×</button>
             </div>
             <div className="rp02-modal-body">
               <div style={{ overflowX: 'auto' }}>
-                <table className="ed03-tabla" style={{ minWidth: '600px' }}>
+                <table className="ed03-tabla" style={{ minWidth: '650px' }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'center', width: '60px' }}>Caja #</th>
+                      <th style={{ textAlign: 'center', width: '70px' }}>ID Caja</th>
                       <th>Origen</th>
                       <th>BOM</th>
                       <th style={{ textAlign: 'center' }}>Cant.</th>
@@ -530,29 +547,31 @@ const RP02Revision: React.FC = () => {
                     {(palletDetalle.revisiones || []).length === 0 ? (
                       <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-placeholder)' }}>Sin revisiones</td></tr>
                     ) : (
-                      (palletDetalle.revisiones || []).map((rev: any, idx: number) => {
-                        const estilo = getEstadoStyle(rev.estado || 'OK');
-                        return (
-                          <tr key={idx}>
-                            <td style={{ textAlign: 'center' }}>
-                              <span className="rp01-badge" style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '10px' }}>#{rev.caja_numero}</span>
-                            </td>
-                            <td>{rev.origen}</td>
-                            <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600 }}>{rev.bom_sku}</td>
-                            <td style={{ textAlign: 'center', fontWeight: 600 }}>{rev.cantidad_revisada}</td>
-                            <td style={{ textAlign: 'center' }}>{rev.cantidad_sistema > 0 ? rev.cantidad_sistema : '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <span style={{
-                                display: 'inline-block', padding: '2px 8px', borderRadius: '10px',
-                                fontSize: '10px', fontWeight: 600, background: estilo.bg, color: estilo.color,
-                                border: '1px solid ' + estilo.border
-                              }}>
-                                {rev.estado || 'OK'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
+                      (palletDetalle.revisiones || [])
+                        .sort((a: any, b: any) => a.caja_numero - b.caja_numero)
+                        .map((rev: any, idx: number) => {
+                          const estilo = getEstadoStyle(rev.estado || 'OK');
+                          return (
+                            <tr key={idx}>
+                              <td style={{ textAlign: 'center' }}>
+                                <span className="rp01-badge" style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '10px', padding: '2px 8px' }}>#{rev.caja_numero}</span>
+                              </td>
+                              <td>{rev.origen}</td>
+                              <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, fontSize: '12px' }}>{rev.bom_sku}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{rev.cantidad_revisada}</td>
+                              <td style={{ textAlign: 'center' }}>{rev.cantidad_sistema > 0 ? rev.cantidad_sistema : '-'}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                <span style={{
+                                  display: 'inline-block', padding: '2px 8px', borderRadius: '10px',
+                                  fontSize: '10px', fontWeight: 600, background: estilo.bg, color: estilo.color,
+                                  border: '1px solid ' + estilo.border
+                                }}>
+                                  {rev.estado || 'OK'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
                     )}
                   </tbody>
                 </table>
