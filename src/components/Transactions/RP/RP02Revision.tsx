@@ -68,22 +68,36 @@ const RP02Revision: React.FC = () => {
     return 'RPE' + dia + mes + anio + random;
   };
 
-  // Obtener el siguiente número de caja disponible (busca huecos)
   const obtenerSiguienteCaja = () => {
     if (capturas.length === 0) return 1;
-    
-    // Ordenar por número de caja
     const cajasOrdenadas = capturas.map((c: any) => c.caja).sort((a: number, b: number) => a - b);
-    
-    // Buscar el primer hueco
     for (let i = 0; i < cajasOrdenadas.length; i++) {
-      if (cajasOrdenadas[i] !== i + 1) {
-        return i + 1;
-      }
+      if (cajasOrdenadas[i] !== i + 1) return i + 1;
     }
-    
-    // Si no hay huecos, devolver el siguiente número
     return cajasOrdenadas.length + 1;
+  };
+
+  // Recalcular estados de todas las capturas para un BOM específico
+  const recalcularEstadosBOM = (capturasList: any[], bomSku: string, cantidadSistema: number) => {
+    return capturasList.map((cap: any) => {
+      if (cap.bom_sku !== bomSku || cap.origen !== 'CD01') return cap;
+      
+      // Calcular total acumulado de este BOM en todas las capturas
+      const totalAcumulado = capturasList
+        .filter((c: any) => c.bom_sku === bomSku && c.origen === 'CD01')
+        .reduce((s: number, c: any) => s + c.cantidad, 0);
+      
+      let estado = 'OK';
+      if (cantidadSistema === 0) {
+        estado = 'NO_ENCONTRADO';
+      } else if (totalAcumulado < cantidadSistema) {
+        estado = 'FALTA';
+      } else if (totalAcumulado > cantidadSistema) {
+        estado = 'SOBRA';
+      }
+      
+      return { ...cap, cantidad_sistema: cantidadSistema, estado };
+    });
   };
 
   const handleCrearDocumento = async () => {
@@ -167,9 +181,7 @@ const RP02Revision: React.FC = () => {
       estado: r.estado || 'OK'
     }));
     
-    // Ordenar por caja ascendente
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
-    
     setCapturas(capturasTemp);
     setOrigenSeleccionado('');
     setBomInput('');
@@ -188,7 +200,6 @@ const RP02Revision: React.FC = () => {
     const nuevoId = obtenerSiguienteCaja();
 
     let cantidadSistema = 0;
-    let estado = 'OK';
 
     // Si es CD01, verificar contra inventario
     if (origenSeleccionado === 'CD01' && bom) {
@@ -197,24 +208,34 @@ const RP02Revision: React.FC = () => {
         const data = await resp.json();
         if (data && data.length > 0) {
           cantidadSistema = data.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
-          estado = cantidad === cantidadSistema ? 'OK' : (cantidad < cantidadSistema ? 'FALTA' : 'SOBRA');
-        } else {
-          estado = 'NO_ENCONTRADO';
         }
       } catch (e) {}
     }
 
+    // Cada captura es individual (1 caja = 1 unidad por defecto)
     const nuevaCaptura = {
       caja: nuevoId,
       origen: origenSeleccionado,
       bom_sku: bom || '-',
-      cantidad,
+      cantidad: cantidad,
       cantidad_sistema: cantidadSistema,
-      estado
+      estado: 'OK' // Estado inicial, se recalculará abajo
     };
 
-    // Insertar en orden
-    const nuevasCapturas = [...capturas, nuevaCaptura].sort((a: any, b: any) => a.caja - b.caja);
+    let nuevasCapturas = [...capturas, nuevaCaptura];
+    
+    // Recalcular estados para este BOM si es CD01
+    if (origenSeleccionado === 'CD01' && bom && cantidadSistema > 0) {
+      nuevasCapturas = recalcularEstadosBOM(nuevasCapturas, bom, cantidadSistema);
+    } else if (origenSeleccionado === 'CD01' && bom && cantidadSistema === 0) {
+      // Marcar como NO_ENCONTRADO
+      nuevasCapturas = nuevasCapturas.map((cap: any) => {
+        if (cap.caja === nuevoId) return { ...cap, estado: 'NO_ENCONTRADO' };
+        return cap;
+      });
+    }
+
+    nuevasCapturas.sort((a: any, b: any) => a.caja - b.caja);
     setCapturas(nuevasCapturas);
     setBomInput('');
     setCantidadInput('1');
@@ -222,7 +243,18 @@ const RP02Revision: React.FC = () => {
   };
 
   const handleEliminarCaptura = (index: number) => {
-    const nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
+    const capturaEliminada = capturas[index];
+    let nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
+    
+    // Recalcular estados si era CD01
+    if (capturaEliminada.origen === 'CD01' && capturaEliminada.bom_sku && capturaEliminada.bom_sku !== '-') {
+      const bom = capturaEliminada.bom_sku;
+      const cantidadSistema = capturaEliminada.cantidad_sistema;
+      if (cantidadSistema > 0) {
+        nuevasCapturas = recalcularEstadosBOM(nuevasCapturas, bom, cantidadSistema);
+      }
+    }
+    
     setCapturas(nuevasCapturas);
   };
 
@@ -234,10 +266,8 @@ const RP02Revision: React.FC = () => {
     }
 
     try {
-      // Eliminar revisiones anteriores
       await fetch(API_URL + '/rp_documento_revisiones?pallet_id=eq.' + palletActual.id, { method: 'DELETE', headers: HEADERS });
 
-      // Guardar cada captura
       for (const cap of capturas) {
         await fetch(API_URL + '/rp_documento_revisiones', {
           method: 'POST',
@@ -276,6 +306,20 @@ const RP02Revision: React.FC = () => {
       case 'NO_ENCONTRADO': return { bg: 'var(--error-bg)', color: 'var(--error-text)', border: 'var(--error-border)' };
       default: return { bg: 'var(--bg-panel)', color: 'var(--text-primary)', border: 'var(--border)' };
     }
+  };
+
+  // Calcular resumen por BOM para mostrar en la tabla
+  const getResumenBOM = () => {
+    const resumen: Record<string, any> = {};
+    capturas.forEach((cap: any) => {
+      if (cap.origen === 'CD01' && cap.bom_sku !== '-') {
+        if (!resumen[cap.bom_sku]) {
+          resumen[cap.bom_sku] = { sistema: cap.cantidad_sistema, capturado: 0 };
+        }
+        resumen[cap.bom_sku].capturado += cap.cantidad;
+      }
+    });
+    return resumen;
   };
 
   if (cargando) {
@@ -344,7 +388,7 @@ const RP02Revision: React.FC = () => {
       {/* Modal de Revisión */}
       {mostrarRevisar && documentoSeleccionado && (
         <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>
-          <div className="rp02-modal" style={{ maxWidth: '850px' }} onClick={(e: any) => e.stopPropagation()}>
+          <div className="rp02-modal" style={{ maxWidth: '900px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
               <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>×</button>
@@ -427,14 +471,14 @@ const RP02Revision: React.FC = () => {
                         Registro de Capturas ({capturas.length} cajas)
                       </div>
                       <div style={{ overflowX: 'auto' }}>
-                        <table className="ed03-tabla" style={{ minWidth: '750px' }}>
+                        <table className="ed03-tabla" style={{ minWidth: '800px' }}>
                           <thead>
                             <tr>
                               <th style={{ width: '70px', textAlign: 'center' }}>ID Caja</th>
                               <th>Origen</th>
                               <th>BOM</th>
-                              <th style={{ textAlign: 'center', width: '80px' }}>Cantidad</th>
-                              <th style={{ textAlign: 'center', width: '100px' }}>Cant. Sistema</th>
+                              <th style={{ textAlign: 'center', width: '80px' }}>Cant.</th>
+                              <th style={{ textAlign: 'center', width: '100px' }}>Sistema</th>
                               <th style={{ textAlign: 'center', width: '110px' }}>Estado</th>
                               <th style={{ width: '40px' }}></th>
                             </tr>
@@ -457,14 +501,9 @@ const RP02Revision: React.FC = () => {
                                   </td>
                                   <td style={{ textAlign: 'center' }}>
                                     <span style={{
-                                      display: 'inline-block',
-                                      padding: '3px 10px',
-                                      borderRadius: '10px',
-                                      fontSize: '11px',
-                                      fontWeight: 600,
-                                      background: estilo.bg,
-                                      color: estilo.color,
-                                      border: '1px solid ' + estilo.border
+                                      display: 'inline-block', padding: '3px 10px', borderRadius: '10px',
+                                      fontSize: '11px', fontWeight: 600, background: estilo.bg,
+                                      color: estilo.color, border: '1px solid ' + estilo.border
                                     }}>
                                       {cap.estado}
                                     </span>
@@ -472,8 +511,8 @@ const RP02Revision: React.FC = () => {
                                   <td style={{ textAlign: 'center' }}>
                                     <button onClick={() => handleEliminarCaptura(idx)} style={{
                                       width: '24px', height: '24px', background: 'var(--error-bg)', color: 'var(--error-text)',
-                                      border: '1px solid var(--error-border)', borderRadius: '4px', cursor: 'pointer', fontSize: '14px',
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                      border: '1px solid var(--error-border)', borderRadius: '4px', cursor: 'pointer',
+                                      fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                                     }}>×</button>
                                   </td>
                                 </tr>
@@ -483,7 +522,35 @@ const RP02Revision: React.FC = () => {
                         </table>
                       </div>
 
-                      {/* Resumen */}
+                      {/* Resumen por BOM (solo CD01) */}
+                      {Object.keys(getResumenBOM()).length > 0 && (
+                        <div style={{ marginTop: '12px' }}>
+                          <div className="rp02-modal-section-title" style={{ marginBottom: '6px' }}>Resumen por BOM (CD01)</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {Object.entries(getResumenBOM()).map(([bom, data]: [string, any]) => {
+                              const diferencia = data.capturado - data.sistema;
+                              const color = diferencia === 0 ? 'var(--success-text)' : diferencia < 0 ? 'var(--warning-text)' : 'var(--error-text)';
+                              const bg = diferencia === 0 ? 'var(--success-bg)' : diferencia < 0 ? 'var(--warning-bg)' : 'var(--error-bg)';
+                              return (
+                                <div key={bom} style={{
+                                  padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
+                                  background: bg, border: '1px solid ' + color, color: 'var(--text-primary)'
+                                }}>
+                                  <span style={{ fontFamily: 'Courier New, monospace', fontWeight: 600 }}>{bom}</span>
+                                  <span style={{ marginLeft: '8px', color: 'var(--text-muted)' }}>
+                                    {data.capturado}/{data.sistema}
+                                  </span>
+                                  <span style={{ marginLeft: '6px', fontWeight: 600, color }}>
+                                    {diferencia === 0 ? 'OK' : (diferencia > 0 ? '+' + diferencia : diferencia)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resumen general */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '12px' }}>
                         <div className="rp01-resumen-card" style={{ padding: '10px' }}>
                           <span style={{ fontSize: '10px' }}>Total Cajas</span>
