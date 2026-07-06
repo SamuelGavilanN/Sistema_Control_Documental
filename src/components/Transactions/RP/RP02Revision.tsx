@@ -11,11 +11,9 @@ const HEADERS: any = {
 };
 
 const ORIGENES = [
-  { codigo: 'CD01', nombre: 'Centro Distribución Central' },
   { codigo: 'CD12', nombre: 'Bodegas Lampa' },
   { codigo: 'CD30', nombre: 'Bodegas Renca' },
   { codigo: 'C144', nombre: 'Bodega Holly Concept' },
-  { codigo: 'CD16', nombre: 'Bodega San Francisco' },
   { codigo: 'SG01', nombre: 'Internet' },
   { codigo: 'SG02', nombre: 'Insumos' },
   { codigo: 'SG03', nombre: 'Traspasos' },
@@ -79,7 +77,7 @@ const RP02Revision: React.FC = () => {
 
   const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number) => {
     const totalCapturado = capturasList
-      .filter((c: any) => c.bom_sku === bomSku && c.origen === 'CD01')
+      .filter((c: any) => c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16'))
       .reduce((s: number, c: any) => s + c.cantidad, 0);
 
     if (cantidadSistema === 0) return 'NO_ENCONTRADO';
@@ -88,7 +86,37 @@ const RP02Revision: React.FC = () => {
     return 'SOBRA';
   };
 
-  // Buscar número de empaque para un BOM en el inventario
+  const buscarBOMEnInventario = async (bomSku: string) => {
+    try {
+      const resp = await fetch(
+        API_URL + '/rp_inventario_boms?select=empaque_id,bom_sku,cantidad_maxima&bom_sku=eq.' + encodeURIComponent(bomSku),
+        { headers: HEADERS }
+      );
+      const boms = await resp.json();
+      if (boms && boms.length > 0) {
+        const empaqueId = boms[0].empaque_id;
+        const respEmpaque = await fetch(
+          API_URL + '/rp_inventario_empaques?select=numero_empaque,origen&id=eq.' + empaqueId,
+          { headers: HEADERS }
+        );
+        const empaqueData = await respEmpaque.json();
+        
+        if (empaqueData && empaqueData.length > 0) {
+          const cantidadSistema = boms.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
+          return {
+            encontrado: true,
+            origen: empaqueData[0].origen || 'CD01',
+            numero_empaque: empaqueData[0].numero_empaque || '',
+            cantidad_sistema: cantidadSistema
+          };
+        }
+      }
+      return { encontrado: false, origen: '', numero_empaque: '', cantidad_sistema: 0 };
+    } catch (e) {
+      return { encontrado: false, origen: '', numero_empaque: '', cantidad_sistema: 0 };
+    }
+  };
+
   const buscarEmpaquePorBOM = async (bomSku: string) => {
     try {
       const resp = await fetch(
@@ -183,25 +211,33 @@ const RP02Revision: React.FC = () => {
     setPalletActual(pallet);
     const revisiones = pallet.revisiones || [];
     
-    const capturasTemp = revisiones.map((r: any) => ({
-      caja: r.caja_numero,
-      origen: r.origen,
-      bom_sku: r.bom_sku,
-      cantidad: r.cantidad_revisada,
-      cantidad_sistema: r.cantidad_sistema,
-      numero_empaque: r.numero_empaque || '',
-      estado: 'OK'
+    const capturasTemp = await Promise.all(revisiones.map(async (r: any) => {
+      let numeroEmpaque = r.numero_empaque || '';
+      
+      if (!numeroEmpaque && (r.origen === 'CD01' || r.origen === 'CD16') && r.bom_sku && r.bom_sku !== '-') {
+        numeroEmpaque = await buscarEmpaquePorBOM(r.bom_sku);
+      }
+      
+      return {
+        caja: r.caja_numero,
+        origen: r.origen,
+        bom_sku: r.bom_sku,
+        cantidad: r.cantidad_revisada,
+        cantidad_sistema: r.cantidad_sistema,
+        numero_empaque: numeroEmpaque,
+        estado: 'OK'
+      };
     }));
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
     
-    const bomsCD01 = [...new Set(capturasTemp.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    const bomsVerificar = [...new Set(capturasTemp.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     let capturasConEstado = [...capturasTemp];
     
-    bomsCD01.forEach((bom: any) => {
+    bomsVerificar.forEach((bom: any) => {
       const cantidadSistema = capturasTemp.find((c: any) => c.bom_sku === bom && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
       capturasConEstado = capturasConEstado.map((c: any) => {
-        if (c.bom_sku === bom && c.origen === 'CD01') {
+        if (c.bom_sku === bom && (c.origen === 'CD01' || c.origen === 'CD16')) {
           return { ...c, estado: calcularEstado(capturasConEstado, bom, cantidadSistema) };
         }
         return c;
@@ -215,8 +251,8 @@ const RP02Revision: React.FC = () => {
   };
 
   const handleAgregarCaptura = async () => {
-    if (!origenSeleccionado) {
-      mostrarMensaje('warning', 'Seleccione un origen');
+    if (!origenSeleccionado && !bomInput.trim()) {
+      mostrarMensaje('warning', 'Seleccione un origen o ingrese un BOM');
       return;
     }
     if (!palletActual) return;
@@ -225,33 +261,41 @@ const RP02Revision: React.FC = () => {
     const bom = bomInput.trim().toUpperCase();
     const nuevoId = obtenerSiguienteCaja();
 
+    let origenFinal = origenSeleccionado;
     let cantidadSistema = 0;
     let numeroEmpaque = '';
 
-    if (origenSeleccionado === 'CD01' && bom) {
-      // Buscar en inventario
-      try {
-        const resp = await fetch(API_URL + '/rp_inventario_boms?select=*,rp_inventario_empaques!inner(numero_empaque)&bom_sku=eq.' + encodeURIComponent(bom), { headers: HEADERS });
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          cantidadSistema = data.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
-          // Obtener número de empaque del primer resultado
-          if (data[0].rp_inventario_empaques) {
-            numeroEmpaque = data[0].rp_inventario_empaques.numero_empaque || '';
-          } else {
-            numeroEmpaque = await buscarEmpaquePorBOM(bom);
-          }
-        } else {
-          numeroEmpaque = await buscarEmpaquePorBOM(bom);
-        }
-      } catch (e) {
-        numeroEmpaque = await buscarEmpaquePorBOM(bom);
+    // Si no hay origen seleccionado pero hay BOM, buscar automáticamente (CD01/CD16)
+    if (!origenSeleccionado && bom) {
+      const resultado = await buscarBOMEnInventario(bom);
+      if (resultado.encontrado) {
+        origenFinal = resultado.origen;
+        cantidadSistema = resultado.cantidad_sistema;
+        numeroEmpaque = resultado.numero_empaque;
+      } else {
+        origenFinal = 'CD01';
       }
+    } else if (origenSeleccionado && bom) {
+      // Si hay origen manual, buscar en inventario para obtener datos
+      const resultado = await buscarBOMEnInventario(bom);
+      if (resultado.encontrado) {
+        cantidadSistema = resultado.cantidad_sistema;
+        numeroEmpaque = resultado.numero_empaque;
+      }
+    }
+
+    if (!bom && origenSeleccionado) {
+      origenFinal = origenSeleccionado;
+    }
+
+    if (!origenFinal) {
+      mostrarMensaje('warning', 'No se pudo determinar el origen');
+      return;
     }
 
     const nuevaCaptura = {
       caja: nuevoId,
-      origen: origenSeleccionado,
+      origen: origenFinal,
       bom_sku: bom || '-',
       cantidad: cantidad,
       cantidad_sistema: cantidadSistema,
@@ -261,13 +305,13 @@ const RP02Revision: React.FC = () => {
 
     let nuevasCapturas = [...capturas, nuevaCaptura].sort((a: any, b: any) => a.caja - b.caja);
 
-    const bomsCD01 = [...new Set(nuevasCapturas.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    const bomsVerificar = [...new Set(nuevasCapturas.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     
-    bomsCD01.forEach((bomSku: any) => {
+    bomsVerificar.forEach((bomSku: any) => {
       const sistema = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
       const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
       nuevasCapturas = nuevasCapturas.map((c: any) => {
-        if (c.bom_sku === bomSku && c.origen === 'CD01') {
+        if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
           return { ...c, estado };
         }
         return c;
@@ -277,19 +321,20 @@ const RP02Revision: React.FC = () => {
     setCapturas(nuevasCapturas);
     setBomInput('');
     setCantidadInput('1');
+    setOrigenSeleccionado('');
     setTimeout(() => bomInputRef.current?.focus(), 100);
   };
 
   const handleEliminarCaptura = (index: number) => {
     let nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
     
-    const bomsCD01 = [...new Set(nuevasCapturas.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    const bomsVerificar = [...new Set(nuevasCapturas.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     
-    bomsCD01.forEach((bomSku: any) => {
+    bomsVerificar.forEach((bomSku: any) => {
       const sistema = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
       const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
       nuevasCapturas = nuevasCapturas.map((c: any) => {
-        if (c.bom_sku === bomSku && c.origen === 'CD01') {
+        if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
           return { ...c, estado };
         }
         return c;
@@ -464,14 +509,11 @@ const RP02Revision: React.FC = () => {
                       </span>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr auto', gap: '8px', alignItems: 'end' }}>
-                      <div className="rp02-form-group">
-                        <label className="rp02-form-label">Origen *</label>
-                        <select className="rp02-form-input" value={origenSeleccionado} onChange={(e: any) => setOrigenSeleccionado(e.target.value)}>
-                          <option value="">Seleccionar...</option>
-                          {ORIGENES.map(o => <option key={o.codigo} value={o.codigo}>{o.codigo} - {o.nombre}</option>)}
-                        </select>
-                      </div>
+                    <div style={{ marginBottom: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      CD01 y CD16 se detectan automáticamente al escanear el BOM. Otros orígenes debe seleccionarlos manualmente.
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
                       <div className="rp02-form-group">
                         <label className="rp02-form-label">BOM/SKU</label>
                         <input ref={bomInputRef} type="text" className="rp02-form-input" value={bomInput}
@@ -489,6 +531,16 @@ const RP02Revision: React.FC = () => {
                       <button className="rp02-btn-save" onClick={handleAgregarCaptura} style={{ height: '42px', whiteSpace: 'nowrap' }}>
                         Agregar
                       </button>
+                    </div>
+
+                    <div className="rp02-form-group">
+                      <label className="rp02-form-label" style={{ fontSize: '11px', marginBottom: '4px' }}>
+                        Origen manual (opcional, para otros centros)
+                      </label>
+                      <select className="rp02-form-input" value={origenSeleccionado} onChange={(e: any) => setOrigenSeleccionado(e.target.value)}>
+                        <option value="">Auto-detectar (CD01/CD16)</option>
+                        {ORIGENES.map(o => <option key={o.codigo} value={o.codigo}>{o.codigo} - {o.nombre}</option>)}
+                      </select>
                     </div>
                   </div>
 
