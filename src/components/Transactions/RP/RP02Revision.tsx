@@ -77,7 +77,6 @@ const RP02Revision: React.FC = () => {
     return cajasOrdenadas.length + 1;
   };
 
-  // Calcular estado basado en total acumulado vs sistema
   const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number) => {
     const totalCapturado = capturasList
       .filter((c: any) => c.bom_sku === bomSku && c.origen === 'CD01')
@@ -87,6 +86,29 @@ const RP02Revision: React.FC = () => {
     if (totalCapturado < cantidadSistema) return 'FALTA';
     if (totalCapturado === cantidadSistema) return 'OK';
     return 'SOBRA';
+  };
+
+  // Buscar número de empaque para un BOM en el inventario
+  const buscarEmpaquePorBOM = async (bomSku: string) => {
+    try {
+      const resp = await fetch(
+        API_URL + '/rp_inventario_boms?select=empaque_id,bom_sku&bom_sku=eq.' + encodeURIComponent(bomSku),
+        { headers: HEADERS }
+      );
+      const data = await resp.json();
+      if (data && data.length > 0) {
+        const empaqueId = data[0].empaque_id;
+        const respEmpaque = await fetch(
+          API_URL + '/rp_inventario_empaques?select=numero_empaque&id=eq.' + empaqueId,
+          { headers: HEADERS }
+        );
+        const empaqueData = await respEmpaque.json();
+        if (empaqueData && empaqueData.length > 0) {
+          return empaqueData[0].numero_empaque;
+        }
+      }
+    } catch (e) {}
+    return '';
   };
 
   const handleCrearDocumento = async () => {
@@ -161,19 +183,18 @@ const RP02Revision: React.FC = () => {
     setPalletActual(pallet);
     const revisiones = pallet.revisiones || [];
     
-    // Reconstruir capturas y recalcular estados
     const capturasTemp = revisiones.map((r: any) => ({
       caja: r.caja_numero,
       origen: r.origen,
       bom_sku: r.bom_sku,
       cantidad: r.cantidad_revisada,
       cantidad_sistema: r.cantidad_sistema,
-      estado: 'OK' // Se recalcula abajo
+      numero_empaque: r.numero_empaque || '',
+      estado: 'OK'
     }));
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
     
-    // Recalcular estados para BOMs CD01
     const bomsCD01 = [...new Set(capturasTemp.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     let capturasConEstado = [...capturasTemp];
     
@@ -205,15 +226,27 @@ const RP02Revision: React.FC = () => {
     const nuevoId = obtenerSiguienteCaja();
 
     let cantidadSistema = 0;
+    let numeroEmpaque = '';
 
     if (origenSeleccionado === 'CD01' && bom) {
+      // Buscar en inventario
       try {
-        const resp = await fetch(API_URL + '/rp_inventario_boms?select=*&bom_sku=eq.' + encodeURIComponent(bom), { headers: HEADERS });
+        const resp = await fetch(API_URL + '/rp_inventario_boms?select=*,rp_inventario_empaques!inner(numero_empaque)&bom_sku=eq.' + encodeURIComponent(bom), { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) {
           cantidadSistema = data.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
+          // Obtener número de empaque del primer resultado
+          if (data[0].rp_inventario_empaques) {
+            numeroEmpaque = data[0].rp_inventario_empaques.numero_empaque || '';
+          } else {
+            numeroEmpaque = await buscarEmpaquePorBOM(bom);
+          }
+        } else {
+          numeroEmpaque = await buscarEmpaquePorBOM(bom);
         }
-      } catch (e) {}
+      } catch (e) {
+        numeroEmpaque = await buscarEmpaquePorBOM(bom);
+      }
     }
 
     const nuevaCaptura = {
@@ -222,12 +255,12 @@ const RP02Revision: React.FC = () => {
       bom_sku: bom || '-',
       cantidad: cantidad,
       cantidad_sistema: cantidadSistema,
+      numero_empaque: numeroEmpaque,
       estado: 'OK'
     };
 
     let nuevasCapturas = [...capturas, nuevaCaptura].sort((a: any, b: any) => a.caja - b.caja);
 
-    // Recalcular TODOS los estados para TODOS los BOMs CD01
     const bomsCD01 = [...new Set(nuevasCapturas.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     
     bomsCD01.forEach((bomSku: any) => {
@@ -250,7 +283,6 @@ const RP02Revision: React.FC = () => {
   const handleEliminarCaptura = (index: number) => {
     let nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
     
-    // Recalcular estados para todos los BOMs CD01
     const bomsCD01 = [...new Set(nuevasCapturas.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
     
     bomsCD01.forEach((bomSku: any) => {
@@ -289,6 +321,7 @@ const RP02Revision: React.FC = () => {
             cantidad_sistema: cap.cantidad_sistema,
             cantidad_revisada: cap.cantidad,
             origen: cap.origen,
+            numero_empaque: cap.numero_empaque || null,
             estado: cap.estado,
             revisado_por: usuario?.id
           })
@@ -383,7 +416,7 @@ const RP02Revision: React.FC = () => {
       {/* Modal de Revisión */}
       {mostrarRevisar && documentoSeleccionado && (
         <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>
-          <div className="rp02-modal" style={{ maxWidth: '900px' }} onClick={(e: any) => e.stopPropagation()}>
+          <div className="rp02-modal" style={{ maxWidth: '950px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
               <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>×</button>
@@ -466,11 +499,12 @@ const RP02Revision: React.FC = () => {
                         Registro de Capturas ({capturas.length} cajas)
                       </div>
                       <div style={{ overflowX: 'auto' }}>
-                        <table className="ed03-tabla" style={{ minWidth: '800px' }}>
+                        <table className="ed03-tabla" style={{ minWidth: '950px' }}>
                           <thead>
                             <tr>
                               <th style={{ width: '70px', textAlign: 'center' }}>ID Caja</th>
                               <th>Origen</th>
+                              <th>N° Empaque</th>
                               <th>BOM</th>
                               <th style={{ textAlign: 'center', width: '80px' }}>Cant.</th>
                               <th style={{ textAlign: 'center', width: '100px' }}>Sistema</th>
@@ -489,6 +523,9 @@ const RP02Revision: React.FC = () => {
                                     </span>
                                   </td>
                                   <td style={{ fontWeight: 500 }}>{cap.origen}</td>
+                                  <td style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                    {cap.numero_empaque || '-'}
+                                  </td>
                                   <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, fontSize: '12px' }}>{cap.bom_sku}</td>
                                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{cap.cantidad}</td>
                                   <td style={{ textAlign: 'center' }}>
@@ -545,7 +582,7 @@ const RP02Revision: React.FC = () => {
 
                   {capturas.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-placeholder)', fontSize: '13px' }}>
-                      No hay capturas registradas. Seleccione un origen y agregue cajas.
+                      No hay capturas registradas.
                     </div>
                   )}
                 </>
@@ -558,18 +595,19 @@ const RP02Revision: React.FC = () => {
       {/* Modal Detalle Pallet */}
       {mostrarDetallePallet && palletDetalle && (
         <div className="rp02-modal-overlay" onClick={() => setMostrarDetallePallet(false)}>
-          <div className="rp02-modal" style={{ maxWidth: '750px' }} onClick={(e: any) => e.stopPropagation()}>
+          <div className="rp02-modal" style={{ maxWidth: '850px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{palletDetalle.numero_pallet} - Detalle</h2>
               <button className="rp02-modal-close" onClick={() => setMostrarDetallePallet(false)}>×</button>
             </div>
             <div className="rp02-modal-body">
               <div style={{ overflowX: 'auto' }}>
-                <table className="ed03-tabla" style={{ minWidth: '650px' }}>
+                <table className="ed03-tabla" style={{ minWidth: '750px' }}>
                   <thead>
                     <tr>
                       <th style={{ textAlign: 'center', width: '70px' }}>ID Caja</th>
                       <th>Origen</th>
+                      <th>N° Empaque</th>
                       <th>BOM</th>
                       <th style={{ textAlign: 'center' }}>Cant.</th>
                       <th style={{ textAlign: 'center' }}>Sist.</th>
@@ -578,7 +616,7 @@ const RP02Revision: React.FC = () => {
                   </thead>
                   <tbody>
                     {(palletDetalle.revisiones || []).length === 0 ? (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-placeholder)' }}>Sin revisiones</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-placeholder)' }}>Sin revisiones</td></tr>
                     ) : (
                       (palletDetalle.revisiones || [])
                         .sort((a: any, b: any) => a.caja_numero - b.caja_numero)
@@ -590,6 +628,9 @@ const RP02Revision: React.FC = () => {
                                 <span className="rp01-badge" style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '10px', padding: '2px 8px' }}>#{rev.caja_numero}</span>
                               </td>
                               <td>{rev.origen}</td>
+                              <td style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                {rev.numero_empaque || '-'}
+                              </td>
                               <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, fontSize: '12px' }}>{rev.bom_sku}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{rev.cantidad_revisada}</td>
                               <td style={{ textAlign: 'center' }}>{rev.cantidad_sistema > 0 ? rev.cantidad_sistema : '-'}</td>
