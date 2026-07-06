@@ -36,7 +36,6 @@ const RP01View: React.FC = () => {
           const boms = await respBoms.json();
           const cantidadTotal = boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
 
-          // Buscar TODAS las revisiones de RP02 para los BOMs de este empaque
           const bomsSku = boms ? boms.map((b: any) => b.bom_sku) : [];
           let todasRevisiones: any[] = [];
           
@@ -53,7 +52,6 @@ const RP01View: React.FC = () => {
             }
           }
 
-          // Calcular cantidad revisada por BOM
           const revisionesPorBOM: Record<string, number> = {};
           let idRevision = '-';
           let revisadoPor = '-';
@@ -141,6 +139,7 @@ const RP01View: React.FC = () => {
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
       const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
+      const colOrigen = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('origen'));
 
       if (colEmpaque < 0 || colBOM < 0) {
         mostrarMensaje('error', 'Columnas requeridas no encontradas');
@@ -156,14 +155,16 @@ const RP01View: React.FC = () => {
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         const bom = String(row[colBOM] || '').trim();
         const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
+        const origen = colOrigen >= 0 ? String(row[colOrigen] || '').trim().toUpperCase() || 'CD01' : 'CD01';
 
         if (!empaque || !bom) return;
 
-        if (!empaquesMap[empaque]) {
-          empaquesMap[empaque] = { empaque, codDestino, destino, boms: {} };
+        const key = empaque + '|' + origen;
+        if (!empaquesMap[key]) {
+          empaquesMap[key] = { empaque, codDestino, destino, origen, boms: {} };
         }
-        if (!empaquesMap[empaque].boms[bom] || cantidad > empaquesMap[empaque].boms[bom]) {
-          empaquesMap[empaque].boms[bom] = cantidad;
+        if (!empaquesMap[key].boms[bom] || cantidad > empaquesMap[key].boms[bom]) {
+          empaquesMap[key].boms[bom] = cantidad;
         }
       });
 
@@ -178,6 +179,7 @@ const RP01View: React.FC = () => {
             numero_empaque: emp.empaque,
             cod_destino: emp.codDestino,
             destino: emp.destino,
+            origen: emp.origen,
             creado_por: usuario?.id
           })
         });
@@ -293,11 +295,12 @@ const RP01View: React.FC = () => {
       )}
 
       <div style={{ overflowX: 'auto' }}>
-        <table className="ed03-tabla" style={{ minWidth: '1200px' }}>
+        <table className="ed03-tabla" style={{ minWidth: '1300px' }}>
           <thead>
             <tr>
               <th style={{ width: '40px' }}></th>
               <th>Número de Empaque</th>
+              <th>Origen</th>
               <th>Cod. Destino</th>
               <th>Destino</th>
               <th style={{ textAlign: 'center' }}>Cant. Total</th>
@@ -310,7 +313,7 @@ const RP01View: React.FC = () => {
           </thead>
           <tbody>
             {empaques.length === 0 ? (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>No hay empaques en el inventario</td></tr>
+              <tr><td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>No hay empaques en el inventario</td></tr>
             ) : (
               empaques.map((empaque: any) => (
                 <React.Fragment key={empaque.id}>
@@ -331,6 +334,15 @@ const RP01View: React.FC = () => {
                         onClick={(e: any) => e.stopPropagation()} />
                     </td>
                     <td className="rp01-empaque-id">{empaque.numero_empaque}</td>
+                    <td>
+                      <span className="rp01-badge" style={{
+                        background: empaque.origen === 'CD16' ? 'var(--warning-bg)' : 'var(--info-bg)',
+                        color: empaque.origen === 'CD16' ? 'var(--warning-text)' : 'var(--info-text)',
+                        fontSize: '11px'
+                      }}>
+                        {empaque.origen || 'CD01'}
+                      </span>
+                    </td>
                     <td>{empaque.cod_destino || '-'}</td>
                     <td>{empaque.destino || '-'}</td>
                     <td style={{ textAlign: 'center', fontWeight: 600 }}>{empaque.cantidad_total}</td>
@@ -346,7 +358,7 @@ const RP01View: React.FC = () => {
                   </tr>
                   {empaqueExpandido && empaqueExpandido.id === empaque.id && (
                     <tr>
-                      <td colSpan={10} style={{ padding: '0' }}>
+                      <td colSpan={11} style={{ padding: '0' }}>
                         <div style={{ padding: '16px', background: 'var(--bg-section)' }}>
                           <table className="rp01-bom-tabla" style={{ width: '100%' }}>
                             <thead>
@@ -371,8 +383,8 @@ const RP01View: React.FC = () => {
                                   </td>
                                   <td style={{ textAlign: 'center' }}>
                                     <span className="rp01-badge" style={{
-                                      background: bom.revisado ? (bom.cantidad_pendiente === 0 ? 'var(--success-bg)' : 'var(--warning-bg)') : 'var(--warning-bg)',
-                                      color: bom.revisado ? (bom.cantidad_pendiente === 0 ? 'var(--success-text)' : 'var(--warning-text)') : 'var(--warning-text)'
+                                      background: bom.revisado ? (bom.cantidad_pendiente === 0 ? 'var(--success-bg)' : 'var(--warning-bg)') : 'var(--bg-readonly)',
+                                      color: bom.revisado ? (bom.cantidad_pendiente === 0 ? 'var(--success-text)' : 'var(--warning-text)') : 'var(--text-muted)'
                                     }}>
                                       {bom.revisado ? (bom.cantidad_pendiente === 0 ? 'Revisado' : 'Parcial') : 'Pendiente'}
                                     </span>
