@@ -77,27 +77,16 @@ const RP02Revision: React.FC = () => {
     return cajasOrdenadas.length + 1;
   };
 
-  // Recalcular estados de todas las capturas para un BOM específico
-  const recalcularEstadosBOM = (capturasList: any[], bomSku: string, cantidadSistema: number) => {
-    return capturasList.map((cap: any) => {
-      if (cap.bom_sku !== bomSku || cap.origen !== 'CD01') return cap;
-      
-      // Calcular total acumulado de este BOM en todas las capturas
-      const totalAcumulado = capturasList
-        .filter((c: any) => c.bom_sku === bomSku && c.origen === 'CD01')
-        .reduce((s: number, c: any) => s + c.cantidad, 0);
-      
-      let estado = 'OK';
-      if (cantidadSistema === 0) {
-        estado = 'NO_ENCONTRADO';
-      } else if (totalAcumulado < cantidadSistema) {
-        estado = 'FALTA';
-      } else if (totalAcumulado > cantidadSistema) {
-        estado = 'SOBRA';
-      }
-      
-      return { ...cap, cantidad_sistema: cantidadSistema, estado };
-    });
+  // Calcular estado basado en total acumulado vs sistema
+  const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number) => {
+    const totalCapturado = capturasList
+      .filter((c: any) => c.bom_sku === bomSku && c.origen === 'CD01')
+      .reduce((s: number, c: any) => s + c.cantidad, 0);
+
+    if (cantidadSistema === 0) return 'NO_ENCONTRADO';
+    if (totalCapturado < cantidadSistema) return 'FALTA';
+    if (totalCapturado === cantidadSistema) return 'OK';
+    return 'SOBRA';
   };
 
   const handleCrearDocumento = async () => {
@@ -172,17 +161,33 @@ const RP02Revision: React.FC = () => {
     setPalletActual(pallet);
     const revisiones = pallet.revisiones || [];
     
+    // Reconstruir capturas y recalcular estados
     const capturasTemp = revisiones.map((r: any) => ({
       caja: r.caja_numero,
       origen: r.origen,
       bom_sku: r.bom_sku,
       cantidad: r.cantidad_revisada,
       cantidad_sistema: r.cantidad_sistema,
-      estado: r.estado || 'OK'
+      estado: 'OK' // Se recalcula abajo
     }));
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
-    setCapturas(capturasTemp);
+    
+    // Recalcular estados para BOMs CD01
+    const bomsCD01 = [...new Set(capturasTemp.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    let capturasConEstado = [...capturasTemp];
+    
+    bomsCD01.forEach((bom: any) => {
+      const cantidadSistema = capturasTemp.find((c: any) => c.bom_sku === bom && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
+      capturasConEstado = capturasConEstado.map((c: any) => {
+        if (c.bom_sku === bom && c.origen === 'CD01') {
+          return { ...c, estado: calcularEstado(capturasConEstado, bom, cantidadSistema) };
+        }
+        return c;
+      });
+    });
+    
+    setCapturas(capturasConEstado);
     setOrigenSeleccionado('');
     setBomInput('');
     setCantidadInput('1');
@@ -201,7 +206,6 @@ const RP02Revision: React.FC = () => {
 
     let cantidadSistema = 0;
 
-    // Si es CD01, verificar contra inventario
     if (origenSeleccionado === 'CD01' && bom) {
       try {
         const resp = await fetch(API_URL + '/rp_inventario_boms?select=*&bom_sku=eq.' + encodeURIComponent(bom), { headers: HEADERS });
@@ -212,30 +216,31 @@ const RP02Revision: React.FC = () => {
       } catch (e) {}
     }
 
-    // Cada captura es individual (1 caja = 1 unidad por defecto)
     const nuevaCaptura = {
       caja: nuevoId,
       origen: origenSeleccionado,
       bom_sku: bom || '-',
       cantidad: cantidad,
       cantidad_sistema: cantidadSistema,
-      estado: 'OK' // Estado inicial, se recalculará abajo
+      estado: 'OK'
     };
 
-    let nuevasCapturas = [...capturas, nuevaCaptura];
-    
-    // Recalcular estados para este BOM si es CD01
-    if (origenSeleccionado === 'CD01' && bom && cantidadSistema > 0) {
-      nuevasCapturas = recalcularEstadosBOM(nuevasCapturas, bom, cantidadSistema);
-    } else if (origenSeleccionado === 'CD01' && bom && cantidadSistema === 0) {
-      // Marcar como NO_ENCONTRADO
-      nuevasCapturas = nuevasCapturas.map((cap: any) => {
-        if (cap.caja === nuevoId) return { ...cap, estado: 'NO_ENCONTRADO' };
-        return cap;
-      });
-    }
+    let nuevasCapturas = [...capturas, nuevaCaptura].sort((a: any, b: any) => a.caja - b.caja);
 
-    nuevasCapturas.sort((a: any, b: any) => a.caja - b.caja);
+    // Recalcular TODOS los estados para TODOS los BOMs CD01
+    const bomsCD01 = [...new Set(nuevasCapturas.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    
+    bomsCD01.forEach((bomSku: any) => {
+      const sistema = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
+      const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
+      nuevasCapturas = nuevasCapturas.map((c: any) => {
+        if (c.bom_sku === bomSku && c.origen === 'CD01') {
+          return { ...c, estado };
+        }
+        return c;
+      });
+    });
+
     setCapturas(nuevasCapturas);
     setBomInput('');
     setCantidadInput('1');
@@ -243,17 +248,21 @@ const RP02Revision: React.FC = () => {
   };
 
   const handleEliminarCaptura = (index: number) => {
-    const capturaEliminada = capturas[index];
     let nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
     
-    // Recalcular estados si era CD01
-    if (capturaEliminada.origen === 'CD01' && capturaEliminada.bom_sku && capturaEliminada.bom_sku !== '-') {
-      const bom = capturaEliminada.bom_sku;
-      const cantidadSistema = capturaEliminada.cantidad_sistema;
-      if (cantidadSistema > 0) {
-        nuevasCapturas = recalcularEstadosBOM(nuevasCapturas, bom, cantidadSistema);
-      }
-    }
+    // Recalcular estados para todos los BOMs CD01
+    const bomsCD01 = [...new Set(nuevasCapturas.filter((c: any) => c.origen === 'CD01' && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    
+    bomsCD01.forEach((bomSku: any) => {
+      const sistema = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0)?.cantidad_sistema || 0;
+      const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
+      nuevasCapturas = nuevasCapturas.map((c: any) => {
+        if (c.bom_sku === bomSku && c.origen === 'CD01') {
+          return { ...c, estado };
+        }
+        return c;
+      });
+    });
     
     setCapturas(nuevasCapturas);
   };
@@ -306,20 +315,6 @@ const RP02Revision: React.FC = () => {
       case 'NO_ENCONTRADO': return { bg: 'var(--error-bg)', color: 'var(--error-text)', border: 'var(--error-border)' };
       default: return { bg: 'var(--bg-panel)', color: 'var(--text-primary)', border: 'var(--border)' };
     }
-  };
-
-  // Calcular resumen por BOM para mostrar en la tabla
-  const getResumenBOM = () => {
-    const resumen: Record<string, any> = {};
-    capturas.forEach((cap: any) => {
-      if (cap.origen === 'CD01' && cap.bom_sku !== '-') {
-        if (!resumen[cap.bom_sku]) {
-          resumen[cap.bom_sku] = { sistema: cap.cantidad_sistema, capturado: 0 };
-        }
-        resumen[cap.bom_sku].capturado += cap.cantidad;
-      }
-    });
-    return resumen;
   };
 
   if (cargando) {
@@ -522,35 +517,6 @@ const RP02Revision: React.FC = () => {
                         </table>
                       </div>
 
-                      {/* Resumen por BOM (solo CD01) */}
-                      {Object.keys(getResumenBOM()).length > 0 && (
-                        <div style={{ marginTop: '12px' }}>
-                          <div className="rp02-modal-section-title" style={{ marginBottom: '6px' }}>Resumen por BOM (CD01)</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            {Object.entries(getResumenBOM()).map(([bom, data]: [string, any]) => {
-                              const diferencia = data.capturado - data.sistema;
-                              const color = diferencia === 0 ? 'var(--success-text)' : diferencia < 0 ? 'var(--warning-text)' : 'var(--error-text)';
-                              const bg = diferencia === 0 ? 'var(--success-bg)' : diferencia < 0 ? 'var(--warning-bg)' : 'var(--error-bg)';
-                              return (
-                                <div key={bom} style={{
-                                  padding: '8px 12px', borderRadius: '8px', fontSize: '12px',
-                                  background: bg, border: '1px solid ' + color, color: 'var(--text-primary)'
-                                }}>
-                                  <span style={{ fontFamily: 'Courier New, monospace', fontWeight: 600 }}>{bom}</span>
-                                  <span style={{ marginLeft: '8px', color: 'var(--text-muted)' }}>
-                                    {data.capturado}/{data.sistema}
-                                  </span>
-                                  <span style={{ marginLeft: '6px', fontWeight: 600, color }}>
-                                    {diferencia === 0 ? 'OK' : (diferencia > 0 ? '+' + diferencia : diferencia)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Resumen general */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '12px' }}>
                         <div className="rp01-resumen-card" style={{ padding: '10px' }}>
                           <span style={{ fontSize: '10px' }}>Total Cajas</span>
