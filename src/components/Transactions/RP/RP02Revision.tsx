@@ -211,14 +211,15 @@ const RP02Revision: React.FC = () => {
     setPalletActual(pallet);
     const revisiones = pallet.revisiones || [];
     
-    const capturasTemp = await Promise.all(revisiones.map(async (r: any) => {
+    const capturasTemp: any[] = [];
+    for (const r of revisiones) {
       let numeroEmpaque = r.numero_empaque || '';
       
       if (!numeroEmpaque && (r.origen === 'CD01' || r.origen === 'CD16') && r.bom_sku && r.bom_sku !== '-') {
         numeroEmpaque = await buscarEmpaquePorBOM(r.bom_sku);
       }
       
-      return {
+      capturasTemp.push({
         caja: r.caja_numero,
         origen: r.origen,
         bom_sku: r.bom_sku,
@@ -226,24 +227,37 @@ const RP02Revision: React.FC = () => {
         cantidad_sistema: r.cantidad_sistema,
         numero_empaque: numeroEmpaque,
         estado: 'OK'
-      };
-    }));
+      });
+    }
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
     
-    const bomsVerificar = [...new Set(capturasTemp.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    const bomsVerificar: string[] = [];
+    const visto: any = {};
+    capturasTemp.forEach((c: any) => {
+      if ((c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-' && !visto[c.bom_sku]) {
+        visto[c.bom_sku] = true;
+        bomsVerificar.push(c.bom_sku);
+      }
+    });
+    
     let capturasConEstado = [...capturasTemp];
     
-    bomsVerificar.forEach((bom: any) => {
-      const encontrado = capturasTemp.find((c: any) => c.bom_sku === bom && c.cantidad_sistema > 0);
-      const cantidadSistema = encontrado ? encontrado.cantidad_sistema : 0;
+    for (const bom of bomsVerificar) {
+      let cantidadSistema = 0;
+      for (const c of capturasTemp) {
+        if (c.bom_sku === bom && c.cantidad_sistema > 0) {
+          cantidadSistema = c.cantidad_sistema;
+          break;
+        }
+      }
       capturasConEstado = capturasConEstado.map((c: any) => {
         if (c.bom_sku === bom && (c.origen === 'CD01' || c.origen === 'CD16')) {
           return { ...c, estado: calcularEstado(capturasConEstado, bom, cantidadSistema) };
         }
         return c;
       });
-    });
+    }
     
     setCapturas(capturasConEstado);
     setOrigenSeleccionado('');
@@ -292,7 +306,7 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
-    const nuevaCaptura = {
+    const nuevaCaptura: any = {
       caja: nuevoId,
       origen: origenFinal,
       bom_sku: bom || '-',
@@ -302,13 +316,26 @@ const RP02Revision: React.FC = () => {
       estado: 'OK'
     };
 
-    let nuevasCapturas = [...capturas, nuevaCaptura].sort((a: any, b: any) => a.caja - b.caja);
+    let nuevasCapturas: any[] = [...capturas, nuevaCaptura];
+    nuevasCapturas.sort((a: any, b: any) => a.caja - b.caja);
 
-    const bomsVerificar = [...new Set(nuevasCapturas.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    const bomsVerificar: string[] = [];
+    const visto: any = {};
+    nuevasCapturas.forEach((c: any) => {
+      if ((c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-' && !visto[c.bom_sku]) {
+        visto[c.bom_sku] = true;
+        bomsVerificar.push(c.bom_sku);
+      }
+    });
     
-    bomsVerificar.forEach((bomSku: any) => {
-      const encontrado = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0);
-      const sistema = encontrado ? encontrado.cantidad_sistema : 0;
+    for (const bomSku of bomsVerificar) {
+      let sistema = 0;
+      for (const c of nuevasCapturas) {
+        if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
+          sistema = c.cantidad_sistema;
+          break;
+        }
+      }
       const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
       nuevasCapturas = nuevasCapturas.map((c: any) => {
         if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
@@ -316,7 +343,7 @@ const RP02Revision: React.FC = () => {
         }
         return c;
       });
-    });
+    }
 
     setCapturas(nuevasCapturas);
     setBomInput('');
@@ -326,13 +353,25 @@ const RP02Revision: React.FC = () => {
   };
 
   const handleEliminarCaptura = (index: number) => {
-    let nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
+    let nuevasCapturas: any[] = capturas.filter((_: any, i: number) => i !== index);
     
-    const bomsVerificar = [...new Set(nuevasCapturas.filter((c: any) => (c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-').map((c: any) => c.bom_sku))];
+    const bomsVerificar: string[] = [];
+    const visto: any = {};
+    nuevasCapturas.forEach((c: any) => {
+      if ((c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-' && !visto[c.bom_sku]) {
+        visto[c.bom_sku] = true;
+        bomsVerificar.push(c.bom_sku);
+      }
+    });
     
-    bomsVerificar.forEach((bomSku: any) => {
-      const encontrado = nuevasCapturas.find((c: any) => c.bom_sku === bomSku && c.cantidad_sistema > 0);
-      const sistema = encontrado ? encontrado.cantidad_sistema : 0;
+    for (const bomSku of bomsVerificar) {
+      let sistema = 0;
+      for (const c of nuevasCapturas) {
+        if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
+          sistema = c.cantidad_sistema;
+          break;
+        }
+      }
       const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
       nuevasCapturas = nuevasCapturas.map((c: any) => {
         if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
@@ -340,7 +379,7 @@ const RP02Revision: React.FC = () => {
         }
         return c;
       });
-    });
+    }
     
     setCapturas(nuevasCapturas);
   };
