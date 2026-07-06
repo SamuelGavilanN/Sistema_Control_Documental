@@ -41,13 +41,22 @@ const RP01View: React.FC = () => {
           
           if (bomsSku.length > 0) {
             for (const sku of bomsSku) {
-              const respRev = await fetch(
+              const respRevCD01 = await fetch(
                 API_URL + '/rp_documento_revisiones?select=*&bom_sku=eq.' + encodeURIComponent(sku) + '&origen=eq.CD01&order=creado_en.desc',
                 { headers: HEADERS }
               );
-              const revs = await respRev.json();
-              if (revs && revs.length > 0) {
-                todasRevisiones = [...todasRevisiones, ...revs];
+              const revsCD01 = await respRevCD01.json();
+              if (revsCD01 && revsCD01.length > 0) {
+                todasRevisiones = [...todasRevisiones, ...revsCD01];
+              }
+              
+              const respRevCD16 = await fetch(
+                API_URL + '/rp_documento_revisiones?select=*&bom_sku=eq.' + encodeURIComponent(sku) + '&origen=eq.CD16&order=creado_en.desc',
+                { headers: HEADERS }
+              );
+              const revsCD16 = await respRevCD16.json();
+              if (revsCD16 && revsCD16.length > 0) {
+                todasRevisiones = [...todasRevisiones, ...revsCD16];
               }
             }
           }
