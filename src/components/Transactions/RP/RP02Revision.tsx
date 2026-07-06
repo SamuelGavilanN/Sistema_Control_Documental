@@ -32,11 +32,14 @@ const RP02Revision: React.FC = () => {
   const [palletsDoc, setPalletsDoc]: any = useState([]);
   const [palletActual, setPalletActual]: any = useState(null);
   const [capturas, setCapturas]: any = useState([]);
+  const [empaqueActivo, setEmpaqueActivo]: any = useState(null);
   const [origenSeleccionado, setOrigenSeleccionado]: any = useState('');
+  const [inputEmpaque, setInputEmpaque]: any = useState('');
   const [bomInput, setBomInput]: any = useState('');
   const [cantidadInput, setCantidadInput]: any = useState('1');
   const [mostrarDetallePallet, setMostrarDetallePallet]: any = useState(false);
   const [palletDetalle, setPalletDetalle]: any = useState(null);
+  const inputEmpaqueRef: any = useRef(null);
   const bomInputRef: any = useRef(null);
   const cantidadInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
@@ -75,9 +78,9 @@ const RP02Revision: React.FC = () => {
     return cajasOrdenadas.length + 1;
   };
 
-  const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number) => {
+  const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number, numeroEmpaque: string) => {
     const totalCapturado = capturasList
-      .filter((c: any) => c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16'))
+      .filter((c: any) => c.bom_sku === bomSku && c.numero_empaque === numeroEmpaque)
       .reduce((s: number, c: any) => s + c.cantidad, 0);
 
     if (cantidadSistema === 0) return 'NO_ENCONTRADO';
@@ -86,57 +89,61 @@ const RP02Revision: React.FC = () => {
     return 'SOBRA';
   };
 
-  const buscarBOMEnInventario = async (bomSku: string) => {
+  const verificarEmpaqueCompleto = async (numeroEmpaque: string) => {
     try {
-      const resp = await fetch(
-        API_URL + '/rp_inventario_boms?select=empaque_id,bom_sku,cantidad_maxima&bom_sku=eq.' + encodeURIComponent(bomSku),
+      const respEmpaque = await fetch(
+        API_URL + '/rp_inventario_empaques?select=*&numero_empaque=eq.' + encodeURIComponent(numeroEmpaque),
         { headers: HEADERS }
       );
-      const boms = await resp.json();
-      if (boms && boms.length > 0) {
-        const empaqueId = boms[0].empaque_id;
-        const respEmpaque = await fetch(
-          API_URL + '/rp_inventario_empaques?select=numero_empaque,origen&id=eq.' + empaqueId,
-          { headers: HEADERS }
-        );
-        const empaqueData = await respEmpaque.json();
-        
-        if (empaqueData && empaqueData.length > 0) {
-          const cantidadSistema = boms.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
-          return {
-            encontrado: true,
-            origen: empaqueData[0].origen || 'CD01',
-            numero_empaque: empaqueData[0].numero_empaque || '',
-            cantidad_sistema: cantidadSistema
-          };
-        }
+      const empaqueData = await respEmpaque.json();
+      
+      if (!empaqueData || empaqueData.length === 0) {
+        return { encontrado: false, completo: false, empaque: null };
       }
-      return { encontrado: false, origen: '', numero_empaque: '', cantidad_sistema: 0 };
-    } catch (e) {
-      return { encontrado: false, origen: '', numero_empaque: '', cantidad_sistema: 0 };
-    }
-  };
 
-  const buscarEmpaquePorBOM = async (bomSku: string) => {
-    try {
-      const resp = await fetch(
-        API_URL + '/rp_inventario_boms?select=empaque_id,bom_sku&bom_sku=eq.' + encodeURIComponent(bomSku),
+      const empaque = empaqueData[0];
+      
+      const respBoms = await fetch(
+        API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empaque.id,
         { headers: HEADERS }
       );
-      const data = await resp.json();
-      if (data && data.length > 0) {
-        const empaqueId = data[0].empaque_id;
-        const respEmpaque = await fetch(
-          API_URL + '/rp_inventario_empaques?select=numero_empaque&id=eq.' + empaqueId,
+      const boms = await respBoms.json();
+      
+      if (!boms || boms.length === 0) {
+        return { encontrado: true, completo: true, empaque };
+      }
+
+      let todasRevisiones: any[] = [];
+      for (const bom of boms) {
+        const respRev = await fetch(
+          API_URL + '/rp_documento_revisiones?select=*&bom_sku=eq.' + encodeURIComponent(bom.bom_sku) + '&numero_empaque=eq.' + encodeURIComponent(numeroEmpaque),
           { headers: HEADERS }
         );
-        const empaqueData = await respEmpaque.json();
-        if (empaqueData && empaqueData.length > 0) {
-          return empaqueData[0].numero_empaque;
+        const revs = await respRev.json();
+        if (revs && revs.length > 0) {
+          todasRevisiones = [...todasRevisiones, ...revs];
         }
       }
-    } catch (e) {}
-    return '';
+
+      const revisionesPorBOM: Record<string, number> = {};
+      todasRevisiones.forEach((r: any) => {
+        if (!revisionesPorBOM[r.bom_sku]) revisionesPorBOM[r.bom_sku] = 0;
+        revisionesPorBOM[r.bom_sku] += (r.cantidad_revisada || 0);
+      });
+
+      let completo = true;
+      for (const bom of boms) {
+        const revisado = revisionesPorBOM[bom.bom_sku] || 0;
+        if (revisado < bom.cantidad_maxima) {
+          completo = false;
+          break;
+        }
+      }
+
+      return { encontrado: true, completo, empaque };
+    } catch (e) {
+      return { encontrado: false, completo: false, empaque: null };
+    }
   };
 
   const handleCrearDocumento = async () => {
@@ -199,10 +206,13 @@ const RP02Revision: React.FC = () => {
         await cargarPallets(documentoSeleccionado);
         setPalletActual(nuevoPallet);
         setCapturas([]);
+        setEmpaqueActivo(null);
         setOrigenSeleccionado('');
+        setInputEmpaque('');
         setBomInput('');
         setCantidadInput('1');
         mostrarMensaje('success', numeroPallet + ' iniciado');
+        setTimeout(() => inputEmpaqueRef.current?.focus(), 300);
       }
     } catch (e) { mostrarMensaje('error', 'Error al iniciar pallet'); }
   };
@@ -213,61 +223,60 @@ const RP02Revision: React.FC = () => {
     
     const capturasTemp: any[] = [];
     for (const r of revisiones) {
-      let numeroEmpaque = r.numero_empaque || '';
-      
-      if (!numeroEmpaque && (r.origen === 'CD01' || r.origen === 'CD16') && r.bom_sku && r.bom_sku !== '-') {
-        numeroEmpaque = await buscarEmpaquePorBOM(r.bom_sku);
-      }
-      
       capturasTemp.push({
         caja: r.caja_numero,
         origen: r.origen,
         bom_sku: r.bom_sku,
         cantidad: r.cantidad_revisada,
         cantidad_sistema: r.cantidad_sistema,
-        numero_empaque: numeroEmpaque,
-        estado: 'OK'
+        numero_empaque: r.numero_empaque || '',
+        estado: r.estado || 'OK'
       });
     }
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
-    
-    const bomsVerificar: string[] = [];
-    const visto: any = {};
-    capturasTemp.forEach((c: any) => {
-      if ((c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-' && !visto[c.bom_sku]) {
-        visto[c.bom_sku] = true;
-        bomsVerificar.push(c.bom_sku);
-      }
-    });
-    
-    let capturasConEstado = [...capturasTemp];
-    
-    for (const bom of bomsVerificar) {
-      let cantidadSistema = 0;
-      for (const c of capturasTemp) {
-        if (c.bom_sku === bom && c.cantidad_sistema > 0) {
-          cantidadSistema = c.cantidad_sistema;
-          break;
-        }
-      }
-      capturasConEstado = capturasConEstado.map((c: any) => {
-        if (c.bom_sku === bom && (c.origen === 'CD01' || c.origen === 'CD16')) {
-          return { ...c, estado: calcularEstado(capturasConEstado, bom, cantidadSistema) };
-        }
-        return c;
-      });
-    }
-    
-    setCapturas(capturasConEstado);
+    setCapturas(capturasTemp);
+    setEmpaqueActivo(null);
     setOrigenSeleccionado('');
+    setInputEmpaque('');
     setBomInput('');
     setCantidadInput('1');
   };
 
+  const handleCapturarEmpaque = async () => {
+    const valor = inputEmpaque.trim();
+    if (!valor) {
+      mostrarMensaje('warning', 'Ingrese un número de empaque');
+      return;
+    }
+
+    if (empaqueActivo && empaqueActivo.numero_empaque === valor) {
+      mostrarMensaje('warning', 'Este empaque ya está activo');
+      return;
+    }
+
+    const resultado = await verificarEmpaqueCompleto(valor);
+    
+    if (!resultado.encontrado) {
+      mostrarMensaje('warning', 'Empaque no encontrado en el inventario');
+      return;
+    }
+
+    if (resultado.completo) {
+      mostrarMensaje('error', 'Este empaque ya fue revisado completamente en otro pallet');
+      return;
+    }
+
+    setEmpaqueActivo(resultado.empaque);
+    setOrigenSeleccionado('');
+    setInputEmpaque('');
+    mostrarMensaje('success', 'Empaque ' + valor + ' seleccionado');
+    setTimeout(() => bomInputRef.current?.focus(), 200);
+  };
+
   const handleAgregarCaptura = async () => {
-    if (!origenSeleccionado && !bomInput.trim()) {
-      mostrarMensaje('warning', 'Seleccione un origen o ingrese un BOM');
+    if (!empaqueActivo && !origenSeleccionado) {
+      mostrarMensaje('warning', 'Capture un empaque o seleccione un origen manual');
       return;
     }
     if (!palletActual) return;
@@ -276,34 +285,25 @@ const RP02Revision: React.FC = () => {
     const bom = bomInput.trim().toUpperCase();
     const nuevoId = obtenerSiguienteCaja();
 
-    let origenFinal = origenSeleccionado;
+    let origenFinal = origenSeleccionado || (empaqueActivo ? (empaqueActivo.origen || 'CD01') : 'CD01');
     let cantidadSistema = 0;
-    let numeroEmpaque = '';
+    let numeroEmpaque = empaqueActivo ? empaqueActivo.numero_empaque : '';
 
-    if (!origenSeleccionado && bom) {
-      const resultado = await buscarBOMEnInventario(bom);
-      if (resultado.encontrado) {
-        origenFinal = resultado.origen;
-        cantidadSistema = resultado.cantidad_sistema;
-        numeroEmpaque = resultado.numero_empaque;
-      } else {
-        origenFinal = 'CD01';
-      }
-    } else if (origenSeleccionado && bom) {
-      const resultado = await buscarBOMEnInventario(bom);
-      if (resultado.encontrado) {
-        cantidadSistema = resultado.cantidad_sistema;
-        numeroEmpaque = resultado.numero_empaque;
-      }
+    if (empaqueActivo && bom) {
+      try {
+        const resp = await fetch(
+          API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empaqueActivo.id + '&bom_sku=eq.' + encodeURIComponent(bom),
+          { headers: HEADERS }
+        );
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          cantidadSistema = data.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
+        }
+      } catch (e) {}
     }
 
     if (!bom && origenSeleccionado) {
       origenFinal = origenSeleccionado;
-    }
-
-    if (!origenFinal) {
-      mostrarMensaje('warning', 'No se pudo determinar el origen');
-      return;
     }
 
     const nuevaCaptura: any = {
@@ -319,66 +319,69 @@ const RP02Revision: React.FC = () => {
     let nuevasCapturas: any[] = [...capturas, nuevaCaptura];
     nuevasCapturas.sort((a: any, b: any) => a.caja - b.caja);
 
-    const bomsVerificar: string[] = [];
-    const visto: any = {};
-    nuevasCapturas.forEach((c: any) => {
-      if ((c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-' && !visto[c.bom_sku]) {
-        visto[c.bom_sku] = true;
-        bomsVerificar.push(c.bom_sku);
-      }
-    });
-    
-    for (const bomSku of bomsVerificar) {
-      let sistema = 0;
-      for (const c of nuevasCapturas) {
-        if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
-          sistema = c.cantidad_sistema;
-          break;
+    if (empaqueActivo) {
+      const bomsVerificar: string[] = [];
+      const visto: any = {};
+      nuevasCapturas.forEach((c: any) => {
+        if (c.numero_empaque === empaqueActivo.numero_empaque && c.bom_sku !== '-' && !visto[c.bom_sku]) {
+          visto[c.bom_sku] = true;
+          bomsVerificar.push(c.bom_sku);
         }
-      }
-      const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
-      nuevasCapturas = nuevasCapturas.map((c: any) => {
-        if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
-          return { ...c, estado };
-        }
-        return c;
       });
+      
+      for (const bomSku of bomsVerificar) {
+        let sistema = 0;
+        for (const c of nuevasCapturas) {
+          if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
+            sistema = c.cantidad_sistema;
+            break;
+          }
+        }
+        const estado = calcularEstado(nuevasCapturas, bomSku, sistema, empaqueActivo.numero_empaque);
+        nuevasCapturas = nuevasCapturas.map((c: any) => {
+          if (c.bom_sku === bomSku && c.numero_empaque === empaqueActivo.numero_empaque) {
+            return { ...c, estado };
+          }
+          return c;
+        });
+      }
     }
 
     setCapturas(nuevasCapturas);
     setBomInput('');
     setCantidadInput('1');
-    setOrigenSeleccionado('');
     setTimeout(() => bomInputRef.current?.focus(), 100);
   };
 
   const handleEliminarCaptura = (index: number) => {
     let nuevasCapturas: any[] = capturas.filter((_: any, i: number) => i !== index);
     
-    const bomsVerificar: string[] = [];
-    const visto: any = {};
-    nuevasCapturas.forEach((c: any) => {
-      if ((c.origen === 'CD01' || c.origen === 'CD16') && c.bom_sku !== '-' && !visto[c.bom_sku]) {
-        visto[c.bom_sku] = true;
-        bomsVerificar.push(c.bom_sku);
-      }
-    });
-    
-    for (const bomSku of bomsVerificar) {
-      let sistema = 0;
-      for (const c of nuevasCapturas) {
-        if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
-          sistema = c.cantidad_sistema;
-          break;
+    if (empaqueActivo) {
+      const bomsVerificar: string[] = [];
+      const visto: any = {};
+      nuevasCapturas.forEach((c: any) => {
+        if (c.numero_empaque === empaqueActivo.numero_empaque && c.bom_sku !== '-' && !visto[c.bom_sku]) {
+          visto[c.bom_sku] = true;
+          bomsVerificar.push(c.bom_sku);
         }
-      }
-      const estado = calcularEstado(nuevasCapturas, bomSku, sistema);
-      nuevasCapturas = nuevasCapturas.map((c: any) => {
-        if (c.bom_sku === bomSku && (c.origen === 'CD01' || c.origen === 'CD16')) {
-          return { ...c, estado };
-        }
-        return c;
       });
+      
+      for (const bomSku of bomsVerificar) {
+        let sistema = 0;
+        for (const c of nuevasCapturas) {
+          if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
+            sistema = c.cantidad_sistema;
+            break;
+          }
+        }
+        const estado = calcularEstado(nuevasCapturas, bomSku, sistema, empaqueActivo.numero_empaque);
+        nuevasCapturas = nuevasCapturas.map((c: any) => {
+          if (c.bom_sku === bomSku && c.numero_empaque === empaqueActivo.numero_empaque) {
+            return { ...c, estado };
+          }
+          return c;
+        });
+      }
     }
     
     setCapturas(nuevasCapturas);
@@ -417,6 +420,7 @@ const RP02Revision: React.FC = () => {
       mostrarMensaje('success', 'Revisión finalizada - ' + capturas.length + ' cajas guardadas');
       setPalletActual(null);
       setCapturas([]);
+      setEmpaqueActivo(null);
     } catch (e) { mostrarMensaje('error', 'Error al finalizar revisión'); }
   };
 
@@ -498,11 +502,11 @@ const RP02Revision: React.FC = () => {
       )}
 
       {mostrarRevisar && documentoSeleccionado && (
-        <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>
+        <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEmpaqueActivo(null); }}>
           <div className="rp02-modal" style={{ maxWidth: '950px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
-              <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); }}>×</button>
+              <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEmpaqueActivo(null); }}>×</button>
             </div>
             <div className="rp02-modal-body">
               {!palletActual ? (
@@ -514,6 +518,7 @@ const RP02Revision: React.FC = () => {
                   {palletsDoc.map((pallet: any) => {
                     const revs = pallet.revisiones || [];
                     const totalItems = revs.filter((r: any) => r.cantidad_revisada > 0).length;
+                    const empaquesUnicos = [...new Set(revs.map((r: any) => r.numero_empaque).filter((e: string) => e))];
                     return (
                       <div key={pallet.id} className="rp02-pallet-card">
                         <div className="rp02-pallet-header">
@@ -526,6 +531,7 @@ const RP02Revision: React.FC = () => {
                           </div>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          {empaquesUnicos.length > 0 && <span>Empaques: {empaquesUnicos.join(', ')} | </span>}
                           {totalItems} items | {revs.length} registros
                         </div>
                       </div>
@@ -534,7 +540,7 @@ const RP02Revision: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <button onClick={() => { setPalletActual(null); }} className="rp02-btn" style={{ marginBottom: '16px' }}>
+                  <button onClick={() => { setPalletActual(null); setEmpaqueActivo(null); }} className="rp02-btn" style={{ marginBottom: '16px' }}>
                     ← Volver a Pallets
                   </button>
 
@@ -547,8 +553,37 @@ const RP02Revision: React.FC = () => {
                     </div>
 
                     <div style={{ marginBottom: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      CD01 y CD16 se detectan automáticamente al escanear el BOM. Otros orígenes debe seleccionarlos manualmente.
+                      Capture el número de empaque para CD01/CD16, o seleccione un origen manual para otros centros.
                     </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
+                      <div className="rp02-form-group">
+                        <label className="rp02-form-label">N° Empaque (CD01/CD16)</label>
+                        <input ref={inputEmpaqueRef} type="text" className="rp02-form-input" value={inputEmpaque}
+                          onChange={(e: any) => setInputEmpaque(e.target.value)}
+                          onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleCapturarEmpaque(); } }}
+                          placeholder="Escanear número de empaque..." />
+                      </div>
+                      <button className="rp02-btn-save" onClick={handleCapturarEmpaque} style={{ height: '42px', whiteSpace: 'nowrap' }}>
+                        Capturar
+                      </button>
+                    </div>
+
+                    {empaqueActivo && (
+                      <div style={{ 
+                        marginBottom: '10px', padding: '8px 12px', 
+                        background: 'var(--success-bg)', borderRadius: '6px',
+                        border: '1px solid var(--success-border)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                      }}>
+                        <span style={{ fontSize: '13px', color: 'var(--success-text)' }}>
+                          Empaque activo: <strong>{empaqueActivo.numero_empaque}</strong> ({empaqueActivo.origen || 'CD01'} - {empaqueActivo.destino || ''})
+                        </span>
+                        <button onClick={() => setEmpaqueActivo(null)} style={{
+                          background: 'none', border: 'none', color: 'var(--success-text)', cursor: 'pointer', fontSize: '16px'
+                        }}>×</button>
+                      </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
                       <div className="rp02-form-group">
@@ -572,10 +607,10 @@ const RP02Revision: React.FC = () => {
 
                     <div className="rp02-form-group">
                       <label className="rp02-form-label" style={{ fontSize: '11px', marginBottom: '4px' }}>
-                        Origen manual (opcional, para otros centros)
+                        Origen manual (opcional, para otros centros sin empaque)
                       </label>
                       <select className="rp02-form-input" value={origenSeleccionado} onChange={(e: any) => setOrigenSeleccionado(e.target.value)}>
-                        <option value="">Auto-detectar (CD01/CD16)</option>
+                        <option value="">Usar empaque capturado</option>
                         {ORIGENES.map(o => <option key={o.codigo} value={o.codigo}>{o.codigo} - {o.nombre}</option>)}
                       </select>
                     </div>
@@ -670,7 +705,7 @@ const RP02Revision: React.FC = () => {
 
                   {capturas.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-placeholder)', fontSize: '13px' }}>
-                      No hay capturas registradas.
+                      No hay capturas registradas. Capture un empaque y agregue cajas.
                     </div>
                   )}
                 </>
