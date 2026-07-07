@@ -78,6 +78,67 @@ const RP02Revision: React.FC = () => {
     return cajasOrdenadas.length + 1;
   };
 
+  const recalcularEstados = (listaCapturas: any[]) => {
+    const resultado = [...listaCapturas];
+    
+    // Agrupar por empaque
+    const empaques: Record<string, any[]> = {};
+    resultado.forEach((c: any) => {
+      if (c.numero_empaque && c.numero_empaque !== '') {
+        if (!empaques[c.numero_empaque]) empaques[c.numero_empaque] = [];
+        empaques[c.numero_empaque].push(c);
+      }
+    });
+
+    // Recalcular para cada empaque
+    Object.keys(empaques).forEach(numEmpaque => {
+      const bomsUnicos: string[] = [];
+      const visto: any = {};
+      
+      resultado.forEach((c: any) => {
+        if (c.numero_empaque === numEmpaque && c.bom_sku !== '-' && !visto[c.bom_sku]) {
+          visto[c.bom_sku] = true;
+          bomsUnicos.push(c.bom_sku);
+        }
+      });
+
+      bomsUnicos.forEach((bomSku: string) => {
+        let cantidadSistema = 0;
+        for (const c of resultado) {
+          if (c.numero_empaque === numEmpaque && c.bom_sku === bomSku && c.cantidad_sistema > 0) {
+            cantidadSistema = c.cantidad_sistema;
+            break;
+          }
+        }
+
+        let totalCapturado = 0;
+        resultado.forEach((c: any) => {
+          if (c.numero_empaque === numEmpaque && c.bom_sku === bomSku) {
+            totalCapturado += c.cantidad;
+          }
+        });
+
+        let estado = 'OK';
+        if (cantidadSistema === 0) {
+          estado = 'NO_ENCONTRADO';
+        } else if (totalCapturado < cantidadSistema) {
+          estado = 'FALTA';
+        } else if (totalCapturado > cantidadSistema) {
+          estado = 'SOBRA';
+        }
+
+        // Actualizar todas las capturas de este BOM en este empaque
+        resultado.forEach((c: any, i: number) => {
+          if (c.numero_empaque === numEmpaque && c.bom_sku === bomSku) {
+            resultado[i] = { ...c, estado };
+          }
+        });
+      });
+    });
+
+    return resultado;
+  };
+
   const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number, numeroEmpaque: string) => {
     const totalCapturado = capturasList
       .filter((c: any) => c.bom_sku === bomSku && c.numero_empaque === numeroEmpaque)
@@ -235,7 +296,10 @@ const RP02Revision: React.FC = () => {
     }
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
-    setCapturas(capturasTemp);
+    
+    // Recalcular estados al abrir
+    const capturasConEstado = recalcularEstados(capturasTemp);
+    setCapturas(capturasConEstado);
     setEmpaqueActivo(null);
     setOrigenSeleccionado('');
     setInputEmpaque('');
@@ -285,6 +349,13 @@ const RP02Revision: React.FC = () => {
     const bom = bomInput.trim().toUpperCase();
     const nuevoId = obtenerSiguienteCaja();
 
+    // Verificar que no exista ya una captura con este número de caja
+    const existeCaja = capturas.find((c: any) => c.caja === nuevoId);
+    if (existeCaja) {
+      mostrarMensaje('error', 'El ID de caja #' + nuevoId + ' ya existe. Recargue el pallet.');
+      return;
+    }
+
     let origenFinal = origenSeleccionado || (empaqueActivo ? (empaqueActivo.origen || 'CD01') : 'CD01');
     let cantidadSistema = 0;
     let numeroEmpaque = empaqueActivo ? empaqueActivo.numero_empaque : '';
@@ -319,33 +390,16 @@ const RP02Revision: React.FC = () => {
     let nuevasCapturas: any[] = [...capturas, nuevaCaptura];
     nuevasCapturas.sort((a: any, b: any) => a.caja - b.caja);
 
-    if (empaqueActivo) {
-      const bomsVerificar: string[] = [];
-      const visto: any = {};
-      nuevasCapturas.forEach((c: any) => {
-        if (c.numero_empaque === empaqueActivo.numero_empaque && c.bom_sku !== '-' && !visto[c.bom_sku]) {
-          visto[c.bom_sku] = true;
-          bomsVerificar.push(c.bom_sku);
-        }
-      });
-      
-      for (const bomSku of bomsVerificar) {
-        let sistema = 0;
-        for (const c of nuevasCapturas) {
-          if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
-            sistema = c.cantidad_sistema;
-            break;
-          }
-        }
-        const estado = calcularEstado(nuevasCapturas, bomSku, sistema, empaqueActivo.numero_empaque);
-        nuevasCapturas = nuevasCapturas.map((c: any) => {
-          if (c.bom_sku === bomSku && c.numero_empaque === empaqueActivo.numero_empaque) {
-            return { ...c, estado };
-          }
-          return c;
-        });
-      }
+    // Verificar duplicados después de agregar
+    const cajasArray = nuevasCapturas.map((c: any) => c.caja);
+    const cajasUnicas = new Set(cajasArray);
+    if (cajasUnicas.size !== cajasArray.length) {
+      mostrarMensaje('error', 'Se detectaron IDs de caja duplicados. Recargue el pallet.');
+      return;
     }
+
+    // Recalcular estados
+    nuevasCapturas = recalcularEstados(nuevasCapturas);
 
     setCapturas(nuevasCapturas);
     setBomInput('');
@@ -355,35 +409,7 @@ const RP02Revision: React.FC = () => {
 
   const handleEliminarCaptura = (index: number) => {
     let nuevasCapturas: any[] = capturas.filter((_: any, i: number) => i !== index);
-    
-    if (empaqueActivo) {
-      const bomsVerificar: string[] = [];
-      const visto: any = {};
-      nuevasCapturas.forEach((c: any) => {
-        if (c.numero_empaque === empaqueActivo.numero_empaque && c.bom_sku !== '-' && !visto[c.bom_sku]) {
-          visto[c.bom_sku] = true;
-          bomsVerificar.push(c.bom_sku);
-        }
-      });
-      
-      for (const bomSku of bomsVerificar) {
-        let sistema = 0;
-        for (const c of nuevasCapturas) {
-          if (c.bom_sku === bomSku && c.cantidad_sistema > 0) {
-            sistema = c.cantidad_sistema;
-            break;
-          }
-        }
-        const estado = calcularEstado(nuevasCapturas, bomSku, sistema, empaqueActivo.numero_empaque);
-        nuevasCapturas = nuevasCapturas.map((c: any) => {
-          if (c.bom_sku === bomSku && c.numero_empaque === empaqueActivo.numero_empaque) {
-            return { ...c, estado };
-          }
-          return c;
-        });
-      }
-    }
-    
+    nuevasCapturas = recalcularEstados(nuevasCapturas);
     setCapturas(nuevasCapturas);
   };
 
@@ -394,10 +420,13 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
+    // Recalcular estados antes de guardar
+    const capturasFinales = recalcularEstados(capturas);
+
     try {
       await fetch(API_URL + '/rp_documento_revisiones?pallet_id=eq.' + palletActual.id, { method: 'DELETE', headers: HEADERS });
 
-      for (const cap of capturas) {
+      for (const cap of capturasFinales) {
         await fetch(API_URL + '/rp_documento_revisiones', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -417,7 +446,7 @@ const RP02Revision: React.FC = () => {
       }
 
       await cargarPallets(documentoSeleccionado);
-      mostrarMensaje('success', 'Revisión finalizada - ' + capturas.length + ' cajas guardadas');
+      mostrarMensaje('success', 'Revisión finalizada - ' + capturasFinales.length + ' cajas guardadas');
       setPalletActual(null);
       setCapturas([]);
       setEmpaqueActivo(null);
