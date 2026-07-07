@@ -19,22 +19,22 @@ interface Auditoria {
 }
 
 const AD01View: React.FC = () => {
-  const [auditorias, setAuditorias] = useState<Auditoria[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [usuarios, setUsuarios] = useState<any[]>([]);
-  const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
-  const [showCrearModal, setShowCrearModal] = useState(false);
-  const [showDetalleModal, setShowDetalleModal] = useState(false);
-  const [auditoriaDetalle, setAuditoriaDetalle] = useState<any>(null);
-  const [datosDetalle, setDatosDetalle] = useState<any[]>([]);
-  const [datosSAP, setDatosSAP] = useState<any[]>([]);
-  const [archivoSAP, setArchivoSAP] = useState<File | null>(null);
-  const [archivoCorreo, setArchivoCorreo] = useState<File | null>(null);
-  const [nombreArchivoSAP, setNombreArchivoSAP] = useState('');
-  const [nombreArchivoCorreo, setNombreArchivoCorreo] = useState('');
-  const [procesando, setProcesando] = useState(false);
-  const [mensaje, setMensaje] = useState('');
-  const [skusExpandidos, setSkusExpandidos] = useState<Set<string>>(new Set());
+  const [auditorias, setAuditorias]: any = useState([]);
+  const [cargando, setCargando]: any = useState(true);
+  const [usuarios, setUsuarios]: any = useState([]);
+  const [nombresUsuarios, setNombresUsuarios]: any = useState({});
+  const [showCrearModal, setShowCrearModal]: any = useState(false);
+  const [showDetalleModal, setShowDetalleModal]: any = useState(false);
+  const [auditoriaDetalle, setAuditoriaDetalle]: any = useState(null);
+  const [datosDetalle, setDatosDetalle]: any = useState([]);
+  const [datosSAP, setDatosSAP]: any = useState([]);
+  const [archivoSAP, setArchivoSAP]: any = useState(null);
+  const [archivoCorreo, setArchivoCorreo]: any = useState(null);
+  const [nombreArchivoSAP, setNombreArchivoSAP]: any = useState('');
+  const [nombreArchivoCorreo, setNombreArchivoCorreo]: any = useState('');
+  const [procesando, setProcesando]: any = useState(false);
+  const [mensaje, setMensaje]: any = useState('');
+  const [skusExpandidos, setSkusExpandidos]: any = useState(new Set());
 
   useEffect(() => { cargarAuditorias(); cargarUsuarios(); }, []);
   useEffect(() => { const intervalo = setInterval(cargarAuditorias, 10000); return () => clearInterval(intervalo); }, []);
@@ -42,7 +42,7 @@ const AD01View: React.FC = () => {
 
   const cargarUsuarios = async () => {
     const { data } = await supabase.from('usuarios').select('id, nombre, apellido, rol');
-    if (data) { setUsuarios(data); const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
+    if (data) { setUsuarios(data); const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = u.nombre + ' ' + u.apellido; }); setNombresUsuarios(m); }
   };
 
   const cargarAuditorias = async () => {
@@ -120,7 +120,7 @@ const AD01View: React.FC = () => {
     let capturas: any[] = [];
     if (cIds.length > 0) {
       const { data } = await supabase.from('ad_capturas_skus').select('*').in('caja_id', cIds).order('capturado_en', { ascending: true });
-      capturas = (data || []).map(c => ({ ...c, numero_caja: cMap[c.caja_id] || '-' }));
+      capturas = (data || []).map((c: any) => ({ ...c, numero_caja: cMap[c.caja_id] || '-' }));
     }
 
     const skuMap: Record<string, any> = {};
@@ -233,7 +233,7 @@ const AD01View: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(filas);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
-    XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_${auditoriaDetalle.codigo_local}.xlsx`);
+    XLSX.writeFile(wb, auditoriaDetalle.numero_tarea + '_' + auditoriaDetalle.codigo_local + '.xlsx');
   };
 
   const exportarConsolidadoSKU = () => {
@@ -263,7 +263,7 @@ const AD01View: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(filas);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Consolidado SKU');
-    XLSX.writeFile(wb, `${auditoriaDetalle.numero_tarea}_consolidado_sku.xlsx`);
+    XLSX.writeFile(wb, auditoriaDetalle.numero_tarea + '_consolidado_sku.xlsx');
   };
 
   const getEstadoBadge = (e: string) => {
@@ -277,13 +277,13 @@ const AD01View: React.FC = () => {
         <table className="ed03-tabla">
           <thead><tr><th>Tarea</th><th>Tienda</th><th>Acta</th><th>Guía</th><th>Asignado</th><th>Estado</th><th>Fecha</th><th style={{ width: '180px' }}>Acciones</th></tr></thead>
           <tbody>
-            {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr> :
-              auditorias.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>Sin auditorías</td></tr> :
-              auditorias.map(a => {
+            {cargando ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Cargando...</td></tr> :
+              auditorias.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Sin auditorías</td></tr> :
+              auditorias.map((a: any) => {
                 const eb = getEstadoBadge(a.estado);
                 return (
                   <tr key={a.id}><td className="ed03-ticket-id">{a.numero_tarea}</td><td>{a.codigo_local} - {a.nombre_local}</td><td>{a.acta || '-'}</td><td>{a.guia || '-'}</td>
-                    <td><select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} className="ad01-select-asignar"><option value="">Sin asignar</option>{usuarios.filter(u => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}</select></td>
+                    <td><select value={a.usuario_asignado || ''} onChange={e => handleAsignar(a.id, e.target.value)} className="ad01-select-asignar"><option value="">Sin asignar</option>{usuarios.filter((u: any) => u.rol === 'Auditor' || u.rol === 'Admin' || u.rol === 'Owner').map((u: any) => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}</select></td>
                     <td><span style={{ background: eb.bg, color: eb.color, padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600 }}>{a.estado}</span></td><td>{new Date(a.creado_en).toLocaleDateString('es-CL')}</td>
                     <td><div className="ad01-acciones">
                       <button className="ad01-btn-detalle" onClick={() => verDetalle(a)}>Detalle</button>
@@ -299,20 +299,20 @@ const AD01View: React.FC = () => {
       </div>
 
       {showCrearModal && (
-        <div className="ed01-modal-overlay" onClick={() => setShowCrearModal(false)}><div className="ed01-modal" style={{ maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
-          <div className="ed01-modal-header"><h2>Nueva Auditoría</h2><button className="ed01-modal-close" onClick={() => setShowCrearModal(false)}>×</button></div>
-          <div className="ed01-modal-body">
-            <div className="ad01-upload-area"><label className="ad01-upload-label">Archivo BD SAP (.xlsx)</label><div className="ad01-upload-box" onClick={() => document.getElementById('file-sap')?.click()}><input id="file-sap" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoSAP(e.target.files?.[0] || null); setNombreArchivoSAP(e.target.files?.[0]?.name || ''); }} />{nombreArchivoSAP ? <span className="ad01-upload-nombre">{nombreArchivoSAP}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}</div></div>
-            <div className="ad01-upload-area"><label className="ad01-upload-label">Archivo Correo (.xlsx)</label><div className="ad01-upload-box" onClick={() => document.getElementById('file-correo')?.click()}><input id="file-correo" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoCorreo(e.target.files?.[0] || null); setNombreArchivoCorreo(e.target.files?.[0]?.name || ''); }} />{nombreArchivoCorreo ? <span className="ad01-upload-nombre">{nombreArchivoCorreo}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}</div></div>
+        <div className="sd01-modal-overlay" onClick={() => setShowCrearModal(false)}><div className="sd01-modal" style={{ maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
+          <div className="sd01-modal-header"><h2>Nueva Auditoría</h2><button className="sd01-modal-close" onClick={() => setShowCrearModal(false)}>×</button></div>
+          <div className="sd01-modal-body">
+            <div className="ad01-upload-area"><label className="ad01-upload-label">Archivo BD SAP (.xlsx)</label><div className="ad01-upload-box" onClick={() => document.getElementById('file-sap')?.click()}><input id="file-sap" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoSAP(e.target.files?.[0] || null); setNombreArchivoSAP(e.target.files?.[0]?.name || ''); }} />{nombreArchivoSAP ? <span className="ad01-upload-nombre">{nombreArchivoSAP}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}</div></div>
+            <div className="ad01-upload-area"><label className="ad01-upload-label">Archivo Correo (.xlsx)</label><div className="ad01-upload-box" onClick={() => document.getElementById('file-correo')?.click()}><input id="file-correo" type="file" accept=".xlsx,.xls" hidden onChange={e => { setArchivoCorreo(e.target.files?.[0] || null); setNombreArchivoCorreo(e.target.files?.[0]?.name || ''); }} />{nombreArchivoCorreo ? <span className="ad01-upload-nombre">{nombreArchivoCorreo}</span> : <><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg><span>Seleccionar archivo</span></>}</div></div>
             {mensaje && <div className="ad01-mensaje">{mensaje}</div>}
           </div>
-          <div className="ed01-modal-footer"><button className="ed01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="ed01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button></div>
+          <div className="sd01-modal-footer"><button className="sd01-btn-cancel" onClick={() => setShowCrearModal(false)}>Cancelar</button><button className="sd01-btn-save" onClick={procesarArchivos} disabled={procesando}>{procesando ? 'Procesando...' : 'Crear Auditorías'}</button></div>
         </div></div>
       )}
 
       {showDetalleModal && auditoriaDetalle && (
-        <div className="ed01-modal-overlay" onClick={() => setShowDetalleModal(false)}><div className="ed01-modal" style={{ maxWidth: '950px' }} onClick={e => e.stopPropagation()}>
-          <div className="ed01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2>
+        <div className="sd01-modal-overlay" onClick={() => setShowDetalleModal(false)}><div className="sd01-modal" style={{ maxWidth: '950px' }} onClick={e => e.stopPropagation()}>
+          <div className="sd01-modal-header"><h2>{auditoriaDetalle.numero_tarea} - {auditoriaDetalle.codigo_local} {auditoriaDetalle.nombre_local}</h2>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="ad01-btn-exportar" onClick={exportarExcel}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V10M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10V12C1 12.5523 1.44772 13 2 13H12C12.5523 13 13 12.5523 13 12V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -322,10 +322,10 @@ const AD01View: React.FC = () => {
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V10M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10V12C1 12.5523 1.44772 13 2 13H12C12.5523 13 13 12.5523 13 12V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                 Consolidado SKU
               </button>
-              <button className="ed01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
+              <button className="sd01-modal-close" onClick={() => setShowDetalleModal(false)}>×</button>
             </div>
           </div>
-          <div className="ed01-modal-body">
+          <div className="sd01-modal-body">
             <div className="ad01-detalle-header"><div><strong>Acta:</strong> {auditoriaDetalle.acta || '-'}</div><div><strong>Guía:</strong> {auditoriaDetalle.guia || '-'}</div><div><strong>Asignado:</strong> {nombresUsuarios[auditoriaDetalle.usuario_asignado] || 'Sin asignar'}</div><div><strong>Estado:</strong> <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: getEstadoBadge(auditoriaDetalle.estado).bg, color: getEstadoBadge(auditoriaDetalle.estado).color }}>{auditoriaDetalle.estado}</span></div></div>
 
             <div className="ad01-resumen-cards">
@@ -358,13 +358,13 @@ const AD01View: React.FC = () => {
                           onClick={() => d.capturado && toggleExpandSKU(d.sku)}
                           style={{
                             cursor: d.capturado ? 'pointer' : 'default',
-                            background: d.esHuerfano ? '#fef3c7' : (d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f8fafd')
+                            background: d.esHuerfano ? 'var(--warning-bg)' : (d.capturado ? (d.diferencia === 0 ? 'var(--success-bg)' : 'var(--error-bg)') : 'var(--bg-section)')
                           }}
                         >
                           <td style={{ textAlign: 'center' }}>
                             {d.capturado && (
                               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: expandido ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                                <path d="M4 2L8 6L4 10" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round"/>
+                                <path d="M4 2L8 6L4 10" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round"/>
                               </svg>
                             )}
                           </td>
@@ -373,14 +373,14 @@ const AD01View: React.FC = () => {
                           <td style={{ fontSize: '11px' }}>{d.entrega}</td>
                           <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.esHuerfano ? 0 : d.cantidad_sap}</td>
                           <td style={{ textAlign: 'center', fontWeight: 600 }}>{d.capturado ? d.cantidad_fisica : '-'}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 600, color: d.esHuerfano ? '#92400e' : (d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#94a3b8') }}>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: d.esHuerfano ? 'var(--warning-text)' : (d.capturado ? (d.diferencia === 0 ? 'var(--success-text)' : 'var(--error-text)') : 'var(--text-placeholder)') }}>
                             {d.esHuerfano ? 'X' : (d.capturado ? (d.diferencia === 0 ? '✓' : d.diferencia) : d.diferencia)}
                           </td>
                           <td>
                             <span style={{
                               padding: '3px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600,
-                              background: d.esHuerfano ? '#fef3c7' : (d.capturado ? (d.diferencia === 0 ? '#dcfce7' : '#fef2f2') : '#f1f5f9'),
-                              color: d.esHuerfano ? '#92400e' : (d.capturado ? (d.diferencia === 0 ? '#15803d' : '#dc2626') : '#64748b')
+                              background: d.esHuerfano ? 'var(--warning-bg)' : (d.capturado ? (d.diferencia === 0 ? 'var(--success-bg)' : 'var(--error-bg)') : 'var(--bg-readonly)'),
+                              color: d.esHuerfano ? 'var(--warning-text)' : (d.capturado ? (d.diferencia === 0 ? 'var(--success-text)' : 'var(--error-text)') : 'var(--text-muted)')
                             }}>
                               {d.esHuerfano ? 'Dif.' : (d.capturado ? (d.diferencia === 0 ? 'OK' : 'Dif.') : 'Pend.')}
                             </span>
@@ -389,27 +389,27 @@ const AD01View: React.FC = () => {
                         {expandido && d.capturas && d.capturas.length > 0 && (
                           <tr>
                             <td colSpan={8} style={{ padding: '0' }}>
-                              <div style={{ background: '#f8fafd', border: '1px solid #e2e8f0', borderRadius: '8px', margin: '8px 16px', padding: '12px 16px' }}>
-                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-                                  📦 Detalle de Capturas - SKU: {d.sku} {d.esHuerfano ? '(Manual)' : ''}
+                              <div style={{ background: 'var(--bg-section)', border: '1px solid var(--border)', borderRadius: '8px', margin: '8px 16px', padding: '12px 16px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                  Detalle de Capturas - SKU: {d.sku} {d.esHuerfano ? '(Manual)' : ''}
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#64748b', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', flexWrap: 'wrap' }}>
                                     <span><strong>Entregas:</strong> {d.entrega}</span>
                                     <span><strong>Total SAP:</strong> {d.esHuerfano ? '0 un' : d.cantidad_sap + ' un'}</span>
                                     <span><strong>Total Físico:</strong> {d.cantidad_fisica} un</span>
-                                    <span><strong>Diferencia:</strong> <span style={{ color: d.esHuerfano ? '#92400e' : (d.diferencia === 0 ? '#15803d' : '#dc2626'), fontWeight: 600 }}>{d.esHuerfano ? 'X' : (d.diferencia === 0 ? '0' : d.diferencia)}</span></span>
+                                    <span><strong>Diferencia:</strong> <span style={{ color: d.esHuerfano ? 'var(--warning-text)' : (d.diferencia === 0 ? 'var(--success-text)' : 'var(--error-text)'), fontWeight: 600 }}>{d.esHuerfano ? 'X' : (d.diferencia === 0 ? '0' : d.diferencia)}</span></span>
                                   </div>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                    <thead><tr style={{ background: '#f1f5f9' }}><th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Caja</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Cantidad</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#475569' }}>Acumulado</th></tr></thead>
+                                    <thead><tr style={{ background: 'var(--bg-readonly)' }}><th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Caja</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>Cantidad</th><th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>Acumulado</th></tr></thead>
                                     <tbody>
                                       {d.capturas.map((cap: any, idx: number) => {
                                         const acumulado = d.capturas.slice(0, idx + 1).reduce((s: number, c: any) => s + (c.cantidad_fisica || 0), 0);
                                         return (
-                                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            <td style={{ padding: '6px 10px', fontWeight: 500, color: '#1d4ed8' }}>Caja {cap.numero_caja}</td>
-                                            <td style={{ padding: '6px 10px', textAlign: 'center' }}>{cap.cantidad_fisica}</td>
-                                            <td style={{ padding: '6px 10px', textAlign: 'center', color: '#64748b' }}>{acumulado}</td>
+                                          <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '6px 10px', fontWeight: 500, color: 'var(--text-link)' }}>Caja {cap.numero_caja}</td>
+                                            <td style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--text-primary)' }}>{cap.cantidad_fisica}</td>
+                                            <td style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>{acumulado}</td>
                                           </tr>
                                         );
                                       })}
