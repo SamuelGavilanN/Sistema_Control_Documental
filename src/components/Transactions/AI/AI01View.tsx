@@ -136,7 +136,6 @@ const AI01View: React.FC = () => {
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
-      const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
 
       if (colEmpaque < 0 || colBOM < 0) {
         mostrarMensaje('error', 'Columnas requeridas no encontradas (Número de Empaque, BOM/SKU)');
@@ -144,7 +143,10 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      // Función para truncar fecha a minutos (ignorar segundos)
+      console.log('Columna Última modificación encontrada:', colUltimaMod >= 0 ? headers[colUltimaMod] : 'NO ENCONTRADA');
+      console.log('Headers disponibles:', headers);
+
+      // Función para truncar fecha a minutos
       const truncarAMinutos = (fechaStr: string): string => {
         if (!fechaStr) return '';
         const partes = fechaStr.trim().split(' ');
@@ -157,11 +159,10 @@ const AI01View: React.FC = () => {
         return fechaStr.trim();
       };
 
-      // Paso 1: Eliminar duplicados exactos truncando última modificación a minutos
-      const filasUnicas: any[] = [];
-      const visto = new Set();
+      // Agrupar por Empaque + BOM + Minuto para contar cajas únicas
+      const conteoCajas: Record<string, number> = {};
       
-      dataRows.forEach((row: any) => {
+      dataRows.forEach((row: any, idx: number) => {
         const empaque = String(row[colEmpaque] || '').trim();
         const ultimaModRaw = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
         const ultimaMod = truncarAMinutos(ultimaModRaw);
@@ -171,38 +172,65 @@ const AI01View: React.FC = () => {
 
         if (!empaque || !bom) return;
 
-        const key = empaque + '|' + bom + '|' + ultimaMod;
+        // Clave: Empaque + BOM + Minuto = 1 caja única
+        const keyCaja = empaque + '|' + bom + '|' + ultimaMod;
         
-        if (!visto.has(key)) {
-          visto.add(key);
-          filasUnicas.push({ empaque, codDestino, destino, bom, ultimaMod });
+        if (!conteoCajas[keyCaja]) {
+          conteoCajas[keyCaja] = 0;
+          // Guardar info del primer registro de esta caja
+          if (idx < 3) {
+            console.log('Caja única:', keyCaja, '| Minuto:', ultimaMod);
+          }
         }
+        conteoCajas[keyCaja] = 1; // Es 1 caja, no sumamos cantidades
       });
 
-      // Paso 2: Agrupar por Empaque + BOM y contar cuántas filas únicas hay
+      console.log('Total cajas únicas:', Object.keys(conteoCajas).length);
+
+      // Agrupar por Empaque + BOM y sumar las cajas
       const consolidado: Record<string, any> = {};
-      filasUnicas.forEach((item: any) => {
-        const key = item.empaque + '|' + item.bom;
+      Object.keys(conteoCajas).forEach((keyCaja) => {
+        const partes = keyCaja.split('|');
+        const empaque = partes[0];
+        const bom = partes[1];
+        
+        const key = empaque + '|' + bom;
         if (!consolidado[key]) {
-          consolidado[key] = { 
-            empaque: item.empaque, 
-            codDestino: item.codDestino, 
-            destino: item.destino, 
-            bom: item.bom, 
-            cantidad: 0 
-          };
+          consolidado[key] = { empaque, bom, cantidad: 0 };
         }
         consolidado[key].cantidad += 1;
+      });
+
+      console.log('Consolidado por BOM:');
+      Object.values(consolidado).forEach((item: any) => {
+        console.log(item.bom + ' = ' + item.cantidad);
+      });
+
+      // Obtener cod_destino y destino del primer registro de cada empaque
+      const infoEmpaques: Record<string, any> = {};
+      dataRows.forEach((row: any) => {
+        const empaque = String(row[colEmpaque] || '').trim();
+        const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
+        const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
+        if (empaque && !infoEmpaques[empaque]) {
+          infoEmpaques[empaque] = { codDestino, destino };
+        }
       });
 
       // Guardar en BD
       const empaquesMap: Record<string, any> = {};
       Object.values(consolidado).forEach((item: any) => {
         if (!empaquesMap[item.empaque]) {
-          empaquesMap[item.empaque] = { codDestino: item.codDestino, destino: item.destino, boms: {} };
+          empaquesMap[item.empaque] = { 
+            codDestino: infoEmpaques[item.empaque]?.codDestino || '', 
+            destino: infoEmpaques[item.empaque]?.destino || '', 
+            boms: {} 
+          };
         }
         empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
       });
+
+      console.log('Empaques a guardar:', Object.keys(empaquesMap).length);
 
       let creados = 0;
       for (const numEmpaque of Object.keys(empaquesMap)) {
@@ -237,7 +265,9 @@ const AI01View: React.FC = () => {
           empaqueId = empaqueCreado.id;
         }
 
+        console.log('Guardando empaque:', numEmpaque, 'BOMs:', Object.keys(emp.boms).length);
         for (const bom of Object.keys(emp.boms)) {
+          console.log('  BOM:', bom, 'Cantidad:', emp.boms[bom]);
           await fetch(API_URL + '/ai_inventario_boms', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
