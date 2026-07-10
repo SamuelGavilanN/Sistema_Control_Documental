@@ -133,14 +133,15 @@ const AI01View: React.FC = () => {
 
       const colEmpaque = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('empaque'));
       
-      // Buscar Última modificación EN (no "por")
+      // Buscar Última modificación en (flexible con acentos)
       const colUltimaMod = headers.findIndex((h: string) => {
         if (!h) return false;
         const header = h.toString().toLowerCase().trim();
-        return (header.includes('última') || header.includes('ultima')) && 
-               header.includes('modificacion') && 
-               header.includes('en') &&
-               !header.includes('por');
+        const tieneUltima = header.includes('ltima'); // captura "Última" y "Ultima"
+        const tieneModificacion = header.includes('modificacion') || header.includes('modificación');
+        const tieneEn = header.endsWith('en') || header.includes(' en');
+        const tienePor = header.includes('por');
+        return tieneUltima && tieneModificacion && tieneEn && !tienePor;
       });
       
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
@@ -152,8 +153,6 @@ const AI01View: React.FC = () => {
         setCargando(false);
         return;
       }
-
-      console.log('Columna Última modificación EN:', colUltimaMod >= 0 ? headers[colUltimaMod] : 'NO ENCONTRADA');
 
       // Función para truncar fecha a minutos
       const truncarAMinutos = (fechaStr: string): string => {
@@ -181,12 +180,9 @@ const AI01View: React.FC = () => {
 
         if (!empaque || !bom) return;
 
-        // Clave: Empaque + BOM + Minuto = 1 caja única
         const keyCaja = empaque + '|' + bom + '|' + ultimaMod;
         conteoCajas[keyCaja] = 1;
       });
-
-      console.log('Total cajas únicas:', Object.keys(conteoCajas).length);
 
       // Agrupar por Empaque + BOM y sumar las cajas
       const consolidado: Record<string, any> = {};
