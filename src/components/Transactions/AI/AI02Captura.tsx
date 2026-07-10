@@ -13,12 +13,14 @@ const HEADERS: any = {
 
 const AI02Captura: React.FC = () => {
   const [tareas, setTareas]: any = useState([]);
+  const [tareasFiltradas, setTareasFiltradas]: any = useState([]);
   const [cargando, setCargando]: any = useState(true);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
   const [tareaSeleccionada, setTareaSeleccionada]: any = useState(null);
   const [mostrarCrearTarea, setMostrarCrearTarea]: any = useState(false);
   const [mostrarCaptura, setMostrarCaptura]: any = useState(false);
   const [mostrarDetalle, setMostrarDetalle]: any = useState(false);
+  const [busqueda, setBusqueda]: any = useState('');
   const [inputEmpaque, setInputEmpaque]: any = useState('');
   const [empaquesTarea, setEmpaquesTarea]: any = useState([]);
   const [bomsConsolidados, setBomsConsolidados]: any = useState([]);
@@ -31,6 +33,21 @@ const AI02Captura: React.FC = () => {
 
   useEffect(() => { cargarTareas(); }, []);
 
+  useEffect(() => {
+    if (!busqueda.trim()) {
+      setTareasFiltradas(tareas);
+    } else {
+      const term = busqueda.toLowerCase();
+      setTareasFiltradas(tareas.filter((t: any) =>
+        t.numero_tarea.toLowerCase().includes(term) ||
+        t.cod_local.toLowerCase().includes(term) ||
+        t.local.toLowerCase().includes(term) ||
+        t.empaques.some((e: string) => e.toLowerCase().includes(term)) ||
+        t.auditor_nombre.toLowerCase().includes(term)
+      ));
+    }
+  }, [busqueda, tareas]);
+
   const cargarTareas = async () => {
     setCargando(true);
     try {
@@ -42,34 +59,27 @@ const AI02Captura: React.FC = () => {
           const empaques = await respEmpaques.json();
           
           let totalSistema = 0;
+          const bomsSistema: string[] = [];
           for (const emp of (empaques || [])) {
             const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp.numero_empaque), { headers: HEADERS });
             const invData = await respInv.json();
             if (invData && invData.length > 0) {
-              const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=cantidad_maxima&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+              const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
               const boms = await respBoms.json();
-              totalSistema += boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
+              if (boms) {
+                boms.forEach((b: any) => {
+                  totalSistema += b.cantidad_maxima;
+                  bomsSistema.push(b.bom_sku);
+                });
+              }
             }
           }
 
           const respCapturas = await fetch(API_URL + '/ai_capturas?select=id,bom_sku&tarea_id=eq.' + tarea.id, { headers: HEADERS });
           const capturasData = await respCapturas.json();
           
-          // Solo contar BOMs que están en el sistema (no los no encontrados)
-          const bomsSistema: string[] = [];
-          for (const emp of (empaques || [])) {
-            const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp.numero_empaque), { headers: HEADERS });
-            const invData = await respInv.json();
-            if (invData && invData.length > 0) {
-              const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-              const boms = await respBoms.json();
-              if (boms) boms.forEach((b: any) => bomsSistema.push(b.bom_sku));
-            }
-          }
-          
           const totalRevisados = capturasData ? capturasData.filter((c: any) => bomsSistema.includes(c.bom_sku)).length : 0;
 
-          // Obtener nombre del auditor
           let auditorNombre = '-';
           if (tarea.auditor) {
             try {
@@ -90,8 +100,10 @@ const AI02Captura: React.FC = () => {
           };
         }));
         setTareas(tareasConDatos);
+        setTareasFiltradas(tareasConDatos);
       } else {
         setTareas([]);
+        setTareasFiltradas([]);
       }
       setCargando(false);
     } catch (e) { setCargando(false); }
@@ -249,9 +261,9 @@ const AI02Captura: React.FC = () => {
     }
 
     try {
-      await fetch(API_URL + '/ai_capturas', {
+      const resp = await fetch(API_URL + '/ai_capturas', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
         body: JSON.stringify({
           tarea_id: tareaSeleccionada.id,
           bom_sku: valor,
@@ -259,15 +271,24 @@ const AI02Captura: React.FC = () => {
           capturado_por: usuario?.id
         })
       });
-    } catch (e) {}
+      const capturaData = await resp.json();
+      const nuevaCaptura = Array.isArray(capturaData) ? capturaData[0] : capturaData;
 
-    const nuevaCaptura = { 
-      id: Date.now().toString(),
-      bom_sku: valor, 
-      esNoEncontrado: !bomEsperado,
-      creado_en: new Date().toISOString() 
-    };
-    setCapturas([nuevaCaptura, ...capturas]);
+      setCapturas([{ 
+        id: nuevaCaptura.id,
+        bom_sku: valor, 
+        esNoEncontrado: !bomEsperado,
+        creado_en: new Date().toISOString() 
+      }, ...capturas]);
+    } catch (e) {
+      setCapturas([{ 
+        id: Date.now().toString(),
+        bom_sku: valor, 
+        esNoEncontrado: !bomEsperado,
+        creado_en: new Date().toISOString() 
+      }, ...capturas]);
+    }
+
     setContador(contador + 1);
     setInputBOM('');
     setTimeout(() => inputBOMRef.current?.focus(), 100);
@@ -275,14 +296,21 @@ const AI02Captura: React.FC = () => {
 
   const handleEliminarCaptura = async (index: number) => {
     const captura = capturas[index];
-    if (!captura.esNoEncontrado) {
-      mostrarMensaje('warning', 'Solo se pueden eliminar capturas no encontradas');
-      return;
+
+    // Eliminar de la BD si tiene ID real
+    if (captura.id && captura.id.length > 20) {
+      try {
+        await fetch(API_URL + '/ai_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS });
+      } catch (e) {}
     }
 
-    // Eliminar de la BD
-    if (captura.id && captura.id.length > 10) {
-      await fetch(API_URL + '/ai_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS });
+    // Si era un BOM del sistema, decrementar contador
+    if (!captura.esNoEncontrado) {
+      const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
+      if (bomEsperado && bomEsperado.cantidad_revisada > 0) {
+        bomEsperado.cantidad_revisada--;
+        setBomsConsolidados([...bomsConsolidados]);
+      }
     }
 
     const nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
@@ -294,13 +322,12 @@ const AI02Captura: React.FC = () => {
   const handleFinalizarTarea = async () => {
     if (!tareaSeleccionada) return;
     try {
-      // Contar solo BOMs del sistema que fueron revisados
       const bomsSistema = bomsConsolidados.map((b: any) => b.bom_sku);
       const capturasValidas = capturas.filter((c: any) => bomsSistema.includes(c.bom_sku));
       const totalRevisado = capturasValidas.length;
       
       const hayDiferencias = bomsConsolidados.some((b: any) => b.cantidad_revisada !== b.cantidad_sistema);
-      const hayNoEncontrados = capturas.some((c: any) => c.esNoEncontrado);
+      const hayNoEncontrados = capturas.some((c: any) => c.esNoEncontrado || !bomsSistema.includes(c.bom_sku));
       
       const estadoFinal = (hayDiferencias || hayNoEncontrados) ? 'Con Diferencias' : 'Finalizado';
       
@@ -337,7 +364,6 @@ const AI02Captura: React.FC = () => {
   const handleVerDetalle = async (tarea: any) => {
     setTareaSeleccionada(tarea);
     
-    // Cargar datos completos
     let bomsTemp: any[] = [];
     for (const emp of tarea.empaques) {
       const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -374,7 +400,6 @@ const AI02Captura: React.FC = () => {
   const handleExportarExcel = (tarea: any) => {
     const filas: any[] = [];
     
-    // Encabezado
     filas.push({
       'TAREA': tarea.numero_tarea,
       'LOCAL': tarea.cod_local + ' - ' + tarea.local,
@@ -429,13 +454,27 @@ const AI02Captura: React.FC = () => {
         <button className="ai02-btn ai02-btn-primary" onClick={() => { setMostrarCrearTarea(true); setEmpaquesTarea([]); setInputEmpaque(''); }}>
           + Nueva Tarea
         </button>
+        <div className="ai02-separator"></div>
+        <input
+          type="text"
+          className="ai02-form-input"
+          style={{ flex: 1, maxWidth: '300px', padding: '8px 12px', fontSize: '13px' }}
+          placeholder="Buscar por tarea, local, empaque..."
+          value={busqueda}
+          onChange={(e: any) => setBusqueda(e.target.value)}
+        />
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+          {tareasFiltradas.length} de {tareas.length}
+        </span>
       </div>
 
       <div className="ai02-grid">
-        {tareas.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>No hay tareas</div>
+        {tareasFiltradas.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>
+            {busqueda ? 'No se encontraron tareas' : 'No hay tareas'}
+          </div>
         ) : (
-          tareas.map((tarea: any) => {
+          tareasFiltradas.map((tarea: any) => {
             const porcentaje = tarea.total_bultos_sistema > 0 ? Math.round((tarea.total_bultos_revisados / tarea.total_bultos_sistema) * 100) : 0;
             const colorProgreso = tarea.estado === 'Finalizado' ? '#15803d' : tarea.estado === 'Con Diferencias' ? '#dc2626' : '#3b82f6';
             const eb = getEstadoBadge(tarea.estado);
@@ -577,18 +616,21 @@ const AI02Captura: React.FC = () => {
                     <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--error-text)', marginBottom: '4px' }}>
                       BOMs No Encontrados ({capturas.filter((c: any) => c.esNoEncontrado || !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length})
                     </div>
-                    {capturas.filter((c: any) => c.esNoEncontrado || !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).map((c: any, idx: number) => (
-                      <div key={idx} className="ai02-captura-bom-item" style={{ background: 'var(--error-bg)' }}>
-                        <span className="ai02-captura-bom-sku" style={{ color: 'var(--error-text)' }}>{c.bom_sku}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--error-text)' }}>No encontrado</span>
-                          <button onClick={() => handleEliminarCaptura(capturas.indexOf(c))} style={{
-                            width: '20px', height: '20px', background: 'transparent', color: 'var(--error-text)',
-                            border: '1px solid var(--error-border)', borderRadius: '3px', cursor: 'pointer', fontSize: '12px'
-                          }}>×</button>
+                    {capturas.map((c: any, idx: number) => {
+                      if (!c.esNoEncontrado && bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)) return null;
+                      return (
+                        <div key={idx} className="ai02-captura-bom-item" style={{ background: 'var(--error-bg)' }}>
+                          <span className="ai02-captura-bom-sku" style={{ color: 'var(--error-text)' }}>{c.bom_sku}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--error-text)' }}>No encontrado</span>
+                            <button onClick={() => handleEliminarCaptura(idx)} style={{
+                              width: '20px', height: '20px', background: 'transparent', color: 'var(--error-text)',
+                              border: '1px solid var(--error-border)', borderRadius: '3px', cursor: 'pointer', fontSize: '12px'
+                            }}>×</button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
