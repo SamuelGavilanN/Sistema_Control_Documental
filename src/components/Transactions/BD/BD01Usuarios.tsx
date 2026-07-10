@@ -43,6 +43,8 @@ const TRANSACCIONES = [
   { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
   { id: 'bd-locales', label: 'BD02 Locales' },
+  { id: 'ai', label: 'AI01 Gestión Auditoría Inv' },
+  { id: 'ai-captura', label: 'AI02 Captura Auditoria Inv' },
 ];
 
 const BD01Usuarios: React.FC = () => {
