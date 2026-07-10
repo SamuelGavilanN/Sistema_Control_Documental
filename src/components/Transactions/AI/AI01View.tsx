@@ -36,7 +36,6 @@ const AI01View: React.FC = () => {
           const boms = await respBoms.json();
           const cantidadTotal = boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
 
-          // Buscar capturas en AI02 para este empaque
           let cantidadRevisada = 0;
           let idTarea = '-';
           let estado = empaque.estado || 'Pendiente';
@@ -54,14 +53,12 @@ const AI01View: React.FC = () => {
               if (tareaData && tareaData.length > 0) {
                 idTarea = tareaData[0].numero_tarea;
                 
-                // Obtener TODAS las capturas de esta tarea con sus BOMs
                 const respCapturas = await fetch(API_URL + '/ai_capturas?select=bom_sku&tarea_id=eq.' + tareaId, { headers: HEADERS });
                 const capturas = await respCapturas.json();
                 
                 if (capturas) {
                   const bomsSku = boms ? boms.map((b: any) => b.bom_sku) : [];
                   capturas.forEach((c: any) => {
-                    // Contar por BOM individual
                     if (!revisionesPorBOM[c.bom_sku]) revisionesPorBOM[c.bom_sku] = 0;
                     revisionesPorBOM[c.bom_sku]++;
                     
@@ -82,7 +79,6 @@ const AI01View: React.FC = () => {
             }
           } catch (e) {}
 
-          // Mapear BOMs con sus cantidades revisadas
           const bomsConEstado = boms ? boms.map((bom: any) => {
             const cantRev = revisionesPorBOM[bom.bom_sku] || 0;
             return {
@@ -136,22 +132,23 @@ const AI01View: React.FC = () => {
       const dataRows = rows.slice(1).filter((row: any) => row.length > 0);
 
       const colEmpaque = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('empaque'));
-      const colDocumento = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('documento') || h.toString().toLowerCase().includes('relacionado')));
+      const colUltimaMod = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('última') || h.toString().toLowerCase().includes('ultima') || h.toString().toLowerCase().includes('modificacion')));
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
       const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
 
       if (colEmpaque < 0 || colBOM < 0) {
-        mostrarMensaje('error', 'Columnas requeridas no encontradas');
+        mostrarMensaje('error', 'Columnas requeridas no encontradas (Número de Empaque, BOM/SKU)');
         setCargando(false);
         return;
       }
 
+      // Paso 1: Consolidar por empaque + última modificación + BOM (tomar máximo)
       const consolidado1: Record<string, any> = {};
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
-        const documento = colDocumento >= 0 ? String(row[colDocumento] || '').trim() : '';
+        const ultimaMod = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
         const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         const bom = String(row[colBOM] || '').trim();
@@ -159,9 +156,9 @@ const AI01View: React.FC = () => {
 
         if (!empaque || !bom) return;
 
-        const key = empaque + '|' + documento + '|' + bom;
+        const key = empaque + '|' + ultimaMod + '|' + bom;
         if (!consolidado1[key]) {
-          consolidado1[key] = { empaque, documento, codDestino, destino, bom, cantidad };
+          consolidado1[key] = { empaque, ultimaMod, codDestino, destino, bom, cantidad };
         } else {
           if (cantidad > consolidado1[key].cantidad) {
             consolidado1[key].cantidad = cantidad;
@@ -169,6 +166,7 @@ const AI01View: React.FC = () => {
         }
       });
 
+      // Paso 2: Consolidar por empaque + BOM (sumar entre diferentes últimas modificaciones)
       const consolidado2: Record<string, any> = {};
       Object.values(consolidado1).forEach((item: any) => {
         const key = item.empaque + '|' + item.bom;
@@ -178,12 +176,15 @@ const AI01View: React.FC = () => {
         consolidado2[key].cantidad += item.cantidad;
       });
 
+      // Guardar en BD
       const empaquesMap: Record<string, any> = {};
       Object.values(consolidado2).forEach((item: any) => {
         if (!empaquesMap[item.empaque]) {
           empaquesMap[item.empaque] = { codDestino: item.codDestino, destino: item.destino, boms: {} };
         }
-        empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
+        if (!empaquesMap[item.empaque].boms[item.bom] || item.cantidad > empaquesMap[item.empaque].boms[item.bom]) {
+          empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
+        }
       });
 
       let creados = 0;
