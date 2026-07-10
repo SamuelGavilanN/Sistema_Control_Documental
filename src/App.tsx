@@ -13,6 +13,8 @@ import TK02Dashboard from './components/Transactions/TK/TK02Dashboard';
 import AD01View from './components/Transactions/AD/AD01View';
 import AD02Captura from './components/Transactions/AD/AD02Captura';
 import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
+import AI01View from './components/Transactions/AI/AI01View';
+import AI02Captura from './components/Transactions/AI/AI02Captura';
 import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
 import BD02Locales from './components/Transactions/BD/BD02Locales';
 import RD01View from './components/Transactions/RD/RD01View';
@@ -100,6 +102,8 @@ const App: React.FC = () => {
           {tabsMontadas.has('ad') && <div style={{ display: activeTab === 'ad' ? 'block' : 'none' }}><AD01View key="ad01" /></div>}
           {tabsMontadas.has('ad-captura') && <div style={{ display: activeTab === 'ad-captura' ? 'block' : 'none' }}><AD02Captura key="ad02" /></div>}
           {tabsMontadas.has('ad-dashboard') && <div style={{ display: activeTab === 'ad-dashboard' ? 'block' : 'none' }}><AD03Dashboard key="ad03" /></div>}
+          {tabsMontadas.has('ai') && <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}><AI01View key="ai01" /></div>}
+          {tabsMontadas.has('ai-captura') && <div style={{ display: activeTab === 'ai-captura' ? 'block' : 'none' }}><AI02Captura key="ai02" /></div>}
           {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
           {tabsMontadas.has('rd') && <div style={{ display: activeTab === 'rd' ? 'block' : 'none' }}><RD01View key="rd01" /></div>}
@@ -110,7 +114,7 @@ const App: React.FC = () => {
           {tabsMontadas.has('lp') && <div style={{ display: activeTab === 'lp' ? 'block' : 'none' }}><LP01View key="lp01" /></div>}
           {tabsMontadas.has('lp-captura') && <div style={{ display: activeTab === 'lp-captura' ? 'block' : 'none' }}><LP02View key="lp02" /></div>}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'sd-asignador', 'rp', 'rp-revision', 'lp', 'lp-captura', 'ut'].includes(activeTab) && (
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'ai', 'ai-captura', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'sd-asignador', 'rp', 'rp-revision', 'lp', 'lp-captura', 'ut'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
