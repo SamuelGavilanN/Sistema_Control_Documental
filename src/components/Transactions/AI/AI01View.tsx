@@ -132,7 +132,17 @@ const AI01View: React.FC = () => {
       const dataRows = rows.slice(1).filter((row: any) => row.length > 0);
 
       const colEmpaque = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('empaque'));
-      const colUltimaMod = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('última') || h.toString().toLowerCase().includes('ultima') || h.toString().toLowerCase().includes('modificacion')));
+      
+      // Buscar Última modificación EN (no "por")
+      const colUltimaMod = headers.findIndex((h: string) => {
+        if (!h) return false;
+        const header = h.toString().toLowerCase().trim();
+        return (header.includes('última') || header.includes('ultima')) && 
+               header.includes('modificacion') && 
+               header.includes('en') &&
+               !header.includes('por');
+      });
+      
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
@@ -143,8 +153,7 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      console.log('Columna Última modificación encontrada:', colUltimaMod >= 0 ? headers[colUltimaMod] : 'NO ENCONTRADA');
-      console.log('Headers disponibles:', headers);
+      console.log('Columna Última modificación EN:', colUltimaMod >= 0 ? headers[colUltimaMod] : 'NO ENCONTRADA');
 
       // Función para truncar fecha a minutos
       const truncarAMinutos = (fechaStr: string): string => {
@@ -162,7 +171,7 @@ const AI01View: React.FC = () => {
       // Agrupar por Empaque + BOM + Minuto para contar cajas únicas
       const conteoCajas: Record<string, number> = {};
       
-      dataRows.forEach((row: any, idx: number) => {
+      dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
         const ultimaModRaw = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
         const ultimaMod = truncarAMinutos(ultimaModRaw);
@@ -174,15 +183,7 @@ const AI01View: React.FC = () => {
 
         // Clave: Empaque + BOM + Minuto = 1 caja única
         const keyCaja = empaque + '|' + bom + '|' + ultimaMod;
-        
-        if (!conteoCajas[keyCaja]) {
-          conteoCajas[keyCaja] = 0;
-          // Guardar info del primer registro de esta caja
-          if (idx < 3) {
-            console.log('Caja única:', keyCaja, '| Minuto:', ultimaMod);
-          }
-        }
-        conteoCajas[keyCaja] = 1; // Es 1 caja, no sumamos cantidades
+        conteoCajas[keyCaja] = 1;
       });
 
       console.log('Total cajas únicas:', Object.keys(conteoCajas).length);
@@ -199,11 +200,6 @@ const AI01View: React.FC = () => {
           consolidado[key] = { empaque, bom, cantidad: 0 };
         }
         consolidado[key].cantidad += 1;
-      });
-
-      console.log('Consolidado por BOM:');
-      Object.values(consolidado).forEach((item: any) => {
-        console.log(item.bom + ' = ' + item.cantidad);
       });
 
       // Obtener cod_destino y destino del primer registro de cada empaque
@@ -229,8 +225,6 @@ const AI01View: React.FC = () => {
         }
         empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
       });
-
-      console.log('Empaques a guardar:', Object.keys(empaquesMap).length);
 
       let creados = 0;
       for (const numEmpaque of Object.keys(empaquesMap)) {
@@ -265,9 +259,7 @@ const AI01View: React.FC = () => {
           empaqueId = empaqueCreado.id;
         }
 
-        console.log('Guardando empaque:', numEmpaque, 'BOMs:', Object.keys(emp.boms).length);
         for (const bom of Object.keys(emp.boms)) {
-          console.log('  BOM:', bom, 'Cantidad:', emp.boms[bom]);
           await fetch(API_URL + '/ai_inventario_boms', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
