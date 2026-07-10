@@ -144,17 +144,30 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      // Paso 1: Eliminar duplicados exactos (mismo empaque + BOM + última modificación)
+      // Función para truncar fecha a minutos (ignorar segundos)
+      const truncarAMinutos = (fechaStr: string): string => {
+        if (!fechaStr) return '';
+        const partes = fechaStr.trim().split(' ');
+        if (partes.length >= 2) {
+          const horaPartes = partes[1].split(':');
+          if (horaPartes.length >= 2) {
+            return partes[0] + ' ' + horaPartes[0] + ':' + horaPartes[1];
+          }
+        }
+        return fechaStr.trim();
+      };
+
+      // Paso 1: Eliminar duplicados exactos truncando última modificación a minutos
       const filasUnicas: any[] = [];
       const visto = new Set();
       
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
-        const ultimaMod = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
+        const ultimaModRaw = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
+        const ultimaMod = truncarAMinutos(ultimaModRaw);
         const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         const bom = String(row[colBOM] || '').trim();
-        const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
 
         if (!empaque || !bom) return;
 
@@ -162,7 +175,7 @@ const AI01View: React.FC = () => {
         
         if (!visto.has(key)) {
           visto.add(key);
-          filasUnicas.push({ empaque, codDestino, destino, bom, cantidad, ultimaMod });
+          filasUnicas.push({ empaque, codDestino, destino, bom, ultimaMod });
         }
       });
 
@@ -179,7 +192,6 @@ const AI01View: React.FC = () => {
             cantidad: 0 
           };
         }
-        // Cada fila única = 1 caja
         consolidado[key].cantidad += 1;
       });
 
