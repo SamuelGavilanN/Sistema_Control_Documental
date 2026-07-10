@@ -38,6 +38,14 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
+    id: 'ai',
+    title: 'AI · Auditoría Inventario',
+    items: [
+      { id: 'ai', label: 'AI01 Gestión Auditoría Inv', type: 'item' },
+      { id: 'ai-captura', label: 'AI02 Captura Auditoria Inv', type: 'subitem' },
+    ]
+  },
+  {
     id: 'rp',
     title: 'RP · Revisión Pallet',
     items: [
@@ -115,7 +123,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   const [permisosActuales, setPermisosActuales] = useState<string[]>(permisos || []);
   const [favoritos, setFavoritos] = useState<string[]>([]);
 
-  // Polling para permisos y favoritos
   useEffect(() => {
     setPermisosActuales(permisos || []);
   }, [permisos]);
@@ -126,7 +133,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
     const cargarDatos = async () => {
       try {
-        // Cargar permisos
         const respPermisos = await fetch(
           API_URL + '/usuario_permisos?select=transaccion_id&usuario_id=eq.' + usuario.id + '&activo=eq.true',
           { headers: HEADERS }
@@ -138,7 +144,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
           setPermisosActuales([]);
         }
 
-        // Cargar favoritos
         const respFavoritos = await fetch(
           API_URL + '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id,
           { headers: HEADERS }
