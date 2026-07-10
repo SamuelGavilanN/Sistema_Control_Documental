@@ -144,47 +144,44 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      // Paso 1: Consolidar por empaque + última modificación + BOM (tomar máximo)
-      const consolidado1: Record<string, any> = {};
+      // Agrupar por Empaque + BOM + Última modificación
+      // Cada grupo único = 1 caja física
+      const cajasUnicas: Record<string, any> = {};
+      
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
         const ultimaMod = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
         const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         const bom = String(row[colBOM] || '').trim();
-        const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
 
         if (!empaque || !bom) return;
 
-        const key = empaque + '|' + ultimaMod + '|' + bom;
-        if (!consolidado1[key]) {
-          consolidado1[key] = { empaque, ultimaMod, codDestino, destino, bom, cantidad };
-        } else {
-          if (cantidad > consolidado1[key].cantidad) {
-            consolidado1[key].cantidad = cantidad;
-          }
+        // Clave: Empaque + BOM + Última modificación = 1 caja única
+        const keyCaja = empaque + '|' + bom + '|' + ultimaMod;
+        
+        if (!cajasUnicas[keyCaja]) {
+          cajasUnicas[keyCaja] = { empaque, codDestino, destino, bom, ultimaMod };
         }
       });
 
-      // Paso 2: Consolidar por empaque + BOM (sumar entre diferentes últimas modificaciones)
-      const consolidado2: Record<string, any> = {};
-      Object.values(consolidado1).forEach((item: any) => {
+      // Contar cuántas cajas únicas hay por Empaque + BOM
+      const consolidado: Record<string, any> = {};
+      Object.values(cajasUnicas).forEach((item: any) => {
         const key = item.empaque + '|' + item.bom;
-        if (!consolidado2[key]) {
-          consolidado2[key] = { empaque: item.empaque, codDestino: item.codDestino, destino: item.destino, bom: item.bom, cantidad: 0 };
+        if (!consolidado[key]) {
+          consolidado[key] = { empaque: item.empaque, codDestino: item.codDestino, destino: item.destino, bom: item.bom, cantidad: 0 };
         }
-        consolidado2[key].cantidad += item.cantidad;
+        consolidado[key].cantidad += 1;
       });
 
       // Guardar en BD
       const empaquesMap: Record<string, any> = {};
-      Object.values(consolidado2).forEach((item: any) => {
+      Object.values(consolidado).forEach((item: any) => {
         if (!empaquesMap[item.empaque]) {
           empaquesMap[item.empaque] = { codDestino: item.codDestino, destino: item.destino, boms: {} };
         }
-        if (!empaquesMap[item.empaque].boms[item.bom] || item.cantidad > empaquesMap[item.empaque].boms[item.bom]) {
-          empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
-        }
+        empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
       });
 
       let creados = 0;
