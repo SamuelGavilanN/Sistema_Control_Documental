@@ -1,0 +1,24 @@
+/* src/components/Transactions/AI/AI01.css */
+
+.ai01-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
+.ai01-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.ai01-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+.ai01-toolbar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.ai01-btn { padding: 8px 16px; border: 1px solid var(--btn-border); border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s; background: var(--btn-bg); color: var(--btn-text); white-space: nowrap; }
+.ai01-btn:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+.ai01-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai01-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-bg); }
+.ai01-btn-primary:hover { background: var(--btn-primary-hover); }
+.ai01-btn-danger { color: var(--btn-danger-text); }
+.ai01-btn-danger:hover { background: var(--btn-danger-hover-bg); border-color: var(--btn-danger-hover-border); }
+.ai01-separator { width: 1px; height: 28px; background: var(--separator); margin: 0 4px; }
+.ai01-upload-area { margin-bottom: 20px; }
+.ai01-upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px; border: 2px dashed var(--border-input); border-radius: 10px; cursor: pointer; transition: all 0.15s; background: var(--bg-section); color: var(--text-placeholder); font-size: 13px; }
+.ai01-upload-box:hover { border-color: var(--border-focus); background: var(--bg-hover); }
+.ai01-upload-nombre { color: var(--text-primary); font-weight: 500; font-size: 13px; margin-top: 4px; }
+.ai01-mensaje { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+.ai01-toast { position: fixed; bottom: 24px; right: 24px; z-index: 2000; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-md); max-width: 420px; }
+.ai01-toast-success { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.ai01-toast-error { background: var(--error-bg); color: var(--error-text); border: 1px solid var(--error-border); }
+.ai01-toast-warning { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.ai01-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; }
