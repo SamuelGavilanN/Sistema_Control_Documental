@@ -144,9 +144,9 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      // Agrupar por Empaque + BOM + Última modificación
-      // Cada grupo único = 1 caja física
-      const cajasUnicas: Record<string, any> = {};
+      // Paso 1: Eliminar duplicados exactos (mismo empaque + BOM + última modificación)
+      const filasUnicas: any[] = [];
+      const visto = new Set();
       
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
@@ -154,24 +154,32 @@ const AI01View: React.FC = () => {
         const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         const bom = String(row[colBOM] || '').trim();
+        const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
 
         if (!empaque || !bom) return;
 
-        // Clave: Empaque + BOM + Última modificación = 1 caja única
-        const keyCaja = empaque + '|' + bom + '|' + ultimaMod;
+        const key = empaque + '|' + bom + '|' + ultimaMod;
         
-        if (!cajasUnicas[keyCaja]) {
-          cajasUnicas[keyCaja] = { empaque, codDestino, destino, bom, ultimaMod };
+        if (!visto.has(key)) {
+          visto.add(key);
+          filasUnicas.push({ empaque, codDestino, destino, bom, cantidad, ultimaMod });
         }
       });
 
-      // Contar cuántas cajas únicas hay por Empaque + BOM
+      // Paso 2: Agrupar por Empaque + BOM y contar cuántas filas únicas hay
       const consolidado: Record<string, any> = {};
-      Object.values(cajasUnicas).forEach((item: any) => {
+      filasUnicas.forEach((item: any) => {
         const key = item.empaque + '|' + item.bom;
         if (!consolidado[key]) {
-          consolidado[key] = { empaque: item.empaque, codDestino: item.codDestino, destino: item.destino, bom: item.bom, cantidad: 0 };
+          consolidado[key] = { 
+            empaque: item.empaque, 
+            codDestino: item.codDestino, 
+            destino: item.destino, 
+            bom: item.bom, 
+            cantidad: 0 
+          };
         }
+        // Cada fila única = 1 caja
         consolidado[key].cantidad += 1;
       });
 
@@ -231,7 +239,10 @@ const AI01View: React.FC = () => {
         creados++;
       }
 
-      mostrarMensaje('success', creados + ' empaques procesados correctamente');
+      let totalCajas = 0;
+      Object.values(consolidado).forEach((item: any) => { totalCajas += item.cantidad; });
+      
+      mostrarMensaje('success', creados + ' empaques procesados. Total cajas: ' + totalCajas);
       cargarInventario();
     } catch (e) {
       console.error('Error procesando archivo:', e);
