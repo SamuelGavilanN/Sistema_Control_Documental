@@ -13,6 +13,8 @@ const transacciones = [
   { id: 'ad', label: 'AD01 · Gestión Auditoría', desc: 'Crear y gestionar tareas de auditoría', color: '#8b5cf6' },
   { id: 'ad-captura', label: 'AD02 · Captura Física', desc: 'Realizar capturas físicas de auditoría', color: '#ec4899' },
   { id: 'ad-dashboard', label: 'AD03 · Dashboard Auditoría', desc: 'KPIs y estadísticas de auditorías', color: '#06b6d4' },
+  { id: 'ai', label: 'AI01 · Gestión Auditoría Inv', desc: 'Gestionar inventario de auditoría', color: '#f97316' },
+  { id: 'ai-captura', label: 'AI02 · Captura Auditoria Inv', desc: 'Realizar capturas de auditoría de inventario', color: '#ef4444' },
   { id: 'ed', label: 'ED01 · Registro Empaque', desc: 'Registrar y gestionar empaques directos', color: '#3b82f6' },
   { id: 'ed-history', label: 'ED02 · Dashboard Producción', desc: 'KPIs y estadísticas de producción', color: '#6366f1' },
   { id: 'ed-tickets', label: 'ED03 · BT Portico', desc: 'Gestión de tickets desde pórtico', color: '#8b5cf6' },
@@ -48,7 +50,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Cargar favoritos con polling
   useEffect(() => {
     if (!usuario?.id) return;
     
@@ -70,7 +71,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
     return () => clearInterval(intervalo);
   }, [usuario?.id]);
 
-  // Filtrar solo favoritos que estén permitidos
   const transFavoritas = transacciones.filter(t => favoritos.includes(t.id));
 
   return (
