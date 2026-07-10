@@ -40,36 +40,37 @@ const AI01View: React.FC = () => {
           let cantidadRevisada = 0;
           let idTarea = '-';
           let estado = empaque.estado || 'Pendiente';
+          const revisionesPorBOM: Record<string, number> = {};
           
           try {
-            // Buscar tareas que incluyen este empaque
             const respTareaEmp = await fetch(API_URL + '/ai_tarea_empaques?select=tarea_id&numero_empaque=eq.' + encodeURIComponent(empaque.numero_empaque), { headers: HEADERS });
             const tareasEmp = await respTareaEmp.json();
             
             if (tareasEmp && tareasEmp.length > 0) {
-              // Tomar la última tarea
               const tareaId = tareasEmp[tareasEmp.length - 1].tarea_id;
               
-              // Obtener info de la tarea
               const respTarea = await fetch(API_URL + '/ai_tareas?select=*&id=eq.' + tareaId, { headers: HEADERS });
               const tareaData = await respTarea.json();
               if (tareaData && tareaData.length > 0) {
                 idTarea = tareaData[0].numero_tarea;
                 
-                // Obtener capturas de esta tarea
+                // Obtener TODAS las capturas de esta tarea con sus BOMs
                 const respCapturas = await fetch(API_URL + '/ai_capturas?select=bom_sku&tarea_id=eq.' + tareaId, { headers: HEADERS });
                 const capturas = await respCapturas.json();
                 
                 if (capturas) {
                   const bomsSku = boms ? boms.map((b: any) => b.bom_sku) : [];
                   capturas.forEach((c: any) => {
+                    // Contar por BOM individual
+                    if (!revisionesPorBOM[c.bom_sku]) revisionesPorBOM[c.bom_sku] = 0;
+                    revisionesPorBOM[c.bom_sku]++;
+                    
                     if (bomsSku.includes(c.bom_sku)) {
                       cantidadRevisada++;
                     }
                   });
                 }
                 
-                // Determinar estado basado en la tarea
                 if (tareaData[0].estado === 'Finalizado') {
                   estado = 'Finalizado';
                 } else if (tareaData[0].estado === 'Con Diferencias') {
@@ -81,9 +82,19 @@ const AI01View: React.FC = () => {
             }
           } catch (e) {}
 
+          // Mapear BOMs con sus cantidades revisadas
+          const bomsConEstado = boms ? boms.map((bom: any) => {
+            const cantRev = revisionesPorBOM[bom.bom_sku] || 0;
+            return {
+              ...bom,
+              cantidad_revisada: cantRev,
+              cantidad_pendiente: Math.max(0, bom.cantidad_maxima - cantRev)
+            };
+          }) : [];
+
           return {
             ...empaque,
-            boms: boms || [],
+            boms: bomsConEstado,
             cantidad_total: cantidadTotal,
             cantidad_revisada: cantidadRevisada,
             cantidad_pendiente: Math.max(0, cantidadTotal - cantidadRevisada),
@@ -137,7 +148,6 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      // Paso 1: Consolidar por empaque + documento + BOM (tomar máximo)
       const consolidado1: Record<string, any> = {};
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
@@ -159,7 +169,6 @@ const AI01View: React.FC = () => {
         }
       });
 
-      // Paso 2: Consolidar por empaque + BOM (sumar entre documentos)
       const consolidado2: Record<string, any> = {};
       Object.values(consolidado1).forEach((item: any) => {
         const key = item.empaque + '|' + item.bom;
@@ -169,7 +178,6 @@ const AI01View: React.FC = () => {
         consolidado2[key].cantidad += item.cantidad;
       });
 
-      // Guardar en BD
       const empaquesMap: Record<string, any> = {};
       Object.values(consolidado2).forEach((item: any) => {
         if (!empaquesMap[item.empaque]) {
@@ -182,23 +190,19 @@ const AI01View: React.FC = () => {
       for (const numEmpaque of Object.keys(empaquesMap)) {
         const emp = empaquesMap[numEmpaque];
         
-        // Verificar si ya existe
         const respExistente = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(numEmpaque), { headers: HEADERS });
         const existente = await respExistente.json();
         
         let empaqueId;
         if (existente && existente.length > 0) {
-          // Actualizar
           empaqueId = existente[0].id;
           await fetch(API_URL + '/ai_inventario?id=eq.' + empaqueId, {
             method: 'PATCH',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
             body: JSON.stringify({ cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente' })
           });
-          // Eliminar BOMs antiguos
           await fetch(API_URL + '/ai_inventario_boms?empaque_id=eq.' + empaqueId, { method: 'DELETE', headers: HEADERS });
         } else {
-          // Crear
           const respEmpaque = await fetch(API_URL + '/ai_inventario', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -215,7 +219,6 @@ const AI01View: React.FC = () => {
           empaqueId = empaqueCreado.id;
         }
 
-        // Insertar BOMs
         for (const bom of Object.keys(emp.boms)) {
           await fetch(API_URL + '/ai_inventario_boms', {
             method: 'POST',
@@ -297,13 +300,6 @@ const AI01View: React.FC = () => {
         </button>
       </div>
 
-      {empaqueSeleccionado && (
-        <div className="ai02-selected-info">
-          <span>Empaque seleccionado: <strong>{empaqueSeleccionado.numero_empaque}</strong></span>
-          <button className="ai02-selected-close" onClick={() => setEmpaqueSeleccionado(null)}>×</button>
-        </div>
-      )}
-
       <div style={{ overflowX: 'auto' }}>
         <table className="ed03-tabla" style={{ minWidth: '1100px' }}>
           <thead>
@@ -346,20 +342,18 @@ const AI01View: React.FC = () => {
                             <thead><tr style={{ background: 'var(--table-header-bg)' }}><th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--table-header-text)' }}>BOM/SKU</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Sistema</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Revisada</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Estado</th></tr></thead>
                             <tbody>
                               {empaque.boms.map((bom: any) => {
-                                const revisado = empaque.cantidad_revisada > 0;
-                                const cantRev = bom.cantidad_revisada || 0;
-                                const pendiente = Math.max(0, bom.cantidad_maxima - cantRev);
+                                const pendiente = Math.max(0, bom.cantidad_maxima - (bom.cantidad_revisada || 0));
                                 return (
                                   <tr key={bom.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                     <td style={{ padding: '6px 10px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{bom.bom_sku}</td>
                                     <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: cantRev > 0 ? 'var(--success-text)' : 'var(--text-muted)' }}>{cantRev}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: (bom.cantidad_revisada || 0) > 0 ? 'var(--success-text)' : 'var(--text-muted)', fontWeight: 600 }}>{bom.cantidad_revisada || 0}</td>
                                     <td style={{ padding: '6px 10px', textAlign: 'center' }}>
                                       <span className="ai01-badge" style={{
-                                        background: pendiente === 0 ? 'var(--success-bg)' : (cantRev > 0 ? 'var(--warning-bg)' : 'var(--bg-readonly)'),
-                                        color: pendiente === 0 ? 'var(--success-text)' : (cantRev > 0 ? 'var(--warning-text)' : 'var(--text-muted)')
+                                        background: pendiente === 0 ? 'var(--success-bg)' : ((bom.cantidad_revisada || 0) > 0 ? 'var(--warning-bg)' : 'var(--bg-readonly)'),
+                                        color: pendiente === 0 ? 'var(--success-text)' : ((bom.cantidad_revisada || 0) > 0 ? 'var(--warning-text)' : 'var(--text-muted)')
                                       }}>
-                                        {pendiente === 0 ? 'Completo' : (cantRev > 0 ? 'Parcial' : 'Pendiente')}
+                                        {pendiente === 0 ? 'Completo' : ((bom.cantidad_revisada || 0) > 0 ? 'Parcial' : 'Pendiente')}
                                       </span>
                                     </td>
                                   </tr>
