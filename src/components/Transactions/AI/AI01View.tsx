@@ -39,26 +39,44 @@ const AI01View: React.FC = () => {
           // Buscar capturas en AI02 para este empaque
           let cantidadRevisada = 0;
           let idTarea = '-';
+          let estado = empaque.estado || 'Pendiente';
+          
           try {
+            // Buscar tareas que incluyen este empaque
             const respTareaEmp = await fetch(API_URL + '/ai_tarea_empaques?select=tarea_id&numero_empaque=eq.' + encodeURIComponent(empaque.numero_empaque), { headers: HEADERS });
             const tareasEmp = await respTareaEmp.json();
+            
             if (tareasEmp && tareasEmp.length > 0) {
-              const tareaId = tareasEmp[0].tarea_id;
-              const respTarea = await fetch(API_URL + '/ai_tareas?select=numero_tarea&id=eq.' + tareaId, { headers: HEADERS });
+              // Tomar la última tarea
+              const tareaId = tareasEmp[tareasEmp.length - 1].tarea_id;
+              
+              // Obtener info de la tarea
+              const respTarea = await fetch(API_URL + '/ai_tareas?select=*&id=eq.' + tareaId, { headers: HEADERS });
               const tareaData = await respTarea.json();
               if (tareaData && tareaData.length > 0) {
                 idTarea = tareaData[0].numero_tarea;
-              }
-              const respCapturas = await fetch(API_URL + '/ai_capturas?select=cantidad_sistema&tarea_id=eq.' + tareaId, { headers: HEADERS });
-              const capturas = await respCapturas.json();
-              // Contar capturas de BOMs de este empaque
-              const bomsSku = boms ? boms.map((b: any) => b.bom_sku) : [];
-              if (capturas) {
-                capturas.forEach((c: any) => {
-                  if (bomsSku.includes(c.bom_sku)) {
-                    cantidadRevisada++;
-                  }
-                });
+                
+                // Obtener capturas de esta tarea
+                const respCapturas = await fetch(API_URL + '/ai_capturas?select=bom_sku&tarea_id=eq.' + tareaId, { headers: HEADERS });
+                const capturas = await respCapturas.json();
+                
+                if (capturas) {
+                  const bomsSku = boms ? boms.map((b: any) => b.bom_sku) : [];
+                  capturas.forEach((c: any) => {
+                    if (bomsSku.includes(c.bom_sku)) {
+                      cantidadRevisada++;
+                    }
+                  });
+                }
+                
+                // Determinar estado basado en la tarea
+                if (tareaData[0].estado === 'Finalizado') {
+                  estado = 'Finalizado';
+                } else if (tareaData[0].estado === 'Con Diferencias') {
+                  estado = 'Con Diferencias';
+                } else if (tareaData[0].estado === 'En Proceso') {
+                  estado = 'En Proceso';
+                }
               }
             }
           } catch (e) {}
@@ -70,7 +88,7 @@ const AI01View: React.FC = () => {
             cantidad_revisada: cantidadRevisada,
             cantidad_pendiente: Math.max(0, cantidadTotal - cantidadRevisada),
             id_tarea: idTarea,
-            estado: cantidadRevisada > 0 ? (cantidadRevisada >= cantidadTotal ? 'Finalizado' : 'En Proceso') : empaque.estado
+            estado: estado
           };
         }));
         setEmpaques(empaquesConBoms);
@@ -242,6 +260,7 @@ const AI01View: React.FC = () => {
       case 'Pendiente': return { color: '#b45309', bg: '#fef3c7' };
       case 'En Proceso': return { color: '#1d4ed8', bg: '#dbeafe' };
       case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' };
+      case 'Con Diferencias': return { color: '#dc2626', bg: '#fef2f2' };
       default: return { color: '#64748b', bg: '#f1f5f9' };
     }
   };
@@ -286,7 +305,7 @@ const AI01View: React.FC = () => {
       )}
 
       <div style={{ overflowX: 'auto' }}>
-        <table className="ed03-tabla" style={{ minWidth: '1000px' }}>
+        <table className="ed03-tabla" style={{ minWidth: '1100px' }}>
           <thead>
             <tr>
               <th style={{ width: '40px' }}></th>
@@ -324,14 +343,28 @@ const AI01View: React.FC = () => {
                       <tr><td colSpan={9} style={{ padding: '0' }}>
                         <div style={{ padding: '16px', background: 'var(--bg-section)' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                            <thead><tr style={{ background: 'var(--table-header-bg)' }}><th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--table-header-text)' }}>BOM/SKU</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cantidad</th></tr></thead>
+                            <thead><tr style={{ background: 'var(--table-header-bg)' }}><th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--table-header-text)' }}>BOM/SKU</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Sistema</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Revisada</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Estado</th></tr></thead>
                             <tbody>
-                              {empaque.boms.map((bom: any) => (
-                                <tr key={bom.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                  <td style={{ padding: '6px 10px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{bom.bom_sku}</td>
-                                  <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td>
-                                </tr>
-                              ))}
+                              {empaque.boms.map((bom: any) => {
+                                const revisado = empaque.cantidad_revisada > 0;
+                                const cantRev = bom.cantidad_revisada || 0;
+                                const pendiente = Math.max(0, bom.cantidad_maxima - cantRev);
+                                return (
+                                  <tr key={bom.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '6px 10px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{bom.bom_sku}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: cantRev > 0 ? 'var(--success-text)' : 'var(--text-muted)' }}>{cantRev}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                                      <span className="ai01-badge" style={{
+                                        background: pendiente === 0 ? 'var(--success-bg)' : (cantRev > 0 ? 'var(--warning-bg)' : 'var(--bg-readonly)'),
+                                        color: pendiente === 0 ? 'var(--success-text)' : (cantRev > 0 ? 'var(--warning-text)' : 'var(--text-muted)')
+                                      }}>
+                                        {pendiente === 0 ? 'Completo' : (cantRev > 0 ? 'Parcial' : 'Pendiente')}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
