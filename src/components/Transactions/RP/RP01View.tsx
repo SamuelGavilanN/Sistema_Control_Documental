@@ -41,7 +41,6 @@ const RP01View: React.FC = () => {
           
           if (bomsSku.length > 0) {
             for (const sku of bomsSku) {
-              // Solo contar revisiones que tengan numero_empaque y coincida con este empaque
               const respRev = await fetch(
                 API_URL + '/rp_documento_revisiones?select=*&bom_sku=eq.' + encodeURIComponent(sku) + '&numero_empaque=eq.' + encodeURIComponent(empaque.numero_empaque),
                 { headers: HEADERS }
@@ -139,8 +138,19 @@ const RP01View: React.FC = () => {
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
-      const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
       const colOrigen = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('origen'));
+      const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
+      
+      // Buscar Última modificación en (flexible con acentos)
+      const colUltimaMod = headers.findIndex((h: string) => {
+        if (!h) return false;
+        const header = h.toString().toLowerCase().trim();
+        const tieneUltima = header.includes('ltima');
+        const tieneModificacion = header.includes('modificacion') || header.includes('modificación');
+        const tieneEn = header.endsWith('en') || header.includes(' en');
+        const tienePor = header.includes('por');
+        return tieneUltima && tieneModificacion && tieneEn && !tienePor;
+      });
 
       if (colEmpaque < 0 || colBOM < 0) {
         mostrarMensaje('error', 'Columnas requeridas no encontradas');
@@ -148,53 +158,114 @@ const RP01View: React.FC = () => {
         return;
       }
 
-      const empaquesMap: Record<string, any> = {};
+      const hayUltimaMod = colUltimaMod >= 0;
 
-      dataRows.forEach((row: any) => {
-        const empaque = String(row[colEmpaque] || '').trim();
-        const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
-        const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
-        const bom = String(row[colBOM] || '').trim();
-        const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
-        const origen = colOrigen >= 0 ? String(row[colOrigen] || '').trim().toUpperCase() || 'CD01' : 'CD01';
-
-        if (!empaque || !bom) return;
-
-        const key = empaque + '|' + origen;
-        if (!empaquesMap[key]) {
-          empaquesMap[key] = { empaque, codDestino, destino, origen, boms: {} };
-        }
-        if (!empaquesMap[key].boms[bom] || cantidad > empaquesMap[key].boms[bom]) {
-          empaquesMap[key].boms[bom] = cantidad;
-        }
-      });
-
-      let creados = 0;
-      for (const key of Object.keys(empaquesMap)) {
-        const emp = empaquesMap[key];
+      if (hayUltimaMod) {
+        // NUEVA LÓGICA: Usar Última modificación en para contar cajas únicas
         
-        const respEmpaque = await fetch(API_URL + '/rp_inventario_empaques', {
-          method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-          body: JSON.stringify({
-            numero_empaque: emp.empaque,
-            cod_destino: emp.codDestino,
-            destino: emp.destino,
-            origen: emp.origen,
-            creado_por: usuario?.id
-          })
+        const truncarAMinutos = (fechaStr: string): string => {
+          if (!fechaStr) return '';
+          const partes = fechaStr.trim().split(' ');
+          if (partes.length >= 2) {
+            const horaPartes = partes[1].split(':');
+            if (horaPartes.length >= 2) {
+              return partes[0] + ' ' + horaPartes[0] + ':' + horaPartes[1];
+            }
+          }
+          return fechaStr.trim();
+        };
+
+        // Agrupar por Empaque + BOM + Minuto + Origen para contar cajas únicas
+        const conteoCajas: Record<string, any> = {};
+        
+        dataRows.forEach((row: any) => {
+          const empaque = String(row[colEmpaque] || '').trim();
+          const ultimaModRaw = String(row[colUltimaMod] || '').trim();
+          const ultimaMod = truncarAMinutos(ultimaModRaw);
+          const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
+          const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
+          const bom = String(row[colBOM] || '').trim();
+          const origen = colOrigen >= 0 ? String(row[colOrigen] || '').trim().toUpperCase() || 'CD01' : 'CD01';
+
+          if (!empaque || !bom) return;
+
+          // Clave: Empaque + BOM + Minuto + Origen = 1 caja única
+          const keyCaja = empaque + '|' + bom + '|' + ultimaMod + '|' + origen;
+          
+          if (!conteoCajas[keyCaja]) {
+            conteoCajas[keyCaja] = { empaque, codDestino, destino, bom, origen };
+          }
         });
 
-        if (respEmpaque.ok) {
-          const empaqueData = await respEmpaque.json();
-          const empaqueCreado = Array.isArray(empaqueData) ? empaqueData[0] : empaqueData;
+        // Agrupar por Empaque + BOM + Origen y sumar las cajas
+        const consolidado: Record<string, any> = {};
+        Object.values(conteoCajas).forEach((item: any) => {
+          const key = item.empaque + '|' + item.bom + '|' + item.origen;
+          if (!consolidado[key]) {
+            consolidado[key] = { 
+              empaque: item.empaque, 
+              codDestino: item.codDestino, 
+              destino: item.destino, 
+              bom: item.bom,
+              origen: item.origen,
+              cantidad: 0 
+            };
+          }
+          consolidado[key].cantidad += 1;
+        });
+
+        // Guardar en BD
+        const empaquesMap: Record<string, any> = {};
+        Object.values(consolidado).forEach((item: any) => {
+          const key = item.empaque + '|' + item.origen;
+          if (!empaquesMap[key]) {
+            empaquesMap[key] = { empaque: item.empaque, codDestino: item.codDestino, destino: item.destino, origen: item.origen, boms: {} };
+          }
+          empaquesMap[key].boms[item.bom] = item.cantidad;
+        });
+
+        let creados = 0;
+        for (const key of Object.keys(empaquesMap)) {
+          const emp = empaquesMap[key];
+          
+          const respExistente = await fetch(
+            API_URL + '/rp_inventario_empaques?select=id&numero_empaque=eq.' + encodeURIComponent(emp.empaque) + '&origen=eq.' + encodeURIComponent(emp.origen),
+            { headers: HEADERS }
+          );
+          const existente = await respExistente.json();
+          
+          let empaqueId;
+          if (existente && existente.length > 0) {
+            empaqueId = existente[0].id;
+            await fetch(API_URL + '/rp_inventario_empaques?id=eq.' + empaqueId, {
+              method: 'PATCH',
+              headers: { ...HEADERS, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente' })
+            });
+            await fetch(API_URL + '/rp_inventario_boms?empaque_id=eq.' + empaqueId, { method: 'DELETE', headers: HEADERS });
+          } else {
+            const respEmpaque = await fetch(API_URL + '/rp_inventario_empaques', {
+              method: 'POST',
+              headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+              body: JSON.stringify({
+                numero_empaque: emp.empaque,
+                cod_destino: emp.codDestino,
+                destino: emp.destino,
+                origen: emp.origen,
+                creado_por: usuario?.id
+              })
+            });
+            const empaqueData = await respEmpaque.json();
+            const empaqueCreado = Array.isArray(empaqueData) ? empaqueData[0] : empaqueData;
+            empaqueId = empaqueCreado.id;
+          }
 
           for (const bom of Object.keys(emp.boms)) {
             await fetch(API_URL + '/rp_inventario_boms', {
               method: 'POST',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                empaque_id: empaqueCreado.id,
+                empaque_id: empaqueId,
                 bom_sku: bom,
                 cantidad_maxima: emp.boms[bom]
               })
@@ -202,9 +273,73 @@ const RP01View: React.FC = () => {
           }
           creados++;
         }
-      }
 
-      mostrarMensaje('success', creados + ' empaques cargados correctamente');
+        let totalCajas = 0;
+        Object.values(consolidado).forEach((item: any) => { totalCajas += item.cantidad; });
+        
+        mostrarMensaje('success', creados + ' empaques procesados. Total cajas: ' + totalCajas);
+      } else {
+        // LÓGICA ANTIGUA: Sin Última modificación en
+        
+        const empaquesMap: Record<string, any> = {};
+
+        dataRows.forEach((row: any) => {
+          const empaque = String(row[colEmpaque] || '').trim();
+          const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
+          const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
+          const bom = String(row[colBOM] || '').trim();
+          const cantidad = colCantidad >= 0 ? parseInt(row[colCantidad]) || 1 : 1;
+          const origen = colOrigen >= 0 ? String(row[colOrigen] || '').trim().toUpperCase() || 'CD01' : 'CD01';
+
+          if (!empaque || !bom) return;
+
+          const key = empaque + '|' + origen;
+          if (!empaquesMap[key]) {
+            empaquesMap[key] = { empaque, codDestino, destino, origen, boms: {} };
+          }
+          if (!empaquesMap[key].boms[bom] || cantidad > empaquesMap[key].boms[bom]) {
+            empaquesMap[key].boms[bom] = cantidad;
+          }
+        });
+
+        let creados = 0;
+        for (const key of Object.keys(empaquesMap)) {
+          const emp = empaquesMap[key];
+          
+          const respEmpaque = await fetch(API_URL + '/rp_inventario_empaques', {
+            method: 'POST',
+            headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+            body: JSON.stringify({
+              numero_empaque: emp.empaque,
+              cod_destino: emp.codDestino,
+              destino: emp.destino,
+              origen: emp.origen,
+              creado_por: usuario?.id
+            })
+          });
+
+          if (respEmpaque.ok) {
+            const empaqueData = await respEmpaque.json();
+            const empaqueCreado = Array.isArray(empaqueData) ? empaqueData[0] : empaqueData;
+
+            for (const bom of Object.keys(emp.boms)) {
+              await fetch(API_URL + '/rp_inventario_boms', {
+                method: 'POST',
+                headers: { ...HEADERS, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  empaque_id: empaqueCreado.id,
+                  bom_sku: bom,
+                  cantidad_maxima: emp.boms[bom]
+                })
+              });
+            }
+            creados++;
+          }
+        }
+
+        mostrarMensaje('success', creados + ' empaques cargados correctamente');
+      }
+      
       cargarInventario();
     } catch (e) {
       console.error('Error procesando archivo:', e);
