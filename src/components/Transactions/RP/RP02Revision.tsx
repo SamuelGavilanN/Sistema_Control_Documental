@@ -32,7 +32,7 @@ const RP02Revision: React.FC = () => {
   const [palletsDoc, setPalletsDoc]: any = useState([]);
   const [palletActual, setPalletActual]: any = useState(null);
   const [capturas, setCapturas]: any = useState([]);
-  const [empaqueActivo, setEmpaqueActivo]: any = useState(null);
+  const [empaquesActivos, setEmpaquesActivos]: any = useState([]);
   const [origenSeleccionado, setOrigenSeleccionado]: any = useState('');
   const [inputEmpaque, setInputEmpaque]: any = useState('');
   const [bomInput, setBomInput]: any = useState('');
@@ -81,7 +81,6 @@ const RP02Revision: React.FC = () => {
   const recalcularEstados = (listaCapturas: any[]) => {
     const resultado = [...listaCapturas];
     
-    // Agrupar por empaque
     const empaques: Record<string, any[]> = {};
     resultado.forEach((c: any) => {
       if (c.numero_empaque && c.numero_empaque !== '') {
@@ -90,7 +89,6 @@ const RP02Revision: React.FC = () => {
       }
     });
 
-    // Recalcular para cada empaque
     Object.keys(empaques).forEach(numEmpaque => {
       const bomsUnicos: string[] = [];
       const visto: any = {};
@@ -127,7 +125,6 @@ const RP02Revision: React.FC = () => {
           estado = 'SOBRA';
         }
 
-        // Actualizar todas las capturas de este BOM en este empaque
         resultado.forEach((c: any, i: number) => {
           if (c.numero_empaque === numEmpaque && c.bom_sku === bomSku) {
             resultado[i] = { ...c, estado };
@@ -137,17 +134,6 @@ const RP02Revision: React.FC = () => {
     });
 
     return resultado;
-  };
-
-  const calcularEstado = (capturasList: any[], bomSku: string, cantidadSistema: number, numeroEmpaque: string) => {
-    const totalCapturado = capturasList
-      .filter((c: any) => c.bom_sku === bomSku && c.numero_empaque === numeroEmpaque)
-      .reduce((s: number, c: any) => s + c.cantidad, 0);
-
-    if (cantidadSistema === 0) return 'NO_ENCONTRADO';
-    if (totalCapturado < cantidadSistema) return 'FALTA';
-    if (totalCapturado === cantidadSistema) return 'OK';
-    return 'SOBRA';
   };
 
   const verificarEmpaqueCompleto = async (numeroEmpaque: string) => {
@@ -267,7 +253,7 @@ const RP02Revision: React.FC = () => {
         await cargarPallets(documentoSeleccionado);
         setPalletActual(nuevoPallet);
         setCapturas([]);
-        setEmpaqueActivo(null);
+        setEmpaquesActivos([]);
         setOrigenSeleccionado('');
         setInputEmpaque('');
         setBomInput('');
@@ -283,6 +269,8 @@ const RP02Revision: React.FC = () => {
     const revisiones = pallet.revisiones || [];
     
     const capturasTemp: any[] = [];
+    const empaquesSet = new Set<string>();
+    
     for (const r of revisiones) {
       capturasTemp.push({
         caja: r.caja_numero,
@@ -293,14 +281,14 @@ const RP02Revision: React.FC = () => {
         numero_empaque: r.numero_empaque || '',
         estado: r.estado || 'OK'
       });
+      if (r.numero_empaque) empaquesSet.add(r.numero_empaque);
     }
     
     capturasTemp.sort((a: any, b: any) => a.caja - b.caja);
     
-    // Recalcular estados al abrir
     const capturasConEstado = recalcularEstados(capturasTemp);
     setCapturas(capturasConEstado);
-    setEmpaqueActivo(null);
+    setEmpaquesActivos(Array.from(empaquesSet));
     setOrigenSeleccionado('');
     setInputEmpaque('');
     setBomInput('');
@@ -314,15 +302,22 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
-    if (empaqueActivo && empaqueActivo.numero_empaque === valor) {
-      mostrarMensaje('warning', 'Este empaque ya está activo');
+    if (empaquesActivos.includes(valor)) {
+      mostrarMensaje('warning', 'Este empaque ya fue agregado');
+      setInputEmpaque('');
       return;
     }
 
     const resultado = await verificarEmpaqueCompleto(valor);
     
     if (!resultado.encontrado) {
-      mostrarMensaje('warning', 'Empaque no encontrado en el inventario');
+      // Si no está en inventario, preguntar si agregar igual
+      if (window.confirm('Empaque no encontrado en inventario. ¿Agregar de todas formas?')) {
+        setEmpaquesActivos([...empaquesActivos, valor]);
+        setInputEmpaque('');
+        mostrarMensaje('success', 'Empaque ' + valor + ' agregado');
+        setTimeout(() => inputEmpaqueRef.current?.focus(), 200);
+      }
       return;
     }
 
@@ -331,16 +326,22 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
-    setEmpaqueActivo(resultado.empaque);
+    setEmpaquesActivos([...empaquesActivos, valor]);
     setOrigenSeleccionado('');
     setInputEmpaque('');
-    mostrarMensaje('success', 'Empaque ' + valor + ' seleccionado');
+    mostrarMensaje('success', 'Empaque ' + valor + ' agregado');
     setTimeout(() => bomInputRef.current?.focus(), 200);
   };
 
+  const handleEliminarEmpaque = (empaque: string) => {
+    setEmpaquesActivos(empaquesActivos.filter((e: string) => e !== empaque));
+    // También eliminar capturas asociadas a este empaque
+    setCapturas(capturas.filter((c: any) => c.numero_empaque !== empaque));
+  };
+
   const handleAgregarCaptura = async () => {
-    if (!empaqueActivo && !origenSeleccionado) {
-      mostrarMensaje('warning', 'Capture un empaque o seleccione un origen manual');
+    if (empaquesActivos.length === 0 && !origenSeleccionado) {
+      mostrarMensaje('warning', 'Agregue al menos un empaque o seleccione un origen manual');
       return;
     }
     if (!palletActual) return;
@@ -349,33 +350,38 @@ const RP02Revision: React.FC = () => {
     const bom = bomInput.trim().toUpperCase();
     const nuevoId = obtenerSiguienteCaja();
 
-    // Verificar que no exista ya una captura con este número de caja
     const existeCaja = capturas.find((c: any) => c.caja === nuevoId);
     if (existeCaja) {
       mostrarMensaje('error', 'El ID de caja #' + nuevoId + ' ya existe. Recargue el pallet.');
       return;
     }
 
-    let origenFinal = origenSeleccionado || (empaqueActivo ? (empaqueActivo.origen || 'CD01') : 'CD01');
+    let origenFinal = origenSeleccionado || 'CD01';
     let cantidadSistema = 0;
-    let numeroEmpaque = empaqueActivo ? empaqueActivo.numero_empaque : '';
-
-    if (empaqueActivo && bom) {
-      try {
-        const resp = await fetch(
-          API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empaqueActivo.id + '&bom_sku=eq.' + encodeURIComponent(bom),
-          { headers: HEADERS }
-        );
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          cantidadSistema = data.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
-        }
-      } catch (e) {}
+    
+    // Si hay empaques activos y un BOM, buscar en el inventario
+    if (empaquesActivos.length > 0 && bom) {
+      for (const numEmp of empaquesActivos) {
+        try {
+          const respEmp = await fetch(API_URL + '/rp_inventario_empaques?select=id,origen&numero_empaque=eq.' + encodeURIComponent(numEmp), { headers: HEADERS });
+          const empData = await respEmp.json();
+          if (empData && empData.length > 0) {
+            const respBoms = await fetch(
+              API_URL + '/rp_inventario_boms?select=*&empaque_id=eq.' + empData[0].id + '&bom_sku=eq.' + encodeURIComponent(bom),
+              { headers: HEADERS }
+            );
+            const boms = await respBoms.json();
+            if (boms && boms.length > 0) {
+              cantidadSistema += boms.reduce((s: number, b: any) => s + (b.cantidad_maxima || 0), 0);
+              if (!origenSeleccionado) origenFinal = empData[0].origen || 'CD01';
+            }
+          }
+        } catch (e) {}
+      }
     }
 
-    if (!bom && origenSeleccionado) {
-      origenFinal = origenSeleccionado;
-    }
+    // Usar el primer empaque activo como numero_empaque, o el origen manual
+    const numeroEmpaque = empaquesActivos.length > 0 ? empaquesActivos[0] : (origenSeleccionado || '');
 
     const nuevaCaptura: any = {
       caja: nuevoId,
@@ -390,7 +396,6 @@ const RP02Revision: React.FC = () => {
     let nuevasCapturas: any[] = [...capturas, nuevaCaptura];
     nuevasCapturas.sort((a: any, b: any) => a.caja - b.caja);
 
-    // Verificar duplicados después de agregar
     const cajasArray = nuevasCapturas.map((c: any) => c.caja);
     const cajasUnicas = new Set(cajasArray);
     if (cajasUnicas.size !== cajasArray.length) {
@@ -398,7 +403,6 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
-    // Recalcular estados
     nuevasCapturas = recalcularEstados(nuevasCapturas);
 
     setCapturas(nuevasCapturas);
@@ -420,11 +424,18 @@ const RP02Revision: React.FC = () => {
       return;
     }
 
-    // Recalcular estados antes de guardar
     const capturasFinales = recalcularEstados(capturas);
 
     try {
       await fetch(API_URL + '/rp_documento_revisiones?pallet_id=eq.' + palletActual.id, { method: 'DELETE', headers: HEADERS });
+
+      // Guardar empaques en el pallet
+      const empaquesStr = empaquesActivos.join(',');
+      await fetch(API_URL + '/rp_documento_pallets?id=eq.' + palletActual.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numero_empaque: empaquesStr })
+      });
 
       for (const cap of capturasFinales) {
         await fetch(API_URL + '/rp_documento_revisiones', {
@@ -449,7 +460,7 @@ const RP02Revision: React.FC = () => {
       mostrarMensaje('success', 'Revisión finalizada - ' + capturasFinales.length + ' cajas guardadas');
       setPalletActual(null);
       setCapturas([]);
-      setEmpaqueActivo(null);
+      setEmpaquesActivos([]);
     } catch (e) { mostrarMensaje('error', 'Error al finalizar revisión'); }
   };
 
@@ -531,11 +542,11 @@ const RP02Revision: React.FC = () => {
       )}
 
       {mostrarRevisar && documentoSeleccionado && (
-        <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEmpaqueActivo(null); }}>
+        <div className="rp02-modal-overlay" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEmpaquesActivos([]); }}>
           <div className="rp02-modal" style={{ maxWidth: '950px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="rp02-modal-header">
               <h2>{documentoSeleccionado.id_documento} - Revisión</h2>
-              <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEmpaqueActivo(null); }}>×</button>
+              <button className="rp02-modal-close" onClick={() => { setMostrarRevisar(false); setPalletActual(null); setEmpaquesActivos([]); }}>×</button>
             </div>
             <div className="rp02-modal-body">
               {!palletActual ? (
@@ -569,7 +580,7 @@ const RP02Revision: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <button onClick={() => { setPalletActual(null); setEmpaqueActivo(null); }} className="rp02-btn" style={{ marginBottom: '16px' }}>
+                  <button onClick={() => { setPalletActual(null); setEmpaquesActivos([]); }} className="rp02-btn" style={{ marginBottom: '16px' }}>
                     ← Volver a Pallets
                   </button>
 
@@ -582,38 +593,48 @@ const RP02Revision: React.FC = () => {
                     </div>
 
                     <div style={{ marginBottom: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Capture el número de empaque para CD01/CD16, o seleccione un origen manual para otros centros.
+                      Capture números de empaque (CD01/CD16) o seleccione un origen manual.
                     </div>
 
+                    {/* Captura de empaques */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
                       <div className="rp02-form-group">
-                        <label className="rp02-form-label">N° Empaque (CD01/CD16)</label>
+                        <label className="rp02-form-label">N° Empaque</label>
                         <input ref={inputEmpaqueRef} type="text" className="rp02-form-input" value={inputEmpaque}
                           onChange={(e: any) => setInputEmpaque(e.target.value)}
                           onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleCapturarEmpaque(); } }}
                           placeholder="Escanear número de empaque..." />
                       </div>
                       <button className="rp02-btn-save" onClick={handleCapturarEmpaque} style={{ height: '42px', whiteSpace: 'nowrap' }}>
-                        Capturar
+                        Agregar
                       </button>
                     </div>
 
-                    {empaqueActivo && (
-                      <div style={{ 
-                        marginBottom: '10px', padding: '8px 12px', 
-                        background: 'var(--success-bg)', borderRadius: '6px',
-                        border: '1px solid var(--success-border)',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                      }}>
-                        <span style={{ fontSize: '13px', color: 'var(--success-text)' }}>
-                          Empaque activo: <strong>{empaqueActivo.numero_empaque}</strong> ({empaqueActivo.origen || 'CD01'} - {empaqueActivo.destino || ''})
-                        </span>
-                        <button onClick={() => setEmpaqueActivo(null)} style={{
-                          background: 'none', border: 'none', color: 'var(--success-text)', cursor: 'pointer', fontSize: '16px'
-                        }}>×</button>
+                    {/* Lista de empaques activos */}
+                    {empaquesActivos.length > 0 && (
+                      <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {empaquesActivos.map((emp: string, idx: number) => (
+                          <span key={idx} style={{
+                            padding: '6px 10px',
+                            background: 'var(--success-bg)',
+                            borderRadius: '6px',
+                            border: '1px solid var(--success-border)',
+                            fontSize: '12px',
+                            color: 'var(--success-text)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            {emp}
+                            <button onClick={() => handleEliminarEmpaque(emp)} style={{
+                              background: 'none', border: 'none', color: 'var(--error-text)', cursor: 'pointer', fontSize: '14px', padding: '0'
+                            }}>×</button>
+                          </span>
+                        ))}
                       </div>
                     )}
 
+                    {/* Captura de BOM */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
                       <div className="rp02-form-group">
                         <label className="rp02-form-label">BOM/SKU</label>
@@ -634,9 +655,10 @@ const RP02Revision: React.FC = () => {
                       </button>
                     </div>
 
+                    {/* Origen manual */}
                     <div className="rp02-form-group">
                       <label className="rp02-form-label" style={{ fontSize: '11px', marginBottom: '4px' }}>
-                        Origen manual (opcional, para otros centros sin empaque)
+                        Origen manual (opcional)
                       </label>
                       <select className="rp02-form-input" value={origenSeleccionado} onChange={(e: any) => setOrigenSeleccionado(e.target.value)}>
                         <option value="">Usar empaque capturado</option>
@@ -734,7 +756,7 @@ const RP02Revision: React.FC = () => {
 
                   {capturas.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-placeholder)', fontSize: '13px' }}>
-                      No hay capturas registradas. Capture un empaque y agregue cajas.
+                      No hay capturas registradas.
                     </div>
                   )}
                 </>
