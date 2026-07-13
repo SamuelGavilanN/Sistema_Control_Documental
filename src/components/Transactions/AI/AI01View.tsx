@@ -16,7 +16,7 @@ const AI01View: React.FC = () => {
   const [cargando, setCargando]: any = useState(true);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
   const [empaqueExpandido, setEmpaqueExpandido]: any = useState(null);
-  const [empaqueSeleccionado, setEmpaqueSeleccionado]: any = useState(null);
+  const [empaquesSeleccionados, setEmpaquesSeleccionados]: any = useState(new Set());
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
@@ -114,6 +114,65 @@ const AI01View: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  const toggleSeleccion = (empaqueId: string) => {
+    const nuevos = new Set(empaquesSeleccionados);
+    if (nuevos.has(empaqueId)) {
+      nuevos.delete(empaqueId);
+    } else {
+      nuevos.add(empaqueId);
+    }
+    setEmpaquesSeleccionados(nuevos);
+  };
+
+  const toggleSeleccionarTodos = () => {
+    if (empaquesSeleccionados.size === empaques.length) {
+      setEmpaquesSeleccionados(new Set());
+    } else {
+      setEmpaquesSeleccionados(new Set(empaques.map((e: any) => e.id)));
+    }
+  };
+
+  const handleEliminarSeleccionados = async () => {
+    if (empaquesSeleccionados.size === 0) {
+      mostrarMensaje('warning', 'Seleccione al menos un empaque');
+      return;
+    }
+    
+    const nombres = empaques
+      .filter((e: any) => empaquesSeleccionados.has(e.id))
+      .map((e: any) => e.numero_empaque)
+      .join(', ');
+    
+    if (!window.confirm('¿Eliminar ' + empaquesSeleccionados.size + ' empaque(s)?\n\n' + nombres)) return;
+    
+    setCargando(true);
+    let eliminados = 0;
+    let errores = 0;
+    
+    for (const id of empaquesSeleccionados) {
+      try {
+        const resp = await fetch(API_URL + '/ai_inventario?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
+        if (resp.ok) {
+          eliminados++;
+        } else {
+          errores++;
+        }
+      } catch (e) {
+        errores++;
+      }
+    }
+    
+    if (errores === 0) {
+      mostrarMensaje('success', eliminados + ' empaque(s) eliminado(s) correctamente');
+    } else {
+      mostrarMensaje('warning', eliminados + ' eliminado(s), ' + errores + ' error(es)');
+    }
+    
+    setEmpaquesSeleccionados(new Set());
+    setEmpaqueExpandido(null);
+    cargarInventario();
+  };
+
   const procesarArchivo = async (file: File) => {
     setCargando(true);
     try {
@@ -133,11 +192,10 @@ const AI01View: React.FC = () => {
 
       const colEmpaque = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('empaque'));
       
-      // Buscar Última modificación en (flexible con acentos)
       const colUltimaMod = headers.findIndex((h: string) => {
         if (!h) return false;
         const header = h.toString().toLowerCase().trim();
-        const tieneUltima = header.includes('ltima'); // captura "Última" y "Ultima"
+        const tieneUltima = header.includes('ltima');
         const tieneModificacion = header.includes('modificacion') || header.includes('modificación');
         const tieneEn = header.endsWith('en') || header.includes(' en');
         const tienePor = header.includes('por');
@@ -154,7 +212,6 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      // Función para truncar fecha a minutos
       const truncarAMinutos = (fechaStr: string): string => {
         if (!fechaStr) return '';
         const partes = fechaStr.trim().split(' ');
@@ -167,7 +224,6 @@ const AI01View: React.FC = () => {
         return fechaStr.trim();
       };
 
-      // Agrupar por Empaque + BOM + Minuto para contar cajas únicas
       const conteoCajas: Record<string, number> = {};
       
       dataRows.forEach((row: any) => {
@@ -184,7 +240,6 @@ const AI01View: React.FC = () => {
         conteoCajas[keyCaja] = 1;
       });
 
-      // Agrupar por Empaque + BOM y sumar las cajas
       const consolidado: Record<string, any> = {};
       Object.keys(conteoCajas).forEach((keyCaja) => {
         const partes = keyCaja.split('|');
@@ -198,7 +253,6 @@ const AI01View: React.FC = () => {
         consolidado[key].cantidad += 1;
       });
 
-      // Obtener cod_destino y destino del primer registro de cada empaque
       const infoEmpaques: Record<string, any> = {};
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
@@ -209,7 +263,6 @@ const AI01View: React.FC = () => {
         }
       });
 
-      // Guardar en BD
       const empaquesMap: Record<string, any> = {};
       Object.values(consolidado).forEach((item: any) => {
         if (!empaquesMap[item.empaque]) {
@@ -281,18 +334,6 @@ const AI01View: React.FC = () => {
     setCargando(false);
   };
 
-  const handleEliminarEmpaque = async () => {
-    if (!empaqueSeleccionado) { mostrarMensaje('warning', 'Seleccione un empaque'); return; }
-    if (!window.confirm('¿Eliminar empaque ' + empaqueSeleccionado.numero_empaque + '?')) return;
-    try {
-      await fetch(API_URL + '/ai_inventario?id=eq.' + empaqueSeleccionado.id, { method: 'DELETE', headers: HEADERS });
-      mostrarMensaje('success', 'Empaque eliminado');
-      setEmpaqueSeleccionado(null);
-      setEmpaqueExpandido(null);
-      cargarInventario();
-    } catch (e) { mostrarMensaje('error', 'Error al eliminar'); }
-  };
-
   const toggleExpandir = (empaque: any) => {
     setEmpaqueExpandido(empaqueExpandido && empaqueExpandido.id === empaque.id ? null : empaque);
   };
@@ -329,21 +370,36 @@ const AI01View: React.FC = () => {
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
           onChange={(e: any) => { const file = e.target.files?.[0]; if (file) procesarArchivo(file); }} />
         <div className="ai01-separator"></div>
-        <button className="ai01-btn" onClick={() => empaqueSeleccionado && toggleExpandir(empaqueSeleccionado)} disabled={!empaqueSeleccionado}>
+        <button className="ai01-btn" onClick={() => empaqueExpandido && toggleExpandir(empaqueExpandido)} disabled={!empaqueExpandido}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Ver Detalle
         </button>
-        <button className="ai01-btn ai01-btn-danger" onClick={handleEliminarEmpaque} disabled={!empaqueSeleccionado}>
+        <button className="ai01-btn ai01-btn-danger" onClick={handleEliminarSeleccionados} disabled={empaquesSeleccionados.size === 0}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Eliminar
+          Eliminar ({empaquesSeleccionados.size})
         </button>
       </div>
+
+      {empaquesSeleccionados.size > 0 && (
+        <div className="ai02-selected-info">
+          <span>{empaquesSeleccionados.size} empaque(s) seleccionado(s)</span>
+          <button className="ai02-selected-close" onClick={() => setEmpaquesSeleccionados(new Set())}>×</button>
+        </div>
+      )}
 
       <div style={{ overflowX: 'auto' }}>
         <table className="ed03-tabla" style={{ minWidth: '1100px' }}>
           <thead>
             <tr>
-              <th style={{ width: '40px' }}></th>
+              <th style={{ width: '40px', textAlign: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  className="sd01-radio"
+                  checked={empaques.length > 0 && empaquesSeleccionados.size === empaques.length}
+                  onChange={toggleSeleccionarTodos}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
               <th>Número de Empaque</th>
               <th>Cod. Destino</th>
               <th>Destino</th>
@@ -360,11 +416,20 @@ const AI01View: React.FC = () => {
             ) : (
               empaques.map((empaque: any) => {
                 const eb = getEstadoBadge(empaque.estado);
+                const seleccionado = empaquesSeleccionados.has(empaque.id);
                 return (
                   <React.Fragment key={empaque.id}>
-                    <tr onClick={() => setEmpaqueSeleccionado(empaqueSeleccionado && empaqueSeleccionado.id === empaque.id ? null : empaque)}
-                      style={{ cursor: 'pointer', background: empaqueSeleccionado && empaqueSeleccionado.id === empaque.id ? 'var(--table-row-selected)' : 'transparent' }}>
-                      <td><input type="radio" className="sd01-radio" checked={empaqueSeleccionado && empaqueSeleccionado.id === empaque.id} onChange={() => setEmpaqueSeleccionado(empaque)} onClick={(e: any) => e.stopPropagation()} /></td>
+                    <tr 
+                      onClick={() => toggleExpandir(empaque)}
+                      style={{ cursor: 'pointer', background: seleccionado ? 'var(--table-row-selected)' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }} onClick={(e: any) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          className="sd01-radio"
+                          checked={seleccionado}
+                          onChange={() => toggleSeleccion(empaque.id)}
+                        />
+                      </td>
                       <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{empaque.numero_empaque}</td>
                       <td>{empaque.cod_destino || '-'}</td>
                       <td>{empaque.destino || '-'}</td>
@@ -375,33 +440,35 @@ const AI01View: React.FC = () => {
                       <td><span className="ai01-badge" style={{ background: eb.bg, color: eb.color }}>{empaque.estado}</span></td>
                     </tr>
                     {empaqueExpandido && empaqueExpandido.id === empaque.id && (
-                      <tr><td colSpan={9} style={{ padding: '0' }}>
-                        <div style={{ padding: '16px', background: 'var(--bg-section)' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                            <thead><tr style={{ background: 'var(--table-header-bg)' }}><th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--table-header-text)' }}>BOM/SKU</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Sistema</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Revisada</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Estado</th></tr></thead>
-                            <tbody>
-                              {empaque.boms.map((bom: any) => {
-                                const pendiente = Math.max(0, bom.cantidad_maxima - (bom.cantidad_revisada || 0));
-                                return (
-                                  <tr key={bom.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <td style={{ padding: '6px 10px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{bom.bom_sku}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: (bom.cantidad_revisada || 0) > 0 ? 'var(--success-text)' : 'var(--text-muted)', fontWeight: 600 }}>{bom.cantidad_revisada || 0}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                                      <span className="ai01-badge" style={{
-                                        background: pendiente === 0 ? 'var(--success-bg)' : ((bom.cantidad_revisada || 0) > 0 ? 'var(--warning-bg)' : 'var(--bg-readonly)'),
-                                        color: pendiente === 0 ? 'var(--success-text)' : ((bom.cantidad_revisada || 0) > 0 ? 'var(--warning-text)' : 'var(--text-muted)')
-                                      }}>
-                                        {pendiente === 0 ? 'Completo' : ((bom.cantidad_revisada || 0) > 0 ? 'Parcial' : 'Pendiente')}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </td></tr>
+                      <tr>
+                        <td colSpan={9} style={{ padding: '0' }}>
+                          <div style={{ padding: '16px', background: 'var(--bg-section)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                              <thead><tr style={{ background: 'var(--table-header-bg)' }}><th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--table-header-text)' }}>BOM/SKU</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Sistema</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cant. Revisada</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Estado</th></tr></thead>
+                              <tbody>
+                                {empaque.boms.map((bom: any) => {
+                                  const pendiente = Math.max(0, bom.cantidad_maxima - (bom.cantidad_revisada || 0));
+                                  return (
+                                    <tr key={bom.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                      <td style={{ padding: '6px 10px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{bom.bom_sku}</td>
+                                      <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td>
+                                      <td style={{ padding: '6px 10px', textAlign: 'center', color: (bom.cantidad_revisada || 0) > 0 ? 'var(--success-text)' : 'var(--text-muted)', fontWeight: 600 }}>{bom.cantidad_revisada || 0}</td>
+                                      <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                                        <span className="ai01-badge" style={{
+                                          background: pendiente === 0 ? 'var(--success-bg)' : ((bom.cantidad_revisada || 0) > 0 ? 'var(--warning-bg)' : 'var(--bg-readonly)'),
+                                          color: pendiente === 0 ? 'var(--success-text)' : ((bom.cantidad_revisada || 0) > 0 ? 'var(--warning-text)' : 'var(--text-muted)')
+                                        }}>
+                                          {pendiente === 0 ? 'Completo' : ((bom.cantidad_revisada || 0) > 0 ? 'Parcial' : 'Pendiente')}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
                     )}
                   </React.Fragment>
                 );
