@@ -202,6 +202,21 @@ const AI02Captura: React.FC = () => {
     } catch (e) { mostrarMensaje('error', 'Error al crear tarea'); }
   };
 
+  const handleEliminarTarea = async (tarea: any) => {
+    if (!window.confirm('¿Eliminar la tarea ' + tarea.numero_tarea + ' y todas sus capturas? Esta acción no se puede deshacer.')) return;
+    
+    try {
+      await fetch(API_URL + '/ai_capturas?tarea_id=eq.' + tarea.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/ai_tarea_empaques?tarea_id=eq.' + tarea.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/ai_tareas?id=eq.' + tarea.id, { method: 'DELETE', headers: HEADERS });
+      
+      mostrarMensaje('success', 'Tarea ' + tarea.numero_tarea + ' eliminada correctamente');
+      cargarTareas();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al eliminar la tarea');
+    }
+  };
+
   const handleIniciarTarea = async (tarea: any) => {
     setTareaSeleccionada(tarea);
 
@@ -297,14 +312,12 @@ const AI02Captura: React.FC = () => {
   const handleEliminarCaptura = async (index: number) => {
     const captura = capturas[index];
 
-    // Eliminar de la BD si tiene ID real
     if (captura.id && captura.id.length > 20) {
       try {
         await fetch(API_URL + '/ai_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS });
       } catch (e) {}
     }
 
-    // Si era un BOM del sistema, decrementar contador
     if (!captura.esNoEncontrado) {
       const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
       if (bomEsperado && bomEsperado.cantidad_revisada > 0) {
@@ -514,6 +527,11 @@ const AI02Captura: React.FC = () => {
                     {(tarea.estado === 'Pendiente' || tarea.estado === 'En Proceso') && (
                       <button className="ai02-btn ai02-btn-primary" onClick={() => handleIniciarTarea(tarea)} style={{ fontSize: '11px', padding: '5px 10px' }}>
                         {tarea.estado === 'Pendiente' ? 'Iniciar' : 'Continuar'}
+                      </button>
+                    )}
+                    {tarea.estado === 'Pendiente' && (
+                      <button className="ai02-btn ai02-btn-danger" onClick={(e) => { e.stopPropagation(); handleEliminarTarea(tarea); }} style={{ fontSize: '11px', padding: '5px 10px' }}>
+                        Eliminar
                       </button>
                     )}
                     {(tarea.estado === 'Finalizado' || tarea.estado === 'Con Diferencias') && (
