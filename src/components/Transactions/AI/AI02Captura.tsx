@@ -529,11 +529,6 @@ const AI02Captura: React.FC = () => {
                         {tarea.estado === 'Pendiente' ? 'Iniciar' : 'Continuar'}
                       </button>
                     )}
-                    {tarea.estado === 'Pendiente' && (
-                      <button className="ai02-btn ai02-btn-danger" onClick={(e) => { e.stopPropagation(); handleEliminarTarea(tarea); }} style={{ fontSize: '11px', padding: '5px 10px' }}>
-                        Eliminar
-                      </button>
-                    )}
                     {(tarea.estado === 'Finalizado' || tarea.estado === 'Con Diferencias') && (
                       <>
                         <button className="ai02-btn" onClick={() => handleVerDetalle(tarea)} style={{ fontSize: '11px', padding: '5px 10px' }}>Ver</button>
@@ -541,6 +536,9 @@ const AI02Captura: React.FC = () => {
                       </>
                     )}
                     <button className="ai02-btn" onClick={() => handleExportarExcel(tarea)} style={{ fontSize: '11px', padding: '5px 10px' }}>Excel</button>
+                    <button className="ai02-btn ai02-btn-danger" onClick={(e) => { e.stopPropagation(); handleEliminarTarea(tarea); }} style={{ fontSize: '11px', padding: '5px 10px' }}>
+                      Eliminar
+                    </button>
                   </div>
                 </div>
               </div>
