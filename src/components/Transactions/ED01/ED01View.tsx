@@ -1,4 +1,4 @@
-// src/components/Transactions/ED/ED01View.tsx
+// src/components/Transactions/ED01/ED01View.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
@@ -88,11 +88,40 @@ const ED01View: React.FC = () => {
   const cargarRegistros = async (mostrarCargando: boolean = false) => {
     try {
       if (mostrarCargando) setCargando(true);
-      const { data, error } = await supabase.from('ed01_empaques').select('*').order(ordenColumna, { ascending: ordenDireccion === 'asc' });
-      if (error) throw error;
-      let datosFiltrados = data || [];
+      
+      // Cargar todos los registros con paginación
+      let todosLosDatos: any[] = [];
+      let offset = 0;
+      const limit = 1000;
+      let hayMas = true;
+
+      while (hayMas) {
+        const { data, error } = await supabase
+          .from('ed01_empaques')
+          .select('*')
+          .order(ordenColumna, { ascending: ordenDireccion === 'asc' })
+          .range(offset, offset + limit - 1);
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          todosLosDatos = [...todosLosDatos, ...data];
+          offset += limit;
+          
+          if (data.length < limit) {
+            hayMas = false;
+          }
+        } else {
+          hayMas = false;
+        }
+      }
+      
+      // Aplicar filtros
+      let datosFiltrados = todosLosDatos;
       filtros.forEach((filtro: any) => {
-        const col = filtro.columna; const op = filtro.operador; const val = (filtro.valor || '').toLowerCase();
+        const col = filtro.columna;
+        const op = filtro.operador;
+        const val = (filtro.valor || '').toLowerCase();
         if (!col) return;
         datosFiltrados = datosFiltrados.filter((item: any) => {
           const itemVal = item[col];
@@ -100,15 +129,23 @@ const ED01View: React.FC = () => {
           if (op === 'no_vacio') return itemVal !== null && itemVal !== '' && itemVal !== undefined;
           if (val === '') return true;
           const itemStr = String(itemVal || '').toLowerCase();
-          if (op === 'igual') return itemStr === val; if (op === 'mayor') return Number(itemVal) > Number(val);
-          if (op === 'menor') return Number(itemVal) < Number(val); if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
-          if (op === 'menor_igual') return Number(itemVal) <= Number(val); if (op === 'contiene') return itemStr.includes(val);
-          if (op === 'no_contiene') return !itemStr.includes(val); return true;
+          if (op === 'igual') return itemStr === val;
+          if (op === 'mayor') return Number(itemVal) > Number(val);
+          if (op === 'menor') return Number(itemVal) < Number(val);
+          if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
+          if (op === 'menor_igual') return Number(itemVal) <= Number(val);
+          if (op === 'contiene') return itemStr.includes(val);
+          if (op === 'no_contiene') return !itemStr.includes(val);
+          return true;
         });
       });
+      
       setRegistros(datosFiltrados);
-    } catch (error) { console.error('Error:', error); }
-    finally { if (mostrarCargando) setCargando(false); }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      if (mostrarCargando) setCargando(false);
+    }
   };
 
   const handleNuevo = () => {
@@ -168,7 +205,6 @@ const ED01View: React.FC = () => {
     try {
       const user = auth.getUsuario();
       if (modoModal === 'nuevo') {
-        // Obtener siguiente empaque del lote activo via RPC
         const { data: idData, error: idError } = await supabase.rpc('obtener_siguiente_empaque');
         if (idError) {
           alert('Error al obtener empaque: ' + idError.message);
