@@ -16,6 +16,7 @@ const SD01View: React.FC = () => {
   const [transportes, setTransportes]: any = useState([]);
   const [cargando, setCargando]: any = useState(true);
   const [transporteSeleccionado, setTransporteSeleccionado]: any = useState(null);
+  const [transportesSeleccionados, setTransportesSeleccionados]: any = useState(new Set());
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
   const [mostrarCrearTransporte, setMostrarCrearTransporte]: any = useState(false);
   const [mostrarEditarTransporte, setMostrarEditarTransporte]: any = useState(false);
@@ -107,12 +108,77 @@ const SD01View: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  const toggleSeleccion = (transporteId: string) => {
+    const nuevos = new Set(transportesSeleccionados);
+    if (nuevos.has(transporteId)) {
+      nuevos.delete(transporteId);
+    } else {
+      nuevos.add(transporteId);
+    }
+    setTransportesSeleccionados(nuevos);
+  };
+
+  const toggleSeleccionarTodos = () => {
+    if (transportesSeleccionados.size === transportes.length) {
+      setTransportesSeleccionados(new Set());
+    } else {
+      setTransportesSeleccionados(new Set(transportes.map((t: any) => t.id)));
+    }
+  };
+
   const handleSeleccionarTransporte = (transporte: any) => {
     if (transporteSeleccionado && transporteSeleccionado.id === transporte.id) {
       setTransporteSeleccionado(null);
     } else {
       setTransporteSeleccionado(transporte);
     }
+  };
+
+  const handleEliminarSeleccionados = async () => {
+    if (transportesSeleccionados.size === 0) {
+      mostrarMensaje('warning', 'Seleccione al menos un transporte');
+      return;
+    }
+
+    const seleccionados = transportes.filter((t: any) => transportesSeleccionados.has(t.id));
+    const soloPendientes = seleccionados.every((t: any) => t.estado === 'Pendiente');
+    
+    if (!soloPendientes) {
+      mostrarMensaje('error', 'Solo se pueden eliminar transportes en estado Pendiente');
+      return;
+    }
+
+    const ids = seleccionados.map((t: any) => t.id_documento).join(', ');
+    if (!window.confirm('¿Eliminar ' + transportesSeleccionados.size + ' transporte(s)?\n\n' + ids)) return;
+
+    let eliminados = 0;
+    let errores = 0;
+
+    for (const t of seleccionados) {
+      try {
+        // Eliminar locales primero
+        await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
+        // Eliminar documento
+        const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
+        if (resp.ok) {
+          eliminados++;
+        } else {
+          errores++;
+        }
+      } catch (e) {
+        errores++;
+      }
+    }
+
+    if (errores === 0) {
+      mostrarMensaje('success', eliminados + ' transporte(s) eliminado(s) correctamente');
+    } else {
+      mostrarMensaje('warning', eliminados + ' eliminado(s), ' + errores + ' error(es)');
+    }
+
+    setTransportesSeleccionados(new Set());
+    setTransporteSeleccionado(null);
+    cargarTransportes();
   };
 
   const handleCrearTransporte = () => {
@@ -346,6 +412,17 @@ const SD01View: React.FC = () => {
           Cancelar
         </button>
 
+        <button 
+          className="sd01-btn sd01-btn-danger" 
+          onClick={handleEliminarSeleccionados}
+          disabled={transportesSeleccionados.size === 0}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Eliminar ({transportesSeleccionados.size})
+        </button>
+
         <div className="sd01-separator"></div>
 
         <button 
@@ -386,6 +463,13 @@ const SD01View: React.FC = () => {
         </button>
       </div>
 
+      {transportesSeleccionados.size > 0 && (
+        <div className="sd01-selected-info">
+          <span>{transportesSeleccionados.size} transporte(s) seleccionado(s)</span>
+          <button className="sd01-selected-close" onClick={() => setTransportesSeleccionados(new Set())}>×</button>
+        </div>
+      )}
+
       {transporteSeleccionado && (
         <div className="sd01-selected-info">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -403,6 +487,15 @@ const SD01View: React.FC = () => {
           <table className="sd01-table">
             <thead>
               <tr>
+                <th style={{ width: '30px', textAlign: 'center' }}>
+                  <input 
+                    type="checkbox" 
+                    className="sd01-radio"
+                    checked={transportes.length > 0 && transportesSeleccionados.size === transportes.length}
+                    onChange={toggleSeleccionarTodos}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </th>
                 <th style={{ width: '40px' }}></th>
                 <th>ID Transporte</th>
                 <th>Fecha Programación</th>
@@ -420,41 +513,52 @@ const SD01View: React.FC = () => {
             <tbody>
               {transportes.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                  <td colSpan={13} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                     No hay transportes registrados
                   </td>
                 </tr>
               ) : (
-                transportes.map((transporte: any) => (
-                  <tr
-                    key={transporte.id}
-                    onClick={() => handleSeleccionarTransporte(transporte)}
-                    className={transporteSeleccionado && transporteSeleccionado.id === transporte.id ? 'sd01-row-selected' : ''}
-                  >
-                    <td>
-                      <input
-                        type="radio"
-                        className="sd01-radio"
-                        checked={transporteSeleccionado && transporteSeleccionado.id === transporte.id}
-                        onChange={() => handleSeleccionarTransporte(transporte)}
-                        onClick={(e: any) => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="sd01-id-documento">{transporte.id_documento}</td>
-                    <td>{formatearFecha(transporte.fecha_programacion)}</td>
-                    <td>{transporte.conductor_nombre}</td>
-                    <td>{transporte.patente_principal}</td>
-                    <td>{transporte.administrativo || '-'}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className="sd01-locales-badge">{transporte.cantidad_locales || 0}</span>
-                    </td>
-                    <td>{getEstadoBadge(transporte.estado)}</td>
-                    <td>{transporte.creado_por_nombre || '-'}</td>
-                    <td style={{ fontSize: '12px', color: '#64748b' }}>{formatearFechaHora(transporte.creado_en)}</td>
-                    <td>{transporte.modificado_por || '-'}</td>
-                    <td style={{ fontSize: '12px', color: '#64748b' }}>{transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}</td>
-                  </tr>
-                ))
+                transportes.map((transporte: any) => {
+                  const seleccionado = transportesSeleccionados.has(transporte.id);
+                  return (
+                    <tr
+                      key={transporte.id}
+                      className={transporteSeleccionado && transporteSeleccionado.id === transporte.id ? 'sd01-row-selected' : ''}
+                      style={{ background: seleccionado ? 'var(--table-row-selected)' : 'transparent' }}
+                    >
+                      <td style={{ textAlign: 'center' }} onClick={(e: any) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="sd01-radio"
+                          checked={seleccionado}
+                          onChange={() => toggleSeleccion(transporte.id)}
+                        />
+                      </td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>
+                        <input
+                          type="radio"
+                          className="sd01-radio"
+                          checked={transporteSeleccionado && transporteSeleccionado.id === transporte.id}
+                          onChange={() => handleSeleccionarTransporte(transporte)}
+                          onClick={(e: any) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="sd01-id-documento" onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.id_documento}</td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{formatearFecha(transporte.fecha_programacion)}</td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.conductor_nombre}</td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.patente_principal}</td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.administrativo || '-'}</td>
+                      <td style={{ textAlign: 'center' }} onClick={() => handleSeleccionarTransporte(transporte)}>
+                        <span className="sd01-locales-badge">{transporte.cantidad_locales || 0}</span>
+                      </td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{getEstadoBadge(transporte.estado)}</td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.creado_por_nombre || '-'}</td>
+                      <td style={{ fontSize: '12px', color: '#64748b' }} onClick={() => handleSeleccionarTransporte(transporte)}>{formatearFechaHora(transporte.creado_en)}</td>
+                      <td onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.modificado_por || '-'}</td>
+                      <td style={{ fontSize: '12px', color: '#64748b' }} onClick={() => handleSeleccionarTransporte(transporte)}>{transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
