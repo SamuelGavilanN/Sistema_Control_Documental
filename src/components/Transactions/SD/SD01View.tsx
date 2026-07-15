@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { auth } from '../../../lib/auth';
 import SD01CrearTransporte from './SD01CrearTransporte';
 import SD01VerTransporte from './SD01VerTransporte';
+import SD01CargaExcel from './SD01CargaExcel';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -21,6 +22,7 @@ const SD01View: React.FC = () => {
   const [mostrarCrearTransporte, setMostrarCrearTransporte]: any = useState(false);
   const [mostrarEditarTransporte, setMostrarEditarTransporte]: any = useState(false);
   const [mostrarVerTransporte, setMostrarVerTransporte]: any = useState(false);
+  const [mostrarCargaExcel, setMostrarCargaExcel]: any = useState(false);
   const [usuariosAdmin, setUsuariosAdmin]: any = useState([]);
   const [mostrarAsignarModal, setMostrarAsignarModal]: any = useState(false);
   const [usuarioAsignar, setUsuarioAsignar]: any = useState('');
@@ -117,7 +119,6 @@ const SD01View: React.FC = () => {
     }
     setTransportesSeleccionados(nuevos);
     
-    // Si solo hay uno seleccionado, usarlo como transporteSeleccionado
     if (nuevos.size === 1) {
       const seleccionado = transportes.find((t: any) => nuevos.has(t.id));
       setTransporteSeleccionado(seleccionado || null);
@@ -199,7 +200,13 @@ const SD01View: React.FC = () => {
   };
 
   const handleCargarTransporte = () => {
-    mostrarMensaje('info', 'Funcionalidad de carga masiva en desarrollo');
+    setMostrarCargaExcel(true);
+  };
+
+  const handleCargaExcelCompletada = () => {
+    setMostrarCargaExcel(false);
+    cargarTransportes();
+    mostrarMensaje('success', 'Transportes creados exitosamente');
   };
 
   const handleEditarTransporte = () => {
@@ -560,6 +567,13 @@ const SD01View: React.FC = () => {
         <SD01VerTransporte
           onClose={() => setMostrarVerTransporte(false)}
           transporte={transporteSeleccionado}
+        />
+      )}
+
+      {mostrarCargaExcel && (
+        <SD01CargaExcel
+          onClose={() => setMostrarCargaExcel(false)}
+          onTransportesCreados={handleCargaExcelCompletada}
         />
       )}
 
