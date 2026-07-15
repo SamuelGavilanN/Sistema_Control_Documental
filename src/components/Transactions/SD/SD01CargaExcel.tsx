@@ -99,8 +99,11 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         const fechaEntrega = colFechaEntrega >= 0 ? String(row[colFechaEntrega] || '').trim() : '';
         const horaEntrega = colHoraEntrega >= 0 ? String(row[colHoraEntrega] || '').trim() : '';
 
-        // Fila en blanco (sin conductor, vehículo ni codTI) = separador de ruta
-        if (!conductor && !vehiculo && !codTI) {
+        // Detectar fila en blanco: sin codTI, sin conductor, sin vehiculo
+        const esFilaVacia = !codTI && !conductor && !vehiculo;
+        
+        if (esFilaVacia) {
+          // Finalizar transporte actual
           if (transporteActual && transporteActual.locales.length > 0) {
             transportes.push(transporteActual);
           }
@@ -108,10 +111,12 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           continue;
         }
 
+        // Si no tiene codTI, saltar (puede ser fila de encabezado o información adicional)
         if (!codTI) continue;
 
         const claveRuta = conductor + '|' + vehiculo;
 
+        // Si no hay transporte actual O cambió el conductor/vehículo, crear nuevo transporte
         if (!transporteActual || transporteActual.claveRuta !== claveRuta) {
           if (transporteActual && transporteActual.locales.length > 0) {
             transportes.push(transporteActual);
@@ -184,7 +189,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           if (conductorData && conductorData.length > 0) {
             conductorId = conductorData[0].id;
           } else {
-            // Crear conductor si no existe
             const respNuevo = await fetch(API_URL + '/conductores', {
               method: 'POST',
               headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -214,7 +218,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           if (patenteData && patenteData.length > 0) {
             patenteId = patenteData[0].id;
           } else {
-            // Crear patente si no existe
             const respNueva = await fetch(API_URL + '/patentes', {
               method: 'POST',
               headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -373,6 +376,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
                 <table className="ed03-tabla" style={{ fontSize: '12px' }}>
                   <thead>
                     <tr>
+                      <th>#</th>
                       <th>Conductor</th>
                       <th>Vehículo</th>
                       <th style={{ textAlign: 'center' }}>Locales</th>
@@ -382,6 +386,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
                   <tbody>
                     {resumen.transportes.map((t: any, idx: number) => (
                       <tr key={idx}>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{idx + 1}</td>
                         <td>{t.conductor}</td>
                         <td style={{ fontFamily: 'Courier New, monospace' }}>{t.vehiculo}</td>
                         <td style={{ textAlign: 'center' }}>{t.locales.length}</td>
