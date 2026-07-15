@@ -71,27 +71,31 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       const headers = rows[2];
       const dataRows = rows.slice(3);
 
+      // Buscar columnas
       const colCodTI = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cód ti'));
+      const colTienda = headers.findIndex((h: string) => {
+        if (!h) return false;
+        const header = h.toString().toLowerCase().trim();
+        return header === 'tienda' || header.includes('tienda');
+      });
       const colBultos = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('bultos'));
       const colConductor = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('conductor'));
       const colVehiculo = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('vehículo'));
       const colFechaEntrega = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('fecha entrega'));
       const colHoraEntrega = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('hora entrega'));
 
-      if (colCodTI < 0 || colConductor < 0 || colVehiculo < 0) {
-        setMensaje({ tipo: 'error', texto: 'Columnas requeridas no encontradas: Cód TI, Conductor, Vehículo' });
+      if (colCodTI < 0) {
+        setMensaje({ tipo: 'error', texto: 'Columna Cód TI no encontrada' });
         setProcesando(false);
         return;
       }
 
       // Agrupar filas por transporte
-      // Cada bloque separado por filas sin Cód TI es un transporte independiente
       const transportes: any[] = [];
       let transporteActual: any = null;
 
       for (const row of dataRows) {
         if (!row || row.length === 0) {
-          // Fila completamente vacía
           if (transporteActual && transporteActual.locales.length > 0) {
             transportes.push(transporteActual);
           }
@@ -100,13 +104,13 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         }
 
         const codTI = String(row[colCodTI] || '').trim();
-        const conductor = String(row[colConductor] || '').trim();
-        const vehiculo = String(row[colVehiculo] || '').trim();
+        const tienda = colTienda >= 0 ? String(row[colTienda] || '').trim() : '';
+        const conductor = colConductor >= 0 ? String(row[colConductor] || '').trim() : '';
+        const vehiculo = colVehiculo >= 0 ? String(row[colVehiculo] || '').trim() : '';
         const bultos = colBultos >= 0 ? parseInt(row[colBultos]) || 0 : 0;
         const fechaEntrega = colFechaEntrega >= 0 ? String(row[colFechaEntrega] || '').trim() : '';
         const horaEntrega = colHoraEntrega >= 0 ? String(row[colHoraEntrega] || '').trim() : '';
 
-        // Si no hay código de tienda, es un separador de transporte
         if (!codTI) {
           if (transporteActual && transporteActual.locales.length > 0) {
             transportes.push(transporteActual);
@@ -115,7 +119,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           continue;
         }
 
-        // Si no hay transporte actual, crear uno nuevo
         if (!transporteActual) {
           transporteActual = {
             conductor,
@@ -127,13 +130,13 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
         transporteActual.locales.push({
           codigo_local: codTI,
+          nombre_local: tienda,
           bultos,
           fechaEntrega,
           horaEntrega
         });
       }
 
-      // Agregar último transporte
       if (transporteActual && transporteActual.locales.length > 0) {
         transportes.push(transporteActual);
       }
@@ -160,6 +163,25 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
     setProcesando(false);
   };
 
+  const handleEliminarTransporte = (index: number) => {
+    if (!resumen) return;
+    const nuevosTransportes = resumen.transportes.filter((_: any, i: number) => i !== index);
+    if (nuevosTransportes.length === 0) {
+      setResumen(null);
+      setArchivo(null);
+      setArchivoNombre('');
+      setMensaje({ tipo: '', texto: '' });
+      return;
+    }
+    setResumen({
+      ...resumen,
+      totalTransportes: nuevosTransportes.length,
+      totalLocales: nuevosTransportes.reduce((s: number, t: any) => s + t.locales.length, 0),
+      totalBultos: nuevosTransportes.reduce((s: number, t: any) => s + t.locales.reduce((ss: number, l: any) => ss + l.bultos, 0), 0),
+      transportes: nuevosTransportes
+    });
+  };
+
   const handleGuardar = async () => {
     if (!resumen) return;
 
@@ -171,61 +193,65 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       try {
         // Buscar o crear conductor
         let conductorId = null;
-        const partesNombre = trans.conductor.split(' ');
-        const nombre = partesNombre[0] || '';
-        const apellido = partesNombre.slice(1).join(' ') || '';
+        if (trans.conductor) {
+          const partesNombre = trans.conductor.split(' ');
+          const nombre = partesNombre[0] || '';
+          const apellido = partesNombre.slice(1).join(' ') || '';
 
-        if (nombre) {
-          const respConductor = await fetch(
-            API_URL + '/conductores?select=id&nombre=ilike.' + encodeURIComponent(nombre) + '&apellido=ilike.' + encodeURIComponent(apellido),
-            { headers: HEADERS }
-          );
-          const conductorData = await respConductor.json();
-          if (conductorData && conductorData.length > 0) {
-            conductorId = conductorData[0].id;
-          } else {
-            const respNuevo = await fetch(API_URL + '/conductores', {
-              method: 'POST',
-              headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-              body: JSON.stringify({
-                nombre: nombre,
-                apellido: apellido || '.',
-                activo: true
-              })
-            });
-            if (respNuevo.ok) {
-              const nuevoData = await respNuevo.json();
-              const nuevo = Array.isArray(nuevoData) ? nuevoData[0] : nuevoData;
-              conductorId = nuevo.id;
+          if (nombre) {
+            const respConductor = await fetch(
+              API_URL + '/conductores?select=id&nombre=ilike.' + encodeURIComponent(nombre) + '&apellido=ilike.' + encodeURIComponent(apellido),
+              { headers: HEADERS }
+            );
+            const conductorData = await respConductor.json();
+            if (conductorData && conductorData.length > 0) {
+              conductorId = conductorData[0].id;
+            } else {
+              const respNuevo = await fetch(API_URL + '/conductores', {
+                method: 'POST',
+                headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                body: JSON.stringify({
+                  nombre: nombre,
+                  apellido: apellido || '.',
+                  activo: true
+                })
+              });
+              if (respNuevo.ok) {
+                const nuevoData = await respNuevo.json();
+                const nuevo = Array.isArray(nuevoData) ? nuevoData[0] : nuevoData;
+                conductorId = nuevo.id;
+              }
             }
           }
         }
 
         // Buscar o crear patente
         let patenteId = null;
-        const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (patenteLimpia) {
-          const respPatente = await fetch(
-            API_URL + '/patentes?select=id&numero_patente=ilike.' + encodeURIComponent(patenteLimpia),
-            { headers: HEADERS }
-          );
-          const patenteData = await respPatente.json();
-          if (patenteData && patenteData.length > 0) {
-            patenteId = patenteData[0].id;
-          } else {
-            const respNueva = await fetch(API_URL + '/patentes', {
-              method: 'POST',
-              headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-              body: JSON.stringify({
-                numero_patente: patenteLimpia,
-                tipo_vehiculo: 'Otro',
-                activo: true
-              })
-            });
-            if (respNueva.ok) {
-              const nuevaData = await respNueva.json();
-              const nueva = Array.isArray(nuevaData) ? nuevaData[0] : nuevaData;
-              patenteId = nueva.id;
+        if (trans.vehiculo) {
+          const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          if (patenteLimpia) {
+            const respPatente = await fetch(
+              API_URL + '/patentes?select=id&numero_patente=ilike.' + encodeURIComponent(patenteLimpia),
+              { headers: HEADERS }
+            );
+            const patenteData = await respPatente.json();
+            if (patenteData && patenteData.length > 0) {
+              patenteId = patenteData[0].id;
+            } else {
+              const respNueva = await fetch(API_URL + '/patentes', {
+                method: 'POST',
+                headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                body: JSON.stringify({
+                  numero_patente: patenteLimpia,
+                  tipo_vehiculo: 'Otro',
+                  activo: true
+                })
+              });
+              if (respNueva.ok) {
+                const nuevaData = await respNueva.json();
+                const nueva = Array.isArray(nuevaData) ? nuevaData[0] : nuevaData;
+                patenteId = nueva.id;
+              }
             }
           }
         }
@@ -240,8 +266,12 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido
         };
 
-        if (conductorId) transporteData.conductor_id = conductorId;
-        if (patenteId) transporteData.patente_principal_id = patenteId;
+        if (conductorId) {
+          transporteData.conductor_id = conductorId;
+        }
+        if (patenteId) {
+          transporteData.patente_principal_id = patenteId;
+        }
 
         const respTransporte = await fetch(API_URL + '/sd01_documentos', {
           method: 'POST',
@@ -262,6 +292,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
             body: JSON.stringify({
               documento_id: idDocumento,
               codigo_local: local.codigo_local,
+              nombre_local: local.nombre_local || '',
               fecha_entrega: local.fechaEntrega || null,
               hora_entrega: local.horaEntrega || null,
               cantidad_solicitada: local.bultos || 0
@@ -288,15 +319,23 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
   return (
     <div className="sd01-modal-overlay" onClick={onClose}>
-      <div className="sd01-modal" style={{ maxWidth: '650px' }} onClick={(e: any) => e.stopPropagation()}>
+      <div className="sd01-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Cargar Transportes desde Excel</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
           {mensaje.texto && (
-            <div className={'sd01-alert ' + (mensaje.tipo === 'error' ? 'sd01-alert-error' : mensaje.tipo === 'success' ? 'sd01-alert-warning' : 'sd01-alert-warning')}
-              style={{ background: mensaje.tipo === 'success' ? 'var(--success-bg)' : mensaje.tipo === 'error' ? 'var(--error-bg)' : 'var(--warning-bg)', color: mensaje.tipo === 'success' ? 'var(--success-text)' : mensaje.tipo === 'error' ? 'var(--error-text)' : 'var(--warning-text)' }}>
+            <div style={{
+              padding: '10px 14px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              fontSize: '13px',
+              fontWeight: 500,
+              background: mensaje.tipo === 'success' ? 'var(--success-bg)' : mensaje.tipo === 'error' ? 'var(--error-bg)' : 'var(--warning-bg)',
+              color: mensaje.tipo === 'success' ? 'var(--success-text)' : mensaje.tipo === 'error' ? 'var(--error-text)' : 'var(--warning-text)',
+              border: mensaje.tipo === 'success' ? '1px solid var(--success-border)' : mensaje.tipo === 'error' ? '1px solid var(--error-border)' : '1px solid var(--warning-border)'
+            }}>
               {mensaje.texto}
             </div>
           )}
@@ -367,7 +406,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
                 </div>
               </div>
 
-              <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+              <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
                 <table className="ed03-tabla" style={{ fontSize: '12px' }}>
                   <thead>
                     <tr>
@@ -376,16 +415,32 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
                       <th>Vehículo</th>
                       <th style={{ textAlign: 'center' }}>Locales</th>
                       <th style={{ textAlign: 'center' }}>Bultos</th>
+                      <th style={{ width: '40px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {resumen.transportes.map((t: any, idx: number) => (
                       <tr key={idx}>
                         <td style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{idx + 1}</td>
-                        <td>{t.conductor}</td>
-                        <td style={{ fontFamily: 'Courier New, monospace' }}>{t.vehiculo}</td>
+                        <td>{t.conductor || '-'}</td>
+                        <td style={{ fontFamily: 'Courier New, monospace' }}>{t.vehiculo || '-'}</td>
                         <td style={{ textAlign: 'center' }}>{t.locales.length}</td>
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{t.locales.reduce((s: number, l: any) => s + l.bultos, 0)}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            onClick={() => handleEliminarTransporte(idx)}
+                            style={{
+                              width: '24px', height: '24px',
+                              background: 'var(--error-bg)', color: 'var(--error-text)',
+                              border: '1px solid var(--error-border)', borderRadius: '4px',
+                              cursor: 'pointer', fontSize: '14px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                            title="Eliminar transporte"
+                          >
+                            ×
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
