@@ -355,9 +355,11 @@ const SD01View: React.FC = () => {
   };
 
   const formatearFecha = (fecha: string) => {
-    if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL');
-  };
+  if (!fecha) return '-';
+  // Si la fecha viene sin hora, agregar mediodía para evitar cambio de zona horaria
+  const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
+  return new Date(fechaStr).toLocaleDateString('es-CL');
+};
 
   const formatearFechaHora = (fecha: string) => {
     if (!fecha) return '-';
