@@ -69,10 +69,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       }
 
       const headers = rows[2];
-      const dataRows = rows.slice(3).filter((row: any) => {
-        if (!row || row.length === 0) return false;
-        return row.some((cell: any) => cell !== null && cell !== undefined && String(cell).trim() !== '');
-      });
+      const dataRows = rows.slice(3);
 
       const colCodTI = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cód ti'));
       const colBultos = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('bultos'));
@@ -88,22 +85,13 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       }
 
       // Agrupar filas por transporte
+      // Cada bloque separado por filas sin Cód TI es un transporte independiente
       const transportes: any[] = [];
       let transporteActual: any = null;
 
       for (const row of dataRows) {
-        const conductor = String(row[colConductor] || '').trim();
-        const vehiculo = String(row[colVehiculo] || '').trim();
-        const codTI = String(row[colCodTI] || '').trim();
-        const bultos = colBultos >= 0 ? parseInt(row[colBultos]) || 0 : 0;
-        const fechaEntrega = colFechaEntrega >= 0 ? String(row[colFechaEntrega] || '').trim() : '';
-        const horaEntrega = colHoraEntrega >= 0 ? String(row[colHoraEntrega] || '').trim() : '';
-
-        // Detectar fila en blanco: sin codTI, sin conductor, sin vehiculo
-        const esFilaVacia = !codTI && !conductor && !vehiculo;
-        
-        if (esFilaVacia) {
-          // Finalizar transporte actual
+        if (!row || row.length === 0) {
+          // Fila completamente vacía
           if (transporteActual && transporteActual.locales.length > 0) {
             transportes.push(transporteActual);
           }
@@ -111,18 +99,25 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           continue;
         }
 
-        // Si no tiene codTI, saltar (puede ser fila de encabezado o información adicional)
-        if (!codTI) continue;
+        const codTI = String(row[colCodTI] || '').trim();
+        const conductor = String(row[colConductor] || '').trim();
+        const vehiculo = String(row[colVehiculo] || '').trim();
+        const bultos = colBultos >= 0 ? parseInt(row[colBultos]) || 0 : 0;
+        const fechaEntrega = colFechaEntrega >= 0 ? String(row[colFechaEntrega] || '').trim() : '';
+        const horaEntrega = colHoraEntrega >= 0 ? String(row[colHoraEntrega] || '').trim() : '';
 
-        const claveRuta = conductor + '|' + vehiculo;
-
-        // Si no hay transporte actual O cambió el conductor/vehículo, crear nuevo transporte
-        if (!transporteActual || transporteActual.claveRuta !== claveRuta) {
+        // Si no hay código de tienda, es un separador de transporte
+        if (!codTI) {
           if (transporteActual && transporteActual.locales.length > 0) {
             transportes.push(transporteActual);
           }
+          transporteActual = null;
+          continue;
+        }
+
+        // Si no hay transporte actual, crear uno nuevo
+        if (!transporteActual) {
           transporteActual = {
-            claveRuta,
             conductor,
             vehiculo,
             fechaProgramacion,
