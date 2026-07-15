@@ -24,6 +24,59 @@ const generarIdDocumento = () => {
   return 'SD' + dia + mes + anio + random;
 };
 
+const convertirFechaExcel = (valor: any): string => {
+  if (valor === null || valor === undefined || valor === '') return '';
+  
+  // Si es un número (fecha serial de Excel)
+  if (typeof valor === 'number') {
+    const fecha = new Date((valor - 25569) * 86400 * 1000);
+    if (isNaN(fecha.getTime())) return '';
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const anio = fecha.getFullYear();
+    return anio + '-' + mes + '-' + dia;
+  }
+  
+  const str = String(valor).trim();
+  if (!str) return '';
+  
+  // Si ya viene en formato YYYY-MM-DD
+  if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
+  
+  // Si viene en formato DD-MM-YYYY
+  const match = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (match) return match[3] + '-' + match[2] + '-' + match[1];
+  
+  // Si viene en formato DD/MM/YYYY
+  const match2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (match2) return match2[3] + '-' + match2[2] + '-' + match2[1];
+  
+  return str;
+};
+
+const convertirHoraExcel = (valor: any): string => {
+  if (valor === null || valor === undefined || valor === '') return '';
+  
+  // Si es un número decimal (hora serial de Excel)
+  if (typeof valor === 'number' && valor < 1) {
+    const totalMinutos = Math.round(valor * 24 * 60);
+    const horas = Math.floor(totalMinutos / 60);
+    const minutos = totalMinutos % 60;
+    return String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0');
+  }
+  
+  const str = String(valor).trim();
+  if (!str) return '';
+  
+  // Si ya viene en formato HH:MM
+  if (str.match(/^\d{1,2}:\d{2}$/)) {
+    const partes = str.split(':');
+    return partes[0].padStart(2, '0') + ':' + partes[1];
+  }
+  
+  return str;
+};
+
 const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesCreados }) => {
   const [archivo, setArchivo]: any = useState(null);
   const [archivoNombre, setArchivoNombre]: any = useState('');
@@ -58,9 +111,9 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       }
 
       const data = await archivo.arrayBuffer();
-      const workbook = XLSX.read(data);
+      const workbook = XLSX.read(data, { cellDates: true });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'YYYY-MM-DD' });
 
       if (rows.length < 3) {
         setMensaje({ tipo: 'error', texto: 'El archivo no tiene datos suficientes' });
@@ -71,7 +124,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       const headers = rows[2];
       const dataRows = rows.slice(3);
 
-      // Buscar columnas
       const colCodTI = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cód ti'));
       const colTienda = headers.findIndex((h: string) => {
         if (!h) return false;
@@ -107,9 +159,9 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         const tienda = colTienda >= 0 ? String(row[colTienda] || '').trim() : '';
         const conductor = colConductor >= 0 ? String(row[colConductor] || '').trim() : '';
         const vehiculo = colVehiculo >= 0 ? String(row[colVehiculo] || '').trim() : '';
-        const bultos = colBultos >= 0 ? parseInt(row[colBultos]) || 0 : 0;
-        const fechaEntrega = colFechaEntrega >= 0 ? String(row[colFechaEntrega] || '').trim() : '';
-        const horaEntrega = colHoraEntrega >= 0 ? String(row[colHoraEntrega] || '').trim() : '';
+        const bultos = colBultos >= 0 ? (parseInt(row[colBultos]) || 0) : 0;
+        const fechaEntrega = colFechaEntrega >= 0 ? convertirFechaExcel(row[colFechaEntrega]) : '';
+        const horaEntrega = colHoraEntrega >= 0 ? convertirHoraExcel(row[colHoraEntrega]) : '';
 
         if (!codTI) {
           if (transporteActual && transporteActual.locales.length > 0) {
@@ -146,6 +198,12 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         setProcesando(false);
         return;
       }
+
+      console.log('Transportes detectados:', transportes.length);
+      transportes.forEach((t: any, i: number) => {
+        console.log('Transporte ' + (i + 1) + ':', t.conductor, t.vehiculo, 'Locales:', t.locales.length);
+        console.log('Primer local:', JSON.stringify(t.locales[0]));
+      });
 
       setResumen({
         fechaProgramacion,
@@ -191,7 +249,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
     for (const trans of resumen.transportes) {
       try {
-        // Buscar o crear conductor
         let conductorId = null;
         if (trans.conductor) {
           const partesNombre = trans.conductor.split(' ');
@@ -199,59 +256,66 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           const apellido = partesNombre.slice(1).join(' ') || '';
 
           if (nombre) {
-            const respConductor = await fetch(
-              API_URL + '/conductores?select=id&nombre=ilike.' + encodeURIComponent(nombre) + '&apellido=ilike.' + encodeURIComponent(apellido),
-              { headers: HEADERS }
-            );
-            const conductorData = await respConductor.json();
-            if (conductorData && conductorData.length > 0) {
-              conductorId = conductorData[0].id;
-            } else {
-              const respNuevo = await fetch(API_URL + '/conductores', {
-                method: 'POST',
-                headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-                body: JSON.stringify({
-                  nombre: nombre,
-                  apellido: apellido || '.',
-                  activo: true
-                })
-              });
-              if (respNuevo.ok) {
-                const nuevoData = await respNuevo.json();
-                const nuevo = Array.isArray(nuevoData) ? nuevoData[0] : nuevoData;
-                conductorId = nuevo.id;
+            try {
+              const respConductor = await fetch(
+                API_URL + '/conductores?select=id&nombre=ilike.' + encodeURIComponent(nombre) + '&apellido=ilike.' + encodeURIComponent(apellido),
+                { headers: HEADERS }
+              );
+              const conductorData = await respConductor.json();
+              if (conductorData && conductorData.length > 0) {
+                conductorId = conductorData[0].id;
+              } else {
+                const respNuevo = await fetch(API_URL + '/conductores', {
+                  method: 'POST',
+                  headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                  body: JSON.stringify({
+                    nombre: nombre,
+                    apellido: apellido || '.',
+                    activo: true
+                  })
+                });
+                if (respNuevo.ok) {
+                  const nuevoData = await respNuevo.json();
+                  const nuevo = Array.isArray(nuevoData) ? nuevoData[0] : nuevoData;
+                  conductorId = nuevo.id;
+                }
               }
+            } catch (e) {
+              console.error('Error buscando/creando conductor:', e);
             }
           }
         }
 
-        // Buscar o crear patente
         let patenteId = null;
         if (trans.vehiculo) {
           const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9]/g, '');
           if (patenteLimpia) {
-            const respPatente = await fetch(
-              API_URL + '/patentes?select=id&numero_patente=ilike.' + encodeURIComponent(patenteLimpia),
-              { headers: HEADERS }
-            );
-            const patenteData = await respPatente.json();
-            if (patenteData && patenteData.length > 0) {
-              patenteId = patenteData[0].id;
-            } else {
-              const respNueva = await fetch(API_URL + '/patentes', {
-                method: 'POST',
-                headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-                body: JSON.stringify({
-                  numero_patente: patenteLimpia,
-                  tipo_vehiculo: 'Otro',
-                  activo: true
-                })
-              });
-              if (respNueva.ok) {
-                const nuevaData = await respNueva.json();
-                const nueva = Array.isArray(nuevaData) ? nuevaData[0] : nuevaData;
-                patenteId = nueva.id;
+            try {
+              const respPatente = await fetch(
+                API_URL + '/patentes?select=id&numero_patente=ilike.' + encodeURIComponent(patenteLimpia),
+                { headers: HEADERS }
+              );
+              const patenteData = await respPatente.json();
+              if (patenteData && patenteData.length > 0) {
+                patenteId = patenteData[0].id;
+              } else {
+                const respNueva = await fetch(API_URL + '/patentes', {
+                  method: 'POST',
+                  headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                  body: JSON.stringify({
+                    numero_patente: patenteLimpia,
+                    tipo_vehiculo: 'Otro',
+                    activo: true
+                  })
+                });
+                if (respNueva.ok) {
+                  const nuevaData = await respNueva.json();
+                  const nueva = Array.isArray(nuevaData) ? nuevaData[0] : nuevaData;
+                  patenteId = nueva.id;
+                }
               }
+            } catch (e) {
+              console.error('Error buscando/creando patente:', e);
             }
           }
         }
@@ -273,6 +337,9 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           transporteData.patente_principal_id = patenteId;
         }
 
+        console.log('Creando transporte:', idDocumento, JSON.stringify(transporteData));
+        console.log('Locales:', trans.locales.length);
+
         const respTransporte = await fetch(API_URL + '/sd01_documentos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -280,28 +347,39 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         });
 
         if (!respTransporte.ok) {
+          const errorData = await respTransporte.json();
+          console.error('Error creando transporte:', errorData);
           errores++;
           continue;
         }
 
-        // Crear locales
         for (const local of trans.locales) {
-          await fetch(API_URL + '/sd01_documento_locales', {
+          const localData = {
+            documento_id: idDocumento,
+            codigo_local: local.codigo_local,
+            nombre_local: local.nombre_local || '',
+            fecha_entrega: local.fechaEntrega || null,
+            hora_entrega: local.horaEntrega || null,
+            cantidad_solicitada: local.bultos || 0
+          };
+          
+          console.log('Creando local:', JSON.stringify(localData));
+          
+          const respLocal = await fetch(API_URL + '/sd01_documento_locales', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              documento_id: idDocumento,
-              codigo_local: local.codigo_local,
-              nombre_local: local.nombre_local || '',
-              fecha_entrega: local.fechaEntrega || null,
-              hora_entrega: local.horaEntrega || null,
-              cantidad_solicitada: local.bultos || 0
-            })
+            body: JSON.stringify(localData)
           });
+
+          if (!respLocal.ok) {
+            const errorLocal = await respLocal.json();
+            console.error('Error creando local:', errorLocal);
+          }
         }
 
         creados++;
       } catch (e) {
+        console.error('Error en transporte:', e);
         errores++;
       }
     }
