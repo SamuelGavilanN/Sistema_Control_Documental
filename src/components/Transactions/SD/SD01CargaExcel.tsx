@@ -27,7 +27,6 @@ const generarIdDocumento = () => {
 const convertirFechaExcel = (valor: any): string => {
   if (valor === null || valor === undefined || valor === '') return '';
   
-  // Si es un número (fecha serial de Excel)
   if (typeof valor === 'number') {
     const fecha = new Date((valor - 25569) * 86400 * 1000);
     if (isNaN(fecha.getTime())) return '';
@@ -40,14 +39,11 @@ const convertirFechaExcel = (valor: any): string => {
   const str = String(valor).trim();
   if (!str) return '';
   
-  // Si ya viene en formato YYYY-MM-DD
   if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
   
-  // Si viene en formato DD-MM-YYYY
   const match = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
   if (match) return match[3] + '-' + match[2] + '-' + match[1];
   
-  // Si viene en formato DD/MM/YYYY
   const match2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (match2) return match2[3] + '-' + match2[2] + '-' + match2[1];
   
@@ -57,7 +53,6 @@ const convertirFechaExcel = (valor: any): string => {
 const convertirHoraExcel = (valor: any): string => {
   if (valor === null || valor === undefined || valor === '') return '';
   
-  // Si es un número decimal (hora serial de Excel)
   if (typeof valor === 'number' && valor < 1) {
     const totalMinutos = Math.round(valor * 24 * 60);
     const horas = Math.floor(totalMinutos / 60);
@@ -68,7 +63,6 @@ const convertirHoraExcel = (valor: any): string => {
   const str = String(valor).trim();
   if (!str) return '';
   
-  // Si ya viene en formato HH:MM
   if (str.match(/^\d{1,2}:\d{2}$/)) {
     const partes = str.split(':');
     return partes[0].padStart(2, '0') + ':' + partes[1];
@@ -90,7 +84,13 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
     const fechaMatch = nombre.match(/(\d{2}-\d{2}-\d{4})/);
     if (!fechaMatch) return null;
     const partesFecha = fechaMatch[1].split('-');
-    return partesFecha[2] + '-' + partesFecha[1] + '-' + partesFecha[0];
+    const dia = parseInt(partesFecha[0]);
+    const mes = parseInt(partesFecha[1]) - 1;
+    const anio = parseInt(partesFecha[2]);
+    const fecha = new Date(anio, mes, dia, 12, 0, 0);
+    const diaStr = String(fecha.getDate()).padStart(2, '0');
+    const mesStr = String(fecha.getMonth() + 1).padStart(2, '0');
+    return fecha.getFullYear() + '-' + mesStr + '-' + diaStr;
   };
 
   const procesarArchivo = async () => {
@@ -142,7 +142,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         return;
       }
 
-      // Agrupar filas por transporte
       const transportes: any[] = [];
       let transporteActual: any = null;
 
@@ -198,12 +197,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         setProcesando(false);
         return;
       }
-
-      console.log('Transportes detectados:', transportes.length);
-      transportes.forEach((t: any, i: number) => {
-        console.log('Transporte ' + (i + 1) + ':', t.conductor, t.vehiculo, 'Locales:', t.locales.length);
-        console.log('Primer local:', JSON.stringify(t.locales[0]));
-      });
 
       setResumen({
         fechaProgramacion,
@@ -324,7 +317,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         
         const transporteData: any = {
           id_documento: idDocumento,
-          fecha_programacion: trans.fechaProgramacion,
+          fecha_programacion: trans.fechaProgramacion + 'T12:00:00',
           estado: 'Pendiente',
           creado_por: usuario?.id,
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido
@@ -336,9 +329,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         if (patenteId) {
           transporteData.patente_principal_id = patenteId;
         }
-
-        console.log('Creando transporte:', idDocumento, JSON.stringify(transporteData));
-        console.log('Locales:', trans.locales.length);
 
         const respTransporte = await fetch(API_URL + '/sd01_documentos', {
           method: 'POST',
@@ -363,18 +353,11 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
             cantidad_solicitada: local.bultos || 0
           };
           
-          console.log('Creando local:', JSON.stringify(localData));
-          
-          const respLocal = await fetch(API_URL + '/sd01_documento_locales', {
+          await fetch(API_URL + '/sd01_documento_locales', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
             body: JSON.stringify(localData)
           });
-
-          if (!respLocal.ok) {
-            const errorLocal = await respLocal.json();
-            console.error('Error creando local:', errorLocal);
-          }
         }
 
         creados++;
@@ -468,7 +451,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Fecha</span>
-                  <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{new Date(resumen.fechaProgramacion + 'T00:00:00').toLocaleDateString('es-CL')}</strong>
+                  <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{new Date(resumen.fechaProgramacion + 'T12:00:00').toLocaleDateString('es-CL')}</strong>
                 </div>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Transportes</span>
