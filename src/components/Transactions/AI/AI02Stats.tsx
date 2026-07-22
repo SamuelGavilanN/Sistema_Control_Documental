@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
+import * as XLSX from 'xlsx';
 import './AI02Stats.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -56,6 +57,12 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
     } catch (e) {}
   };
 
+  const obtenerNombreAuditor = (auditorId: string): string => {
+    if (!auditorId) return '-';
+    const u = usuarios.find((user: any) => user.id === auditorId);
+    return u ? u.nombre + ' ' + u.apellido : '-';
+  };
+
   const cargarDatos = async () => {
     setCargando(true);
     try {
@@ -67,7 +74,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
       const resp = await fetch(url, { headers: HEADERS });
       const tareasData = await resp.json() || [];
 
-      // Cargar detalles de cada tarea
       const tareasConDetalle = await Promise.all((tareasData || []).map(async (tarea: any) => {
         const respEmpaques = await fetch(API_URL + '/ai_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id, { headers: HEADERS });
         const empaques = await respEmpaques.json();
@@ -95,13 +101,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         const totalRevisado = capturas.filter((c: any) => bomsSistema.includes(c.bom_sku)).length;
         const totalNoEncontrados = capturas.filter((c: any) => !bomsSistema.includes(c.bom_sku)).length;
 
-        // Obtener nombre del auditor
-        let auditorNombre = '-';
-        if (tarea.auditor) {
-          const u = usuarios.find((user: any) => user.id === tarea.auditor);
-          if (u) auditorNombre = u.nombre + ' ' + u.apellido;
-        }
-
         return {
           ...tarea,
           empaques: (empaques || []).map((e: any) => e.numero_empaque),
@@ -110,13 +109,12 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
           total_no_encontrados: totalNoEncontrados,
           total_bultos_revisados_total: capturas.length,
           diferencia: totalSistema - totalRevisado,
-          auditor_nombre: auditorNombre
+          auditor_nombre: obtenerNombreAuditor(tarea.auditor)
         };
       }));
 
       setTareas(tareasConDetalle);
 
-      // Calcular KPIs
       const finalizadas = tareasConDetalle.filter((t: any) => t.estado === 'Finalizado').length;
       const conDiferencias = tareasConDetalle.filter((t: any) => t.estado === 'Con Diferencias').length;
       const pendientes = tareasConDetalle.filter((t: any) => t.estado === 'Pendiente' || t.estado === 'En Proceso').length;
@@ -135,7 +133,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         porcentajeCumplimiento
       });
 
-      // Datos para gráfico de barras por día
       const agrupadoPorDia: Record<string, any> = {};
       tareasConDetalle.forEach((t: any) => {
         const dia = new Date(t.creado_en).toLocaleDateString('es-CL');
@@ -160,6 +157,39 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
     setCargando(false);
   };
 
+  const handleExportarExcel = () => {
+    const filas: any[] = [];
+    
+    tareas.forEach((tarea: any) => {
+      const porcentaje = tarea.total_bultos_sistema > 0 ? Math.round((tarea.total_bultos_revisados_sistema / tarea.total_bultos_sistema) * 100) : 0;
+      
+      filas.push({
+        'TAREA': tarea.numero_tarea,
+        'LOCAL': tarea.cod_local + ' - ' + tarea.local,
+        'AUDITOR': tarea.auditor_nombre,
+        'ESTADO': tarea.estado,
+        'EMPAQUES': tarea.empaques.length,
+        'BULTOS SISTEMA': tarea.total_bultos_sistema,
+        'BULTOS REVISADOS': tarea.total_bultos_revisados_sistema,
+        'NO ENCONTRADOS': tarea.total_no_encontrados || 0,
+        'DIFERENCIA': tarea.diferencia === 0 ? 'OK' : tarea.diferencia,
+        '% CUMPLIMIENTO': porcentaje + '%',
+        'FECHA': new Date(tarea.creado_en).toLocaleDateString('es-CL')
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(filas);
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 10 },
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Estadisticas');
+    
+    const fechaActual = new Date().toLocaleDateString('es-CL').replace(/\//g, '-');
+    XLSX.writeFile(wb, 'Estadisticas_Auditoria_' + fechaActual + '.xlsx');
+  };
+
   const datosPie = [
     { name: 'OK', value: kpis.tareasOK },
     { name: 'Con Diferencias', value: kpis.tareasConDiferencias },
@@ -178,9 +208,14 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
     <div className="ai02stats-view">
       <div className="ai02stats-header">
         <h2>Estadísticas de Auditoría Inventario</h2>
-        <button className="ai02stats-btn" onClick={onVolver}>
-          ← Volver a Tareas
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="ai02stats-btn ai02stats-btn-primary" onClick={handleExportarExcel}>
+            Exportar Excel
+          </button>
+          <button className="ai02stats-btn" onClick={onVolver}>
+            ← Volver a Tareas
+          </button>
+        </div>
       </div>
 
       <div className="ai02stats-filtros">
@@ -197,7 +232,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         </button>
       </div>
 
-      {/* KPIs */}
       <div className="ai02stats-kpis">
         <div className="ai02stats-kpi">
           <span>Total Tareas</span>
@@ -231,7 +265,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         </div>
       </div>
 
-      {/* Gráficos */}
       {datosBarra.length > 0 && (
         <div className="ai02stats-charts">
           <div className="ai02stats-chart">
@@ -263,10 +296,12 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         </div>
       )}
 
-      {/* Tabla de tareas */}
       <div className="ai02stats-tabla-container">
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Detalle por Tarea</h3>
+          <button className="ai02stats-btn ai02stats-btn-primary" onClick={handleExportarExcel} style={{ fontSize: '11px', padding: '5px 10px' }}>
+            Exportar Excel
+          </button>
         </div>
         <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
           <table className="ed03-tabla" style={{ minWidth: '1000px' }}>
