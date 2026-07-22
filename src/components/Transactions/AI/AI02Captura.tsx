@@ -410,34 +410,106 @@ const AI02Captura: React.FC = () => {
     setMostrarDetalle(true);
   };
 
-  const handleExportarExcel = (tarea: any) => {
-    const filas: any[] = [];
-    
-    filas.push({
-      'TAREA': tarea.numero_tarea,
-      'LOCAL': tarea.cod_local + ' - ' + tarea.local,
-      'ESTADO': tarea.estado,
-      'BULTOS SISTEMA': tarea.total_bultos_sistema,
-      'BULTOS REVISADOS': tarea.total_bultos_revisados,
-      'AUDITOR': tarea.auditor_nombre || '-',
-      'FECHA': new Date(tarea.creado_en).toLocaleString('es-CL')
+  const handleExportarExcel = async (tarea: any) => {
+    // Cargar datos completos de la tarea
+    let bomsTemp: any[] = [];
+    for (const emp of tarea.empaques) {
+      const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
+      const invData = await respInv.json();
+      if (invData && invData.length > 0) {
+        const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+        const boms = await respBoms.json();
+        if (boms) {
+          for (const bom of boms) {
+            const existente = bomsTemp.find((b: any) => b.bom_sku === bom.bom_sku);
+            if (existente) {
+              existente.cantidad_sistema += bom.cantidad_maxima;
+            } else {
+              bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 });
+            }
+          }
+        }
+      }
+    }
+
+    const respCapturas = await fetch(API_URL + '/ai_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
+    const capturasData = await respCapturas.json() || [];
+
+    capturasData.forEach((c: any) => {
+      const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku);
+      if (bom) bom.cantidad_revisada++;
     });
+
+    // Crear filas del Excel
+    const filas: any[] = [];
+    const localCompleto = tarea.cod_local + ' - ' + tarea.local;
     
-    filas.push({});
-    filas.push({ 'BOM/SKU': 'BOM/SKU', 'CANT. SISTEMA': 'CANT. SISTEMA', 'CANT. REVISADA': 'CANT. REVISADA', 'DIFERENCIA': 'DIFERENCIA', 'ESTADO': 'ESTADO' });
-    
-    bomsConsolidados.forEach((bom: any) => {
+    // Agregar cada BOM como una fila
+    bomsTemp.forEach((bom: any) => {
       const diff = bom.cantidad_sistema - bom.cantidad_revisada;
+      let estado = 'OK';
+      let diffTexto = 'OK';
+      
+      if (bom.cantidad_revisada === 0) {
+        estado = 'Pendiente';
+        diffTexto = '' + diff;
+      } else if (diff > 0) {
+        estado = 'FALTA';
+        diffTexto = '' + diff;
+      } else if (diff < 0) {
+        estado = 'SOBRA';
+        diffTexto = '' + diff;
+      }
+      
       filas.push({
+        'TAREA': tarea.numero_tarea,
+        'LOCAL': localCompleto,
+        'ESTADO': estado,
         'BOM/SKU': bom.bom_sku,
         'CANT. SISTEMA': bom.cantidad_sistema,
         'CANT. REVISADA': bom.cantidad_revisada,
-        'DIFERENCIA': diff === 0 ? 'OK' : diff,
-        'ESTADO': diff === 0 ? 'OK' : (diff > 0 ? 'FALTA' : 'SOBRA')
+        'DIFERENCIA': diffTexto
       });
     });
 
+    // Agregar BOMs no encontrados (capturas manuales)
+    const bomsSistema = bomsTemp.map((b: any) => b.bom_sku);
+    const noEncontrados = capturasData.filter((c: any) => !bomsSistema.includes(c.bom_sku));
+    
+    if (noEncontrados.length > 0) {
+      // Agrupar por BOM
+      const agrupados: Record<string, number> = {};
+      noEncontrados.forEach((c: any) => {
+        if (!agrupados[c.bom_sku]) agrupados[c.bom_sku] = 0;
+        agrupados[c.bom_sku]++;
+      });
+      
+      Object.keys(agrupados).forEach((bomSku: string) => {
+        filas.push({
+          'TAREA': tarea.numero_tarea,
+          'LOCAL': localCompleto,
+          'ESTADO': 'NO ENCONTRADO',
+          'BOM/SKU': bomSku,
+          'CANT. SISTEMA': 0,
+          'CANT. REVISADA': agrupados[bomSku],
+          'DIFERENCIA': 'X'
+        });
+      });
+    }
+
     const ws = XLSX.utils.json_to_sheet(filas);
+    
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+      { wch: 15 },  // TAREA
+      { wch: 25 },  // LOCAL
+      { wch: 15 },  // ESTADO
+      { wch: 30 },  // BOM/SKU
+      { wch: 15 },  // CANT. SISTEMA
+      { wch: 15 },  // CANT. REVISADA
+      { wch: 15 },  // DIFERENCIA
+    ];
+    
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
     XLSX.writeFile(wb, tarea.numero_tarea + '_' + tarea.cod_local + '.xlsx');
