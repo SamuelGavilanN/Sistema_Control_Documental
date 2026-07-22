@@ -30,6 +30,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
   const [filtroDesde, setFiltroDesde]: any = useState('');
   const [filtroHasta, setFiltroHasta]: any = useState('');
   const [usuarios, setUsuarios]: any = useState([]);
+  const [usuariosCargados, setUsuariosCargados]: any = useState(false);
   const [tareas, setTareas]: any = useState([]);
   const [detalleExpandido, setDetalleExpandido]: any = useState(new Set());
   const [kpis, setKpis]: any = useState({
@@ -43,19 +44,31 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
   });
   const [datosBarra, setDatosBarra]: any = useState([]);
 
+  // Cargar usuarios primero
   useEffect(() => {
     cargarUsuarios();
-    cargarDatos();
-    const intervalo = setInterval(cargarDatos, 10000);
-    return () => clearInterval(intervalo);
-  }, [filtroUsuario, filtroDesde, filtroHasta]);
+  }, []);
+
+  // Cargar datos cuando los usuarios estén listos
+  useEffect(() => {
+    if (usuariosCargados) {
+      cargarDatos();
+      const intervalo = setInterval(cargarDatos, 10000);
+      return () => clearInterval(intervalo);
+    }
+  }, [filtroUsuario, filtroDesde, filtroHasta, usuariosCargados]);
 
   const cargarUsuarios = async () => {
     try {
       const resp = await fetch(API_URL + '/usuarios?select=id,nombre,apellido&order=nombre.asc', { headers: HEADERS });
       const data = await resp.json();
-      if (data) setUsuarios(data);
-    } catch (e) {}
+      if (data) {
+        setUsuarios(data);
+        setUsuariosCargados(true);
+      }
+    } catch (e) {
+      setUsuariosCargados(true);
+    }
   };
 
   const obtenerNombreAuditor = (auditorId: string): string => {
@@ -91,8 +104,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
 
         let totalSistema = 0;
         const bomsSistema: string[] = [];
-        
-        // Detalle por empaque
         const detallePorEmpaque: any[] = [];
 
         for (const emp of (empaques || [])) {
@@ -101,6 +112,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
           
           let bultosSistemaEmpaque = 0;
           let bultosRevisadosEmpaque = 0;
+          const bomsEsteEmpaque: string[] = [];
           
           if (invData && invData.length > 0) {
             const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
@@ -110,26 +122,15 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
                 bultosSistemaEmpaque += b.cantidad_maxima;
                 totalSistema += b.cantidad_maxima;
                 bomsSistema.push(b.bom_sku);
+                bomsEsteEmpaque.push(b.bom_sku);
               });
             }
           }
 
-          // Contar capturas para este empaque (buscando BOMs que coincidan)
           const respCapturasEmp = await fetch(API_URL + '/ai_capturas?select=bom_sku&tarea_id=eq.' + tarea.id, { headers: HEADERS });
           const capturasEmp = await respCapturasEmp.json() || [];
           
-          // Obtener BOMs específicos de este empaque
-          const bomsEsteEmpaque: string[] = [];
-          if (invData && invData.length > 0) {
-            const respBomsEmp = await fetch(API_URL + '/ai_inventario_boms?select=bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-            const bomsEmp = await respBomsEmp.json();
-            if (bomsEmp) {
-              bomsEmp.forEach((b: any) => bomsEsteEmpaque.push(b.bom_sku));
-            }
-          }
-          
           bultosRevisadosEmpaque = capturasEmp.filter((c: any) => bomsEsteEmpaque.includes(c.bom_sku)).length;
-          const noEncontradosEmpaque = capturasEmp.filter((c: any) => !bomsSistema.includes(c.bom_sku)).length;
 
           detallePorEmpaque.push({
             numero_empaque: emp.numero_empaque,
@@ -404,7 +405,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
 
                   return (
                     <React.Fragment key={tarea.id}>
-                      {/* Fila resumen de la tarea */}
                       <tr 
                         onClick={() => tieneEmpaques && toggleExpandir(tarea.id)}
                         style={{ cursor: tieneEmpaques ? 'pointer' : 'default', background: 'var(--bg-section)' }}
@@ -435,7 +435,6 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
                         </td>
                         <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{new Date(tarea.creado_en).toLocaleDateString('es-CL')}</td>
                       </tr>
-                      {/* Filas de detalle por empaque */}
                       {expandido && tarea.detalle_empaques && tarea.detalle_empaques.map((detalle: any, idx: number) => (
                         <tr key={tarea.id + '-emp-' + idx} style={{ background: 'var(--bg-panel)' }}>
                           <td></td>
