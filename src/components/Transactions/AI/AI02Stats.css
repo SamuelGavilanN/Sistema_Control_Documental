@@ -1,0 +1,20 @@
+/* src/components/Transactions/AI/AI02Stats.css */
+
+.ai02stats-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
+.ai02stats-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+.ai02stats-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+.ai02stats-filtros { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.ai02stats-filtros select, .ai02stats-filtros input { padding: 8px 12px; border: 1px solid var(--border-input); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text-primary); }
+.ai02stats-btn { padding: 8px 16px; border: 1px solid var(--btn-border); border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; background: var(--btn-bg); color: var(--btn-text); transition: all 0.15s; }
+.ai02stats-btn:hover { background: var(--btn-hover-bg); }
+.ai02stats-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-bg); }
+.ai02stats-btn-primary:hover { background: var(--btn-primary-hover); }
+.ai02stats-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.ai02stats-kpi { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 10px; padding: 14px; text-align: center; }
+.ai02stats-kpi span { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.ai02stats-kpi strong { font-size: 24px; color: var(--text-primary); }
+.ai02stats-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.ai02stats-chart { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 10px; padding: 16px; }
+.ai02stats-chart h3 { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; }
+.ai02stats-tabla-container { border: 1px solid var(--table-border); border-radius: 8px; overflow: hidden; }
+@media (max-width: 768px) { .ai02stats-charts { grid-template-columns: 1fr; } .ai02stats-kpis { grid-template-columns: 1fr 1fr; } }
