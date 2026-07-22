@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
 import * as XLSX from 'xlsx';
+import AI02Stats from './AI02Stats';
 import './AI02.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -20,6 +21,7 @@ const AI02Captura: React.FC = () => {
   const [mostrarCrearTarea, setMostrarCrearTarea]: any = useState(false);
   const [mostrarCaptura, setMostrarCaptura]: any = useState(false);
   const [mostrarDetalle, setMostrarDetalle]: any = useState(false);
+  const [mostrarStats, setMostrarStats]: any = useState(false);
   const [busqueda, setBusqueda]: any = useState('');
   const [inputEmpaque, setInputEmpaque]: any = useState('');
   const [empaquesTarea, setEmpaquesTarea]: any = useState([]);
@@ -411,7 +413,6 @@ const AI02Captura: React.FC = () => {
   };
 
   const handleExportarExcel = async (tarea: any) => {
-    // Cargar datos completos de la tarea
     let bomsTemp: any[] = [];
     for (const emp of tarea.empaques) {
       const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -440,11 +441,9 @@ const AI02Captura: React.FC = () => {
       if (bom) bom.cantidad_revisada++;
     });
 
-    // Crear filas del Excel
     const filas: any[] = [];
     const localCompleto = tarea.cod_local + ' - ' + tarea.local;
     
-    // Agregar cada BOM como una fila
     bomsTemp.forEach((bom: any) => {
       const diff = bom.cantidad_sistema - bom.cantidad_revisada;
       let estado = 'OK';
@@ -472,12 +471,10 @@ const AI02Captura: React.FC = () => {
       });
     });
 
-    // Agregar BOMs no encontrados (capturas manuales)
     const bomsSistema = bomsTemp.map((b: any) => b.bom_sku);
     const noEncontrados = capturasData.filter((c: any) => !bomsSistema.includes(c.bom_sku));
     
     if (noEncontrados.length > 0) {
-      // Agrupar por BOM
       const agrupados: Record<string, number> = {};
       noEncontrados.forEach((c: any) => {
         if (!agrupados[c.bom_sku]) agrupados[c.bom_sku] = 0;
@@ -498,18 +495,9 @@ const AI02Captura: React.FC = () => {
     }
 
     const ws = XLSX.utils.json_to_sheet(filas);
-    
-    // Ajustar ancho de columnas
     ws['!cols'] = [
-      { wch: 15 },  // TAREA
-      { wch: 25 },  // LOCAL
-      { wch: 15 },  // ESTADO
-      { wch: 30 },  // BOM/SKU
-      { wch: 15 },  // CANT. SISTEMA
-      { wch: 15 },  // CANT. REVISADA
-      { wch: 15 },  // DIFERENCIA
+      { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
     ];
-    
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
     XLSX.writeFile(wb, tarea.numero_tarea + '_' + tarea.cod_local + '.xlsx');
@@ -525,6 +513,10 @@ const AI02Captura: React.FC = () => {
     }
   };
 
+  if (mostrarStats) {
+    return <AI02Stats onVolver={() => setMostrarStats(false)} />;
+  }
+
   if (cargando) {
     return <div className="ai02-view"><div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Cargando...</div></div>;
   }
@@ -538,6 +530,9 @@ const AI02Captura: React.FC = () => {
       <div className="ai02-toolbar">
         <button className="ai02-btn ai02-btn-primary" onClick={() => { setMostrarCrearTarea(true); setEmpaquesTarea([]); setInputEmpaque(''); }}>
           + Nueva Tarea
+        </button>
+        <button className="ai02-btn" onClick={() => setMostrarStats(true)}>
+          Estadísticas
         </button>
         <div className="ai02-separator"></div>
         <input
