@@ -44,12 +44,10 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
   });
   const [datosBarra, setDatosBarra]: any = useState([]);
 
-  // Cargar usuarios primero
   useEffect(() => {
     cargarUsuarios();
   }, []);
 
-  // Cargar datos cuando los usuarios estén listos
   useEffect(() => {
     if (usuariosCargados) {
       cargarDatos();
@@ -256,6 +254,108 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
     XLSX.writeFile(wb, 'Estadisticas_Auditoria_' + fechaActual + '.xlsx');
   };
 
+  const handleExportarConsolidado = async () => {
+    setCargando(true);
+    const filas: any[] = [];
+    
+    for (const tarea of tareas) {
+      let bomsTemp: any[] = [];
+      for (const emp of tarea.empaques) {
+        const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
+        const invData = await respInv.json();
+        if (invData && invData.length > 0) {
+          const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+          const boms = await respBoms.json();
+          if (boms) {
+            for (const bom of boms) {
+              const existente = bomsTemp.find((b: any) => b.bom_sku === bom.bom_sku);
+              if (existente) {
+                existente.cantidad_sistema += bom.cantidad_maxima;
+              } else {
+                bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 });
+              }
+            }
+          }
+        }
+      }
+
+      const respCapturas = await fetch(API_URL + '/ai_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
+      const capturasData = await respCapturas.json() || [];
+
+      capturasData.forEach((c: any) => {
+        const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku);
+        if (bom) bom.cantidad_revisada++;
+      });
+
+      const localCompleto = tarea.cod_local + ' - ' + tarea.local;
+      
+      bomsTemp.forEach((bom: any) => {
+        const diff = bom.cantidad_sistema - bom.cantidad_revisada;
+        let estado = 'OK';
+        let diffTexto = 'OK';
+        
+        if (bom.cantidad_revisada === 0) {
+          estado = 'Pendiente';
+          diffTexto = '' + diff;
+        } else if (diff > 0) {
+          estado = 'FALTA';
+          diffTexto = '' + diff;
+        } else if (diff < 0) {
+          estado = 'SOBRA';
+          diffTexto = '' + diff;
+        }
+        
+        filas.push({
+          'TAREA': tarea.numero_tarea,
+          'LOCAL': localCompleto,
+          'AUDITOR': tarea.auditor_nombre,
+          'ESTADO TAREA': tarea.estado,
+          'BOM/SKU': bom.bom_sku,
+          'CANT. SISTEMA': bom.cantidad_sistema,
+          'CANT. REVISADA': bom.cantidad_revisada,
+          'DIFERENCIA': diffTexto,
+          'ESTADO BOM': estado
+        });
+      });
+
+      const bomsSistema = bomsTemp.map((b: any) => b.bom_sku);
+      const noEncontrados = capturasData.filter((c: any) => !bomsSistema.includes(c.bom_sku));
+      
+      if (noEncontrados.length > 0) {
+        const agrupados: Record<string, number> = {};
+        noEncontrados.forEach((c: any) => {
+          if (!agrupados[c.bom_sku]) agrupados[c.bom_sku] = 0;
+          agrupados[c.bom_sku]++;
+        });
+        
+        Object.keys(agrupados).forEach((bomSku: string) => {
+          filas.push({
+            'TAREA': tarea.numero_tarea,
+            'LOCAL': localCompleto,
+            'AUDITOR': tarea.auditor_nombre,
+            'ESTADO TAREA': tarea.estado,
+            'BOM/SKU': bomSku,
+            'CANT. SISTEMA': 0,
+            'CANT. REVISADA': agrupados[bomSku],
+            'DIFERENCIA': 'X',
+            'ESTADO BOM': 'NO ENCONTRADO'
+          });
+        });
+      }
+    }
+
+    const ws = XLSX.utils.json_to_sheet(filas);
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Consolidado');
+    
+    const fechaActual = new Date().toLocaleDateString('es-CL').replace(/\//g, '-');
+    XLSX.writeFile(wb, 'Consolidado_Auditoria_' + fechaActual + '.xlsx');
+    setCargando(false);
+  };
+
   const datosPie = [
     { name: 'OK', value: kpis.tareasOK },
     { name: 'Con Diferencias', value: kpis.tareasConDiferencias },
@@ -277,6 +377,9 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="ai02stats-btn ai02stats-btn-primary" onClick={handleExportarExcel}>
             Exportar Excel
+          </button>
+          <button className="ai02stats-btn ai02stats-btn-primary" onClick={handleExportarConsolidado} style={{ background: '#7c3aed', borderColor: '#7c3aed' }}>
+            Exportar Consolidado
           </button>
           <button className="ai02stats-btn" onClick={onVolver}>
             ← Volver a Tareas
