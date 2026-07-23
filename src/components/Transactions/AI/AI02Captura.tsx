@@ -314,12 +314,14 @@ const AI02Captura: React.FC = () => {
   const handleEliminarCaptura = async (index: number) => {
     const captura = capturas[index];
 
+    // Eliminar de la BD
     if (captura.id && captura.id.length > 20) {
       try {
         await fetch(API_URL + '/ai_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS });
       } catch (e) {}
     }
 
+    // Si la captura corresponde a un BOM del sistema, decrementar el contador
     if (!captura.esNoEncontrado) {
       const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
       if (bomEsperado && bomEsperado.cantidad_revisada > 0) {
@@ -399,9 +401,13 @@ const AI02Captura: React.FC = () => {
       }
     }
 
+    // Cargar capturas REALES de la BD para este modal
     const respCapturas = await fetch(API_URL + '/ai_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
     const capturasData = await respCapturas.json() || [];
 
+    // Reiniciar contadores
+    bomsTemp.forEach((b: any) => { b.cantidad_revisada = 0; });
+    
     capturasData.forEach((c: any) => {
       const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku);
       if (bom) bom.cantidad_revisada++;
@@ -694,32 +700,45 @@ const AI02Captura: React.FC = () => {
                     </div>
                   );
                 })}
-                {capturas.filter((c: any) => c.esNoEncontrado || !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length > 0 && (
-                  <div style={{ marginTop: '8px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--error-text)', marginBottom: '4px' }}>
-                      BOMs No Encontrados ({capturas.filter((c: any) => c.esNoEncontrado || !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length})
-                    </div>
+              </div>
+
+              {/* Lista de todas las capturas con botón eliminar */}
+              {capturas.length > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    Capturas ({capturas.length})
+                  </div>
+                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {capturas.map((c: any, idx: number) => {
-                      if (!c.esNoEncontrado && bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)) return null;
+                      const esSistema = bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku);
                       return (
-                        <div key={idx} className="ai02-captura-bom-item" style={{ background: 'var(--error-bg)' }}>
-                          <span className="ai02-captura-bom-sku" style={{ color: 'var(--error-text)' }}>{c.bom_sku}</span>
+                        <div key={idx} className="ai02-captura-bom-item" style={{ 
+                          background: c.esNoEncontrado ? 'var(--error-bg)' : 'var(--bg-panel)',
+                          borderBottom: '1px solid var(--border)'
+                        }}>
+                          <span className="ai02-captura-bom-sku" style={{ 
+                            color: c.esNoEncontrado ? 'var(--error-text)' : 'var(--text-primary)',
+                            fontSize: '12px'
+                          }}>{c.bom_sku}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--error-text)' }}>No encontrado</span>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                              {c.esNoEncontrado ? 'No encontrado' : 'Sistema'}
+                            </span>
                             <button onClick={() => handleEliminarCaptura(idx)} style={{
-                              width: '20px', height: '20px', background: 'transparent', color: 'var(--error-text)',
-                              border: '1px solid var(--error-border)', borderRadius: '3px', cursor: 'pointer', fontSize: '12px'
+                              width: '20px', height: '20px', background: 'var(--error-bg)', color: 'var(--error-text)',
+                              border: '1px solid var(--error-border)', borderRadius: '3px', cursor: 'pointer', fontSize: '12px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>×</button>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <button className="ai02-btn ai02-btn-success" onClick={handleFinalizarTarea}
-                style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '15px' }}>
+                style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '15px', marginTop: '12px' }}>
                 Finalizar Tarea
               </button>
             </div>
@@ -745,7 +764,7 @@ const AI02Captura: React.FC = () => {
               <div className="ai02-captura-resumen" style={{ marginBottom: '16px' }}>
                 <div className="ai02-captura-resumen-card"><span>Sistema</span><strong>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_sistema, 0)}</strong></div>
                 <div className="ai02-captura-resumen-card"><span>Revisado</span><strong>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_revisada, 0)}</strong></div>
-                <div className="ai02-captura-resumen-card"><span>No Encontrados</span><strong style={{ color: 'var(--error-text)' }}>{capturas.filter((c: any) => c.esNoEncontrado || !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length}</strong></div>
+                <div className="ai02-captura-resumen-card"><span>No Encontrados</span><strong style={{ color: 'var(--error-text)' }}>{capturas.filter((c: any) => !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length}</strong></div>
               </div>
               <div className="ai02-captura-bom-list" style={{ maxHeight: '400px' }}>
                 {bomsConsolidados.map((bom: any, idx: number) => {
