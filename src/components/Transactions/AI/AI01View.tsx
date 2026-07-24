@@ -134,6 +134,8 @@ const AI01View: React.FC = () => {
       const dataRows = rows.slice(1).filter((row: any) => row.length > 0);
 
       const colEmpaque = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('empaque'));
+      const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
+      const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
       
       const colUltimaMod = headers.findIndex((h: string) => {
         if (!h) return false;
@@ -147,7 +149,6 @@ const AI01View: React.FC = () => {
       
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
-      const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
 
       if (colEmpaque < 0 || colBOM < 0) {
         mostrarMensaje('error', 'Columnas requeridas no encontradas (Número de Empaque, BOM/SKU)');
@@ -155,65 +156,51 @@ const AI01View: React.FC = () => {
         return;
       }
 
-      const truncarAMinutos = (fechaStr: string): string => {
-        if (!fechaStr) return '';
-        const partes = fechaStr.trim().split(' ');
-        if (partes.length >= 2) {
-          const horaPartes = partes[1].split(':');
-          if (horaPartes.length >= 2) {
-            return partes[0] + ' ' + horaPartes[0] + ':' + horaPartes[1];
-          }
-        }
-        return fechaStr.trim();
-      };
-
-      const conteoCajas: Record<string, number> = {};
+      // Paso 1: Agrupar por Empaque + BOM + Última modificación y tomar el MÁXIMO de cantidad
+      const grupo1: Record<string, any> = {};
       
       dataRows.forEach((row: any) => {
         const empaque = String(row[colEmpaque] || '').trim();
-        const ultimaModRaw = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
-        const ultimaMod = truncarAMinutos(ultimaModRaw);
+        const bom = String(row[colBOM] || '').trim();
+        const ultimaMod = colUltimaMod >= 0 ? String(row[colUltimaMod] || '').trim() : '';
+        const cantidad = colCantidad >= 0 ? (parseInt(row[colCantidad]) || 1) : 1;
         const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
-        const bom = String(row[colBOM] || '').trim();
 
         if (!empaque || !bom) return;
 
-        const keyCaja = empaque + '|' + bom + '|' + ultimaMod;
-        conteoCajas[keyCaja] = 1;
-      });
-
-      const consolidado: Record<string, any> = {};
-      Object.keys(conteoCajas).forEach((keyCaja) => {
-        const partes = keyCaja.split('|');
-        const empaque = partes[0];
-        const bom = partes[1];
+        const key = empaque + '|' + bom + '|' + ultimaMod;
         
-        const key = empaque + '|' + bom;
+        if (!grupo1[key]) {
+          grupo1[key] = { empaque, bom, ultimaMod, codDestino, destino, cantidad };
+        } else {
+          if (cantidad > grupo1[key].cantidad) {
+            grupo1[key].cantidad = cantidad;
+          }
+        }
+      });
+
+      // Paso 2: Agrupar por Empaque + BOM y SUMAR las cantidades máximas
+      const consolidado: Record<string, any> = {};
+      Object.values(grupo1).forEach((item: any) => {
+        const key = item.empaque + '|' + item.bom;
         if (!consolidado[key]) {
-          consolidado[key] = { empaque, bom, cantidad: 0 };
+          consolidado[key] = { 
+            empaque: item.empaque, 
+            codDestino: item.codDestino, 
+            destino: item.destino, 
+            bom: item.bom, 
+            cantidad: 0 
+          };
         }
-        consolidado[key].cantidad += 1;
+        consolidado[key].cantidad += item.cantidad;
       });
 
-      const infoEmpaques: Record<string, any> = {};
-      dataRows.forEach((row: any) => {
-        const empaque = String(row[colEmpaque] || '').trim();
-        const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
-        const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
-        if (empaque && !infoEmpaques[empaque]) {
-          infoEmpaques[empaque] = { codDestino, destino };
-        }
-      });
-
+      // Guardar en BD
       const empaquesMap: Record<string, any> = {};
       Object.values(consolidado).forEach((item: any) => {
         if (!empaquesMap[item.empaque]) {
-          empaquesMap[item.empaque] = { 
-            codDestino: infoEmpaques[item.empaque]?.codDestino || '', 
-            destino: infoEmpaques[item.empaque]?.destino || '', 
-            boms: {} 
-          };
+          empaquesMap[item.empaque] = { codDestino: item.codDestino, destino: item.destino, boms: {} };
         }
         empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
       });
@@ -439,7 +426,6 @@ const AI01View: React.FC = () => {
         </table>
       </div>
 
-      {/* Modal de confirmación para eliminar */}
       {mostrarConfirmacion && (
         <div className="sd01-modal-overlay" onClick={() => setMostrarConfirmacion(false)}>
           <div className="sd01-modal" style={{ maxWidth: '420px' }} onClick={(e: any) => e.stopPropagation()}>
