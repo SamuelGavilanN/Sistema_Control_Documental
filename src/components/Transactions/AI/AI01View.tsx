@@ -17,6 +17,8 @@ const AI01View: React.FC = () => {
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
   const [empaqueExpandido, setEmpaqueExpandido]: any = useState(null);
   const [empaqueSeleccionado, setEmpaqueSeleccionado]: any = useState(null);
+  const [mostrarConfirmacion, setMostrarConfirmacion]: any = useState(false);
+  const [empaqueAEliminar, setEmpaqueAEliminar]: any = useState(null);
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
@@ -275,10 +277,15 @@ const AI01View: React.FC = () => {
     setCargando(false);
   };
 
-  const handleEliminarEmpaque = async (empaque: any) => {
-    if (!window.confirm('¿Eliminar el empaque ' + empaque.numero_empaque + '?')) return;
+  const handleEliminarEmpaque = (empaque: any) => {
+    setEmpaqueAEliminar(empaque);
+    setMostrarConfirmacion(true);
+  };
+
+  const confirmarEliminar = async () => {
+    if (!empaqueAEliminar) return;
     try {
-      const resp = await fetch(API_URL + '/ai_inventario?id=eq.' + empaque.id, { method: 'DELETE', headers: HEADERS });
+      const resp = await fetch(API_URL + '/ai_inventario?id=eq.' + empaqueAEliminar.id, { method: 'DELETE', headers: HEADERS });
       if (resp.ok) {
         mostrarMensaje('success', 'Empaque eliminado');
         setEmpaqueSeleccionado(null);
@@ -290,6 +297,8 @@ const AI01View: React.FC = () => {
     } catch (e) {
       mostrarMensaje('error', 'Error al eliminar');
     }
+    setMostrarConfirmacion(false);
+    setEmpaqueAEliminar(null);
   };
 
   const toggleExpandir = (empaque: any) => {
@@ -429,6 +438,30 @@ const AI01View: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Modal de confirmación para eliminar */}
+      {mostrarConfirmacion && (
+        <div className="sd01-modal-overlay" onClick={() => setMostrarConfirmacion(false)}>
+          <div className="sd01-modal" style={{ maxWidth: '420px' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="sd01-modal-header">
+              <h2>Confirmar Eliminación</h2>
+              <button className="sd01-modal-close" onClick={() => setMostrarConfirmacion(false)}>×</button>
+            </div>
+            <div className="sd01-modal-body">
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+                ¿Está seguro de eliminar el empaque <strong>{empaqueAEliminar?.numero_empaque}</strong>?
+              </p>
+              <p style={{ color: 'var(--error-text)', fontSize: '12px', marginTop: '8px' }}>
+                Esta acción no se puede deshacer y también eliminará todos los BOMs asociados.
+              </p>
+            </div>
+            <div className="sd01-modal-footer">
+              <button className="sd01-btn-cancel" onClick={() => setMostrarConfirmacion(false)}>Cancelar</button>
+              <button className="sd01-btn-save" onClick={confirmarEliminar} style={{ background: '#dc2626' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
