@@ -16,7 +16,7 @@ const AI01View: React.FC = () => {
   const [cargando, setCargando]: any = useState(true);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
   const [empaqueExpandido, setEmpaqueExpandido]: any = useState(null);
-  const [empaquesSeleccionados, setEmpaquesSeleccionados]: any = useState(new Set());
+  const [empaqueSeleccionado, setEmpaqueSeleccionado]: any = useState(null);
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
@@ -112,65 +112,6 @@ const AI01View: React.FC = () => {
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
-  };
-
-  const toggleSeleccion = (empaqueId: string) => {
-    const nuevos = new Set(empaquesSeleccionados);
-    if (nuevos.has(empaqueId)) {
-      nuevos.delete(empaqueId);
-    } else {
-      nuevos.add(empaqueId);
-    }
-    setEmpaquesSeleccionados(nuevos);
-  };
-
-  const toggleSeleccionarTodos = () => {
-    if (empaquesSeleccionados.size === empaques.length) {
-      setEmpaquesSeleccionados(new Set());
-    } else {
-      setEmpaquesSeleccionados(new Set(empaques.map((e: any) => e.id)));
-    }
-  };
-
-  const handleEliminarSeleccionados = async () => {
-    if (empaquesSeleccionados.size === 0) {
-      mostrarMensaje('warning', 'Seleccione al menos un empaque');
-      return;
-    }
-    
-    const nombres = empaques
-      .filter((e: any) => empaquesSeleccionados.has(e.id))
-      .map((e: any) => e.numero_empaque)
-      .join(', ');
-    
-    if (!window.confirm('¿Eliminar ' + empaquesSeleccionados.size + ' empaque(s)?\n\n' + nombres)) return;
-    
-    setCargando(true);
-    let eliminados = 0;
-    let errores = 0;
-    
-    for (const id of empaquesSeleccionados) {
-      try {
-        const resp = await fetch(API_URL + '/ai_inventario?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
-        if (resp.ok) {
-          eliminados++;
-        } else {
-          errores++;
-        }
-      } catch (e) {
-        errores++;
-      }
-    }
-    
-    if (errores === 0) {
-      mostrarMensaje('success', eliminados + ' empaque(s) eliminado(s) correctamente');
-    } else {
-      mostrarMensaje('warning', eliminados + ' eliminado(s), ' + errores + ' error(es)');
-    }
-    
-    setEmpaquesSeleccionados(new Set());
-    setEmpaqueExpandido(null);
-    cargarInventario();
   };
 
   const procesarArchivo = async (file: File) => {
@@ -334,6 +275,23 @@ const AI01View: React.FC = () => {
     setCargando(false);
   };
 
+  const handleEliminarEmpaque = async (empaque: any) => {
+    if (!window.confirm('¿Eliminar el empaque ' + empaque.numero_empaque + '?')) return;
+    try {
+      const resp = await fetch(API_URL + '/ai_inventario?id=eq.' + empaque.id, { method: 'DELETE', headers: HEADERS });
+      if (resp.ok) {
+        mostrarMensaje('success', 'Empaque eliminado');
+        setEmpaqueSeleccionado(null);
+        setEmpaqueExpandido(null);
+        cargarInventario();
+      } else {
+        mostrarMensaje('error', 'Error al eliminar');
+      }
+    } catch (e) {
+      mostrarMensaje('error', 'Error al eliminar');
+    }
+  };
+
   const toggleExpandir = (empaque: any) => {
     setEmpaqueExpandido(empaqueExpandido && empaqueExpandido.id === empaque.id ? null : empaque);
   };
@@ -370,36 +328,28 @@ const AI01View: React.FC = () => {
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
           onChange={(e: any) => { const file = e.target.files?.[0]; if (file) procesarArchivo(file); }} />
         <div className="ai01-separator"></div>
-        <button className="ai01-btn" onClick={() => empaqueExpandido && toggleExpandir(empaqueExpandido)} disabled={!empaqueExpandido}>
+        <button className="ai01-btn" onClick={() => empaqueSeleccionado && toggleExpandir(empaqueSeleccionado)} disabled={!empaqueSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Ver Detalle
         </button>
-        <button className="ai01-btn ai01-btn-danger" onClick={handleEliminarSeleccionados} disabled={empaquesSeleccionados.size === 0}>
+        <button 
+          className="ai01-btn ai01-btn-danger" 
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            if (empaqueSeleccionado) handleEliminarEmpaque(empaqueSeleccionado); 
+          }} 
+          disabled={!empaqueSeleccionado}
+        >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Eliminar ({empaquesSeleccionados.size})
+          Eliminar
         </button>
       </div>
-
-      {empaquesSeleccionados.size > 0 && (
-        <div className="ai02-selected-info">
-          <span>{empaquesSeleccionados.size} empaque(s) seleccionado(s)</span>
-          <button className="ai02-selected-close" onClick={() => setEmpaquesSeleccionados(new Set())}>×</button>
-        </div>
-      )}
 
       <div style={{ overflowX: 'auto' }}>
         <table className="ed03-tabla" style={{ minWidth: '1100px' }}>
           <thead>
             <tr>
-              <th style={{ width: '40px', textAlign: 'center' }}>
-                <input 
-                  type="checkbox" 
-                  className="sd01-radio"
-                  checked={empaques.length > 0 && empaquesSeleccionados.size === empaques.length}
-                  onChange={toggleSeleccionarTodos}
-                  style={{ cursor: 'pointer' }}
-                />
-              </th>
+              <th style={{ width: '40px' }}></th>
               <th>Número de Empaque</th>
               <th>Cod. Destino</th>
               <th>Destino</th>
@@ -416,19 +366,21 @@ const AI01View: React.FC = () => {
             ) : (
               empaques.map((empaque: any) => {
                 const eb = getEstadoBadge(empaque.estado);
-                const seleccionado = empaquesSeleccionados.has(empaque.id);
+                const seleccionado = empaqueSeleccionado && empaqueSeleccionado.id === empaque.id;
                 return (
                   <React.Fragment key={empaque.id}>
                     <tr 
-                      onClick={() => toggleExpandir(empaque)}
-                      style={{ cursor: 'pointer', background: seleccionado ? 'var(--table-row-selected)' : 'transparent' }}>
-                      <td style={{ textAlign: 'center' }} onClick={(e: any) => e.stopPropagation()}>
-                        <input 
-                          type="checkbox" 
-                          className="sd01-radio"
+                      onClick={() => setEmpaqueSeleccionado(seleccionado ? null : empaque)}
+                      style={{ 
+                        cursor: 'pointer', 
+                        background: seleccionado ? 'var(--table-row-selected)' : 'transparent' 
+                      }}
+                    >
+                      <td>
+                        <input type="radio" className="sd01-radio"
                           checked={seleccionado}
-                          onChange={() => toggleSeleccion(empaque.id)}
-                        />
+                          onChange={() => setEmpaqueSeleccionado(empaque)}
+                          onClick={(e: any) => e.stopPropagation()} />
                       </td>
                       <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{empaque.numero_empaque}</td>
                       <td>{empaque.cod_destino || '-'}</td>
