@@ -259,7 +259,8 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
     const filas: any[] = [];
     
     for (const tarea of tareas) {
-      let bomsTemp: any[] = [];
+      const bomsConEmpaque: any[] = [];
+      
       for (const emp of tarea.empaques) {
         const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
         const invData = await respInv.json();
@@ -268,12 +269,12 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
           const boms = await respBoms.json();
           if (boms) {
             for (const bom of boms) {
-              const existente = bomsTemp.find((b: any) => b.bom_sku === bom.bom_sku);
-              if (existente) {
-                existente.cantidad_sistema += bom.cantidad_maxima;
-              } else {
-                bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 });
-              }
+              bomsConEmpaque.push({
+                numero_empaque: emp,
+                bom_sku: bom.bom_sku,
+                cantidad_sistema: bom.cantidad_maxima,
+                cantidad_revisada: 0
+              });
             }
           }
         }
@@ -283,13 +284,13 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
       const capturasData = await respCapturas.json() || [];
 
       capturasData.forEach((c: any) => {
-        const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku);
+        const bom = bomsConEmpaque.find((b: any) => b.bom_sku === c.bom_sku);
         if (bom) bom.cantidad_revisada++;
       });
 
       const localCompleto = tarea.cod_local + ' - ' + tarea.local;
       
-      bomsTemp.forEach((bom: any) => {
+      bomsConEmpaque.forEach((bom: any) => {
         const diff = bom.cantidad_sistema - bom.cantidad_revisada;
         let estado = 'OK';
         let diffTexto = 'OK';
@@ -310,6 +311,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
           'LOCAL': localCompleto,
           'AUDITOR': tarea.auditor_nombre,
           'ESTADO TAREA': tarea.estado,
+          'N° EMPAQUE': bom.numero_empaque,
           'BOM/SKU': bom.bom_sku,
           'CANT. SISTEMA': bom.cantidad_sistema,
           'CANT. REVISADA': bom.cantidad_revisada,
@@ -318,7 +320,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         });
       });
 
-      const bomsSistema = bomsTemp.map((b: any) => b.bom_sku);
+      const bomsSistema = bomsConEmpaque.map((b: any) => b.bom_sku);
       const noEncontrados = capturasData.filter((c: any) => !bomsSistema.includes(c.bom_sku));
       
       if (noEncontrados.length > 0) {
@@ -334,6 +336,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
             'LOCAL': localCompleto,
             'AUDITOR': tarea.auditor_nombre,
             'ESTADO TAREA': tarea.estado,
+            'N° EMPAQUE': 'NO ENCONTRADO',
             'BOM/SKU': bomSku,
             'CANT. SISTEMA': 0,
             'CANT. REVISADA': agrupados[bomSku],
@@ -346,7 +349,8 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
 
     const ws = XLSX.utils.json_to_sheet(filas);
     ws['!cols'] = [
-      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }
+      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 18 },
+      { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Consolidado');
