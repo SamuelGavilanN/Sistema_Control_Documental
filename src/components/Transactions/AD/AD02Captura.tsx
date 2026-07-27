@@ -228,62 +228,56 @@ const AD02Captura: React.FC = () => {
     setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
-  const iniciarScanner = async () => {
-    setMostrarScanner(true);
-    
-    setTimeout(async () => {
-      try {
-        const html5QrCode = new Html5Qrcode("reader");
-        html5QrCodeRef.current = html5QrCode;
+// Cambiar la configuración del scanner en la función iniciarScanner:
+
+const iniciarScanner = async () => {
+  setMostrarScanner(true);
+  
+  setTimeout(async () => {
+    try {
+      const html5QrCode = new Html5Qrcode("reader");
+      html5QrCodeRef.current = html5QrCode;
+      
+      const cameras = await Html5Qrcode.getCameras();
+      if (cameras && cameras.length > 0) {
+        const camaraTrasera = cameras.find((c: any) => 
+          c.id.toLowerCase().includes('back') || 
+          c.id.toLowerCase().includes('environment')
+        );
+        const cameraId = camaraTrasera ? camaraTrasera.id : cameras[0].id;
         
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras && cameras.length > 0) {
-          const camaraTrasera = cameras.find((c: any) => 
-            c.id.toLowerCase().includes('back') || 
-            c.id.toLowerCase().includes('environment')
-          );
-          const cameraId = camaraTrasera ? camaraTrasera.id : cameras[0].id;
-          
-          setScannerActivo(true);
-          
-          await html5QrCode.start(
-            cameraId,
-            {
-              fps: 10,
-              qrbox: { width: 280, height: 120 },
-              formatsToSupport: [
-                Html5Qrcode.SupportedFormats.CODE_128,
-                Html5Qrcode.SupportedFormats.EAN_13,
-                Html5Qrcode.SupportedFormats.EAN_8,
-                Html5Qrcode.SupportedFormats.CODE_39,
-                Html5Qrcode.SupportedFormats.UPC_A,
-                Html5Qrcode.SupportedFormats.UPC_E,
-              ]
-            },
-            (decodedText: string) => {
-              setBusqueda(decodedText);
-              detenerScanner();
-              setTimeout(() => {
-                busquedaRef.current?.focus();
-                buscarCurvaConTexto(decodedText);
-              }, 300);
-            },
-            (errorMessage: string) => {
-              // Errores de escaneo son normales
-            }
-          );
-        } else {
-          alert('No se encontraron cámaras disponibles');
-          setMostrarScanner(false);
-        }
-      } catch (err) {
-        console.error('Error iniciando scanner:', err);
-        alert('Error al iniciar la cámara. Verifique los permisos.');
+        setScannerActivo(true);
+        
+        await html5QrCode.start(
+          cameraId,
+          {
+            fps: 10,
+            qrbox: { width: 280, height: 120 },
+          },
+          (decodedText: string) => {
+            setBusqueda(decodedText);
+            detenerScanner();
+            setTimeout(() => {
+              busquedaRef.current?.focus();
+              buscarCurvaConTexto(decodedText);
+            }, 300);
+          },
+          (errorMessage: string) => {
+            // Errores de escaneo son normales
+          }
+        );
+      } else {
+        alert('No se encontraron cámaras disponibles');
         setMostrarScanner(false);
-        setScannerActivo(false);
       }
-    }, 500);
-  };
+    } catch (err) {
+      console.error('Error iniciando scanner:', err);
+      alert('Error al iniciar la cámara. Verifique los permisos.');
+      setMostrarScanner(false);
+      setScannerActivo(false);
+    }
+  }, 500);
+};
 
   const buscarCurvaConTexto = (texto: string) => {
     if (!texto.trim()) return;
