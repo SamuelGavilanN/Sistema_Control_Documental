@@ -57,13 +57,10 @@ const AD02Captura: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Limpiar scanner al desmontar
   useEffect(() => {
     return () => {
       if (html5QrCodeRef.current) {
-        try {
-          html5QrCodeRef.current.stop();
-        } catch (e) {}
+        try { html5QrCodeRef.current.stop(); } catch (e) {}
       }
     };
   }, []);
@@ -109,6 +106,20 @@ const AD02Captura: React.FC = () => {
   const buscarCurva = () => {
     if (!busqueda.trim()) return;
     let skuBuscado = busqueda.trim();
+    if (skuBuscado.length > 11) skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
+    const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
+    const curva = todosLosSKUs.filter((s: any) => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
+    if (curva.length === 0) { alert('SKU no encontrado'); return; }
+    setCurvaActual(curva.map((s: any) => ({ ...s, cantidad_fisica: undefined, diferencia: undefined })));
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.ad02-input-cantidad');
+      if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
+    }, 200);
+  };
+
+  const buscarCurvaConTexto = (texto: string) => {
+    if (!texto.trim()) return;
+    let skuBuscado = texto.trim();
     if (skuBuscado.length > 11) skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
     const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
     const curva = todosLosSKUs.filter((s: any) => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
@@ -228,69 +239,62 @@ const AD02Captura: React.FC = () => {
     setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
-// Cambiar la configuración del scanner en la función iniciarScanner:
-
-const iniciarScanner = async () => {
-  setMostrarScanner(true);
-  
-  setTimeout(async () => {
-    try {
-      const html5QrCode = new Html5Qrcode("reader");
-      html5QrCodeRef.current = html5QrCode;
-      
-      const cameras = await Html5Qrcode.getCameras();
-      if (cameras && cameras.length > 0) {
-        const camaraTrasera = cameras.find((c: any) => 
-          c.id.toLowerCase().includes('back') || 
-          c.id.toLowerCase().includes('environment')
-        );
-        const cameraId = camaraTrasera ? camaraTrasera.id : cameras[0].id;
+  const iniciarScanner = async () => {
+    setMostrarScanner(true);
+    
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCodeRef.current = html5QrCode;
         
-        setScannerActivo(true);
-        
-        await html5QrCode.start(
-          cameraId,
-          {
-            fps: 10,
-            qrbox: { width: 280, height: 120 },
-          },
-          (decodedText: string) => {
-            setBusqueda(decodedText);
-            detenerScanner();
-            setTimeout(() => {
-              busquedaRef.current?.focus();
-              buscarCurvaConTexto(decodedText);
-            }, 300);
-          },
-          (errorMessage: string) => {
-            // Errores de escaneo son normales
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          // Buscar cámara trasera explícitamente
+          let cameraId = cameras[0].id;
+          
+          for (const cam of cameras) {
+            const label = cam.label.toLowerCase();
+            if (label.includes('back') || label.includes('trasera') || label.includes('environment') || label.includes('posterior')) {
+              cameraId = cam.id;
+              break;
+            }
           }
-        );
-      } else {
-        alert('No se encontraron cámaras disponibles');
+          
+          // Si hay más de una cámara, usar la segunda (generalmente es la trasera)
+          if (cameras.length > 1) {
+            cameraId = cameras[cameras.length - 1].id;
+          }
+          
+          setScannerActivo(true);
+          
+          await html5QrCode.start(
+            cameraId,
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 100 },
+              aspectRatio: 1.5,
+            },
+            (decodedText: string) => {
+              setBusqueda(decodedText);
+              detenerScanner();
+              setTimeout(() => {
+                busquedaRef.current?.focus();
+                buscarCurvaConTexto(decodedText);
+              }, 300);
+            },
+            (errorMessage: string) => {}
+          );
+        } else {
+          alert('No se encontraron cámaras disponibles');
+          setMostrarScanner(false);
+        }
+      } catch (err) {
+        console.error('Error iniciando scanner:', err);
+        alert('Error al iniciar la cámara. Verifique los permisos.');
         setMostrarScanner(false);
+        setScannerActivo(false);
       }
-    } catch (err) {
-      console.error('Error iniciando scanner:', err);
-      alert('Error al iniciar la cámara. Verifique los permisos.');
-      setMostrarScanner(false);
-      setScannerActivo(false);
-    }
-  }, 500);
-};
-
-  const buscarCurvaConTexto = (texto: string) => {
-    if (!texto.trim()) return;
-    let skuBuscado = texto.trim();
-    if (skuBuscado.length > 11) skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
-    const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
-    const curva = todosLosSKUs.filter((s: any) => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
-    if (curva.length === 0) { alert('SKU no encontrado'); return; }
-    setCurvaActual(curva.map((s: any) => ({ ...s, cantidad_fisica: undefined, diferencia: undefined })));
-    setTimeout(() => {
-      const inputs = document.querySelectorAll('.ad02-input-cantidad');
-      if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
-    }, 200);
+    }, 500);
   };
 
   const detenerScanner = async () => {
@@ -372,17 +376,16 @@ const iniciarScanner = async () => {
         <>
           <div className="ad02-header"><h2>Mis Tareas de Auditoria</h2></div>
           {isMobile ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {cargando ? <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</p> :
-                misTareas.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No tienes tareas</p> :
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {cargando ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Cargando...</p> :
+                misTareas.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>No tienes tareas</p> :
                 misTareas.map((t: any) => (
-                  <div key={t.id} style={{ padding: '12px', background: 'var(--bg-section)', borderRadius: '8px', border: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => abrirTarea(t)}>
+                  <div key={t.id} style={{ padding: '10px 12px', background: 'var(--bg-section)', borderRadius: '8px', border: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => abrirTarea(t)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, color: '#1d4ed8', fontSize: '13px' }}>{t.numero_tarea}</span>
-                      <span style={{ padding: '2px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600, background: 'var(--estado-proceso-bg)', color: 'var(--estado-proceso-text)' }}>{t.estado}</span>
+                      <span style={{ fontWeight: 600, color: '#1d4ed8', fontSize: '12px' }}>{t.numero_tarea}</span>
+                      <span style={{ padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 600, background: 'var(--estado-proceso-bg)', color: 'var(--estado-proceso-text)' }}>{t.estado}</span>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{t.codigo_local} - {t.nombre_local}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-placeholder)', marginTop: '2px' }}>Acta: {t.acta || '-'} | Guia: {t.guia || '-'}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>{t.codigo_local} - {t.nombre_local}</div>
                   </div>
                 ))
               }
@@ -404,64 +407,67 @@ const iniciarScanner = async () => {
         </>
       ) : (
         <>
-          <div className="ad02-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
-            <div><h2 style={{ fontSize: isMobile ? '16px' : '20px' }}>{tareaActiva.numero_tarea}</h2><span className="ad02-subtitle">{tareaActiva.codigo_local} - {tareaActiva.nombre_local}</span></div>
-            <div className="ad02-header-actions" style={{ flexWrap: 'wrap', gap: '6px' }}>
-              <span className="ad02-caja-badge" style={{ fontSize: isMobile ? '11px' : '13px' }}>Caja #{cajaActual}</span>
-              <button className="ad02-btn-finalizar" onClick={finalizarTarea} style={{ fontSize: isMobile ? '11px' : '13px', padding: isMobile ? '6px 10px' : '8px 16px' }}>Finalizar</button>
-              <button className="ed01-btn-cancel" onClick={() => { setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); }} style={{ fontSize: isMobile ? '11px' : '13px' }}>Volver</button>
+          <div className="ad02-header" style={{ flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: isMobile ? '15px' : '20px', margin: 0 }}>{tareaActiva.numero_tarea}</h2>
+              <span className="ad02-subtitle" style={{ fontSize: isMobile ? '11px' : '13px' }}>{tareaActiva.codigo_local} - {tareaActiva.nombre_local}</span>
+            </div>
+            <div className="ad02-header-actions" style={{ flexWrap: 'wrap', gap: '4px' }}>
+              <span className="ad02-caja-badge" style={{ fontSize: isMobile ? '10px' : '13px', padding: isMobile ? '4px 8px' : '6px 14px' }}>Caja #{cajaActual}</span>
+              <button className="ad02-btn-finalizar" onClick={finalizarTarea} style={{ fontSize: isMobile ? '10px' : '13px', padding: isMobile ? '5px 8px' : '8px 16px' }}>Finalizar</button>
+              <button className="ed01-btn-cancel" onClick={() => { setTareaActiva(null); setCurvaActual([]); setTodosLosSKUs([]); }} style={{ fontSize: isMobile ? '10px' : '13px', padding: isMobile ? '5px 8px' : '8px 16px' }}>Volver</button>
             </div>
           </div>
 
-          <div className="ad02-busqueda">
+          <div className="ad02-busqueda" style={{ gap: '6px', marginBottom: '8px' }}>
             <input ref={busquedaRef} type="text" value={busqueda} onChange={(e: any) => setBusqueda(e.target.value)}
               onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); buscarCurva(); } }}
               placeholder="Escanear EAN o SKU..." autoFocus
-              style={{ fontSize: isMobile ? '14px' : '18px', padding: isMobile ? '10px' : '14px' }} />
-            <button className="ad02-btn-buscar" onClick={buscarCurva} style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px' }}>Buscar</button>
+              style={{ fontSize: isMobile ? '13px' : '18px', padding: isMobile ? '8px 10px' : '14px', flex: 1 }} />
+            <button className="ad02-btn-buscar" onClick={buscarCurva} style={{ fontSize: isMobile ? '12px' : '16px', padding: isMobile ? '8px 12px' : '14px 24px', whiteSpace: 'nowrap' }}>Buscar</button>
             <button 
               className="ad02-btn-buscar" 
               onClick={iniciarScanner}
-              style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px', background: '#7c3aed' }}
+              style={{ fontSize: isMobile ? '12px' : '16px', padding: isMobile ? '8px 10px' : '14px 16px', background: '#7c3aed', whiteSpace: 'nowrap' }}
               title="Escanear con cámara"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width={isMobile ? '16' : '20'} height={isMobile ? '16' : '20'} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
               </svg>
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
             <button
               onClick={() => { setShowAgregarSKU(!showAgregarSKU); setSkusManuales([]); }}
-              style={{ padding: '8px 14px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+              style={{ padding: isMobile ? '6px 10px' : '8px 14px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: isMobile ? '11px' : '12px', cursor: 'pointer' }}
             >
               + Caja Manual
             </button>
             {showAgregarSKU && skusManuales.length > 0 && (
-              <span style={{ fontSize: '12px', color: 'var(--warning-text)', padding: '6px 0' }}>
-                {skusManuales.length} SKU(s) agregados
+              <span style={{ fontSize: '11px', color: 'var(--warning-text)', padding: '5px 0' }}>
+                {skusManuales.length} SKU(s)
               </span>
             )}
           </div>
 
           {showAgregarSKU && (
-            <div style={{ marginBottom: '12px', padding: '12px', background: 'var(--warning-bg)', borderRadius: '8px', border: '1px solid var(--warning-border)' }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div>
-                  <label style={{ fontSize: '11px', color: 'var(--warning-text)', display: 'block', marginBottom: '2px' }}>SKU</label>
+            <div style={{ marginBottom: '8px', padding: '10px', background: 'var(--warning-bg)', borderRadius: '8px', border: '1px solid var(--warning-border)' }}>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div style={{ flex: isMobile ? '1 1 100%' : '1' }}>
+                  <label style={{ fontSize: '10px', color: 'var(--warning-text)', display: 'block', marginBottom: '2px' }}>SKU</label>
                   <input
                     ref={skuManualInputRef}
                     value={nuevoSKUInput}
                     onChange={(e: any) => setNuevoSKUInput(e.target.value)}
                     onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); cantidadManualInputRef.current?.focus(); } }}
                     placeholder="Escanear o escribir SKU"
-                    style={{ padding: '8px 10px', border: '1px solid var(--warning-border)', borderRadius: '4px', fontSize: '14px', width: '180px', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--warning-border)', borderRadius: '4px', fontSize: '13px', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
                   />
                 </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: 'var(--warning-text)', display: 'block', marginBottom: '2px' }}>Cantidad</label>
+                <div style={{ width: isMobile ? '100%' : '80px' }}>
+                  <label style={{ fontSize: '10px', color: 'var(--warning-text)', display: 'block', marginBottom: '2px' }}>Cantidad</label>
                   <input
                     ref={cantidadManualInputRef}
                     type="number"
@@ -470,41 +476,41 @@ const iniciarScanner = async () => {
                     onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); agregarSKUaLista(); } }}
                     placeholder="0"
                     min="1"
-                    style={{ padding: '8px 10px', border: '1px solid var(--warning-border)', borderRadius: '4px', fontSize: '14px', width: '90px', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--warning-border)', borderRadius: '4px', fontSize: '13px', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
                   />
                 </div>
-                <button onClick={agregarSKUaLista} style={{ padding: '8px 14px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', fontSize: '13px', cursor: 'pointer', height: '38px' }}>
+                <button onClick={agregarSKUaLista} style={{ padding: '6px 12px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', height: '34px', whiteSpace: 'nowrap' }}>
                   + Agregar
                 </button>
               </div>
 
               {skusManuales.length > 0 && (
-                <div style={{ marginBottom: '10px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                     <thead>
                       <tr style={{ background: 'var(--warning-bg)' }}>
-                        <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--warning-text)' }}>SKU</th>
-                        <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 600, color: 'var(--warning-text)', width: '80px' }}>Cantidad</th>
-                        <th style={{ width: '40px' }}></th>
+                        <th style={{ padding: '4px 6px', textAlign: 'left', fontWeight: 600, color: 'var(--warning-text)' }}>SKU</th>
+                        <th style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: 'var(--warning-text)', width: '60px' }}>Cant.</th>
+                        <th style={{ width: '30px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
                       {skusManuales.map((s: any, i: number) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--warning-border)' }}>
-                          <td style={{ padding: '6px 8px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{s.sku}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--text-primary)' }}>{s.cantidad}</td>
+                          <td style={{ padding: '4px 6px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)', fontSize: '11px' }}>{s.sku}</td>
+                          <td style={{ padding: '4px 6px', textAlign: 'center', color: 'var(--text-primary)' }}>{s.cantidad}</td>
                           <td style={{ textAlign: 'center' }}>
-                            <button onClick={() => eliminarSKUdeLista(i)} style={{ width: '22px', height: '22px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', lineHeight: '1' }}>×</button>
+                            <button onClick={() => eliminarSKUdeLista(i)} style={{ width: '18px', height: '18px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: '1' }}>×</button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <div style={{ marginTop: '10px' }}>
+                  <div style={{ marginTop: '8px' }}>
                     <button
                       onClick={guardarCajaManual}
                       disabled={guardando}
-                      style={{ padding: '10px 20px', background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%' }}
+                      style={{ padding: '8px 16px', background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', width: '100%' }}
                     >
                       {guardando ? 'Guardando...' : 'Guardar Caja Manual (Caja #' + cajaActual + ')'}
                     </button>
@@ -516,27 +522,28 @@ const iniciarScanner = async () => {
 
           {curvaActual.length > 0 && (
             <>
-              <div className="ad02-curva-info" style={{ fontSize: isMobile ? '11px' : '13px' }}>Curva: <strong>{curvaActual[0].sku.substring(0, curvaActual[0].sku.length - 3)}XXX</strong> ({curvaActual.length} items)</div>
-              <div className="ed03-tabla-container">
-                <table className="ed03-tabla" style={{ fontSize: isMobile ? '11px' : '13px' }}>
-                  <thead><tr><th>SKU</th><th>Descripcion</th><th>SAP</th><th>Capt.</th><th>Fisico</th><th>Dif.</th></tr></thead>
+              <div className="ad02-curva-info" style={{ fontSize: isMobile ? '10px' : '13px', marginBottom: '6px' }}>Curva: <strong>{curvaActual[0].sku.substring(0, curvaActual[0].sku.length - 3)}XXX</strong> ({curvaActual.length} items)</div>
+              <div className="ed03-tabla-container" style={{ maxHeight: isMobile ? '40vh' : 'auto' }}>
+                <table className="ed03-tabla" style={{ fontSize: isMobile ? '10px' : '13px' }}>
+                  <thead><tr><th>SKU</th><th style={{ maxWidth: isMobile ? '80px' : 'none' }}>Descripcion</th><th>SAP</th><th>Capt.</th><th>Fisico</th><th>Dif.</th></tr></thead>
                   <tbody>
                     {curvaActual.map((s: any, i: number) => (
                       <tr key={s.id} style={{ background: s.diferencia !== undefined ? (s.diferencia === 0 ? 'var(--success-bg)' : 'var(--error-bg)') : 'transparent' }}>
-                        <td className="ed03-ticket-id" style={{ fontSize: isMobile ? '10px' : '13px' }}>{s.sku}</td>
-                        <td style={{ fontSize: isMobile ? '10px' : '12px' }}>{s.denominacion}</td>
-                        <td>{s.cantidad_sap}</td><td style={{ color: 'var(--text-muted)' }}>{s.capturadoTotal || 0}</td>
+                        <td className="ed03-ticket-id" style={{ fontSize: isMobile ? '9px' : '13px' }}>{s.sku}</td>
+                        <td style={{ fontSize: isMobile ? '9px' : '12px', maxWidth: isMobile ? '80px' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.denominacion}</td>
+                        <td>{s.cantidad_sap}</td>
+                        <td style={{ color: 'var(--text-muted)' }}>{s.capturadoTotal || 0}</td>
                         <td><input type="number" className="ad02-input-cantidad" value={s.cantidad_fisica ?? ''} onChange={(e: any) => handleCantidadChange(s.id, parseInt(e.target.value) || 0, i)} onKeyDown={(e: any) => handleCantidadKeyDown(e, i)}
-                          style={{ width: isMobile ? '50px' : '70px', padding: isMobile ? '4px' : '8px', fontSize: isMobile ? '12px' : '14px', textAlign: 'center', border: '1px solid var(--border-input)', borderRadius: '4px', background: 'var(--bg-input)', color: 'var(--text-primary)' }} /></td>
-                        <td style={{ fontWeight: 600, color: s.diferencia !== undefined ? (s.diferencia === 0 ? 'var(--success-text)' : 'var(--error-text)') : 'var(--text-muted)', textAlign: 'center' }}>{s.diferencia !== undefined ? (s.diferencia === 0 ? 'OK' : s.diferencia) : '-'}</td>
+                          style={{ width: isMobile ? '40px' : '70px', padding: isMobile ? '3px' : '8px', fontSize: isMobile ? '11px' : '14px', textAlign: 'center', border: '1px solid var(--border-input)', borderRadius: '4px', background: 'var(--bg-input)', color: 'var(--text-primary)' }} /></td>
+                        <td style={{ fontWeight: 600, color: s.diferencia !== undefined ? (s.diferencia === 0 ? 'var(--success-text)' : 'var(--error-text)') : 'var(--text-muted)', textAlign: 'center', fontSize: isMobile ? '10px' : '13px' }}>{s.diferencia !== undefined ? (s.diferencia === 0 ? 'OK' : s.diferencia) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="ad02-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                <span className="ad02-totales" style={{ fontSize: isMobile ? '11px' : '13px' }}>SAP: {curvaActual.reduce((s: number, i: any) => s + i.cantidad_sap, 0)} | Capt: {curvaActual.reduce((s: number, i: any) => s + (i.capturadoTotal || 0), 0)} | Fis: {curvaActual.filter((s: any) => s.cantidad_fisica !== undefined).reduce((s: number, i: any) => s + (i.cantidad_fisica || 0), 0)}</span>
-                <button className="ad02-btn-guardar" onClick={guardarCaja} disabled={guardando} style={{ fontSize: isMobile ? '11px' : '14px', padding: isMobile ? '8px 14px' : '10px 20px' }}>
+              <div className="ad02-footer" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                <span className="ad02-totales" style={{ fontSize: isMobile ? '10px' : '13px' }}>SAP: {curvaActual.reduce((s: number, i: any) => s + i.cantidad_sap, 0)} | Capt: {curvaActual.reduce((s: number, i: any) => s + (i.capturadoTotal || 0), 0)} | Fis: {curvaActual.filter((s: any) => s.cantidad_fisica !== undefined).reduce((s: number, i: any) => s + (i.cantidad_fisica || 0), 0)}</span>
+                <button className="ad02-btn-guardar" onClick={guardarCaja} disabled={guardando} style={{ fontSize: isMobile ? '10px' : '14px', padding: isMobile ? '6px 10px' : '10px 20px' }}>
                   {guardando ? 'Guardando...' : 'Guardar Caja'}
                 </button>
               </div>
@@ -544,29 +551,23 @@ const iniciarScanner = async () => {
           )}
 
           {curvaActual.length === 0 && !showAgregarSKU && (
-            <div className="ad02-empty"><p style={{ fontSize: isMobile ? '13px' : '16px' }}>Escanea un EAN o ingresa un SKU</p><p style={{ fontSize: isMobile ? '11px' : '13px' }}>Presiona Enter para ver la curva completa</p></div>
+            <div className="ad02-empty"><p style={{ fontSize: isMobile ? '12px' : '16px' }}>Escanea un EAN o ingresa un SKU</p><p style={{ fontSize: isMobile ? '10px' : '13px' }}>Presiona Enter para ver la curva completa</p></div>
           )}
         </>
       )}
 
-      {/* Modal Scanner */}
       {mostrarScanner && (
         <div className="ed01-modal-overlay" onClick={detenerScanner}>
-          <div className="ed01-modal" style={{ maxWidth: '500px' }} onClick={(e: any) => e.stopPropagation()}>
-            <div className="ed01-modal-header">
-              <h2>Escanear SKU</h2>
+          <div className="ed01-modal" style={{ maxWidth: '100%', width: '100%', height: '100%', maxHeight: '100vh', borderRadius: '0' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="ed01-modal-header" style={{ padding: '12px 16px' }}>
+              <h2 style={{ fontSize: '16px' }}>Escanear SKU</h2>
               <button className="ed01-modal-close" onClick={detenerScanner}>×</button>
             </div>
-            <div className="ed01-modal-body" style={{ padding: '16px' }}>
-              <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
-              <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                Apunte la cámara al código de barras del SKU
+            <div className="ed01-modal-body" style={{ padding: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+              <div id="reader" style={{ width: '100%', maxWidth: '500px' }}></div>
+              <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px', padding: '0 16px' }}>
+                Apunte la cámara trasera al código de barras del SKU
               </p>
-              {!scannerActivo && (
-                <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  Iniciando cámara...
-                </p>
-              )}
             </div>
           </div>
         </div>
