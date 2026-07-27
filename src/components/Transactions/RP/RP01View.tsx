@@ -138,10 +138,10 @@ const RP01View: React.FC = () => {
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
       const colBOM = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('bom') || h.toString().toLowerCase().includes('sku')));
-      const colOrigen = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('origen'));
       const colCantidad = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('cantidad'));
+      const colOrigen = headers.findIndex((h: string) => h && h.toString().toLowerCase().includes('origen'));
       
-      // Buscar Última modificación en (flexible con acentos)
+      // Buscar Última modificación en
       const colUltimaMod = headers.findIndex((h: string) => {
         if (!h) return false;
         const header = h.toString().toLowerCase().trim();
@@ -158,48 +158,41 @@ const RP01View: React.FC = () => {
         return;
       }
 
+      // Verificar si existe la columna Última modificación en para usar la nueva lógica
       const hayUltimaMod = colUltimaMod >= 0;
 
       if (hayUltimaMod) {
-        // NUEVA LÓGICA: Usar Última modificación en para contar cajas únicas
+        // NUEVA LÓGICA: Usar Última modificación en (igual que AI01)
         
-        const truncarAMinutos = (fechaStr: string): string => {
-          if (!fechaStr) return '';
-          const partes = fechaStr.trim().split(' ');
-          if (partes.length >= 2) {
-            const horaPartes = partes[1].split(':');
-            if (horaPartes.length >= 2) {
-              return partes[0] + ' ' + horaPartes[0] + ':' + horaPartes[1];
-            }
-          }
-          return fechaStr.trim();
-        };
-
-        // Agrupar por Empaque + BOM + Minuto + Origen para contar cajas únicas
-        const conteoCajas: Record<string, any> = {};
+        // Paso 1: Agrupar por Empaque + BOM + Última modificación + Origen y tomar el MÁXIMO de cantidad
+        const grupo1: Record<string, any> = {};
         
         dataRows.forEach((row: any) => {
           const empaque = String(row[colEmpaque] || '').trim();
-          const ultimaModRaw = String(row[colUltimaMod] || '').trim();
-          const ultimaMod = truncarAMinutos(ultimaModRaw);
+          const bom = String(row[colBOM] || '').trim();
+          const ultimaMod = String(row[colUltimaMod] || '').trim();
+          const cantidad = colCantidad >= 0 ? (parseInt(row[colCantidad]) || 1) : 1;
           const codDestino = colCodDestino >= 0 ? String(row[colCodDestino] || '').trim() : '';
           const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
-          const bom = String(row[colBOM] || '').trim();
           const origen = colOrigen >= 0 ? String(row[colOrigen] || '').trim().toUpperCase() || 'CD01' : 'CD01';
 
           if (!empaque || !bom) return;
 
-          // Clave: Empaque + BOM + Minuto + Origen = 1 caja única
-          const keyCaja = empaque + '|' + bom + '|' + ultimaMod + '|' + origen;
+          // Clave: Empaque + BOM + Última modificación + Origen
+          const key = empaque + '|' + bom + '|' + ultimaMod + '|' + origen;
           
-          if (!conteoCajas[keyCaja]) {
-            conteoCajas[keyCaja] = { empaque, codDestino, destino, bom, origen };
+          if (!grupo1[key]) {
+            grupo1[key] = { empaque, bom, ultimaMod, codDestino, destino, origen, cantidad };
+          } else {
+            if (cantidad > grupo1[key].cantidad) {
+              grupo1[key].cantidad = cantidad;
+            }
           }
         });
 
-        // Agrupar por Empaque + BOM + Origen y sumar las cajas
+        // Paso 2: Agrupar por Empaque + BOM + Origen y SUMAR las cantidades máximas
         const consolidado: Record<string, any> = {};
-        Object.values(conteoCajas).forEach((item: any) => {
+        Object.values(grupo1).forEach((item: any) => {
           const key = item.empaque + '|' + item.bom + '|' + item.origen;
           if (!consolidado[key]) {
             consolidado[key] = { 
@@ -211,7 +204,7 @@ const RP01View: React.FC = () => {
               cantidad: 0 
             };
           }
-          consolidado[key].cantidad += 1;
+          consolidado[key].cantidad += item.cantidad;
         });
 
         // Guardar en BD
@@ -228,6 +221,7 @@ const RP01View: React.FC = () => {
         for (const key of Object.keys(empaquesMap)) {
           const emp = empaquesMap[key];
           
+          // Verificar si ya existe (por número de empaque + origen)
           const respExistente = await fetch(
             API_URL + '/rp_inventario_empaques?select=id&numero_empaque=eq.' + encodeURIComponent(emp.empaque) + '&origen=eq.' + encodeURIComponent(emp.origen),
             { headers: HEADERS }
