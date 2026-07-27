@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
+import { Html5Qrcode } from 'html5-qrcode';
 import './AD02.css';
 
 interface Auditoria {
@@ -45,11 +46,26 @@ const AD02Captura: React.FC = () => {
   const skuManualInputRef: any = useRef(null);
   const cantidadManualInputRef: any = useRef(null);
 
+  const [mostrarScanner, setMostrarScanner]: any = useState(false);
+  const [scannerActivo, setScannerActivo]: any = useState(false);
+  const html5QrCodeRef: any = useRef(null);
+
   useEffect(() => { cargarMisTareas(); }, []);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Limpiar scanner al desmontar
+  useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        try {
+          html5QrCodeRef.current.stop();
+        } catch (e) {}
+      }
+    };
   }, []);
 
   const cargarMisTareas = async () => {
@@ -212,6 +228,92 @@ const AD02Captura: React.FC = () => {
     setTimeout(() => busquedaRef.current?.focus(), 300);
   };
 
+  const iniciarScanner = async () => {
+    setMostrarScanner(true);
+    
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCodeRef.current = html5QrCode;
+        
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const camaraTrasera = cameras.find((c: any) => 
+            c.id.toLowerCase().includes('back') || 
+            c.id.toLowerCase().includes('environment')
+          );
+          const cameraId = camaraTrasera ? camaraTrasera.id : cameras[0].id;
+          
+          setScannerActivo(true);
+          
+          await html5QrCode.start(
+            cameraId,
+            {
+              fps: 10,
+              qrbox: { width: 280, height: 120 },
+              formatsToSupport: [
+                Html5Qrcode.SupportedFormats.CODE_128,
+                Html5Qrcode.SupportedFormats.EAN_13,
+                Html5Qrcode.SupportedFormats.EAN_8,
+                Html5Qrcode.SupportedFormats.CODE_39,
+                Html5Qrcode.SupportedFormats.UPC_A,
+                Html5Qrcode.SupportedFormats.UPC_E,
+              ]
+            },
+            (decodedText: string) => {
+              setBusqueda(decodedText);
+              detenerScanner();
+              setTimeout(() => {
+                busquedaRef.current?.focus();
+                buscarCurvaConTexto(decodedText);
+              }, 300);
+            },
+            (errorMessage: string) => {
+              // Errores de escaneo son normales
+            }
+          );
+        } else {
+          alert('No se encontraron cámaras disponibles');
+          setMostrarScanner(false);
+        }
+      } catch (err) {
+        console.error('Error iniciando scanner:', err);
+        alert('Error al iniciar la cámara. Verifique los permisos.');
+        setMostrarScanner(false);
+        setScannerActivo(false);
+      }
+    }, 500);
+  };
+
+  const buscarCurvaConTexto = (texto: string) => {
+    if (!texto.trim()) return;
+    let skuBuscado = texto.trim();
+    if (skuBuscado.length > 11) skuBuscado = skuBuscado.substring(1, skuBuscado.length - 1);
+    const prefijo = skuBuscado.substring(0, skuBuscado.length - 3);
+    const curva = todosLosSKUs.filter((s: any) => s.sku.startsWith(prefijo) && s.sku.length === skuBuscado.length);
+    if (curva.length === 0) { alert('SKU no encontrado'); return; }
+    setCurvaActual(curva.map((s: any) => ({ ...s, cantidad_fisica: undefined, diferencia: undefined })));
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.ad02-input-cantidad');
+      if (inputs.length > 0) (inputs[0] as HTMLInputElement).focus();
+    }, 200);
+  };
+
+  const detenerScanner = async () => {
+    if (html5QrCodeRef.current) {
+      try {
+        if (scannerActivo) {
+          await html5QrCodeRef.current.stop();
+        }
+        html5QrCodeRef.current = null;
+      } catch (err) {
+        console.error('Error deteniendo scanner:', err);
+      }
+    }
+    setScannerActivo(false);
+    setMostrarScanner(false);
+  };
+
   const finalizarTarea = async () => {
     if (!tareaActiva) return;
 
@@ -323,6 +425,17 @@ const AD02Captura: React.FC = () => {
               placeholder="Escanear EAN o SKU..." autoFocus
               style={{ fontSize: isMobile ? '14px' : '18px', padding: isMobile ? '10px' : '14px' }} />
             <button className="ad02-btn-buscar" onClick={buscarCurva} style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px' }}>Buscar</button>
+            <button 
+              className="ad02-btn-buscar" 
+              onClick={iniciarScanner}
+              style={{ fontSize: isMobile ? '13px' : '16px', padding: isMobile ? '10px 16px' : '14px 24px', background: '#7c3aed' }}
+              title="Escanear con cámara"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </button>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
@@ -440,6 +553,29 @@ const AD02Captura: React.FC = () => {
             <div className="ad02-empty"><p style={{ fontSize: isMobile ? '13px' : '16px' }}>Escanea un EAN o ingresa un SKU</p><p style={{ fontSize: isMobile ? '11px' : '13px' }}>Presiona Enter para ver la curva completa</p></div>
           )}
         </>
+      )}
+
+      {/* Modal Scanner */}
+      {mostrarScanner && (
+        <div className="ed01-modal-overlay" onClick={detenerScanner}>
+          <div className="ed01-modal" style={{ maxWidth: '500px' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="ed01-modal-header">
+              <h2>Escanear SKU</h2>
+              <button className="ed01-modal-close" onClick={detenerScanner}>×</button>
+            </div>
+            <div className="ed01-modal-body" style={{ padding: '16px' }}>
+              <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
+              <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px' }}>
+                Apunte la cámara al código de barras del SKU
+              </p>
+              {!scannerActivo && (
+                <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Iniciando cámara...
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
