@@ -96,12 +96,13 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-    id: 'ut',
-    title: 'UT · Utilidades',
-    items: [
-      { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
-    ]
-  }
+  id: 'ut',
+  title: 'UT · Utilidades',
+  items: [
+    { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
+    { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' },
+  ]
+}
 ];
 
 interface SidebarProps {
