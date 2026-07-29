@@ -37,9 +37,13 @@ const UT02RevisionPallet: React.FC = () => {
   const inputEmpaqueRef = useRef<HTMLInputElement>(null);
   const inputBOMRef = useRef<HTMLInputElement>(null);
   
-  // ==== NUEVO: estados para confirmar eliminación de tarea ====
+  // Estados para eliminar tarea
   const [mostrarConfirmarEliminarTarea, setMostrarConfirmarEliminarTarea] = useState(false);
-  const [tareaAEliminar, setTareaAEliminar] = useState<any>(null); // <-- CORREGIDO: tipado any
+  const [tareaAEliminar, setTareaAEliminar] = useState<any>(null);
+
+  // Estados para modal de detalle
+  const [mostrarDetalleTarea, setMostrarDetalleTarea] = useState(false);
+  const [tareaDetalle, setTareaDetalle] = useState<any>(null);
 
   const usuario: any = auth.getUsuario();
 
@@ -196,6 +200,7 @@ const UT02RevisionPallet: React.FC = () => {
 
   // ============ FUNCIONES DE REVISIÓN ============
 
+  // Función mejorada para cargar tareas con detalle por empaque
   const cargarTareas = async () => {
     setCargando(true);
     try {
@@ -203,26 +208,75 @@ const UT02RevisionPallet: React.FC = () => {
       const data = await resp.json();
       if (data && data.length > 0) {
         const tareasConDatos = await Promise.all(data.map(async (tarea: any) => {
+          // Obtener empaques de la tarea
           const respEmpaques = await fetch(API_URL + '/ut02_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id, { headers: HEADERS });
           const empaques = await respEmpaques.json();
+          const listaEmpaques = (empaques || []).map((e: any) => e.numero_empaque);
+
+          // Obtener todas las capturas de la tarea
+          const respCapturas = await fetch(API_URL + '/ut02_capturas?select=*&tarea_id=eq.' + tarea.id, { headers: HEADERS });
+          const capturasData = await respCapturas.json() || [];
+
+          // Inicializar variables para totales
           let totalSistema = 0;
-          const bomsSistema: string[] = [];
-          for (const emp of (empaques || [])) {
-            const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp.numero_empaque), { headers: HEADERS });
+          let totalRevisados = 0;
+          const detalleEmpaques: any[] = [];
+
+          // Para cada empaque, obtener sus BOMs y calcular cantidades
+          for (const numEmp of listaEmpaques) {
+            const respInv = await fetch(API_URL + '/ut02_inventario?select=id,cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(numEmp), { headers: HEADERS });
             const invData = await respInv.json();
+            let bultosSistemaEmp = 0;
+            let bultosRevisadosEmp = 0;
+            const bomsEmp: string[] = [];
+
             if (invData && invData.length > 0) {
               const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
               const boms = await respBoms.json();
-              if (boms) { boms.forEach((b: any) => { totalSistema += b.cantidad_maxima; bomsSistema.push(b.bom_sku); }); }
+              if (boms) {
+                boms.forEach((b: any) => {
+                  bultosSistemaEmp += b.cantidad_maxima;
+                  bomsEmp.push(b.bom_sku);
+                });
+              }
             }
+
+            // Contar capturas para este empaque
+            const capturasEmp = capturasData.filter((c: any) => bomsEmp.includes(c.bom_sku));
+            bultosRevisadosEmp = capturasEmp.length;
+
+            totalSistema += bultosSistemaEmp;
+            totalRevisados += bultosRevisadosEmp;
+
+            detalleEmpaques.push({
+              numero_empaque: numEmp,
+              cod_destino: invData && invData.length > 0 ? invData[0].cod_destino : '',
+              destino: invData && invData.length > 0 ? invData[0].destino : '',
+              bultos_sistema: bultosSistemaEmp,
+              bultos_revisados: bultosRevisadosEmp,
+              diferencia: bultosSistemaEmp - bultosRevisadosEmp,
+              porcentaje: bultosSistemaEmp > 0 ? Math.round((bultosRevisadosEmp / bultosSistemaEmp) * 100) : 0
+            });
           }
-          const respCapturas = await fetch(API_URL + '/ut02_capturas?select=id,bom_sku&tarea_id=eq.' + tarea.id, { headers: HEADERS });
-          const capturasData = await respCapturas.json();
-          const totalRevisados = capturasData ? capturasData.filter((c: any) => bomsSistema.includes(c.bom_sku)).length : 0;
-          return { ...tarea, empaques: (empaques || []).map((e: any) => e.numero_empaque), total_bultos_sistema: totalSistema, total_bultos_revisados: totalRevisados };
+
+          // Identificar empaques con problemas (diferencia != 0)
+          const empaquesProblema = detalleEmpaques.filter((d: any) => d.diferencia !== 0).length;
+
+          return {
+            ...tarea,
+            empaques: listaEmpaques,
+            detalle_empaques: detalleEmpaques,
+            total_bultos_sistema: totalSistema,
+            total_bultos_revisados: totalRevisados,
+            empaques_problema: empaquesProblema
+          };
         }));
-        setTareas(tareasConDatos); setTareasFiltradas(tareasConDatos);
-      } else { setTareas([]); setTareasFiltradas([]); }
+        setTareas(tareasConDatos);
+        setTareasFiltradas(tareasConDatos);
+      } else {
+        setTareas([]);
+        setTareasFiltradas([]);
+      }
       setCargando(false);
     } catch (e) { setCargando(false); }
   };
@@ -323,7 +377,36 @@ const UT02RevisionPallet: React.FC = () => {
     setTimeout(() => inputBOMRef.current?.focus(), 300);
   };
 
-  // ============ FUNCIONES NUEVAS: ELIMINAR Y EXPORTAR ============
+  // Función para reabrir tarea
+  const handleReabrirTarea = async (tarea: any) => {
+    try {
+      await fetch(API_URL + '/ut02_tareas?id=eq.' + tarea.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'En Proceso',
+          iniciado_en: new Date().toISOString(),
+          auditor: usuario?.id,
+          finalizado_en: null
+        })
+      });
+      mostrarMensaje('success', 'Tarea reabierta correctamente');
+      // Actualizar la lista de tareas
+      await cargarTareas();
+      // Opcional: abrir la tarea directamente
+      await handleIniciarTarea(tarea);
+    } catch (e) {
+      mostrarMensaje('error', 'Error al reabrir la tarea');
+    }
+  };
+
+  // Función para mostrar detalle de tarea
+  const handleVerDetalle = (tarea: any) => {
+    setTareaDetalle(tarea);
+    setMostrarDetalleTarea(true);
+  };
+
+  // Funciones de eliminación y exportación (sin cambios, pero se mantienen)
   const handleEliminarTarea = async (tarea: any) => {
     setTareaAEliminar(tarea);
     setMostrarConfirmarEliminarTarea(true);
@@ -332,11 +415,8 @@ const UT02RevisionPallet: React.FC = () => {
   const confirmarEliminarTarea = async () => {
     if (!tareaAEliminar) return;
     try {
-      // Eliminar capturas asociadas (si no hay ON DELETE CASCADE)
       await fetch(API_URL + '/ut02_capturas?tarea_id=eq.' + tareaAEliminar.id, { method: 'DELETE', headers: HEADERS });
-      // Eliminar empaques asociados
       await fetch(API_URL + '/ut02_tarea_empaques?tarea_id=eq.' + tareaAEliminar.id, { method: 'DELETE', headers: HEADERS });
-      // Eliminar la tarea
       await fetch(API_URL + '/ut02_tareas?id=eq.' + tareaAEliminar.id, { method: 'DELETE', headers: HEADERS });
       mostrarMensaje('success', 'Tarea eliminada correctamente');
       setTareaAEliminar(null);
@@ -565,7 +645,8 @@ const UT02RevisionPallet: React.FC = () => {
     }
     setCargando(false);
   };
-  // ============ FIN FUNCIONES NUEVAS ============
+
+  // ============ FUNCIONES DE CAPTURA ============
 
   const handleCapturarBOM = async () => {
     const valor = inputBOM.trim();
@@ -745,18 +826,37 @@ const UT02RevisionPallet: React.FC = () => {
               tareasFiltradas.map((tarea: any) => {
                 const porcentaje = tarea.total_bultos_sistema > 0 ? Math.round((tarea.total_bultos_revisados / tarea.total_bultos_sistema) * 100) : 0;
                 const eb = getEstadoBadge(tarea.estado);
+                const tieneProblemas = tarea.empaques_problema > 0;
+
                 return (
                   <div key={tarea.id} className="ut02-card">
                     <div className="ut02-card-header">
                       <span className="ut02-card-id">{tarea.numero_tarea}</span>
                       <span className="ut02-card-badge" style={{ background: eb.bg, color: eb.color }}>{tarea.estado}</span>
+                      {tieneProblemas && (
+                        <span className="ut02-card-badge" style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px' }}>
+                          {tarea.empaques_problema} problema(s)
+                        </span>
+                      )}
                     </div>
                     <div className="ut02-card-body">
                       <div className="ut02-card-row"><span>Local</span><strong>{tarea.cod_local} - {tarea.local}</strong></div>
                       <div className="ut02-card-row"><span>Empaques</span><strong>{tarea.empaques.length}</strong></div>
                       <div className="ut02-card-row"><span>Bultos Sistema</span><strong>{tarea.total_bultos_sistema}</strong></div>
                       <div className="ut02-card-row"><span>Bultos Revisados</span><strong>{tarea.total_bultos_revisados}</strong></div>
-                      {tarea.empaques.length > 0 && <div className="ut02-card-empaques">{tarea.empaques.slice(0, 3).map((emp: string, idx: number) => <span key={idx} className="ut02-card-empaque-badge">{emp}</span>)}{tarea.empaques.length > 3 && <span className="ut02-card-empaque-badge">+{tarea.empaques.length - 3}</span>}</div>}
+                      {tarea.empaques.length > 0 && (
+                        <div className="ut02-card-empaques">
+                          {tarea.detalle_empaques && tarea.detalle_empaques.slice(0, 3).map((det: any, idx: number) => {
+                            const estadoEmp = det.diferencia === 0 ? '✅' : '⚠️';
+                            return <span key={idx} className="ut02-card-empaque-badge" style={{ background: det.diferencia === 0 ? 'var(--success-bg)' : 'var(--warning-bg)' }}>
+                              {det.numero_empaque} {estadoEmp} {det.bultos_revisados}/{det.bultos_sistema}
+                            </span>;
+                          })}
+                          {tarea.detalle_empaques && tarea.detalle_empaques.length > 3 && (
+                            <span className="ut02-card-empaque-badge">+{tarea.detalle_empaques.length - 3}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="ut02-progress"><div className="ut02-progress-info"><span>Progreso</span><span>{Math.min(porcentaje, 100)}%</span></div><div className="ut02-progress-bar"><div className="ut02-progress-fill" style={{ width: Math.min(porcentaje, 100) + '%', background: tarea.estado === 'Finalizado' ? '#15803d' : tarea.estado === 'Con Diferencias' ? '#dc2626' : '#3b82f6' }}></div></div></div>
                     <div className="ut02-card-footer">
@@ -764,6 +864,14 @@ const UT02RevisionPallet: React.FC = () => {
                         {(tarea.estado === 'Pendiente' || tarea.estado === 'En Proceso') && (
                           <button className="ut02-btn ut02-btn-primary" onClick={() => handleIniciarTarea(tarea)} style={{ fontSize: '11px', padding: '5px 10px' }}>
                             {tarea.estado === 'Pendiente' ? 'Iniciar' : 'Continuar'}
+                          </button>
+                        )}
+                        <button className="ut02-btn" onClick={() => handleVerDetalle(tarea)} style={{ fontSize: '11px', padding: '5px 10px', background: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+                          Ver Detalle
+                        </button>
+                        {(tarea.estado === 'Finalizado' || tarea.estado === 'Con Diferencias') && (
+                          <button className="ut02-btn" onClick={() => handleReabrirTarea(tarea)} style={{ fontSize: '11px', padding: '5px 10px', background: '#b45309', color: 'white', borderColor: '#b45309' }}>
+                            Reabrir
                           </button>
                         )}
                         <button className="ut02-btn" onClick={() => handleExportarTarea(tarea)} style={{ fontSize: '11px', padding: '5px 10px', background: '#7c3aed', color: 'white', borderColor: '#7c3aed' }}>
@@ -781,6 +889,8 @@ const UT02RevisionPallet: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* ============ MODALES ============ */}
 
       {/* Modal Crear Tarea */}
       {mostrarCrearTarea && (
@@ -885,6 +995,63 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
+      {/* Modal Detalle de Tarea */}
+      {mostrarDetalleTarea && tareaDetalle && (
+        <div className="ut02-modal-overlay" onClick={() => setMostrarDetalleTarea(false)}>
+          <div className="ut02-modal" style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="ut02-modal-header">
+              <h2>Detalle de Tarea: {tareaDetalle.numero_tarea}</h2>
+              <button className="ut02-modal-close" onClick={() => setMostrarDetalleTarea(false)}>×</button>
+            </div>
+            <div className="ut02-modal-body">
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                <div><strong>Local:</strong> {tareaDetalle.cod_local} - {tareaDetalle.local}</div>
+                <div><strong>Estado:</strong> {tareaDetalle.estado}</div>
+                <div><strong>Bultos Sistema:</strong> {tareaDetalle.total_bultos_sistema}</div>
+                <div><strong>Bultos Revisados:</strong> {tareaDetalle.total_bultos_revisados}</div>
+              </div>
+              <table className="ed03-tabla" style={{ minWidth: '800px' }}>
+                <thead>
+                  <tr>
+                    <th>N° Empaque</th>
+                    <th>Cod. Destino</th>
+                    <th>Destino</th>
+                    <th style={{ textAlign: 'center' }}>Bultos Sist.</th>
+                    <th style={{ textAlign: 'center' }}>Bultos Rev.</th>
+                    <th style={{ textAlign: 'center' }}>Dif.</th>
+                    <th style={{ textAlign: 'center' }}>% Cumpl.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tareaDetalle.detalle_empaques && tareaDetalle.detalle_empaques.length > 0 ? (
+                    tareaDetalle.detalle_empaques.map((det: any, idx: number) => (
+                      <tr key={idx}>
+                        <td>{det.numero_empaque}</td>
+                        <td>{det.cod_destino}</td>
+                        <td>{det.destino}</td>
+                        <td style={{ textAlign: 'center' }}>{det.bultos_sistema}</td>
+                        <td style={{ textAlign: 'center' }}>{det.bultos_revisados}</td>
+                        <td style={{ textAlign: 'center', color: det.diferencia === 0 ? '#15803d' : '#dc2626' }}>
+                          {det.diferencia === 0 ? 'OK' : det.diferencia}
+                        </td>
+                        <td style={{ textAlign: 'center', color: det.porcentaje >= 100 ? '#15803d' : '#b45309' }}>
+                          {det.porcentaje}%
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Sin empaques</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="ut02-modal-footer">
+              <button className="ut02-btn" onClick={() => setMostrarDetalleTarea(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Confirmación Eliminar Empaque */}
       {mostrarConfirmacion && (
         <div className="ut02-modal-overlay" onClick={() => setMostrarConfirmacion(false)}>
@@ -902,7 +1069,7 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
-      {/* ==== NUEVO: Modal Confirmar Eliminar Tarea ==== */}
+      {/* Modal Confirmar Eliminar Tarea */}
       {mostrarConfirmarEliminarTarea && tareaAEliminar && (
         <div className="ut02-modal-overlay" onClick={() => setMostrarConfirmarEliminarTarea(false)}>
           <div className="ut02-modal" style={{ maxWidth: '420px' }} onClick={(e: any) => e.stopPropagation()}>
