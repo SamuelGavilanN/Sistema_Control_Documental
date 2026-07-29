@@ -480,7 +480,7 @@ const UT02RevisionPallet: React.FC = () => {
                       <div className="ut02-card-row"><span>Empaques</span><strong>{tarea.empaques.length}</strong></div>
                       <div className="ut02-card-row"><span>Bultos Sistema</span><strong>{tarea.total_bultos_sistema}</strong></div>
                       <div className="ut02-card-row"><span>Bultos Revisados</span><strong>{tarea.total_bultos_revisados}</strong></div>
-                      {tarea.empaques.length > 0 && <div className="ut02-card-empaques">{tarea.empaques.slice(0, 3).map((emp: string, idx: number) => <span key={idx} className="ut02-card-empaque-badge">{emp}</span>))}{tarea.empaques.length > 3 && <span className="ut02-card-empaque-badge">+{tarea.empaques.length - 3}</span>}</div>}
+                      {tarea.empaques.length > 0 && <div className="ut02-card-empaques">{tarea.empaques.slice(0, 3).map((emp: string, idx: number) => <span key={idx} className="ut02-card-empaque-badge">{emp}</span>)}{tarea.empaques.length > 3 && <span className="ut02-card-empaque-badge">+{tarea.empaques.length - 3}</span>}</div>}
                     </div>
                     <div className="ut02-progress"><div className="ut02-progress-info"><span>Progreso</span><span>{Math.min(porcentaje, 100)}%</span></div><div className="ut02-progress-bar"><div className="ut02-progress-fill" style={{ width: Math.min(porcentaje, 100) + '%', background: tarea.estado === 'Finalizado' ? '#15803d' : tarea.estado === 'Con Diferencias' ? '#dc2626' : '#3b82f6' }}></div></div></div>
                     <div className="ut02-card-footer">
