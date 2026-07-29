@@ -1,0 +1,72 @@
+/* src/components/Transactions/UT/UT02.css */
+
+.ut02-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
+.ut02-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.ut02-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+.ut02-toolbar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.ut02-btn { padding: 8px 16px; border: 1px solid var(--btn-border); border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s; background: var(--btn-bg); color: var(--btn-text); white-space: nowrap; }
+.ut02-btn:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+.ut02-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ut02-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-bg); }
+.ut02-btn-primary:hover { background: var(--btn-primary-hover); }
+.ut02-btn-danger { color: var(--btn-danger-text); }
+.ut02-btn-danger:hover { background: var(--btn-danger-hover-bg); border-color: var(--btn-danger-hover-border); }
+.ut02-btn-success { background: #15803d; color: white; border-color: #15803d; }
+.ut02-btn-success:hover { background: #166534; }
+.ut02-separator { width: 1px; height: 28px; background: var(--separator); margin: 0 4px; }
+.ut02-upload-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px; border: 2px dashed var(--border-input); border-radius: 10px; cursor: pointer; transition: all 0.15s; background: var(--bg-section); color: var(--text-placeholder); font-size: 13px; }
+.ut02-upload-box:hover { border-color: var(--border-focus); background: var(--bg-hover); }
+.ut02-upload-nombre { color: var(--text-primary); font-weight: 500; font-size: 13px; margin-top: 4px; }
+.ut02-mensaje { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+.ut02-toast { position: fixed; bottom: 24px; right: 24px; z-index: 2000; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-md); max-width: 420px; }
+.ut02-toast-success { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.ut02-toast-error { background: var(--error-bg); color: var(--error-text); border: 1px solid var(--error-border); }
+.ut02-toast-warning { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.ut02-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; }
+.ut02-selected-info { margin-bottom: 16px; padding: 10px 14px; background: var(--bg-section); border-radius: 8px; border: 1px solid var(--info-border); font-size: 13px; color: var(--info-text); display: flex; align-items: center; gap: 8px; }
+.ut02-selected-close { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+
+/* Grid de tarjetas */
+.ut02-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.ut02-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 12px; padding: 16px; transition: all 0.15s; cursor: pointer; }
+.ut02-card:hover { border-color: var(--border-focus); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.ut02-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.ut02-card-id { font-size: 15px; font-weight: 700; color: var(--text-primary); font-family: 'Courier New', monospace; }
+.ut02-card-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.ut02-card-body { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ut02-card-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+.ut02-card-row span:first-child { color: var(--text-muted); }
+.ut02-card-row strong { color: var(--text-primary); }
+.ut02-card-empaques { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.ut02-card-empaque-badge { padding: 2px 8px; background: var(--bg-badge); border-radius: 6px; font-size: 10px; color: var(--text-secondary); font-family: 'Courier New', monospace; }
+.ut02-card-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border); }
+.ut02-progress { margin-top: 8px; }
+.ut02-progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.ut02-progress-bar { width: 100%; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+.ut02-progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+/* Modal */
+.ut02-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.ut02-modal { background: var(--bg-panel); border-radius: 12px; width: 95%; max-width: 650px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+.ut02-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.ut02-modal-header h2 { font-size: 18px; font-weight: 600; color: var(--text-primary); margin: 0; }
+.ut02-modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 8px; font-size: 20px; color: var(--text-muted); cursor: pointer; }
+.ut02-modal-close:hover { background: var(--bg-hover); }
+.ut02-modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+.ut02-modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+.ut02-form-group { margin-bottom: 16px; }
+.ut02-form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.ut02-form-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-input); border-radius: 6px; font-size: 14px; color: var(--text-primary); background: var(--bg-input); }
+.ut02-form-input:focus { outline: none; border-color: var(--border-focus); }
+
+/* Captura */
+.ut02-captura-resumen { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.ut02-captura-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 8px; padding: 10px; text-align: center; }
+.ut02-captura-card span { display: block; font-size: 10px; color: var(--text-muted); }
+.ut02-captura-card strong { font-size: 18px; color: var(--text-primary); }
+.ut02-captura-buscador { display: flex; gap: 8px; margin-bottom: 16px; }
+.ut02-captura-input { flex: 1; padding: 14px; font-size: 16px; border: 2px solid var(--border-input); border-radius: 8px; background: var(--bg-input); color: var(--text-primary); }
+.ut02-captura-input:focus { outline: none; border-color: var(--border-focus); }
+.ut02-captura-bom-list { max-height: 300px; overflow-y: auto; margin-bottom: 16px; }
+.ut02-captura-bom-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ut02-captura-bom-sku { font-family: 'Courier New', monospace; font-weight: 600; }
