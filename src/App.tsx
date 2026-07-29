@@ -25,6 +25,7 @@ import RP02Revision from './components/Transactions/RP/RP02Revision';
 import LP01View from './components/Transactions/LP/LP01View';
 import LP02View from './components/Transactions/LP/LP02View';
 import UT01View from './components/Transactions/UT/UT01View';
+import UT02RevisionPallet from './components/Transactions/UT/UT02RevisionPallet';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -114,7 +115,8 @@ const App: React.FC = () => {
           {tabsMontadas.has('lp') && <div style={{ display: activeTab === 'lp' ? 'block' : 'none' }}><LP01View key="lp01" /></div>}
           {tabsMontadas.has('lp-captura') && <div style={{ display: activeTab === 'lp-captura' ? 'block' : 'none' }}><LP02View key="lp02" /></div>}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'ai', 'ai-captura', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'sd-asignador', 'rp', 'rp-revision', 'lp', 'lp-captura', 'ut'].includes(activeTab) && (
+          {tabsMontadas.has('ut-revision') && <div style={{ display: activeTab === 'ut-revision' ? 'block' : 'none' }}><UT02RevisionPallet key="ut02" /></div>}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'ai', 'ai-captura', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'sd-asignador', 'rp', 'rp-revision', 'lp', 'lp-captura', 'ut', 'ut-revision'].includes(activeTab) && (
             <div className="module-container"><h3>Modulo en desarrollo</h3></div>
           )}
         </div>
