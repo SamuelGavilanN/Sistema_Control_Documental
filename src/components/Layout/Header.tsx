@@ -42,6 +42,7 @@ const moduleTitles: Record<string, string> = {
   'lp': 'LP01 · Crear Pedido',
   'lp-captura': 'LP02 · Capturar LPN',
   'ut': 'UT01 · Correlativo QR',
+  'ut-revision': 'UT02 · Revisión Pallet',
 };
 
 interface Notificacion {
