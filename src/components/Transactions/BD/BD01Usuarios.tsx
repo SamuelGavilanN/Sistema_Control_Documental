@@ -39,6 +39,7 @@ const TRANSACCIONES = [
   { id: 'lp', label: 'LP01 Crear Pedido' },
   { id: 'lp-captura', label: 'LP02 Capturar LPN' },
   { id: 'ut', label: 'UT01 Correlativo QR' },
+  { id: 'ut-revision', label: 'UT02 Revisión Pallet' },
   { id: 'tk', label: 'TK01 Crear Ticket' },
   { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
