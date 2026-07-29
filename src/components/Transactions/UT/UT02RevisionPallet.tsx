@@ -12,34 +12,34 @@ const HEADERS: any = {
 };
 
 const UT02RevisionPallet: React.FC = () => {
-  const [seccion, setSeccion]: any = useState('inventario');
-  const [empaques, setEmpaques]: any = useState([]);
-  const [cargando, setCargando]: any = useState(true);
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
-  const [empaqueExpandido, setEmpaqueExpandido]: any = useState(null);
-  const [empaqueSeleccionado, setEmpaqueSeleccionado]: any = useState(null);
-  const [mostrarConfirmacion, setMostrarConfirmacion]: any = useState(false);
-  const [empaqueAEliminar, setEmpaqueAEliminar]: any = useState(null);
-  const fileInputRef: any = useRef(null);
+  const [seccion, setSeccion] = useState('inventario');
+  const [empaques, setEmpaques] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
+  const [empaqueExpandido, setEmpaqueExpandido] = useState<any>(null);
+  const [empaqueSeleccionado, setEmpaqueSeleccionado] = useState<any>(null);
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
+  const [empaqueAEliminar, setEmpaqueAEliminar] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [tareas, setTareas]: any = useState([]);
-  const [tareasFiltradas, setTareasFiltradas]: any = useState([]);
-  const [busqueda, setBusqueda]: any = useState('');
-  const [tareaSeleccionada, setTareaSeleccionada]: any = useState(null);
-  const [mostrarCrearTarea, setMostrarCrearTarea]: any = useState(false);
-  const [mostrarCaptura, setMostrarCaptura]: any = useState(false);
-  const [inputEmpaque, setInputEmpaque]: any = useState('');
-  const [empaquesTarea, setEmpaquesTarea]: any = useState([]);
-  const [bomsConsolidados, setBomsConsolidados]: any = useState([]);
-  const [capturas, setCapturas]: any = useState([]);
-  const [contador, setContador]: any = useState(0);
-  const [inputBOM, setInputBOM]: any = useState('');
-  const inputEmpaqueRef: any = useRef(null);
-  const inputBOMRef: any = useRef(null);
+  const [tareas, setTareas] = useState<any[]>([]);
+  const [tareasFiltradas, setTareasFiltradas] = useState<any[]>([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [tareaSeleccionada, setTareaSeleccionada] = useState<any>(null);
+  const [mostrarCrearTarea, setMostrarCrearTarea] = useState(false);
+  const [mostrarCaptura, setMostrarCaptura] = useState(false);
+  const [inputEmpaque, setInputEmpaque] = useState('');
+  const [empaquesTarea, setEmpaquesTarea] = useState<string[]>([]);
+  const [bomsConsolidados, setBomsConsolidados] = useState<any[]>([]);
+  const [capturas, setCapturas] = useState<any[]>([]);
+  const [contador, setContador] = useState(0);
+  const [inputBOM, setInputBOM] = useState('');
+  const inputEmpaqueRef = useRef<HTMLInputElement>(null);
+  const inputBOMRef = useRef<HTMLInputElement>(null);
   
   // ==== NUEVO: estados para confirmar eliminación de tarea ====
   const [mostrarConfirmarEliminarTarea, setMostrarConfirmarEliminarTarea] = useState(false);
-  const [tareaAEliminar, setTareaAEliminar] = useState(null);
+  const [tareaAEliminar, setTareaAEliminar] = useState<any>(null); // <-- CORREGIDO: tipado any
 
   const usuario: any = auth.getUsuario();
 
@@ -323,7 +323,7 @@ const UT02RevisionPallet: React.FC = () => {
     setTimeout(() => inputBOMRef.current?.focus(), 300);
   };
 
-  // ============ NUEVA FUNCIÓN: ELIMINAR TAREA ============
+  // ============ FUNCIONES NUEVAS: ELIMINAR Y EXPORTAR ============
   const handleEliminarTarea = async (tarea: any) => {
     setTareaAEliminar(tarea);
     setMostrarConfirmarEliminarTarea(true);
@@ -341,17 +341,15 @@ const UT02RevisionPallet: React.FC = () => {
       mostrarMensaje('success', 'Tarea eliminada correctamente');
       setTareaAEliminar(null);
       setMostrarConfirmarEliminarTarea(false);
-      cargarTareas(); // Recargar lista
+      cargarTareas();
     } catch (e) {
       mostrarMensaje('error', 'Error al eliminar la tarea');
     }
   };
 
-  // ============ NUEVA FUNCIÓN: EXPORTAR TAREA INDIVIDUAL ============
   const handleExportarTarea = async (tarea: any) => {
     setCargando(true);
     try {
-      // Obtener detalle de empaques y BOMs
       const bomsConEmpaque: any[] = [];
       for (const emp of tarea.empaques) {
         const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -413,7 +411,6 @@ const UT02RevisionPallet: React.FC = () => {
         });
       });
 
-      // Agregar capturas no encontradas
       const bomsSistema = bomsConEmpaque.map((b: any) => b.bom_sku);
       const noEncontrados = capturasData.filter((c: any) => !bomsSistema.includes(c.bom_sku));
       if (noEncontrados.length > 0) {
@@ -455,7 +452,6 @@ const UT02RevisionPallet: React.FC = () => {
     setCargando(false);
   };
 
-  // ============ NUEVA FUNCIÓN: EXPORTAR TODAS LAS TAREAS FILTRADAS ============
   const handleExportarTodas = async () => {
     setCargando(true);
     try {
@@ -468,7 +464,6 @@ const UT02RevisionPallet: React.FC = () => {
 
       const filas: any[] = [];
       for (const tarea of todasLasTareas) {
-        // Obtener detalle de empaques y BOMs
         const bomsConEmpaque: any[] = [];
         for (const emp of tarea.empaques) {
           const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -529,7 +524,6 @@ const UT02RevisionPallet: React.FC = () => {
           });
         });
 
-        // No encontrados
         const bomsSistema = bomsConEmpaque.map((b: any) => b.bom_sku);
         const noEncontrados = capturasData.filter((c: any) => !bomsSistema.includes(c.bom_sku));
         if (noEncontrados.length > 0) {
@@ -571,7 +565,6 @@ const UT02RevisionPallet: React.FC = () => {
     }
     setCargando(false);
   };
-
   // ============ FIN FUNCIONES NUEVAS ============
 
   const handleCapturarBOM = async () => {
@@ -670,8 +663,62 @@ const UT02RevisionPallet: React.FC = () => {
 
       {/* ============ SECCIÓN INVENTARIO ============ */}
       {seccion === 'inventario' && (
-        // ... (código de inventario sin cambios)
-        <></> // Omito por brevedad, se mantiene igual
+        <>
+          <div className="ut02-toolbar">
+            <button className="ut02-btn ut02-btn-primary" onClick={() => fileInputRef.current?.click()}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Cargar Excel
+            </button>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e: any) => { const file = e.target.files?.[0]; if (file) procesarArchivo(file); }} />
+            <div className="ut02-separator"></div>
+            <button className="ut02-btn" onClick={() => empaqueSeleccionado && toggleExpandir(empaqueSeleccionado)} disabled={!empaqueSeleccionado}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Ver Detalle
+            </button>
+            <button className="ut02-btn ut02-btn-danger" onClick={(e) => { e.stopPropagation(); if (empaqueSeleccionado) handleEliminarEmpaque(empaqueSeleccionado); }} disabled={!empaqueSeleccionado}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Eliminar
+            </button>
+            <div className="ut02-separator"></div>
+            <button className="ut02-btn ut02-btn-success" onClick={() => setSeccion('revision')}>
+              Revisar Pallet
+            </button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="ed03-tabla" style={{ minWidth: '1000px' }}>
+              <thead><tr><th style={{ width: '40px' }}></th><th>Número de Empaque</th><th>Cod. Destino</th><th>Destino</th><th style={{ textAlign: 'center' }}>Cant. Total</th></tr></thead>
+              <tbody>
+                {empaques.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-placeholder)' }}>No hay empaques en el inventario</td></tr> :
+                  empaques.map((empaque: any) => {
+                    const seleccionado = empaqueSeleccionado && empaqueSeleccionado.id === empaque.id;
+                    return (
+                      <React.Fragment key={empaque.id}>
+                        <tr onClick={() => setEmpaqueSeleccionado(seleccionado ? null : empaque)} style={{ cursor: 'pointer', background: seleccionado ? 'var(--table-row-selected)' : 'transparent' }}>
+                          <td><input type="radio" className="sd01-radio" checked={seleccionado} onChange={() => setEmpaqueSeleccionado(empaque)} onClick={(e: any) => e.stopPropagation()} /></td>
+                          <td style={{ fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{empaque.numero_empaque}</td>
+                          <td>{empaque.cod_destino || '-'}</td>
+                          <td>{empaque.destino || '-'}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{empaque.cantidad_total}</td>
+                        </tr>
+                        {empaqueExpandido && empaqueExpandido.id === empaque.id && (
+                          <tr><td colSpan={5} style={{ padding: '0' }}><div style={{ padding: '16px', background: 'var(--bg-section)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                              <thead><tr style={{ background: 'var(--table-header-bg)' }}><th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--table-header-text)' }}>BOM/SKU</th><th style={{ padding: '6px 10px', textAlign: 'center', color: 'var(--table-header-text)' }}>Cantidad</th></tr></thead>
+                              <tbody>{empaque.boms.map((bom: any) => (
+                                <tr key={bom.id} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '6px 10px', fontFamily: 'Courier New, monospace', fontWeight: 600, color: 'var(--text-primary)' }}>{bom.bom_sku}</td><td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>{bom.cantidad_maxima}</td></tr>
+                              ))}</tbody>
+                            </table>
+                          </div></td></tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                }
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* ============ SECCIÓN REVISIÓN ============ */}
@@ -685,7 +732,6 @@ const UT02RevisionPallet: React.FC = () => {
             <input type="text" className="ut02-form-input" style={{ flex: 1, maxWidth: '300px', padding: '8px 12px', fontSize: '13px' }} placeholder="Buscar por tarea, local, empaque..." value={busqueda} onChange={(e: any) => setBusqueda(e.target.value)} />
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tareasFiltradas.length} de {tareas.length}</span>
             <div className="ut02-separator"></div>
-            {/* ==== NUEVO: Botón Exportar todas ==== */}
             <button className="ut02-btn ut02-btn-success" onClick={handleExportarTodas}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               Exportar Todas
@@ -720,11 +766,9 @@ const UT02RevisionPallet: React.FC = () => {
                             {tarea.estado === 'Pendiente' ? 'Iniciar' : 'Continuar'}
                           </button>
                         )}
-                        {/* ==== NUEVO: Botón Exportar individual ==== */}
                         <button className="ut02-btn" onClick={() => handleExportarTarea(tarea)} style={{ fontSize: '11px', padding: '5px 10px', background: '#7c3aed', color: 'white', borderColor: '#7c3aed' }}>
                           Exportar
                         </button>
-                        {/* ==== NUEVO: Botón Eliminar ==== */}
                         <button className="ut02-btn ut02-btn-danger" onClick={() => handleEliminarTarea(tarea)} style={{ fontSize: '11px', padding: '5px 10px' }}>
                           Eliminar
                         </button>
@@ -740,20 +784,122 @@ const UT02RevisionPallet: React.FC = () => {
 
       {/* Modal Crear Tarea */}
       {mostrarCrearTarea && (
-        // ... (sin cambios)
-        <></>
+        <div className="ut02-modal-overlay" onClick={() => setMostrarCrearTarea(false)}>
+          <div className="ut02-modal" onClick={(e: any) => e.stopPropagation()}>
+            <div className="ut02-modal-header"><h2>Nueva Tarea de Revisión</h2><button className="ut02-modal-close" onClick={() => setMostrarCrearTarea(false)}>×</button></div>
+            <div className="ut02-modal-body">
+              <div className="ut02-form-group">
+                <label className="ut02-form-label">Agregar N° Empaque</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input ref={inputEmpaqueRef} type="text" className="ut02-form-input" value={inputEmpaque} onChange={(e: any) => setInputEmpaque(e.target.value)} onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleAgregarEmpaque(); } }} placeholder="Escanear número de empaque..." />
+                  <button className="ut02-btn ut02-btn-primary" onClick={handleAgregarEmpaque} style={{ whiteSpace: 'nowrap' }}>Agregar</button>
+                </div>
+              </div>
+              {empaquesTarea.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="ut02-form-label">Empaques ({empaquesTarea.length})</label>
+                  <div className="ut02-card-empaques">
+                    {empaquesTarea.map((emp: string, idx: number) => (
+                      <span key={idx} className="ut02-card-empaque-badge" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                        {emp}
+                        <button onClick={() => setEmpaquesTarea(empaquesTarea.filter((_: string, i: number) => i !== idx))} style={{ marginLeft: '6px', background: 'none', border: 'none', color: 'var(--error-text)', cursor: 'pointer', fontSize: '14px' }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="ut02-modal-footer">
+              <button className="ut02-btn" onClick={() => setMostrarCrearTarea(false)}>Cancelar</button>
+              <button className="ut02-btn ut02-btn-success" onClick={handleCrearEIniciarTarea} disabled={empaquesTarea.length === 0}>Crear e Iniciar Revisión</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal Captura */}
       {mostrarCaptura && tareaSeleccionada && (
-        // ... (sin cambios, ya estaba modificado)
-        <></>
+        <div className="ut02-modal-overlay" onClick={() => { setMostrarCaptura(false); setTareaSeleccionada(null); }}>
+          <div className="ut02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="ut02-modal-header">
+              <h2>{tareaSeleccionada.numero_tarea} - Captura</h2>
+              <button className="ut02-modal-close" onClick={() => { setMostrarCaptura(false); setTareaSeleccionada(null); }}>×</button>
+            </div>
+            <div className="ut02-modal-body">
+              <div className="ut02-captura-resumen" style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Total Capturas</span>
+                  <strong style={{ fontSize: '24px', display: 'block' }}>{contador}</strong>
+                </div>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sistema</span>
+                  <strong style={{ fontSize: '24px', display: 'block', color: '#3b82f6' }}>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_sistema, 0)}</strong>
+                </div>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Revisado</span>
+                  <strong style={{ fontSize: '24px', display: 'block', color: '#15803d' }}>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_revisada, 0)}</strong>
+                </div>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Faltante</span>
+                  <strong style={{ fontSize: '24px', display: 'block', color: '#dc2626' }}>
+                    {bomsConsolidados.reduce((s: number, b: any) => s + (b.cantidad_sistema - b.cantidad_revisada), 0)}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="ut02-captura-buscador">
+                <input ref={inputBOMRef} type="text" className="ut02-captura-input" value={inputBOM} onChange={(e: any) => setInputBOM(e.target.value)} onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleCapturarBOM(); } }} placeholder="Escanear BOM/SKU..." autoFocus />
+                <button className="ut02-btn ut02-btn-primary" onClick={handleCapturarBOM} style={{ padding: '14px 24px', fontSize: '16px' }}>Capturar</button>
+              </div>
+              <div className="ut02-captura-bom-list">
+                {bomsConsolidados.map((bom: any, idx: number) => {
+                  const diff = bom.cantidad_sistema - bom.cantidad_revisada;
+                  let bg = 'var(--bg-panel)';
+                  let color = 'var(--text-muted)';
+                  if (bom.cantidad_revisada === 0) { bg = 'var(--bg-panel)'; color = 'var(--text-muted)'; }
+                  else if (diff > 0) { bg = 'var(--warning-bg)'; color = 'var(--warning-text)'; }
+                  else if (diff === 0) { bg = 'var(--success-bg)'; color = 'var(--success-text)'; }
+                  else { bg = 'var(--error-bg)'; color = 'var(--error-text)'; }
+                  return <div key={idx} className="ut02-captura-bom-item" style={{ background: bg }}><span className="ut02-captura-bom-sku" style={{ color }}>{bom.bom_sku}</span><span style={{ fontSize: '12px', fontWeight: 600, color }}>{bom.cantidad_revisada}/{bom.cantidad_sistema}</span></div>;
+                })}
+              </div>
+              {capturas.length > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>Capturas ({capturas.length})</div>
+                  <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                    {capturas.map((c: any, idx: number) => (
+                      <div key={idx} className="ut02-captura-bom-item" style={{ background: c.esNoEncontrado ? 'var(--error-bg)' : 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+                        <span className="ut02-captura-bom-sku" style={{ color: c.esNoEncontrado ? 'var(--error-text)' : 'var(--text-primary)', fontSize: '12px' }}>{c.bom_sku}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{c.esNoEncontrado ? 'No encontrado' : 'Sistema'}</span>
+                          <button onClick={() => handleEliminarCaptura(idx)} style={{ width: '20px', height: '20px', background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button className="ut02-btn ut02-btn-success" onClick={handleFinalizarTarea} style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '15px', marginTop: '12px' }}>Finalizar Tarea</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal Confirmación Eliminar Empaque */}
       {mostrarConfirmacion && (
-        // ... (sin cambios)
-        <></>
+        <div className="ut02-modal-overlay" onClick={() => setMostrarConfirmacion(false)}>
+          <div className="ut02-modal" style={{ maxWidth: '420px' }} onClick={(e: any) => e.stopPropagation()}>
+            <div className="ut02-modal-header"><h2>Confirmar Eliminación</h2><button className="ut02-modal-close" onClick={() => setMostrarConfirmacion(false)}>×</button></div>
+            <div className="ut02-modal-body">
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>¿Está seguro de eliminar el empaque <strong>{empaqueAEliminar?.numero_empaque}</strong>?</p>
+              <p style={{ color: 'var(--error-text)', fontSize: '12px', marginTop: '8px' }}>Esta acción no se puede deshacer.</p>
+            </div>
+            <div className="ut02-modal-footer">
+              <button className="ut02-btn" onClick={() => setMostrarConfirmacion(false)}>Cancelar</button>
+              <button className="ut02-btn ut02-btn-danger" onClick={confirmarEliminar} style={{ background: '#dc2626', color: 'white', borderColor: '#dc2626' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ==== NUEVO: Modal Confirmar Eliminar Tarea ==== */}
