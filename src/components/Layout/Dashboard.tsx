@@ -31,6 +31,7 @@ const transacciones = [
   { id: 'bd-usuarios', label: 'BD01 · Usuarios', desc: 'Administración de usuarios', color: '#64748b' },
   { id: 'bd-locales', label: 'BD02 · Locales', desc: 'Administración de locales', color: '#475569' },
   { id: 'ut', label: 'UT01 · Correlativo QR', desc: 'Generar códigos QR', color: '#0891b2' },
+  { id: 'ut-revision', label: 'UT02 · Revisión Pallet', desc: 'Herramienta de revisión de pallets', color: '#f97316' },
 ];
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
