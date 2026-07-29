@@ -319,18 +319,46 @@ const UT02RevisionPallet: React.FC = () => {
     setTimeout(() => inputBOMRef.current?.focus(), 300);
   };
 
+  // ============ MODIFICACIÓN PRINCIPAL: handleCapturarBOM con límite ============
   const handleCapturarBOM = async () => {
     const valor = inputBOM.trim();
     if (!valor || !tareaSeleccionada) return;
+
     const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === valor);
-    if (bomEsperado) { bomEsperado.cantidad_revisada++; setBomsConsolidados([...bomsConsolidados]); }
+
+    // Verificar si ya se alcanzó el límite para este BOM
+    if (bomEsperado) {
+      if (bomEsperado.cantidad_revisada >= bomEsperado.cantidad_sistema) {
+        mostrarMensaje('warning', `Límite alcanzado para ${valor} (${bomEsperado.cantidad_sistema} unidades)`);
+        setInputBOM('');
+        setTimeout(() => inputBOMRef.current?.focus(), 100);
+        return;
+      }
+      // Incrementar contador
+      bomEsperado.cantidad_revisada++;
+      setBomsConsolidados([...bomsConsolidados]);
+    }
+
+    // Registrar la captura (siempre se registra, incluso si no esperado)
     try {
-      const resp = await fetch(API_URL + '/ut02_capturas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ tarea_id: tareaSeleccionada.id, bom_sku: valor, cantidad_sistema: bomEsperado ? bomEsperado.cantidad_sistema : 0, capturado_por: usuario?.id }) });
+      const resp = await fetch(API_URL + '/ut02_capturas', {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          tarea_id: tareaSeleccionada.id,
+          bom_sku: valor,
+          cantidad_sistema: bomEsperado ? bomEsperado.cantidad_sistema : 0,
+          capturado_por: usuario?.id
+        })
+      });
       const capturaData = await resp.json();
       const nuevaCaptura = Array.isArray(capturaData) ? capturaData[0] : capturaData;
       setCapturas([{ id: nuevaCaptura.id, bom_sku: valor, esNoEncontrado: !bomEsperado, creado_en: new Date().toISOString() }, ...capturas]);
-    } catch (e) { setCapturas([{ id: Date.now().toString(), bom_sku: valor, esNoEncontrado: !bomEsperado, creado_en: new Date().toISOString() }, ...capturas]); }
-    setContador(contador + 1); setInputBOM('');
+    } catch (e) {
+      setCapturas([{ id: Date.now().toString(), bom_sku: valor, esNoEncontrado: !bomEsperado, creado_en: new Date().toISOString() }, ...capturas]);
+    }
+    setContador(contador + 1);
+    setInputBOM('');
     setTimeout(() => inputBOMRef.current?.focus(), 100);
   };
 
@@ -350,9 +378,10 @@ const UT02RevisionPallet: React.FC = () => {
     try {
       const bomsSistema = bomsConsolidados.map((b: any) => b.bom_sku);
       const capturasValidas = capturas.filter((c: any) => bomsSistema.includes(c.bom_sku));
-      const hayDiferencias = bomsConsolidados.some((b: any) => b.cantidad_revisada !== b.cantidad_sistema);
+      // Ahora solo puede haber diferencias por faltantes (ya no hay sobrantes de esperados)
+      const hayFaltantes = bomsConsolidados.some((b: any) => b.cantidad_revisada < b.cantidad_sistema);
       const hayNoEncontrados = capturas.some((c: any) => c.esNoEncontrado || !bomsSistema.includes(c.bom_sku));
-      const estadoFinal = (hayDiferencias || hayNoEncontrados) ? 'Con Diferencias' : 'Finalizado';
+      const estadoFinal = (hayFaltantes || hayNoEncontrados) ? 'Con Diferencias' : 'Finalizado';
       await fetch(API_URL + '/ut02_tareas?id=eq.' + tareaSeleccionada.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: estadoFinal, total_bultos_revisados: capturasValidas.length, finalizado_en: new Date().toISOString() }) });
       mostrarMensaje('success', estadoFinal === 'Finalizado' ? 'Tarea finalizada correctamente' : 'Tarea finalizada con diferencias');
       setMostrarCaptura(false); setTareaSeleccionada(null); cargarTareas();
@@ -529,17 +558,37 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Captura */}
+      {/* ============ MODIFICACIÓN: Modal Captura con contadores en la parte superior ============ */}
       {mostrarCaptura && tareaSeleccionada && (
         <div className="ut02-modal-overlay" onClick={() => { setMostrarCaptura(false); setTareaSeleccionada(null); }}>
           <div className="ut02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
-            <div className="ut02-modal-header"><h2>{tareaSeleccionada.numero_tarea} - Captura</h2><button className="ut02-modal-close" onClick={() => { setMostrarCaptura(false); setTareaSeleccionada(null); }}>×</button></div>
+            <div className="ut02-modal-header">
+              <h2>{tareaSeleccionada.numero_tarea} - Captura</h2>
+              <button className="ut02-modal-close" onClick={() => { setMostrarCaptura(false); setTareaSeleccionada(null); }}>×</button>
+            </div>
             <div className="ut02-modal-body">
-              <div className="ut02-captura-resumen">
-                <div className="ut02-captura-card"><span>Total Capturas</span><strong style={{ fontSize: '18px' }}>{contador}</strong></div>
-                <div className="ut02-captura-card"><span>Sistema</span><strong style={{ fontSize: '18px' }}>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_sistema, 0)}</strong></div>
-                <div className="ut02-captura-card"><span>Revisado</span><strong style={{ fontSize: '18px' }}>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_revisada, 0)}</strong></div>
+              {/* Contadores en la parte superior */}
+              <div className="ut02-captura-resumen" style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Total Capturas</span>
+                  <strong style={{ fontSize: '24px', display: 'block' }}>{contador}</strong>
+                </div>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sistema</span>
+                  <strong style={{ fontSize: '24px', display: 'block', color: '#3b82f6' }}>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_sistema, 0)}</strong>
+                </div>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Revisado</span>
+                  <strong style={{ fontSize: '24px', display: 'block', color: '#15803d' }}>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_revisada, 0)}</strong>
+                </div>
+                <div className="ut02-captura-card" style={{ flex: 1, background: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Faltante</span>
+                  <strong style={{ fontSize: '24px', display: 'block', color: '#dc2626' }}>
+                    {bomsConsolidados.reduce((s: number, b: any) => s + (b.cantidad_sistema - b.cantidad_revisada), 0)}
+                  </strong>
+                </div>
               </div>
+
               <div className="ut02-captura-buscador">
                 <input ref={inputBOMRef} type="text" className="ut02-captura-input" value={inputBOM} onChange={(e: any) => setInputBOM(e.target.value)} onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); handleCapturarBOM(); } }} placeholder="Escanear BOM/SKU..." autoFocus />
                 <button className="ut02-btn ut02-btn-primary" onClick={handleCapturarBOM} style={{ padding: '14px 24px', fontSize: '16px' }}>Capturar</button>
@@ -547,8 +596,13 @@ const UT02RevisionPallet: React.FC = () => {
               <div className="ut02-captura-bom-list">
                 {bomsConsolidados.map((bom: any, idx: number) => {
                   const diff = bom.cantidad_sistema - bom.cantidad_revisada;
-                  const bg = bom.cantidad_revisada === 0 ? 'var(--bg-panel)' : diff > 0 ? 'var(--warning-bg)' : diff === 0 ? 'var(--success-bg)' : 'var(--error-bg)';
-                  const color = bom.cantidad_revisada === 0 ? 'var(--text-muted)' : diff > 0 ? 'var(--warning-text)' : diff === 0 ? 'var(--success-text)' : 'var(--error-text)';
+                  let bg = 'var(--bg-panel)';
+                  let color = 'var(--text-muted)';
+                  if (bom.cantidad_revisada === 0) { bg = 'var(--bg-panel)'; color = 'var(--text-muted)'; }
+                  else if (diff > 0) { bg = 'var(--warning-bg)'; color = 'var(--warning-text)'; }
+                  else if (diff === 0) { bg = 'var(--success-bg)'; color = 'var(--success-text)'; }
+                  // Ya no habrá diff < 0 porque limitamos la captura, pero lo dejamos por si acaso
+                  else { bg = 'var(--error-bg)'; color = 'var(--error-text)'; }
                   return <div key={idx} className="ut02-captura-bom-item" style={{ background: bg }}><span className="ut02-captura-bom-sku" style={{ color }}>{bom.bom_sku}</span><span style={{ fontSize: '12px', fontWeight: 600, color }}>{bom.cantidad_revisada}/{bom.cantidad_sistema}</span></div>;
                 })}
               </div>
