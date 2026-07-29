@@ -12,7 +12,7 @@ const HEADERS: any = {
 };
 
 const UT02RevisionPallet: React.FC = () => {
-  const [seccion, setSeccion]: any = useState('inventario'); // 'inventario' | 'revision'
+  const [seccion, setSeccion]: any = useState('inventario');
   const [empaques, setEmpaques]: any = useState([]);
   const [cargando, setCargando]: any = useState(true);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
@@ -22,7 +22,6 @@ const UT02RevisionPallet: React.FC = () => {
   const [empaqueAEliminar, setEmpaqueAEliminar]: any = useState(null);
   const fileInputRef: any = useRef(null);
   
-  // Estados de revisión
   const [tareas, setTareas]: any = useState([]);
   const [tareasFiltradas, setTareasFiltradas]: any = useState([]);
   const [busqueda, setBusqueda]: any = useState('');
@@ -40,7 +39,6 @@ const UT02RevisionPallet: React.FC = () => {
   
   const usuario: any = auth.getUsuario();
 
-  // Cargar inventario
   useEffect(() => {
     if (seccion === 'inventario') {
       cargarInventario();
@@ -49,7 +47,6 @@ const UT02RevisionPallet: React.FC = () => {
     }
   }, [seccion]);
 
-  // Cargar tareas de revisión
   useEffect(() => {
     if (seccion === 'revision') {
       cargarTareas();
@@ -79,11 +76,11 @@ const UT02RevisionPallet: React.FC = () => {
   
   const cargarInventario = async () => {
     try {
-      const resp = await fetch(API_URL + '/ai_inventario?select=*&order=creado_en.desc', { headers: HEADERS });
+      const resp = await fetch(API_URL + '/ut02_inventario?select=*&order=creado_en.desc', { headers: HEADERS });
       const data = await resp.json();
       if (data && data.length > 0) {
         const empaquesConBoms = await Promise.all(data.map(async (empaque: any) => {
-          const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=*&empaque_id=eq.' + empaque.id + '&order=bom_sku.asc', { headers: HEADERS });
+          const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + empaque.id + '&order=bom_sku.asc', { headers: HEADERS });
           const boms = await respBoms.json();
           const cantidadTotal = boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
           return { ...empaque, boms: boms || [], cantidad_total: cantidadTotal };
@@ -151,20 +148,20 @@ const UT02RevisionPallet: React.FC = () => {
       let creados = 0;
       for (const numEmpaque of Object.keys(empaquesMap)) {
         const emp = empaquesMap[numEmpaque];
-        const respExistente = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(numEmpaque), { headers: HEADERS });
+        const respExistente = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(numEmpaque), { headers: HEADERS });
         const existente = await respExistente.json();
         let empaqueId;
         if (existente && existente.length > 0) {
           empaqueId = existente[0].id;
-          await fetch(API_URL + '/ai_inventario?id=eq.' + empaqueId, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente' }) });
-          await fetch(API_URL + '/ai_inventario_boms?empaque_id=eq.' + empaqueId, { method: 'DELETE', headers: HEADERS });
+          await fetch(API_URL + '/ut02_inventario?id=eq.' + empaqueId, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente' }) });
+          await fetch(API_URL + '/ut02_inventario_boms?empaque_id=eq.' + empaqueId, { method: 'DELETE', headers: HEADERS });
         } else {
-          const respEmpaque = await fetch(API_URL + '/ai_inventario', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ numero_empaque: numEmpaque, cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente', creado_por: usuario?.id }) });
+          const respEmpaque = await fetch(API_URL + '/ut02_inventario', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ numero_empaque: numEmpaque, cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente', creado_por: usuario?.id }) });
           const empaqueData = await respEmpaque.json();
           empaqueId = Array.isArray(empaqueData) ? empaqueData[0].id : empaqueData.id;
         }
         for (const bom of Object.keys(emp.boms)) {
-          await fetch(API_URL + '/ai_inventario_boms', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ empaque_id: empaqueId, bom_sku: bom, cantidad_maxima: emp.boms[bom] }) });
+          await fetch(API_URL + '/ut02_inventario_boms', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ empaque_id: empaqueId, bom_sku: bom, cantidad_maxima: emp.boms[bom] }) });
         }
         creados++;
       }
@@ -182,7 +179,7 @@ const UT02RevisionPallet: React.FC = () => {
   const confirmarEliminar = async () => {
     if (!empaqueAEliminar) return;
     try {
-      await fetch(API_URL + '/ai_inventario?id=eq.' + empaqueAEliminar.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(API_URL + '/ut02_inventario?id=eq.' + empaqueAEliminar.id, { method: 'DELETE', headers: HEADERS });
       mostrarMensaje('success', 'Empaque eliminado');
       setEmpaqueSeleccionado(null); setEmpaqueExpandido(null); cargarInventario();
     } catch (e) { mostrarMensaje('error', 'Error al eliminar'); }
@@ -198,24 +195,24 @@ const UT02RevisionPallet: React.FC = () => {
   const cargarTareas = async () => {
     setCargando(true);
     try {
-      const resp = await fetch(API_URL + '/ai_tareas?select=*&order=creado_en.desc', { headers: HEADERS });
+      const resp = await fetch(API_URL + '/ut02_tareas?select=*&order=creado_en.desc', { headers: HEADERS });
       const data = await resp.json();
       if (data && data.length > 0) {
         const tareasConDatos = await Promise.all(data.map(async (tarea: any) => {
-          const respEmpaques = await fetch(API_URL + '/ai_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id, { headers: HEADERS });
+          const respEmpaques = await fetch(API_URL + '/ut02_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id, { headers: HEADERS });
           const empaques = await respEmpaques.json();
           let totalSistema = 0;
           const bomsSistema: string[] = [];
           for (const emp of (empaques || [])) {
-            const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp.numero_empaque), { headers: HEADERS });
+            const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp.numero_empaque), { headers: HEADERS });
             const invData = await respInv.json();
             if (invData && invData.length > 0) {
-              const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+              const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
               const boms = await respBoms.json();
               if (boms) { boms.forEach((b: any) => { totalSistema += b.cantidad_maxima; bomsSistema.push(b.bom_sku); }); }
             }
           }
-          const respCapturas = await fetch(API_URL + '/ai_capturas?select=id,bom_sku&tarea_id=eq.' + tarea.id, { headers: HEADERS });
+          const respCapturas = await fetch(API_URL + '/ut02_capturas?select=id,bom_sku&tarea_id=eq.' + tarea.id, { headers: HEADERS });
           const capturasData = await respCapturas.json();
           const totalRevisados = capturasData ? capturasData.filter((c: any) => bomsSistema.includes(c.bom_sku)).length : 0;
           return { ...tarea, empaques: (empaques || []).map((e: any) => e.numero_empaque), total_bultos_sistema: totalSistema, total_bultos_revisados: totalRevisados };
@@ -239,7 +236,7 @@ const UT02RevisionPallet: React.FC = () => {
     const valor = inputEmpaque.trim();
     if (!valor) return;
     if (empaquesTarea.find((e: any) => e === valor)) { mostrarMensaje('warning', 'Empaque ya agregado'); setInputEmpaque(''); return; }
-    const resp = await fetch(API_URL + '/ai_inventario?select=*&numero_empaque=eq.' + encodeURIComponent(valor), { headers: HEADERS });
+    const resp = await fetch(API_URL + '/ut02_inventario?select=*&numero_empaque=eq.' + encodeURIComponent(valor), { headers: HEADERS });
     const data = await resp.json();
     if (!data || data.length === 0) { mostrarMensaje('error', 'Empaque no encontrado en inventario'); return; }
     setEmpaquesTarea([...empaquesTarea, valor]); setInputEmpaque('');
@@ -249,35 +246,34 @@ const UT02RevisionPallet: React.FC = () => {
   const handleCrearEIniciarTarea = async () => {
     if (empaquesTarea.length === 0) { mostrarMensaje('warning', 'Agregue al menos un empaque'); return; }
     const idTarea = generarIdTarea();
-    const resp = await fetch(API_URL + '/ai_inventario?select=cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(empaquesTarea[0]), { headers: HEADERS });
+    const resp = await fetch(API_URL + '/ut02_inventario?select=cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(empaquesTarea[0]), { headers: HEADERS });
     const data = await resp.json();
     const codLocal = data && data.length > 0 ? data[0].cod_destino : '';
     const local = data && data.length > 0 ? data[0].destino : '';
     let totalSistema = 0;
     for (const emp of empaquesTarea) {
-      const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
+      const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
       const invData = await respInv.json();
       if (invData && invData.length > 0) {
-        const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=cantidad_maxima&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+        const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=cantidad_maxima&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
         const boms = await respBoms.json();
         totalSistema += boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
       }
     }
     try {
-      const respTarea = await fetch(API_URL + '/ai_tareas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ numero_tarea: idTarea, cod_local: codLocal, local: local, estado: 'En Proceso', total_bultos_sistema: totalSistema, creado_por: usuario?.id, iniciado_en: new Date().toISOString(), auditor: usuario?.id }) });
+      const respTarea = await fetch(API_URL + '/ut02_tareas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ numero_tarea: idTarea, cod_local: codLocal, local: local, estado: 'En Proceso', total_bultos_sistema: totalSistema, creado_por: usuario?.id, iniciado_en: new Date().toISOString(), auditor: usuario?.id }) });
       if (respTarea.ok) {
         const tareaData = await respTarea.json();
         const tarea = Array.isArray(tareaData) ? tareaData[0] : tareaData;
-        for (const emp of empaquesTarea) { await fetch(API_URL + '/ai_tarea_empaques', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ tarea_id: tarea.id, numero_empaque: emp }) }); }
+        for (const emp of empaquesTarea) { await fetch(API_URL + '/ut02_tarea_empaques', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ tarea_id: tarea.id, numero_empaque: emp }) }); }
         setMostrarCrearTarea(false); setEmpaquesTarea([]);
-        // Iniciar captura automáticamente
         setTareaSeleccionada({ ...tarea, empaques: empaquesTarea, total_bultos_sistema: totalSistema });
         let bomsTemp: any[] = [];
         for (const emp of empaquesTarea) {
-          const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
+          const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
           const invData = await respInv.json();
           if (invData && invData.length > 0) {
-            const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+            const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
             const boms = await respBoms.json();
             if (boms) {
               for (const bom of boms) {
@@ -298,10 +294,10 @@ const UT02RevisionPallet: React.FC = () => {
     setTareaSeleccionada(tarea);
     let bomsTemp: any[] = [];
     for (const emp of tarea.empaques) {
-      const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
+      const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
       const invData = await respInv.json();
       if (invData && invData.length > 0) {
-        const respBoms = await fetch(API_URL + '/ai_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
+        const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
         const boms = await respBoms.json();
         if (boms) {
           for (const bom of boms) {
@@ -312,12 +308,12 @@ const UT02RevisionPallet: React.FC = () => {
         }
       }
     }
-    const respCapturas = await fetch(API_URL + '/ai_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
+    const respCapturas = await fetch(API_URL + '/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
     const capturasData = await respCapturas.json() || [];
     capturasData.forEach((c: any) => { const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku); if (bom) bom.cantidad_revisada++; });
     setBomsConsolidados(bomsTemp); setCapturas(capturasData); setContador(capturasData.length);
     if (tarea.estado === 'Pendiente') {
-      await fetch(API_URL + '/ai_tareas?id=eq.' + tarea.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'En Proceso', iniciado_en: new Date().toISOString(), auditor: usuario?.id }) });
+      await fetch(API_URL + '/ut02_tareas?id=eq.' + tarea.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'En Proceso', iniciado_en: new Date().toISOString(), auditor: usuario?.id }) });
     }
     setMostrarCaptura(true);
     setTimeout(() => inputBOMRef.current?.focus(), 300);
@@ -329,7 +325,7 @@ const UT02RevisionPallet: React.FC = () => {
     const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === valor);
     if (bomEsperado) { bomEsperado.cantidad_revisada++; setBomsConsolidados([...bomsConsolidados]); }
     try {
-      const resp = await fetch(API_URL + '/ai_capturas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ tarea_id: tareaSeleccionada.id, bom_sku: valor, cantidad_sistema: bomEsperado ? bomEsperado.cantidad_sistema : 0, capturado_por: usuario?.id }) });
+      const resp = await fetch(API_URL + '/ut02_capturas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ tarea_id: tareaSeleccionada.id, bom_sku: valor, cantidad_sistema: bomEsperado ? bomEsperado.cantidad_sistema : 0, capturado_por: usuario?.id }) });
       const capturaData = await resp.json();
       const nuevaCaptura = Array.isArray(capturaData) ? capturaData[0] : capturaData;
       setCapturas([{ id: nuevaCaptura.id, bom_sku: valor, esNoEncontrado: !bomEsperado, creado_en: new Date().toISOString() }, ...capturas]);
@@ -340,7 +336,7 @@ const UT02RevisionPallet: React.FC = () => {
 
   const handleEliminarCaptura = async (index: number) => {
     const captura = capturas[index];
-    if (captura.id && captura.id.length > 20) { try { await fetch(API_URL + '/ai_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS }); } catch (e) {} }
+    if (captura.id && captura.id.length > 20) { try { await fetch(API_URL + '/ut02_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS }); } catch (e) {} }
     if (!captura.esNoEncontrado) {
       const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
       if (bomEsperado && bomEsperado.cantidad_revisada > 0) { bomEsperado.cantidad_revisada--; setBomsConsolidados([...bomsConsolidados]); }
@@ -357,7 +353,7 @@ const UT02RevisionPallet: React.FC = () => {
       const hayDiferencias = bomsConsolidados.some((b: any) => b.cantidad_revisada !== b.cantidad_sistema);
       const hayNoEncontrados = capturas.some((c: any) => c.esNoEncontrado || !bomsSistema.includes(c.bom_sku));
       const estadoFinal = (hayDiferencias || hayNoEncontrados) ? 'Con Diferencias' : 'Finalizado';
-      await fetch(API_URL + '/ai_tareas?id=eq.' + tareaSeleccionada.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: estadoFinal, total_bultos_revisados: capturasValidas.length, finalizado_en: new Date().toISOString() }) });
+      await fetch(API_URL + '/ut02_tareas?id=eq.' + tareaSeleccionada.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: estadoFinal, total_bultos_revisados: capturasValidas.length, finalizado_en: new Date().toISOString() }) });
       mostrarMensaje('success', estadoFinal === 'Finalizado' ? 'Tarea finalizada correctamente' : 'Tarea finalizada con diferencias');
       setMostrarCaptura(false); setTareaSeleccionada(null); cargarTareas();
     } catch (e) { mostrarMensaje('error', 'Error al finalizar'); }
