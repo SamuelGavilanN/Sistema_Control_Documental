@@ -260,6 +260,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
     
     for (const tarea of tareas) {
       const bomsConEmpaque: any[] = [];
+      const fechaTarea = new Date(tarea.creado_en).toLocaleDateString('es-CL');
       
       for (const emp of tarea.empaques) {
         const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -308,6 +309,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         
         filas.push({
           'TAREA': tarea.numero_tarea,
+          'FECHA': fechaTarea,
           'LOCAL': localCompleto,
           'AUDITOR': tarea.auditor_nombre,
           'ESTADO TAREA': tarea.estado,
@@ -333,6 +335,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
         Object.keys(agrupados).forEach((bomSku: string) => {
           filas.push({
             'TAREA': tarea.numero_tarea,
+            'FECHA': fechaTarea,
             'LOCAL': localCompleto,
             'AUDITOR': tarea.auditor_nombre,
             'ESTADO TAREA': tarea.estado,
@@ -349,7 +352,7 @@ const AI02Stats: React.FC<AI02StatsProps> = ({ onVolver }) => {
 
     const ws = XLSX.utils.json_to_sheet(filas);
     ws['!cols'] = [
-      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 18 },
+      { wch: 15 }, { wch: 12 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 18 },
       { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }
     ];
     const wb = XLSX.utils.book_new();
