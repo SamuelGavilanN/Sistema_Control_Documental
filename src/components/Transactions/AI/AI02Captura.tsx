@@ -23,26 +23,26 @@ interface CapturaLocal {
 }
 
 const AI02Captura: React.FC = () => {
-  // Estados globales
-  const [tareas, setTareas]: any = useState([]);
-  const [tareasFiltradas, setTareasFiltradas]: any = useState([]);
-  const [cargando, setCargando]: any = useState(true);
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
-  const [tareaSeleccionada, setTareaSeleccionada]: any = useState(null);
-  const [mostrarCrearTarea, setMostrarCrearTarea]: any = useState(false);
-  const [mostrarCaptura, setMostrarCaptura]: any = useState(false);
-  const [mostrarDetalle, setMostrarDetalle]: any = useState(false);
-  const [mostrarStats, setMostrarStats]: any = useState(false);
-  const [busqueda, setBusqueda]: any = useState('');
-  const [inputEmpaque, setInputEmpaque]: any = useState('');
-  const [empaquesTarea, setEmpaquesTarea]: any = useState([]);
-  const [bomsConsolidados, setBomsConsolidados]: any = useState([]);
-  const [capturas, setCapturas]: any = useState<CapturaLocal[]>([]);
-  const [contador, setContador]: any = useState(0);
-  const [inputBOM, setInputBOM]: any = useState('');
+  // Estados globales con tipado explícito
+  const [tareas, setTareas] = useState<any[]>([]);
+  const [tareasFiltradas, setTareasFiltradas] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
+  const [tareaSeleccionada, setTareaSeleccionada] = useState<any>(null);
+  const [mostrarCrearTarea, setMostrarCrearTarea] = useState(false);
+  const [mostrarCaptura, setMostrarCaptura] = useState(false);
+  const [mostrarDetalle, setMostrarDetalle] = useState(false);
+  const [mostrarStats, setMostrarStats] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [inputEmpaque, setInputEmpaque] = useState('');
+  const [empaquesTarea, setEmpaquesTarea] = useState<string[]>([]);
+  const [bomsConsolidados, setBomsConsolidados] = useState<any[]>([]);
+  const [capturas, setCapturas] = useState<CapturaLocal[]>([]); // ← CORREGIDO: usa CapturaLocal[]
+  const [contador, setContador] = useState(0);
+  const [inputBOM, setInputBOM] = useState('');
   const [finalizando, setFinalizando] = useState(false); // Para deshabilitar botón
-  const inputEmpaqueRef: any = useRef(null);
-  const inputBOMRef: any = useRef(null);
+  const inputEmpaqueRef = useRef<HTMLInputElement>(null);
+  const inputBOMRef = useRef<HTMLInputElement>(null);
   const usuario: any = auth.getUsuario();
 
   // ------------------------------------------------------------------
@@ -70,7 +70,6 @@ const AI02Captura: React.FC = () => {
 
   // Restaura los datos de una sesión guardada
   const restaurarSesion = useCallback(async (sessionData: any) => {
-    // Necesitamos recargar la tarea para obtener datos actualizados del backend
     try {
       const resp = await fetch(API_URL + '/ai_tareas?select=*&id=eq.' + sessionData.tareaId, { headers: HEADERS });
       const data = await resp.json();
@@ -79,11 +78,9 @@ const AI02Captura: React.FC = () => {
         return;
       }
       const tarea = data[0];
-      // Cargar empaques y boms (esta parte requiere conexión, si no hay, usamos los guardados)
       let bomsTemp = sessionData.bomsConsolidados;
       let capturasData = sessionData.capturas;
       if (!bomsTemp || !capturasData) {
-        // Si no se guardaron, los volvemos a cargar (puede fallar sin internet)
         await handleIniciarTarea(tarea, true);
         return;
       }
@@ -94,7 +91,6 @@ const AI02Captura: React.FC = () => {
       setMostrarCaptura(true);
       setTimeout(() => inputBOMRef.current?.focus(), 300);
     } catch (e) {
-      // Si falla la recarga, usamos los datos guardados sin conexión
       setTareaSeleccionada(sessionData.tarea);
       setBomsConsolidados(sessionData.bomsConsolidados);
       setCapturas(sessionData.capturas);
@@ -156,7 +152,6 @@ const AI02Captura: React.FC = () => {
       const data = await resp.json();
       if (data && data.length > 0) {
         const tareasConDatos = await Promise.all(data.map(async (tarea: any) => {
-          // (misma lógica de empaques y totales que antes)
           const respEmpaques = await fetch(API_URL + '/ai_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id, { headers: HEADERS });
           const empaques = await respEmpaques.json();
 
@@ -231,7 +226,7 @@ const AI02Captura: React.FC = () => {
   const handleAgregarEmpaque = async () => {
     const valor = inputEmpaque.trim();
     if (!valor) return;
-    if (empaquesTarea.find((e: any) => e === valor)) {
+    if (empaquesTarea.find((e) => e === valor)) {
       mostrarMensaje('warning', 'Empaque ya agregado');
       setInputEmpaque('');
       return;
@@ -328,7 +323,6 @@ const AI02Captura: React.FC = () => {
   const handleIniciarTarea = async (tarea: any, esRestauracion = false) => {
     setTareaSeleccionada(tarea);
 
-    // 1. Obtener todos los BOMs consolidados desde el inventario (puede ser pesado, pero se hace una sola vez)
     let bomsTemp: any[] = [];
     for (const emp of tarea.empaques) {
       const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -349,18 +343,15 @@ const AI02Captura: React.FC = () => {
       }
     }
 
-    // 2. Cargar capturas existentes desde BD (con ID real)
     const respCapturas = await fetch(API_URL + '/ai_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
     const capturasData = await respCapturas.json() || [];
 
-    // Reiniciar contadores de revisados según capturas existentes
     bomsTemp.forEach((b: any) => { b.cantidad_revisada = 0; });
     capturasData.forEach((c: any) => {
       const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku);
       if (bom) bom.cantidad_revisada++;
     });
 
-    // Convertir capturas existentes a nuestro formato local (ID real)
     const capturasIniciales: CapturaLocal[] = capturasData.map((c: any) => ({
       id: c.id,
       bom_sku: c.bom_sku,
@@ -372,7 +363,6 @@ const AI02Captura: React.FC = () => {
     setCapturas(capturasIniciales);
     setContador(capturasIniciales.length);
 
-    // Si la tarea está Pendiente, la marcamos como En Proceso
     if (tarea.estado === 'Pendiente') {
       await fetch(API_URL + '/ai_tareas?id=eq.' + tarea.id, {
         method: 'PATCH',
@@ -383,7 +373,7 @@ const AI02Captura: React.FC = () => {
 
     setMostrarCaptura(true);
     if (!esRestauracion) {
-      limpiarSesion(); // Limpiar sesión anterior por si acaso
+      limpiarSesion();
     }
     setTimeout(() => inputBOMRef.current?.focus(), 300);
   };
@@ -401,7 +391,6 @@ const AI02Captura: React.FC = () => {
       setBomsConsolidados([...bomsConsolidados]);
     }
 
-    // Crear captura local con ID temporal
     const nuevaCaptura: CapturaLocal = {
       id: 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
       bom_sku: valor,
@@ -421,17 +410,14 @@ const AI02Captura: React.FC = () => {
   const handleEliminarCaptura = async (index: number) => {
     const captura = capturas[index];
 
-    // Si es una captura real (tiene ID largo), intentamos borrarla también en BD
     if (captura.id && !captura.id.startsWith('temp_')) {
       try {
         await fetch(API_URL + '/ai_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS });
       } catch (e) {
-        // Podemos ignorar el error si no hay conexión, luego se sincronizará al finalizar
         console.warn('No se pudo eliminar captura remota, se marcará como eliminada localmente');
       }
     }
 
-    // Si la captura corresponde a un BOM del sistema, decrementar el contador
     if (!captura.esNoEncontrado) {
       const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
       if (bomEsperado && bomEsperado.cantidad_revisada > 0) {
@@ -440,7 +426,7 @@ const AI02Captura: React.FC = () => {
       }
     }
 
-    const nuevasCapturas = capturas.filter((_: any, i: number) => i !== index);
+    const nuevasCapturas = capturas.filter((_, i) => i !== index);
     setCapturas(nuevasCapturas);
     setContador(contador - 1);
     mostrarMensaje('success', 'Captura eliminada');
@@ -454,11 +440,9 @@ const AI02Captura: React.FC = () => {
     setFinalizando(true);
 
     try {
-      // 1. Separar capturas nuevas (temp) de las ya existentes en BD
       const capturasNuevas = capturas.filter(c => c.id.startsWith('temp_'));
       const capturasExistentes = capturas.filter(c => !c.id.startsWith('temp_'));
 
-      // 2. Insertar todas las nuevas capturas en un solo request (batch)
       if (capturasNuevas.length > 0) {
         const payload = capturasNuevas.map(c => ({
           tarea_id: tareaSeleccionada.id,
@@ -478,9 +462,7 @@ const AI02Captura: React.FC = () => {
         }
       }
 
-      // 3. Calcular estadísticas finales
       const bomsSistema = bomsConsolidados.map((b: any) => b.bom_sku);
-      // Las capturas válidas incluyen las existentes más las nuevas que sí están en el sistema
       const capturasValidas = capturasExistentes.concat(capturasNuevas).filter(c => bomsSistema.includes(c.bom_sku));
       const totalRevisado = capturasValidas.length;
 
@@ -489,7 +471,6 @@ const AI02Captura: React.FC = () => {
 
       const estadoFinal = (hayDiferencias || hayNoEncontrados) ? 'Con Diferencias' : 'Finalizado';
 
-      // 4. Actualizar tarea
       await fetch(API_URL + '/ai_tareas?id=eq.' + tareaSeleccionada.id, {
         method: 'PATCH',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -500,7 +481,6 @@ const AI02Captura: React.FC = () => {
         })
       });
 
-      // 5. Limpiar sesión y estados
       limpiarSesion();
       mostrarMensaje('success', estadoFinal === 'Finalizado' ? 'Tarea finalizada correctamente' : 'Tarea finalizada con diferencias');
       setMostrarCaptura(false);
@@ -512,10 +492,6 @@ const AI02Captura: React.FC = () => {
       setFinalizando(false);
     }
   };
-
-  // Los demás handlers (reabrir, ver detalle, exportar) se mantienen similares,
-  // pero deben manejar la carga de datos sin modificar la lógica de captura local.
-  // Se incluyen versiones actualizadas para que funcionen correctamente.
 
   const handleReabrirTarea = async (tarea: any) => {
     if (!window.confirm('¿Reabrir tarea ' + tarea.numero_tarea + '?')) return;
@@ -532,7 +508,6 @@ const AI02Captura: React.FC = () => {
 
   const handleVerDetalle = async (tarea: any) => {
     setTareaSeleccionada(tarea);
-    // Cargar BOMs y capturas (similar a handleIniciarTarea pero sin cambiar estado)
     let bomsTemp: any[] = [];
     for (const emp of tarea.empaques) {
       const respInv = await fetch(API_URL + '/ai_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
@@ -772,7 +747,7 @@ const AI02Captura: React.FC = () => {
         )}
       </div>
 
-      {/* Modal Crear Tarea (sin cambios) */}
+      {/* Modal Crear Tarea */}
       {mostrarCrearTarea && (
         <div className="ai02-modal-overlay" onClick={() => setMostrarCrearTarea(false)}>
           <div className="ai02-modal" onClick={(e: any) => e.stopPropagation()}>
@@ -792,10 +767,10 @@ const AI02Captura: React.FC = () => {
                 <div style={{ marginBottom: '16px' }}>
                   <label className="ai02-form-label">Empaques ({empaquesTarea.length})</label>
                   <div className="ai02-card-empaques">
-                    {empaquesTarea.map((emp: string, idx: number) => (
+                    {empaquesTarea.map((emp, idx) => (
                       <span key={idx} className="ai02-card-empaque-badge" style={{ fontSize: '11px', padding: '4px 10px' }}>
                         {emp}
-                        <button onClick={() => setEmpaquesTarea(empaquesTarea.filter((_: string, i: number) => i !== idx))}
+                        <button onClick={() => setEmpaquesTarea(empaquesTarea.filter((_, i) => i !== idx))}
                           style={{ marginLeft: '6px', background: 'none', border: 'none', color: 'var(--error-text)', cursor: 'pointer', fontSize: '14px' }}>×</button>
                       </span>
                     ))}
@@ -811,7 +786,7 @@ const AI02Captura: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Captura (con botón Finalizar deshabilitado durante el envío) */}
+      {/* Modal Captura */}
       {mostrarCaptura && tareaSeleccionada && (
         <div className="ai02-modal-overlay" onClick={() => { if (!finalizando) { setMostrarCaptura(false); setTareaSeleccionada(null); limpiarSesion(); } }}>
           <div className="ai02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -860,7 +835,7 @@ const AI02Captura: React.FC = () => {
                     Capturas ({capturas.length})
                   </div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    {capturas.map((c: CapturaLocal, idx: number) => {
+                    {capturas.map((c, idx) => {
                       const esSistema = bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku);
                       return (
                         <div key={idx} className="ai02-captura-bom-item" style={{
@@ -901,7 +876,7 @@ const AI02Captura: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Detalle (sin cambios relevantes) */}
+      {/* Modal Detalle */}
       {mostrarDetalle && tareaSeleccionada && (
         <div className="ai02-modal-overlay" onClick={() => setMostrarDetalle(false)}>
           <div className="ai02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -919,7 +894,7 @@ const AI02Captura: React.FC = () => {
               <div className="ai02-captura-resumen" style={{ marginBottom: '16px' }}>
                 <div className="ai02-captura-resumen-card"><span>Sistema</span><strong>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_sistema, 0)}</strong></div>
                 <div className="ai02-captura-resumen-card"><span>Revisado</span><strong>{bomsConsolidados.reduce((s: number, b: any) => s + b.cantidad_revisada, 0)}</strong></div>
-                <div className="ai02-captura-resumen-card"><span>No Encontrados</span><strong style={{ color: 'var(--error-text)' }}>{capturas.filter((c: any) => !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length}</strong></div>
+                <div className="ai02-captura-resumen-card"><span>No Encontrados</span><strong style={{ color: 'var(--error-text)' }}>{capturas.filter(c => !bomsConsolidados.find((b: any) => b.bom_sku === c.bom_sku)).length}</strong></div>
               </div>
               <div className="ai02-captura-bom-list" style={{ maxHeight: '400px' }}>
                 {bomsConsolidados.map((bom: any, idx: number) => {
