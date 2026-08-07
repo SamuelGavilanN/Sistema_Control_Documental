@@ -24,7 +24,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [localActual, setLocalActual] = useState<any>(null);
   const [mostrarModalBultos, setMostrarModalBultos] = useState(false);
 
-  // Detalles del conductor y patentes (se cargan desde el transporte)
   const [detallesConductor, setDetallesConductor] = useState<any>(null);
   const [detallesPatentePrincipal, setDetallesPatentePrincipal] = useState<any>(null);
   const [detallesPatenteAdicional, setDetallesPatenteAdicional] = useState<any>(null);
@@ -62,9 +61,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     try {
       const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
       const data = await resp.json();
-      if (data) {
-        setLocales(data);
-      }
+      if (data) setLocales(data);
     } catch (e) {
       console.error('Error cargando locales:', e);
     }
@@ -90,7 +87,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           modificado_en: new Date().toISOString()
         })
       });
-      // No mostramos mensaje para no saturar
     } catch (e) {
       console.error('Error guardando local:', e);
     }
@@ -103,8 +99,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const handleBultosGuardados = () => {
     setMostrarModalBultos(false);
-    // Recargar locales para actualizar el contador de bultos si lo mostramos
-    cargarLocales();
+    // No recargamos locales para evitar perder cambios no guardados
     onActualizar();
   };
 
@@ -147,7 +142,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
-          {/* Toggle para ocultar/mostrar tarjetas de información */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
             <button 
               onClick={() => setMostrarInfo(!mostrarInfo)}
@@ -167,7 +161,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
           {mostrarInfo && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              {/* Tarjeta: Fecha Programación */}
               <div className="sd01-ver-card">
                 <div className="sd01-ver-card-title">Programación</div>
                 <div className="sd01-ver-field">
@@ -184,7 +177,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                 )}
               </div>
 
-              {/* Tarjeta: Conductor */}
               <div className="sd01-ver-card">
                 <div className="sd01-ver-card-title">Conductor</div>
                 <div className="sd01-ver-field">
@@ -211,7 +203,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                 )}
               </div>
 
-              {/* Tarjeta: Patente Principal */}
               <div className="sd01-ver-card">
                 <div className="sd01-ver-card-title">Patente Principal</div>
                 <div className="sd01-ver-field">
@@ -228,7 +219,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                 )}
               </div>
 
-              {/* Tarjeta: Patente Adicional */}
               <div className="sd01-ver-card">
                 <div className="sd01-ver-card-title">Patente Adicional</div>
                 {detallesPatenteAdicional ? (
@@ -251,7 +241,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
             </div>
           )}
 
-          {/* Tabla de locales con campos editables */}
           <div style={{ marginTop: '8px' }}>
             <div className="sd01-ver-locales-title">
               Datos Destino
@@ -267,7 +256,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                     <th>Hora Entrega</th>
                     <th>Sello Trasero</th>
                     <th>Cantidad Pallet</th>
-                    <th style={{ textAlign: 'center' }}>Bultos</th>
                     <th style={{ width: '50px' }}></th>
                   </tr>
                 </thead>
@@ -301,13 +289,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                           min="0"
                         />
                       </td>
-                      <td style={{ textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }}>
-                        {local.bultos_count || 0}
-                      </td>
                       <td style={{ textAlign: 'center' }}>
                         <button
                           className="sd01-btn sd01-btn-primary"
-                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                          style={{ padding: '2px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
                           onClick={() => handleIngresarBultos(local)}
                         >
                           + Bultos
@@ -326,7 +311,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </div>
       </div>
 
-      {/* Modal de ingreso de bultos */}
       {mostrarModalBultos && localActual && (
         <SD01IngresarBultos
           local={localActual}
