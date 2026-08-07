@@ -5,6 +5,7 @@ import { auth } from '../../../lib/auth';
 import SD01CrearTransporte from './SD01CrearTransporte';
 import SD01VerTransporte from './SD01VerTransporte';
 import SD01CargaExcel from './SD01CargaExcel';
+import SD01IniciarTransporte from './SD01IniciarTransporte'; // nuevo
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -23,6 +24,7 @@ const SD01View: React.FC = () => {
   const [mostrarEditarTransporte, setMostrarEditarTransporte]: any = useState(false);
   const [mostrarVerTransporte, setMostrarVerTransporte]: any = useState(false);
   const [mostrarCargaExcel, setMostrarCargaExcel]: any = useState(false);
+  const [mostrarIniciarTransporte, setMostrarIniciarTransporte]: any = useState(false); // nuevo
   const [usuariosAdmin, setUsuariosAdmin]: any = useState([]);
   const [mostrarAsignarModal, setMostrarAsignarModal]: any = useState(false);
   const [usuarioAsignar, setUsuarioAsignar]: any = useState('');
@@ -339,6 +341,46 @@ const SD01View: React.FC = () => {
     }
   };
 
+  // --- NUEVA FUNCIÓN: Iniciar Transporte ---
+  const handleIniciarTransporte = async () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte');
+      return;
+    }
+    if (transporteSeleccionado.estado !== 'Pendiente') {
+      mostrarMensaje('error', 'Solo se pueden iniciar transportes en estado Pendiente');
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'En Proceso',
+          fecha_inicio: now,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: now
+        })
+      });
+
+      // Refrescar lista y abrir modal de inicio
+      await cargarTransportes();
+      // Actualizar el transporte seleccionado con el nuevo estado
+      const actualizado = transportes.find((t: any) => t.id === transporteSeleccionado.id);
+      if (actualizado) {
+        setTransporteSeleccionado(actualizado);
+        setMostrarIniciarTransporte(true);
+      } else {
+        mostrarMensaje('error', 'No se pudo cargar el transporte actualizado');
+      }
+    } catch (e) {
+      console.error('Error al iniciar transporte:', e);
+      mostrarMensaje('error', 'Error al iniciar el transporte');
+    }
+  };
+
   const getEstadoBadge = (estado: string) => {
     const badges: any = {
       'Pendiente': { color: '#b45309', bg: '#fef3c7' },
@@ -355,11 +397,10 @@ const SD01View: React.FC = () => {
   };
 
   const formatearFecha = (fecha: string) => {
-  if (!fecha) return '-';
-  // Si la fecha viene sin hora, agregar mediodía para evitar cambio de zona horaria
-  const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
-  return new Date(fechaStr).toLocaleDateString('es-CL');
-};
+    if (!fecha) return '-';
+    const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
+    return new Date(fechaStr).toLocaleDateString('es-CL');
+  };
 
   const formatearFechaHora = (fecha: string) => {
     if (!fecha) return '-';
@@ -459,6 +500,25 @@ const SD01View: React.FC = () => {
           </svg>
           Asignar
         </button>
+
+        {/* NUEVO BOTÓN INICIAR */}
+        <button 
+          className="sd01-btn sd01-btn-success" 
+          onClick={handleIniciarTransporte}
+          disabled={!transporteSeleccionado || transporteSeleccionado.estado !== 'Pendiente'}
+          style={{
+            background: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 'var(--bg-readonly)',
+            color: (transporteSeleccionado?.estado === 'Pendiente') ? 'white' : 'var(--text-muted)',
+            borderColor: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 'var(--btn-border)'
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 2L12 8L4 14V2Z" fill="currentColor"/>
+          </svg>
+          Iniciar
+        </button>
+
+        <div className="sd01-separator"></div>
 
         <button 
           className="sd01-btn sd01-btn-warning" 
@@ -576,6 +636,19 @@ const SD01View: React.FC = () => {
         <SD01CargaExcel
           onClose={() => setMostrarCargaExcel(false)}
           onTransportesCreados={handleCargaExcelCompletada}
+        />
+      )}
+
+      {/* NUEVO MODAL INICIAR */}
+      {mostrarIniciarTransporte && transporteSeleccionado && (
+        <SD01IniciarTransporte
+          transporte={transporteSeleccionado}
+          onClose={() => {
+            setMostrarIniciarTransporte(false);
+            cargarTransportes();
+          }}
+          onActualizar={cargarTransportes}
+          usuario={usuario}
         />
       )}
 
