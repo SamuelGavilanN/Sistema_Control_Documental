@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
 import { getUsuarios, getLoteActivo, invalidarRegistrosED01 } from '../../../lib/api';
-import { supabase } from '../../../lib/supabase'; // ¡importación agregada!
+import { supabase } from '../../../lib/supabase';
 import { locales } from '../../../data/locales';
 import * as XLSX from 'xlsx';
 import ED01Toolbar from './ED01Toolbar';
@@ -49,7 +49,7 @@ const ED01View: React.FC = () => {
   const [empaquesDisponibles, setEmpaquesDisponibles] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  // --- Estados de paginación ---
+  // Paginación
   const [paginaActual, setPaginaActual] = useState(1);
   const [limitePorPagina, setLimitePorPagina] = useState(50);
   const [totalRegistros, setTotalRegistros] = useState(0);
@@ -101,12 +101,11 @@ const ED01View: React.FC = () => {
     try {
       if (mostrarCargando) setCargando(true);
 
-      // Construir consulta base
       let query = supabase
         .from('ed01_empaques')
         .select('*', { count: 'exact', head: false });
 
-      // Aplicar filtros (cada filtro puede ser una condición)
+      // Aplicar filtros usando .filter() para evitar problemas de tipos
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
         const op = filtro.operador;
@@ -118,17 +117,17 @@ const ED01View: React.FC = () => {
           query = query.not(col, 'is', null);
         } else if (val !== '') {
           if (op === 'igual') {
-            query = query.eq(col, val);
+            query = query.filter(col, 'eq', val);
           } else if (op === 'mayor') {
-            query = query.gt(col, Number(val));
+            query = query.filter(col, 'gt', Number(val));
           } else if (op === 'menor') {
-            query = query.lt(col, Number(val));
+            query = query.filter(col, 'lt', Number(val));
           } else if (op === 'mayor_igual') {
-            query = query.gte(col, Number(val));
+            query = query.filter(col, 'gte', Number(val));
           } else if (op === 'menor_igual') {
-            query = query.lte(col, Number(val));
+            query = query.filter(col, 'lte', Number(val));
           } else if (op === 'contiene') {
-            query = query.ilike(col, `%${val}%`);
+            query = query.filter(col, 'ilike', `%${val}%`);
           } else if (op === 'no_contiene') {
             query = query.not(col, 'ilike', `%${val}%`);
           }
@@ -155,7 +154,7 @@ const ED01View: React.FC = () => {
     }
   };
 
-  // --- Funciones de manejo de eventos (sin cambios) ---
+  // --- Manejadores de eventos (sin cambios) ---
   const handleNuevo = () => {
     if (!loteActivo) {
       alert('No hay un lote activo. Cargue un lote en ED04 primero.');
@@ -294,7 +293,6 @@ const ED01View: React.FC = () => {
     ? (nombresUsuarios[registroSeleccionado.creado_por] || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim())
     : `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
 
-  // --- Funciones de paginación ---
   const totalPaginas = Math.ceil(totalRegistros / limitePorPagina);
 
   const cambiarPagina = (nuevaPagina: number) => {
@@ -304,7 +302,7 @@ const ED01View: React.FC = () => {
 
   const cambiarLimite = (nuevoLimite: number) => {
     setLimitePorPagina(nuevoLimite);
-    setPaginaActual(1); // resetear a primera página
+    setPaginaActual(1);
   };
 
   return (
@@ -320,7 +318,6 @@ const ED01View: React.FC = () => {
           registroSeleccionado={!!registroSeleccionado}
           loteActivo={loteActivo}
           empaquesDisponibles={empaquesDisponibles}
-          // Props de paginación
           paginaActual={paginaActual}
           totalPaginas={totalPaginas}
           limitePorPagina={limitePorPagina}
@@ -345,7 +342,7 @@ const ED01View: React.FC = () => {
             setOrdenColumna(columna);
             setOrdenDireccion('asc');
           }
-          setPaginaActual(1); // resetear página al ordenar
+          setPaginaActual(1);
           cargarRegistros(false);
         }}
         nombresUsuarios={nombresUsuarios}
@@ -369,7 +366,7 @@ const ED01View: React.FC = () => {
         filtros={filtros}
         onAplicar={(nuevos) => {
           setFiltros(nuevos);
-          setPaginaActual(1); // resetear página al aplicar filtros
+          setPaginaActual(1);
           cargarRegistros(false);
         }}
       />
