@@ -6,10 +6,10 @@ import Header from './components/Layout/Header';
 import Dashboard from './components/Layout/Dashboard';
 
 // Módulos ED
-import ED01View from './components/Transactions/ED/ED01View';
-import ED02Dashboard from './components/Transactions/ED/ED02Dashboard';
-import ED03Tickets from './components/Transactions/ED/ED03Tickets';
-import ED04Lotes from './components/Transactions/ED/ED04Lotes';
+import ED01View from './components/Transactions/ED01/ED01View';
+import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
+import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
+import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
 
 // Módulos SD
 import SD01View from './components/Transactions/SD/SD01View';
