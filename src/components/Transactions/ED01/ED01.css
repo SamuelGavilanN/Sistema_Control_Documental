@@ -51,3 +51,77 @@
 @media (max-width: 1024px) { .ed01-view { padding: 16px; } .ed01-toolbar .toolbar-group { gap: 6px; } .ed01-toolbar .toolbar-btn { padding: 6px 10px; font-size: 12px; } .ed01-tabla { min-width: 1000px; font-size: 11px; } .ed01-tabla th, .ed01-tabla td { padding: 6px 4px; } }
 @media (max-width: 768px) { .ed01-view { padding: 12px; border-radius: 8px; } .ed01-toolbar .toolbar-group { flex-wrap: wrap; gap: 4px; } .ed01-toolbar .toolbar-btn { padding: 6px 8px; font-size: 11px; } .ed01-modal { max-width: 95%; } .ed01-modal-body { padding: 16px; } .ed01-row { flex-direction: column; gap: 0; } }
 @media (max-width: 480px) { .ed01-view { padding: 8px; } .ed01-toolbar { margin-bottom: 12px; padding-bottom: 10px; } .ed01-toolbar .toolbar-btn { padding: 5px 6px; font-size: 10px; gap: 3px; } .ed01-tabla { min-width: 800px; font-size: 10px; } .ed01-tabla th, .ed01-tabla td { padding: 4px 2px; font-size: 9px; } .ed01-modal { border-radius: 12px; } .ed01-modal-header { padding: 14px 16px; } .ed01-modal-header h2 { font-size: 16px; } .ed01-field input, .ed01-field textarea, .ed01-field select { font-size: 12px; padding: 8px 10px; } }
+/* Estilos para encabezados fijos */
+.ed01-tabla-container {
+  position: relative;
+  max-height: 600px; /* altura fija para que el scroll funcione */
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--table-border);
+  border-radius: 8px;
+}
+
+.ed01-tabla thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ed01-tabla thead th {
+  background: var(--table-header-bg);
+  border-bottom: 2px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 11;
+}
+
+/* Paginación */
+.ed01-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  margin-top: 12px;
+  background: var(--bg-section);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ed01-pagination-info {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.ed01-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ed01-pagination-page {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.ed01-pagination-buttons .ed01-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ed01-pagination-buttons .ed01-btn:hover:not(:disabled) {
+  background: var(--btn-hover-bg);
+}
+
+.ed01-pagination-buttons .ed01-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
