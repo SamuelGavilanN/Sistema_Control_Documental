@@ -10,28 +10,16 @@ interface DashboardProps {
 }
 
 const transacciones = [
-  { id: 'ad', label: 'AD01 · Gestión Auditoría', desc: 'Crear y gestionar tareas de auditoría', color: '#8b5cf6' },
-  { id: 'ad-captura', label: 'AD02 · Captura Física', desc: 'Realizar capturas físicas de auditoría', color: '#ec4899' },
-  { id: 'ad-dashboard', label: 'AD03 · Dashboard Auditoría', desc: 'KPIs y estadísticas de auditorías', color: '#06b6d4' },
-  { id: 'ai', label: 'AI01 · Gestión Auditoría Inv', desc: 'Gestionar inventario de auditoría', color: '#f97316' },
-  { id: 'ai-captura', label: 'AI02 · Captura Auditoria Inv', desc: 'Realizar capturas de auditoría de inventario', color: '#ef4444' },
   { id: 'ed', label: 'ED01 · Registro Empaque', desc: 'Registrar y gestionar empaques directos', color: '#3b82f6' },
   { id: 'ed-history', label: 'ED02 · Dashboard Producción', desc: 'KPIs y estadísticas de producción', color: '#6366f1' },
   { id: 'ed-tickets', label: 'ED03 · BT Portico', desc: 'Gestión de tickets desde pórtico', color: '#8b5cf6' },
   { id: 'ed-lotes', label: 'ED04 · Almacén Lotes', desc: 'Gestión de lotes de etiquetas', color: '#06b6d4' },
-  { id: 'rd', label: 'RD01 · Recepción Devolución', desc: 'Gestionar ingresos de devolución', color: '#f59e0b' },
-  { id: 'sd', label: 'SD01 · Salida Despacho', desc: 'Gestionar salidas de despacho', color: '#10b981' },
+  { id: 'sd', label: 'SD01 · Planificación Transporte', desc: 'Gestionar salidas de despacho', color: '#10b981' },
   { id: 'sd-asignador', label: 'SD02 · Asignador Móvil', desc: 'Asignar transportes pendientes', color: '#14b8a6' },
-  { id: 'lp', label: 'LP01 · Crear Pedido', desc: 'Crear y gestionar pedidos', color: '#0ea5e9' },
-  { id: 'lp-captura', label: 'LP02 · Capturar LPN', desc: 'Capturar códigos LPN', color: '#0891b2' },
-  { id: 'rp', label: 'RP01 · Carga Revisión', desc: 'Cargar inventario de empaques', color: '#f97316' },
-  { id: 'rp-revision', label: 'RP02 · Revisar Pallet', desc: 'Revisar pallets cargados', color: '#ef4444' },
-  { id: 'tk', label: 'TK01 · Crear Ticket', desc: 'Crear tickets de soporte', color: '#dc2626' },
-  { id: 'tk-dashboard', label: 'TK02 · Dashboard Tickets', desc: 'KPIs y métricas de tickets', color: '#b91c1c' },
-  { id: 'bd-usuarios', label: 'BD01 · Usuarios', desc: 'Administración de usuarios', color: '#64748b' },
-  { id: 'bd-locales', label: 'BD02 · Locales', desc: 'Administración de locales', color: '#475569' },
   { id: 'ut', label: 'UT01 · Correlativo QR', desc: 'Generar códigos QR', color: '#0891b2' },
   { id: 'ut-revision', label: 'UT02 · Revisión Pallet', desc: 'Herramienta de revisión de pallets', color: '#f97316' },
+  { id: 'bd-usuarios', label: 'BD01 · Usuarios', desc: 'Administración de usuarios', color: '#64748b' },
+  { id: 'bd-locales', label: 'BD02 · Locales', desc: 'Administración de locales', color: '#475569' },
 ];
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -94,7 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
         color: 'var(--text-muted)',
         marginBottom: isMobile ? '16px' : '24px'
       }}>
-        Sistema de Gestion Documental
+        Sistema de Gestión Documental
       </p>
 
       {transFavoritas.length === 0 ? (
@@ -142,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
       ) : (
         <>
           <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>
-            Accesos rapidos a tus transacciones favoritas
+            Accesos rápidos a tus transacciones favoritas
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {transFavoritas.map(t => (
