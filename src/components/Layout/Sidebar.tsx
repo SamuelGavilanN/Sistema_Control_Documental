@@ -29,62 +29,19 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-    id: 'ad',
-    title: 'AD · Auditoría',
-    items: [
-      { id: 'ad', label: 'AD01 Gestión Auditoría', type: 'item' },
-      { id: 'ad-captura', label: 'AD02 Captura Física', type: 'subitem' },
-      { id: 'ad-dashboard', label: 'AD03 Dashboard', type: 'subitem' }
-    ]
-  },
-  {
-    id: 'ai',
-    title: 'AI · Auditoría Inventario',
-    items: [
-      { id: 'ai', label: 'AI01 Gestión Auditoría Inv', type: 'item' },
-      { id: 'ai-captura', label: 'AI02 Captura Auditoria Inv', type: 'subitem' },
-    ]
-  },
-  {
-    id: 'rp',
-    title: 'RP · Revisión Pallet',
-    items: [
-      { id: 'rp', label: 'RP01 Carga Revisión', type: 'item' },
-      { id: 'rp-revision', label: 'RP02 Revisar Pallet', type: 'subitem' },
-    ]
-  },
-  {
-    id: 'rd',
-    title: 'RD · Recepción Devolución',
-    items: [
-      { id: 'rd', label: 'RD01 Ingreso Devolución', type: 'item' },
-      { id: 'rd-salida', label: 'RD02 Salida Devolución', type: 'subitem' },
-      { id: 'rd-informe', label: 'RD03 Informe', type: 'subitem' },
-      { id: 'rd-dashboard', label: 'RD04 Dashboard', type: 'subitem' }
-    ]
-  },
-  {
     id: 'sd',
     title: 'SD · Salida Despacho',
     items: [
       { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
-      { id: 'sd-documentacion', label: 'SD02 Documentación Transporte', type: 'subitem' },
+      { id: 'sd-asignador', label: 'SD02 Asignador Móvil', type: 'subitem' },
     ]
   },
   {
-    id: 'lp',
-    title: 'LP · Lectura Pedidos',
+    id: 'ut',
+    title: 'UT · Utilidades',
     items: [
-      { id: 'lp', label: 'LP01 Crear Pedido', type: 'item' },
-      { id: 'lp-captura', label: 'LP02 Capturar LPN', type: 'subitem' },
-    ]
-  },
-  {
-    id: 'tk',
-    title: 'TK · Mesa de Ayuda',
-    items: [
-      { id: 'tk', label: 'TK01 Crear Ticket', type: 'item' },
-      { id: 'tk-dashboard', label: 'TK02 Dashboard Tickets', type: 'subitem' }
+      { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
+      { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' },
     ]
   },
   {
@@ -94,15 +51,7 @@ const menuSections: MenuSection[] = [
       { id: 'bd-usuarios', label: 'BD01 Usuarios', type: 'item' },
       { id: 'bd-locales', label: 'BD02 Locales', type: 'subitem' }
     ]
-  },
-  {
-  id: 'ut',
-  title: 'UT · Utilidades',
-  items: [
-    { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
-    { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' },
-  ]
-}
+  }
 ];
 
 interface SidebarProps {
@@ -225,11 +174,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
   const itemPermitido = (itemId: string): boolean => {
     if (!permisosActuales || permisosActuales.length === 0) {
-      if (itemId === 'ed-history' && rol === 'Portico') return false;
-      if ((itemId === 'tk' || itemId === 'tk-dashboard') && rol === 'Portico') return false;
-      if ((itemId === 'ad' || itemId === 'ad-captura' || itemId === 'ad-dashboard') && rol === 'Portico') return false;
+      // Solo se aplican restricciones especiales para BD
       if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin') return false;
-      if ((itemId === 'rd-salida' || itemId === 'rd-informe' || itemId === 'rd-dashboard') && rol !== 'Admin' && rol !== 'Owner') return false;
       return true;
     }
     return permisosActuales.includes(itemId);
