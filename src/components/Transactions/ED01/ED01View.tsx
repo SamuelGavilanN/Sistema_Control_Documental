@@ -1,9 +1,9 @@
-// src/components/Transactions/ED01/ED01View.tsx
+// src/components/Transactions/ED/ED01View.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../../lib/supabase'; // <-- IMPORTANTE: importar supabase
 import { auth } from '../../../lib/auth';
-import { getUsuarios, getLoteActivo, getRegistrosED01, invalidarRegistrosED01 } from '../../../lib/api';
+import { getUsuarios, getLoteActivo, invalidarRegistrosED01 } from '../../../lib/api';
+import { supabase } from '../../../lib/supabase'; // <-- importar supabase
 import { locales } from '../../../data/locales';
 import * as XLSX from 'xlsx';
 import ED01Toolbar from './ED01Toolbar';
@@ -47,6 +47,9 @@ const ED01View: React.FC = () => {
   const [nombresUsuarios, setNombresUsuarios] = useState<Record<string, string>>({});
   const [loteActivo, setLoteActivo] = useState<any>(null);
   const [empaquesDisponibles, setEmpaquesDisponibles] = useState(0);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [registrosPorPagina] = useState(50); // cantidad por página
+  const [totalRegistros, setTotalRegistros] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,26 +58,20 @@ const ED01View: React.FC = () => {
     cargarRegistros(true);
   }, []);
 
+  // Recargar cuando cambia el orden, los filtros o la página
   useEffect(() => {
-    const intervalo = setInterval(() => {
-      cargarRegistros(false);
-    }, 10000);
-    return () => clearInterval(intervalo);
-  }, [filtros, ordenColumna, ordenDireccion]);
+    cargarRegistros(false);
+  }, [ordenColumna, ordenDireccion, filtros, paginaActual]);
 
   const cargarUsuarios = async () => {
     try {
       const data = await getUsuarios();
       if (data) {
         const m: Record<string, string> = {};
-        data.forEach((u: any) => {
-          m[u.id] = `${u.nombre} ${u.apellido}`;
-        });
+        data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; });
         setNombresUsuarios(m);
       }
-    } catch (e) {
-      console.error('Error cargando usuarios:', e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const verificarLoteActivo = async () => {
@@ -87,40 +84,58 @@ const ED01View: React.FC = () => {
         setLoteActivo(null);
         setEmpaquesDisponibles(0);
       }
-    } catch (e) {
-      console.error('Error verificando lote activo:', e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const cargarRegistros = async (mostrarCargando: boolean = false) => {
     try {
       if (mostrarCargando) setCargando(true);
-      const data = await getRegistrosED01(ordenColumna, ordenDireccion);
-      
-      let datosFiltrados = data;
+
+      // Construir la consulta base
+      let query = supabase
+        .from('ed01_empaques')
+        .select('*', { count: 'exact' })
+        .order(ordenColumna, { ascending: ordenDireccion === 'asc' });
+
+      // Aplicar filtros (se aplican en el servidor para reducir datos)
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
         const op = filtro.operador;
-        const val = (filtro.valor || '').toLowerCase();
+        const val = (filtro.valor || '').trim();
         if (!col) return;
-        datosFiltrados = datosFiltrados.filter((item: any) => {
-          const itemVal = item[col];
-          if (op === 'vacio') return itemVal === null || itemVal === '' || itemVal === undefined;
-          if (op === 'no_vacio') return itemVal !== null && itemVal !== '' && itemVal !== undefined;
-          if (val === '') return true;
-          const itemStr = String(itemVal || '').toLowerCase();
-          if (op === 'igual') return itemStr === val;
-          if (op === 'mayor') return Number(itemVal) > Number(val);
-          if (op === 'menor') return Number(itemVal) < Number(val);
-          if (op === 'mayor_igual') return Number(itemVal) >= Number(val);
-          if (op === 'menor_igual') return Number(itemVal) <= Number(val);
-          if (op === 'contiene') return itemStr.includes(val);
-          if (op === 'no_contiene') return !itemStr.includes(val);
-          return true;
-        });
+        if (op === 'vacio') {
+          query = query.is(col, null);
+        } else if (op === 'no_vacio') {
+          query = query.not(col, 'is', null);
+        } else if (val !== '') {
+          if (op === 'igual') {
+            query = query.eq(col, val);
+          } else if (op === 'mayor') {
+            query = query.gt(col, Number(val));
+          } else if (op === 'menor') {
+            query = query.lt(col, Number(val));
+          } else if (op === 'mayor_igual') {
+            query = query.gte(col, Number(val));
+          } else if (op === 'menor_igual') {
+            query = query.lte(col, Number(val));
+          } else if (op === 'contiene') {
+            query = query.ilike(col, `%${val}%`);
+          } else if (op === 'no_contiene') {
+            query = query.not(col, 'ilike', `%${val}%`);
+          }
+        }
       });
-      
-      setRegistros(datosFiltrados);
+
+      // Paginación
+      const desde = (paginaActual - 1) * registrosPorPagina;
+      const hasta = desde + registrosPorPagina - 1;
+      query = query.range(desde, hasta);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+      setRegistros(data || []);
+      if (count !== null) setTotalRegistros(count);
     } catch (error) {
       console.error('Error cargando registros:', error);
     } finally {
@@ -128,7 +143,7 @@ const ED01View: React.FC = () => {
     }
   };
 
-  // === Funciones de manejo de eventos (sin cambios) ===
+  // Funciones de manejo de eventos (sin cambios)
   const handleNuevo = () => {
     if (!loteActivo) {
       alert('No hay un lote activo. Cargue un lote en ED04 primero.');
@@ -152,7 +167,7 @@ const ED01View: React.FC = () => {
 
   const handleCancelarRegistro = () => {
     if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
-    if (registroSeleccionado.estado === 'Cancelado') { alert('El registro ya esta cancelado'); return; }
+    if (registroSeleccionado.estado === 'Cancelado') { alert('El registro ya está cancelado'); return; }
     setModoModal('cancelar');
     setShowModal(true);
   };
@@ -163,6 +178,8 @@ const ED01View: React.FC = () => {
   };
 
   const handleExportarExcel = () => {
+    // Para exportar todos los registros (sin paginación) se debe hacer una consulta sin límite
+    // O exportar solo los que están en la página actual. Por simplicidad exportamos la página actual.
     if (registros.length === 0) { alert('No hay datos para exportar'); return; }
     const datosExport = registros.map(reg => ({
       'Estado': reg.estado,
@@ -188,7 +205,6 @@ const ED01View: React.FC = () => {
     try {
       const user = auth.getUsuario();
       if (modoModal === 'nuevo') {
-        // Obtener siguiente empaque (RPC)
         const { data: idData, error: idError } = await supabase.rpc('obtener_siguiente_empaque');
         if (idError) {
           alert('Error al obtener empaque: ' + idError.message);
@@ -211,6 +227,7 @@ const ED01View: React.FC = () => {
         invalidarRegistrosED01();
         setShowModal(false);
         verificarLoteActivo();
+        setPaginaActual(1); // volver a la primera página
         cargarRegistros(false);
         setTimeout(() => {
           setRegistroSeleccionado({
@@ -268,6 +285,8 @@ const ED01View: React.FC = () => {
     ? (nombresUsuarios[registroSeleccionado.creado_por] || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim())
     : `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
 
+  const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+
   return (
     <div className="ed01-view">
       <div ref={toolbarRef} style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
@@ -283,7 +302,7 @@ const ED01View: React.FC = () => {
           empaquesDisponibles={empaquesDisponibles}
         />
       </div>
-      
+
       <ED01Tabla
         registros={registros}
         cargando={cargando}
@@ -299,11 +318,39 @@ const ED01View: React.FC = () => {
             setOrdenColumna(columna);
             setOrdenDireccion('asc');
           }
-          cargarRegistros(false);
+          setPaginaActual(1);
         }}
         nombresUsuarios={nombresUsuarios}
       />
-      
+
+      {/* Controles de paginación */}
+      {totalRegistros > 0 && (
+        <div className="ed01-pagination">
+          <div className="ed01-pagination-info">
+            Mostrando {registros.length} de {totalRegistros} registros
+          </div>
+          <div className="ed01-pagination-buttons">
+            <button
+              onClick={() => setPaginaActual(Math.max(1, paginaActual - 1))}
+              disabled={paginaActual === 1}
+              className="ed01-btn"
+            >
+              ← Anterior
+            </button>
+            <span className="ed01-pagination-page">
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              onClick={() => setPaginaActual(Math.min(totalPaginas, paginaActual + 1))}
+              disabled={paginaActual === totalPaginas}
+              className="ed01-btn"
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
+
       <ED01Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -322,7 +369,7 @@ const ED01View: React.FC = () => {
         filtros={filtros}
         onAplicar={(nuevos) => {
           setFiltros(nuevos);
-          cargarRegistros(false);
+          setPaginaActual(1);
         }}
       />
       <EtiquetaModal
