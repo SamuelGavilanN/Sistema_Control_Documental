@@ -120,3 +120,17 @@
   outline: none;
   box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
 }
+/* Botón éxito (verde) */
+.sd01-btn-success {
+  background: #16a34a;
+  color: white;
+  border-color: #16a34a;
+}
+.sd01-btn-success:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
+}
+.sd01-btn-success:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
