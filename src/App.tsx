@@ -4,28 +4,25 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Dashboard from './components/Layout/Dashboard';
-import ED01View from './components/Transactions/ED01/ED01View';
-import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
-import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
-import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
-import TK01CrearTicket from './components/Transactions/TK/TK01CrearTicket';
-import TK02Dashboard from './components/Transactions/TK/TK02Dashboard';
-import AD01View from './components/Transactions/AD/AD01View';
-import AD02Captura from './components/Transactions/AD/AD02Captura';
-import AD03Dashboard from './components/Transactions/AD/AD03Dashboard';
-import AI01View from './components/Transactions/AI/AI01View';
-import AI02Captura from './components/Transactions/AI/AI02Captura';
-import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
-import BD02Locales from './components/Transactions/BD/BD02Locales';
-import RD01View from './components/Transactions/RD/RD01View';
+
+// Módulos ED
+import ED01View from './components/Transactions/ED/ED01View';
+import ED02Dashboard from './components/Transactions/ED/ED02Dashboard';
+import ED03Tickets from './components/Transactions/ED/ED03Tickets';
+import ED04Lotes from './components/Transactions/ED/ED04Lotes';
+
+// Módulos SD
 import SD01View from './components/Transactions/SD/SD01View';
 import SD02AsignadorMovil from './components/Transactions/SD/SD02AsignadorMovil';
-import RP01View from './components/Transactions/RP/RP01View';
-import RP02Revision from './components/Transactions/RP/RP02Revision';
-import LP01View from './components/Transactions/LP/LP01View';
-import LP02View from './components/Transactions/LP/LP02View';
+
+// Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
 import UT02RevisionPallet from './components/Transactions/UT/UT02RevisionPallet';
+
+// Módulos BD
+import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
+import BD02Locales from './components/Transactions/BD/BD02Locales';
+
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
@@ -94,30 +91,26 @@ const App: React.FC = () => {
           <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
             <Dashboard onModuleClick={openModule} rol={usuario?.rol} permisos={permisos} />
           </div>
+          {/* ED */}
           {tabsMontadas.has('ed') && <div style={{ display: activeTab === 'ed' ? 'block' : 'none' }}><ED01View key="ed01" /></div>}
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
           {tabsMontadas.has('ed-lotes') && <div style={{ display: activeTab === 'ed-lotes' ? 'block' : 'none' }}><ED04Lotes key="ed04" /></div>}
-          {tabsMontadas.has('tk') && <div style={{ display: activeTab === 'tk' ? 'block' : 'none' }}><TK01CrearTicket key="tk01" /></div>}
-          {tabsMontadas.has('tk-dashboard') && <div style={{ display: activeTab === 'tk-dashboard' ? 'block' : 'none' }}><TK02Dashboard key="tk02" /></div>}
-          {tabsMontadas.has('ad') && <div style={{ display: activeTab === 'ad' ? 'block' : 'none' }}><AD01View key="ad01" /></div>}
-          {tabsMontadas.has('ad-captura') && <div style={{ display: activeTab === 'ad-captura' ? 'block' : 'none' }}><AD02Captura key="ad02" /></div>}
-          {tabsMontadas.has('ad-dashboard') && <div style={{ display: activeTab === 'ad-dashboard' ? 'block' : 'none' }}><AD03Dashboard key="ad03" /></div>}
-          {tabsMontadas.has('ai') && <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}><AI01View key="ai01" /></div>}
-          {tabsMontadas.has('ai-captura') && <div style={{ display: activeTab === 'ai-captura' ? 'block' : 'none' }}><AI02Captura key="ai02" /></div>}
-          {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
-          {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
-          {tabsMontadas.has('rd') && <div style={{ display: activeTab === 'rd' ? 'block' : 'none' }}><RD01View key="rd01" /></div>}
+
+          {/* SD */}
           {tabsMontadas.has('sd') && <div style={{ display: activeTab === 'sd' ? 'block' : 'none' }}><SD01View key="sd01" /></div>}
           {tabsMontadas.has('sd-asignador') && <div style={{ display: activeTab === 'sd-asignador' ? 'block' : 'none' }}><SD02AsignadorMovil key="sd02" /></div>}
-          {tabsMontadas.has('rp') && <div style={{ display: activeTab === 'rp' ? 'block' : 'none' }}><RP01View key="rp01" /></div>}
-          {tabsMontadas.has('rp-revision') && <div style={{ display: activeTab === 'rp-revision' ? 'block' : 'none' }}><RP02Revision key="rp02" /></div>}
-          {tabsMontadas.has('lp') && <div style={{ display: activeTab === 'lp' ? 'block' : 'none' }}><LP01View key="lp01" /></div>}
-          {tabsMontadas.has('lp-captura') && <div style={{ display: activeTab === 'lp-captura' ? 'block' : 'none' }}><LP02View key="lp02" /></div>}
+
+          {/* UT */}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
           {tabsMontadas.has('ut-revision') && <div style={{ display: activeTab === 'ut-revision' ? 'block' : 'none' }}><UT02RevisionPallet key="ut02" /></div>}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'tk', 'tk-dashboard', 'ad', 'ad-captura', 'ad-dashboard', 'ai', 'ai-captura', 'bd-usuarios', 'bd-locales', 'rd', 'sd', 'sd-asignador', 'rp', 'rp-revision', 'lp', 'lp-captura', 'ut', 'ut-revision'].includes(activeTab) && (
-            <div className="module-container"><h3>Modulo en desarrollo</h3></div>
+
+          {/* BD */}
+          {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
+          {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
+
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-asignador', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
+            <div className="module-container"><h3>Módulo en desarrollo</h3></div>
           )}
         </div>
       </div>
