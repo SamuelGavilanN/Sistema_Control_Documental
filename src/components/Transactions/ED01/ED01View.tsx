@@ -1,6 +1,7 @@
-// src/components/Transactions/ED/ED01View.tsx
+// src/components/Transactions/ED01/ED01View.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../../lib/supabase'; // <-- IMPORTANTE: importar supabase
 import { auth } from '../../../lib/auth';
 import { getUsuarios, getLoteActivo, getRegistrosED01, invalidarRegistrosED01 } from '../../../lib/api';
 import { locales } from '../../../data/locales';
@@ -96,7 +97,6 @@ const ED01View: React.FC = () => {
       if (mostrarCargando) setCargando(true);
       const data = await getRegistrosED01(ordenColumna, ordenDireccion);
       
-      // Aplicar filtros en memoria
       let datosFiltrados = data;
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
@@ -128,7 +128,7 @@ const ED01View: React.FC = () => {
     }
   };
 
-  // --- Funciones de manejo de eventos (sin cambios) ---
+  // === Funciones de manejo de eventos (sin cambios) ===
   const handleNuevo = () => {
     if (!loteActivo) {
       alert('No hay un lote activo. Cargue un lote en ED04 primero.');
