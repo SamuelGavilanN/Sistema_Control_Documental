@@ -62,12 +62,6 @@ interface SidebarProps {
   permisos?: string[];
 }
 
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
-
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permisos }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
@@ -96,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     };
 
     cargarDatos();
-    const intervalo = setInterval(cargarDatos, 15000); // 15 segundos
+    const intervalo = setInterval(cargarDatos, 15000);
     return () => clearInterval(intervalo);
   }, []);
 
@@ -110,16 +104,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     try {
       if (esFavorito) {
         await fetch(
-          API_URL + '/usuario_favoritos?usuario_id=eq.' + usuario.id + '&transaccion_id=eq.' + transaccionId,
-          { method: 'DELETE', headers: HEADERS }
+          `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos?usuario_id=eq.${usuario.id}&transaccion_id=eq.${transaccionId}`,
+          { method: 'DELETE', headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
         );
         setFavoritos(favoritos.filter(f => f !== transaccionId));
       } else {
         await fetch(
-          API_URL + '/usuario_favoritos',
+          'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos',
           {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Content-Type': 'application/json' },
             body: JSON.stringify({
               usuario_id: usuario.id,
               transaccion_id: transaccionId
@@ -134,24 +128,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   };
 
   const toggleSection = (sectionId: string) => {
-    if (expandedSections.includes(sectionId)) {
-      setExpandedSections(expandedSections.filter(id => id !== sectionId));
-    } else {
-      setExpandedSections([...expandedSections, sectionId]);
-    }
+    setExpandedSections(prev =>
+      prev.includes(sectionId) ? prev.filter(id => id !== sectionId) : [...prev, sectionId]
+    );
   };
 
   const filterMenuSections = () => {
     if (!searchTerm.trim()) return menuSections;
     const term = searchTerm.toLowerCase();
-    return menuSections.map(section => {
-      const filteredItems = section.items.filter(item =>
-        item.label.toLowerCase().includes(term) ||
-        section.title.toLowerCase().includes(term) ||
-        item.id.toLowerCase().includes(term)
-      );
-      return { ...section, items: filteredItems };
-    }).filter(section => section.items.length > 0);
+    return menuSections
+      .map(section => ({
+        ...section,
+        items: section.items.filter(item =>
+          item.label.toLowerCase().includes(term) ||
+          section.title.toLowerCase().includes(term) ||
+          item.id.toLowerCase().includes(term)
+        )
+      }))
+      .filter(section => section.items.length > 0);
   };
 
   const filteredSections = filterMenuSections();
