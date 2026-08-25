@@ -1,4 +1,4 @@
-// src/components/Transactions/ED/ED01Tabla.tsx
+// src/components/Transactions/ED01/ED01Tabla.tsx
 
 import React from 'react';
 import { ED01Row } from './ED01View';
@@ -43,14 +43,10 @@ const ED01Tabla: React.FC<ED01TablaProps> = ({
 }) => {
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
-      case 'Finalizado':
-        return { color: '#15803d', bg: '#dcfce7' };
-      case 'Editando':
-        return { color: '#b45309', bg: '#fef3c7' };
-      case 'Cancelado':
-        return { color: '#dc2626', bg: '#fef2f2' };
-      default:
-        return { color: '#64748b', bg: '#f1f5f9' };
+      case 'Finalizado': return { color: '#15803d', bg: '#dcfce7' };
+      case 'Editando': return { color: '#b45309', bg: '#fef3c7' };
+      case 'Cancelado': return { color: '#dc2626', bg: '#fef2f2' };
+      default: return { color: '#64748b', bg: '#f1f5f9' };
     }
   };
 
@@ -74,15 +70,11 @@ const ED01Tabla: React.FC<ED01TablaProps> = ({
             {columnas.map((col) => (
               <th
                 key={col.key}
-                style={{ width: col.width, cursor: 'pointer' }}
+                style={{ width: col.width, cursor: 'pointer', position: 'sticky', top: 0, zIndex: 2, background: 'var(--table-header-bg)' }}
                 onClick={() => onOrdenar(col.key)}
               >
                 {col.label}{' '}
-                {ordenColumna === col.key
-                  ? ordenDireccion === 'asc'
-                    ? '▲'
-                    : '▼'
-                  : ''}
+                {ordenColumna === col.key ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
               </th>
             ))}
             <th style={{ width: '40px' }}></th>
@@ -130,14 +122,10 @@ const ED01Tabla: React.FC<ED01TablaProps> = ({
                   <td>{reg.nombre_local}</td>
                   <td>{reg.cantidad_bultos}</td>
                   <td>{reg.cantidad_pallet}</td>
-                  <td className="ed01-usuario">
-                    {nombresUsuarios[reg.creado_por] || reg.creado_por || '-'}
-                  </td>
+                  <td className="ed01-usuario">{nombresUsuarios[reg.creado_por] || reg.creado_por || '-'}</td>
                   <td className="ed01-mono">{formatearFecha(reg.creado_en)}</td>
                   <td className="ed01-usuario">
-                    {reg.modificado_por
-                      ? nombresUsuarios[reg.modificado_por] || reg.modificado_por
-                      : '-'}
+                    {reg.modificado_por ? nombresUsuarios[reg.modificado_por] || reg.modificado_por : '-'}
                   </td>
                   <td className="ed01-mono">{formatearFecha(reg.modificado_en)}</td>
                   <td>
