@@ -1,9 +1,9 @@
-// src/components/Transactions/ED01/ED01View.tsx
+// src/components/Transactions/ED/ED01View.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
-import { locales, cargarLocales } from '../../../data/locales';
+import { getUsuarios, getLoteActivo, getRegistrosED01, invalidarRegistrosED01 } from '../../../lib/api';
+import { locales } from '../../../data/locales';
 import * as XLSX from 'xlsx';
 import ED01Toolbar from './ED01Toolbar';
 import ED01Tabla from './ED01Tabla';
@@ -12,12 +12,6 @@ import ObservacionModal from './ObservacionModal';
 import FiltroModal from './FiltroModal';
 import EtiquetaModal from './EtiquetaModal';
 import './ED01.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 export interface ED01Row {
   id: string;
@@ -55,69 +49,55 @@ const ED01View: React.FC = () => {
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    cargarLocales();
     cargarUsuarios();
     verificarLoteActivo();
     cargarRegistros(true);
   }, []);
 
   useEffect(() => {
-    const intervalo = setInterval(() => { cargarRegistros(false); }, 10000);
+    const intervalo = setInterval(() => {
+      cargarRegistros(false);
+    }, 10000);
     return () => clearInterval(intervalo);
   }, [filtros, ordenColumna, ordenDireccion]);
 
+  const cargarUsuarios = async () => {
+    try {
+      const data = await getUsuarios();
+      if (data) {
+        const m: Record<string, string> = {};
+        data.forEach((u: any) => {
+          m[u.id] = `${u.nombre} ${u.apellido}`;
+        });
+        setNombresUsuarios(m);
+      }
+    } catch (e) {
+      console.error('Error cargando usuarios:', e);
+    }
+  };
+
   const verificarLoteActivo = async () => {
     try {
-      const resp = await fetch(API_URL + '/ed04_lotes?select=*&activo=eq.true&order=creado_en.desc&limit=1', { headers: HEADERS });
-      const data = await resp.json();
-      if (data && data.length > 0) {
-        setLoteActivo(data[0]);
-        setEmpaquesDisponibles(data[0].total_empaques - data[0].empaques_usados);
+      const lote = await getLoteActivo();
+      if (lote) {
+        setLoteActivo(lote);
+        setEmpaquesDisponibles(lote.total_empaques - lote.empaques_usados);
       } else {
         setLoteActivo(null);
         setEmpaquesDisponibles(0);
       }
-    } catch (e) {}
-  };
-
-  const cargarUsuarios = async () => {
-    const { data } = await supabase.from('usuarios').select('id, nombre, apellido');
-    if (data) { const m: Record<string, string> = {}; data.forEach((u: any) => { m[u.id] = `${u.nombre} ${u.apellido}`; }); setNombresUsuarios(m); }
+    } catch (e) {
+      console.error('Error verificando lote activo:', e);
+    }
   };
 
   const cargarRegistros = async (mostrarCargando: boolean = false) => {
     try {
       if (mostrarCargando) setCargando(true);
+      const data = await getRegistrosED01(ordenColumna, ordenDireccion);
       
-      // Cargar todos los registros con paginación
-      let todosLosDatos: any[] = [];
-      let offset = 0;
-      const limit = 1000;
-      let hayMas = true;
-
-      while (hayMas) {
-        const { data, error } = await supabase
-          .from('ed01_empaques')
-          .select('*')
-          .order(ordenColumna, { ascending: ordenDireccion === 'asc' })
-          .range(offset, offset + limit - 1);
-
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          todosLosDatos = [...todosLosDatos, ...data];
-          offset += limit;
-          
-          if (data.length < limit) {
-            hayMas = false;
-          }
-        } else {
-          hayMas = false;
-        }
-      }
-      
-      // Aplicar filtros
-      let datosFiltrados = todosLosDatos;
+      // Aplicar filtros en memoria
+      let datosFiltrados = data;
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
         const op = filtro.operador;
@@ -142,12 +122,13 @@ const ED01View: React.FC = () => {
       
       setRegistros(datosFiltrados);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error cargando registros:', error);
     } finally {
       if (mostrarCargando) setCargando(false);
     }
   };
 
+  // --- Funciones de manejo de eventos (sin cambios) ---
   const handleNuevo = () => {
     if (!loteActivo) {
       alert('No hay un lote activo. Cargue un lote en ED04 primero.');
@@ -157,19 +138,23 @@ const ED01View: React.FC = () => {
       alert('El lote activo está agotado. Cargue un nuevo lote en ED04.');
       return;
     }
-    setModoModal('nuevo'); setRegistroSeleccionado(null); setShowModal(true);
+    setModoModal('nuevo');
+    setRegistroSeleccionado(null);
+    setShowModal(true);
   };
 
   const handleEditar = () => {
     if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
     if (registroSeleccionado.estado === 'Cancelado') { alert('No se puede editar un registro cancelado'); return; }
-    setModoModal('editar'); setShowModal(true);
+    setModoModal('editar');
+    setShowModal(true);
   };
 
   const handleCancelarRegistro = () => {
     if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
     if (registroSeleccionado.estado === 'Cancelado') { alert('El registro ya esta cancelado'); return; }
-    setModoModal('cancelar'); setShowModal(true);
+    setModoModal('cancelar');
+    setShowModal(true);
   };
 
   const handleImprimirEtiqueta = () => {
@@ -179,7 +164,6 @@ const ED01View: React.FC = () => {
 
   const handleExportarExcel = () => {
     if (registros.length === 0) { alert('No hay datos para exportar'); return; }
-    
     const datosExport = registros.map(reg => ({
       'Estado': reg.estado,
       'N° Tarea': reg.numero_tarea,
@@ -194,7 +178,6 @@ const ED01View: React.FC = () => {
       'Mod. En': reg.modificado_en ? new Date(reg.modificado_en).toLocaleString('es-CL') : '-',
       'Observación': reg.observacion || ''
     }));
-
     const ws = XLSX.utils.json_to_sheet(datosExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Empaques');
@@ -205,12 +188,12 @@ const ED01View: React.FC = () => {
     try {
       const user = auth.getUsuario();
       if (modoModal === 'nuevo') {
+        // Obtener siguiente empaque (RPC)
         const { data: idData, error: idError } = await supabase.rpc('obtener_siguiente_empaque');
         if (idError) {
           alert('Error al obtener empaque: ' + idError.message);
           return;
         }
-        
         const localData = locales.find(l => l.codigo_local === datos.codigo_local);
         const { error: insertError } = await supabase.from('ed01_empaques').insert([{
           numero_empaque: idData,
@@ -225,28 +208,40 @@ const ED01View: React.FC = () => {
           creado_en: new Date().toISOString()
         }]);
         if (insertError) throw insertError;
-        
+        invalidarRegistrosED01();
         setShowModal(false);
         verificarLoteActivo();
         cargarRegistros(false);
-        
         setTimeout(() => {
           setRegistroSeleccionado({
-            id: '', numero_empaque: idData, numero_tarea: datos.numero_tarea,
-            codigo_local: datos.codigo_local, nombre_local: localData?.nombre_local || '',
-            cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet,
-            creado_por: user?.id, ...datos
+            id: '',
+            numero_empaque: idData,
+            numero_tarea: datos.numero_tarea,
+            codigo_local: datos.codigo_local,
+            nombre_local: localData?.nombre_local || '',
+            cantidad_bultos: datos.cantidad_bultos,
+            cantidad_pallet: datos.cantidad_pallet,
+            creado_por: user?.id,
+            ...datos
           } as any);
           setTimeout(() => setShowEtiquetaModal(true), 300);
         }, 500);
       } else if (modoModal === 'editar') {
         await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         await supabase.from('ed01_empaques').update({
-          numero_tarea: datos.numero_tarea, codigo_local: datos.codigo_local, nombre_local: datos.nombre_local,
-          cantidad_bultos: datos.cantidad_bultos, cantidad_pallet: datos.cantidad_pallet, observacion: datos.observacion,
-          estado: 'Finalizado', modificado_por: user?.id, modificado_en: new Date().toISOString()
+          numero_tarea: datos.numero_tarea,
+          codigo_local: datos.codigo_local,
+          nombre_local: datos.nombre_local,
+          cantidad_bultos: datos.cantidad_bultos,
+          cantidad_pallet: datos.cantidad_pallet,
+          observacion: datos.observacion,
+          estado: 'Finalizado',
+          modificado_por: user?.id,
+          modificado_en: new Date().toISOString()
         }).eq('id', registroSeleccionado?.id);
-        setShowModal(false); cargarRegistros(false);
+        invalidarRegistrosED01();
+        setShowModal(false);
+        cargarRegistros(false);
         setTimeout(() => {
           setRegistroSeleccionado({ ...registroSeleccionado!, ...datos } as any);
           setTimeout(() => setShowEtiquetaModal(true), 300);
@@ -254,12 +249,20 @@ const ED01View: React.FC = () => {
       } else if (modoModal === 'cancelar') {
         await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         await supabase.from('ed01_empaques').update({ estado: 'Cancelado', observacion: datos.observacion, modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
-        setShowModal(false); setRegistroSeleccionado(null); cargarRegistros(false);
+        invalidarRegistrosED01();
+        setShowModal(false);
+        setRegistroSeleccionado(null);
+        cargarRegistros(false);
       }
-    } catch (error: any) { alert('Error: ' + error.message); }
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    }
   };
 
-  const handleVerObservacion = (obs: string | null) => { setObservacionVer(obs || 'Sin observacion'); setShowObservacionModal(true); };
+  const handleVerObservacion = (obs: string | null) => {
+    setObservacionVer(obs || 'Sin observacion');
+    setShowObservacionModal(true);
+  };
 
   const nombreCreadorEtiqueta = registroSeleccionado?.creado_por
     ? (nombresUsuarios[registroSeleccionado.creado_por] || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim())
@@ -290,16 +293,44 @@ const ED01View: React.FC = () => {
         ordenColumna={ordenColumna}
         ordenDireccion={ordenDireccion}
         onOrdenar={(columna) => {
-          if (ordenColumna === columna) setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
-          else { setOrdenColumna(columna); setOrdenDireccion('asc'); }
+          if (ordenColumna === columna) {
+            setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
+          } else {
+            setOrdenColumna(columna);
+            setOrdenDireccion('asc');
+          }
+          cargarRegistros(false);
         }}
         nombresUsuarios={nombresUsuarios}
       />
       
-      <ED01Modal isOpen={showModal} onClose={() => setShowModal(false)} onGuardar={handleGuardar} modo={modoModal} registro={registroSeleccionado} />
-      <ObservacionModal isOpen={showObservacionModal} onClose={() => setShowObservacionModal(false)} observacion={observacionVer} />
-      <FiltroModal isOpen={showFiltroModal} onClose={() => setShowFiltroModal(false)} filtros={filtros} onAplicar={setFiltros} />
-      <EtiquetaModal isOpen={showEtiquetaModal} onClose={() => setShowEtiquetaModal(false)} registro={registroSeleccionado} nombreCreador={nombreCreadorEtiqueta} />
+      <ED01Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onGuardar={handleGuardar}
+        modo={modoModal}
+        registro={registroSeleccionado}
+      />
+      <ObservacionModal
+        isOpen={showObservacionModal}
+        onClose={() => setShowObservacionModal(false)}
+        observacion={observacionVer}
+      />
+      <FiltroModal
+        isOpen={showFiltroModal}
+        onClose={() => setShowFiltroModal(false)}
+        filtros={filtros}
+        onAplicar={(nuevos) => {
+          setFiltros(nuevos);
+          cargarRegistros(false);
+        }}
+      />
+      <EtiquetaModal
+        isOpen={showEtiquetaModal}
+        onClose={() => setShowEtiquetaModal(false)}
+        registro={registroSeleccionado}
+        nombreCreador={nombreCreadorEtiqueta}
+      />
     </div>
   );
 };
