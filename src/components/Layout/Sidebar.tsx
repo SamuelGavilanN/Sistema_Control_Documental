@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import logoPath from '../../assets/fashions-park-logo2.png';
 import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
 import { auth } from '../../lib/auth';
+import { getPermisos, getFavoritos } from '../../lib/api';
 
 interface MenuSection {
   id: string;
@@ -83,30 +84,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
     const cargarDatos = async () => {
       try {
-        const respPermisos = await fetch(
-          API_URL + '/usuario_permisos?select=transaccion_id&usuario_id=eq.' + usuario.id + '&activo=eq.true',
-          { headers: HEADERS }
-        );
-        const dataPermisos = await respPermisos.json();
-        if (dataPermisos && dataPermisos.length > 0) {
-          setPermisosActuales(dataPermisos.map((p: any) => p.transaccion_id));
-        } else {
-          setPermisosActuales([]);
-        }
-
-        const respFavoritos = await fetch(
-          API_URL + '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id,
-          { headers: HEADERS }
-        );
-        const dataFavoritos = await respFavoritos.json();
-        if (dataFavoritos) {
-          setFavoritos(dataFavoritos.map((f: any) => f.transaccion_id));
-        }
-      } catch (e) {}
+        const [perms, favs] = await Promise.all([
+          getPermisos(usuario.id),
+          getFavoritos(usuario.id)
+        ]);
+        if (perms) setPermisosActuales(perms);
+        if (favs) setFavoritos(favs);
+      } catch (e) {
+        console.error('Error cargando datos de sidebar:', e);
+      }
     };
 
     cargarDatos();
-    const intervalo = setInterval(cargarDatos, 5000);
+    const intervalo = setInterval(cargarDatos, 15000); // 15 segundos
     return () => clearInterval(intervalo);
   }, []);
 
@@ -170,11 +160,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     if (searchTerm.trim()) {
       setExpandedSections(filteredSections.map(s => s.id));
     }
-  }, [searchTerm]);
+  }, [searchTerm, filteredSections]);
 
   const itemPermitido = (itemId: string): boolean => {
     if (!permisosActuales || permisosActuales.length === 0) {
-      // Solo se aplican restricciones especiales para BD
       if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin') return false;
       return true;
     }
@@ -198,7 +187,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
           <input
             type="text"
             className="search-input"
-            placeholder="Buscar transaccion..."
+            placeholder="Buscar transacción..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
