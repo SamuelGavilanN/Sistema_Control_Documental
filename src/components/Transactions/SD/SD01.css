@@ -132,3 +132,209 @@
   overflow-y: auto;
   min-height: 500px;
 }
+/* Sidebar de acciones en vista detalle */
+.sd01-sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 80px);
+  position: sticky;
+  top: 20px;
+}
+
+.sd01-sidebar-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.sd01-sidebar-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+}
+
+.sd01-sidebar .sd01-btn {
+  width: 100%;
+  margin-bottom: 6px;
+  justify-content: flex-start;
+}
+
+/* Modal Bultos */
+.dc-modal-overlay { /* ya existe en DCModal.css, pero lo mantenemos */
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.dc-modal-container {
+  background: var(--bg-panel);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+.dc-modal-header { /* ya existe */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.dc-modal-header h2 { font-size: 18px; margin: 0; }
+.dc-modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); }
+
+/* Form fields del modal bultos */
+.dc-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dc-form-field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 140px;
+}
+.dc-form-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.dc-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+.dc-input:focus { outline: none; border-color: var(--border-focus); }
+.dc-input.disabled { background: var(--bg-readonly); color: var(--text-muted); }
+.dc-form-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.dc-btn-add {
+  background: var(--btn-primary-bg);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dc-btn-cancel-edit {
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.dc-table-container {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dc-table { width: 100%; border-collapse: collapse; }
+.dc-table th {
+  background: var(--table-header-bg);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--table-header-text);
+  border-bottom: 1px solid var(--border);
+}
+.dc-table td {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.dc-empty-table { text-align: center; padding: 20px; color: var(--text-muted); }
+.dc-acciones { display: flex; gap: 4px; }
+.dc-row-edit, .dc-row-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-muted);
+}
+.dc-row-edit:hover { color: var(--text-primary); }
+.dc-row-delete:hover { color: var(--error-text); }
+.dc-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+.dc-total {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.dc-total strong { color: var(--text-primary); margin-left: 8px; }
+.dc-btn-save {
+  background: var(--btn-primary-bg);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.dc-btn-cancel {
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+/* Autocomplete (ya en DCModal.css, pero aseguramos) */
+.autocomplete-wrapper {
+  position: relative;
+}
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.autocomplete-item:hover,
+.autocomplete-item.highlighted {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
