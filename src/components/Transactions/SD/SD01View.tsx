@@ -48,6 +48,7 @@ const filaVacia = (): SD01Row => ({
 });
 
 const SD01View: React.FC = () => {
+  // ---- State para el formulario principal ----
   const [rows, setRows] = useState<SD01Row[]>([filaVacia()]);
   const [conductorSeleccionado, setConductorSeleccionado] = useState("");
   const [conductorId, setConductorId] = useState<string>("");
@@ -62,25 +63,28 @@ const SD01View: React.FC = () => {
   const [observacionesGenerales, setObservacionesGenerales] = useState("");
   const [cantidadFilasAgregar, setCantidadFilasAgregar] = useState(1);
 
+  // ---- Estado del documento ----
   const [guardando, setGuardando] = useState(false);
   const [idDocumentoActual, setIdDocumentoActual] = useState<string | null>(null);
   const [estadoDocumento, setEstadoDocumento] = useState<string>("borrador");
   const [documentoCreado, setDocumentoCreado] = useState(false);
   const [usuarioActual, setUsuarioActual] = useState<any>(null);
 
+  // ---- Modales ----
   const [showDocumentosModal, setShowDocumentosModal] = useState(false);
   const [showImprimirModal, setShowImprimirModal] = useState(false);
   const [showImprimirSeleccionModal, setShowImprimirSeleccionModal] = useState(false);
   const [showNuevaDocModal, setShowNuevaDocModal] = useState(false);
   const [showEditarTransporteModal, setShowEditarTransporteModal] = useState(false);
 
+  // ---- Impresión ----
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [rowsParaImprimir, setRowsParaImprimir] = useState<SD01Row[]>([]);
   const [copiasActivas, setCopiasActivas] = useState<string[]>(["Local", "Guardia", "Conductor", "Original"]);
 
   const observacionesTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Carga inicial de maestros y usuario
+  // ---- Carga inicial ----
   useEffect(() => {
     const user = auth.getUsuario();
     setUsuarioActual(user);
@@ -92,7 +96,7 @@ const SD01View: React.FC = () => {
     cargarLocales();
   }, []);
 
-  // Limpiar formulario
+  // ---- Utilidades ----
   const limpiarFormulario = () => {
     setRows([filaVacia()]);
     setConductorSeleccionado("");
@@ -112,7 +116,7 @@ const SD01View: React.FC = () => {
     setSelectedRows([]);
   };
 
-  // Crear nuevo documento (desde modal)
+  // ---- Crear nuevo documento ----
   const handleCrearDocumento = async (datos: {
     conductor: string;
     conductorId: string;
@@ -148,7 +152,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Editar transporte (datos maestros)
+  // ---- Editar transporte (datos maestros) ----
   const handleEditarTransporte = () => {
     setShowEditarTransporteModal(true);
   };
@@ -175,7 +179,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Guardar documento (crear o actualizar)
+  // ---- Guardar documento (crear o actualizar) ----
   const guardarDocumento = async (estado: string, silencioso: boolean = false) => {
     if (!idDocumentoActual) {
       if (!silencioso) alert("No hay documento activo.");
@@ -183,7 +187,7 @@ const SD01View: React.FC = () => {
     }
     setGuardando(true);
     try {
-      const localesValidos = rows.filter(r => r.codigoLocal);
+      const localesValidos = rows.filter((r) => r.codigoLocal);
       if (localesValidos.length === 0 && estado === "finalizado") {
         alert("Debe agregar al menos un local antes de finalizar.");
         setGuardando(false);
@@ -271,7 +275,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Iniciar transporte (cambia a en_proceso)
+  // ---- Iniciar transporte ----
   const handleIniciar = async () => {
     if (!idDocumentoActual || estadoDocumento !== "borrador") {
       alert("Solo se puede iniciar un transporte en estado Borrador.");
@@ -289,7 +293,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Reabrir transporte (solo finalizado)
+  // ---- Reabrir transporte ----
   const handleReabrir = async () => {
     if (!idDocumentoActual || estadoDocumento !== "finalizado") {
       alert("Solo se puede reabrir un transporte finalizado.");
@@ -308,7 +312,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Cancelar: anula el documento (borrador o en_proceso)
+  // ---- Cancelar (anular) ----
   const handleCancelar = async () => {
     if (!idDocumentoActual) {
       if (confirm("¿Descartar cambios sin guardar?")) limpiarFormulario();
@@ -336,7 +340,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Eliminar (solo admin/owner)
+  // ---- Eliminar (solo admin) ----
   const handleEliminar = async () => {
     if (!idDocumentoActual) return;
     if (usuarioActual?.rol !== "Admin" && usuarioActual?.rol !== "Owner") {
@@ -360,7 +364,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Cargar documento existente (desde modal de archivos)
+  // ---- Cargar documento existente ----
   const handleAbrirDocumento = async (idDocumento: string) => {
     try {
       const { data: doc, error } = await supabase
@@ -382,7 +386,7 @@ const SD01View: React.FC = () => {
 
       // Conductor
       if (doc.conductor_id) {
-        const cond = conductores.find(c => c.id === doc.conductor_id);
+        const cond = conductores.find((c) => c.id === doc.conductor_id);
         if (cond) {
           setConductorId(cond.id);
           setConductorSeleccionado(cond.nombre_completo || `${cond.nombre} ${cond.apellido}`);
@@ -390,7 +394,7 @@ const SD01View: React.FC = () => {
       }
       // Patente principal
       if (doc.patente_principal_id) {
-        const pat = patentes.find(p => p.id === doc.patente_principal_id);
+        const pat = patentes.find((p) => p.id === doc.patente_principal_id);
         if (pat) {
           setPatentePrincipalId(pat.id);
           setPatentePrincipal(pat.numero_patente);
@@ -398,7 +402,7 @@ const SD01View: React.FC = () => {
       }
       // Patente adicional
       if (doc.patente_secundaria_id) {
-        const pat = patentes.find(p => p.id === doc.patente_secundaria_id);
+        const pat = patentes.find((p) => p.id === doc.patente_secundaria_id);
         if (pat) {
           setPatenteAdicionalId(pat.id);
           setPatenteAdicional(pat.numero_patente);
@@ -440,7 +444,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // --- Funciones de impresión (sin cambios) ---
+  // ---- Funciones de impresión ----
   const handleImprimirTodos = () => {
     const todos = rows.filter((r) => r.codigoLocal);
     if (todos.length === 0) {
@@ -474,7 +478,7 @@ const SD01View: React.FC = () => {
     setTimeout(() => setShowImprimirModal(true), 200);
   };
 
-  // --- Control de visibilidad de botones ---
+  // ---- Control de visibilidad de botones ----
   const esEditable = estadoDocumento !== "finalizado" && estadoDocumento !== "anulado";
   const puedeIniciar = estadoDocumento === "borrador" && documentoCreado;
   const puedeFinalizar = estadoDocumento === "en_proceso" && documentoCreado;
@@ -483,11 +487,12 @@ const SD01View: React.FC = () => {
   const puedeCancelar = (estadoDocumento === "borrador" || estadoDocumento === "en_proceso") && documentoCreado;
   const puedeEliminar = (usuarioActual?.rol === "Admin" || usuarioActual?.rol === "Owner") && documentoCreado;
 
+  // ---- Render ----
   return (
     <div className="sd01-view">
       <SD01Toolbar
         onGuardarBorrador={() => guardarDocumento("borrador", false)}
-        onFinalizar={handleFinalizar}
+        onFinalizar={() => guardarDocumento("finalizado", false)}
         onIniciar={handleIniciar}
         onReabrir={handleReabrir}
         onCancelar={handleCancelar}
