@@ -17,7 +17,7 @@ interface SD01IniciarTransporteProps {
   usuario: any;
 }
 
-// Orígenes de carga y tipos de documento
+// Orígenes de carga y tipos de documento (según DCModal)
 const origenesCarga = [
   "CD01 Fashions-Park",
   "CD16 Bodegas San Francisco",
@@ -52,7 +52,6 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   "SG06 Bultos Quedados en Camion": ["Sap", "Vtradex"],
 };
 
-// Interfaz para bultos
 interface Bulto {
   id: number;
   origenCarga: string;
@@ -62,7 +61,7 @@ interface Bulto {
   observacion: string;
 }
 
-// Autocomplete component (extraído de DCModal, con estilos CSS existentes)
+// Autocomplete component (extraído de DCModal)
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -192,7 +191,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos (adaptado de DCModal, con layout amplio)
+// Modal de bultos (adaptado de DCModal) - rediseñado con grid
 const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) => {
   const [bultos, setBultos] = useState<Bulto[]>([]);
   const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
@@ -217,6 +216,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
     : false;
 
   useEffect(() => {
+    // Cargar bultos existentes del local desde la base de datos
     const cargarBultos = async () => {
       try {
         const resp = await fetch(
@@ -296,6 +296,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
 
     try {
       if (editandoId !== null) {
+        // Actualizar
         await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -304,6 +305,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
         setBultos(bultos.map((b) => b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b));
         setEditandoId(null);
       } else {
+        // Nuevo
         const resp = await fetch(API_URL + '/sd01_bultos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -354,7 +356,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
 
   return (
     <div className="sd01-modal-overlay" onClick={onClose}>
-      <div className="sd01-modal" style={{ maxWidth: '950px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
+      <div className="sd01-modal sd01-modal-bultos" onClick={(e) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Bultos - Local {local.codigo_local}</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
@@ -362,7 +364,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
         <div className="sd01-modal-body">
           <div className="dc-form-section">
             <h3>{editandoId !== null ? "Editar Bulto" : "Agregar Bulto"}</h3>
-            <div className="dc-form-row">
+            <div className="dc-form-grid">
               <div className="dc-form-field">
                 <label>Origen de Carga</label>
                 <AutocompleteInput
@@ -415,7 +417,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
                   min="0"
                 />
               </div>
-              <div className="dc-form-field dc-form-field-obs">
+              <div className="dc-form-field">
                 <label>Observación</label>
                 <input
                   ref={observacionRef}
@@ -427,17 +429,17 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
                   placeholder="Observación opcional"
                 />
               </div>
-              <div className="dc-form-actions">
-                <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  {editandoId !== null ? "Actualizar" : "Agregar"}
-                </button>
-                {editandoId !== null && (
-                  <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>Cancelar</button>
-                )}
-              </div>
+            </div>
+            <div className="dc-form-actions">
+              <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                {editandoId !== null ? "Actualizar" : "Agregar"}
+              </button>
+              {editandoId !== null && (
+                <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>Cancelar</button>
+              )}
             </div>
           </div>
 
@@ -506,7 +508,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [detallesPatentePrincipal, setDetallesPatentePrincipal] = useState<any>(null);
   const [detallesPatenteAdicional, setDetallesPatenteAdicional] = useState<any>(null);
 
-  // Acciones
+  // Barra de acciones
+  const [modalImprimir, setModalImprimir] = useState(false);
   const [modalCorreo, setModalCorreo] = useState(false);
   const [correosSeleccionados, setCorreosSeleccionados] = useState<string[]>([]);
   const [asunto, setAsunto] = useState('');
@@ -607,6 +610,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Seleccione al menos un local para imprimir');
       return;
     }
+    const localesAImprimir = seleccionados ? locales.filter((l: any) => l.seleccionado) : locales;
     window.print();
   };
 
@@ -623,6 +627,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Complete asunto y detalle');
       return;
     }
+    // Simulación de envío
     alert('Correo enviado a: ' + correosSeleccionados.join(', '));
     setModalCorreo(false);
   };
@@ -661,29 +666,33 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   return (
     <div className="sd01-container">
-      {/* Barra de acciones superior (header) */}
+      {/* Barra de acciones horizontal */}
       <div className="sd01-action-bar">
         <button className="sd01-btn sd01-btn-cancel" onClick={onClose}>
           ← Volver a la lista
         </button>
-        <div className="sd01-action-separator"></div>
+
+        <div className="sd01-separator"></div>
+
         <div className="sd01-action-group">
           <span className="sd01-action-label">Imprimir</span>
           <button className="sd01-btn" onClick={() => imprimirLocales(false)}>Todos los locales</button>
-          <button className="sd01-btn" onClick={() => imprimirLocales(true)}>Locales seleccionados</button>
+          <button className="sd01-btn" onClick={() => imprimirLocales(true)}>Locales Seleccionados</button>
         </div>
-        <div className="sd01-action-separator"></div>
+
+        <div className="sd01-separator"></div>
+
         <div className="sd01-action-group">
           <span className="sd01-action-label">Envío Correo</span>
           <button className="sd01-btn" onClick={abrirModalCorreo}>Seleccionar Correos</button>
           <button className="sd01-btn" onClick={() => setModalCorreo(true)}>Asunto y Detalle</button>
         </div>
-        <div className="sd01-action-separator"></div>
-        <div className="sd01-action-group">
-          <button className="sd01-btn sd01-btn-success" onClick={finalizarTransporte} style={{ background: '#16a34a', color: 'white' }}>
-            Finalizar Transporte
-          </button>
-        </div>
+
+        <div className="sd01-separator"></div>
+
+        <button className="sd01-btn sd01-btn-success" onClick={finalizarTransporte} style={{ background: '#16a34a', color: 'white' }}>
+          Finalizar Transporte
+        </button>
       </div>
 
       {/* Contenido principal */}
