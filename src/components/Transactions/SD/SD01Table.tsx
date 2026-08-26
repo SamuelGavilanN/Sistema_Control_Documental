@@ -7,7 +7,7 @@ import { locales } from "../../../data/locales";
 
 interface Props {
   rows: SD01Row[];
-  setRows: React.Dispatch<React.SetStateAction<SD01Row[]>>; // ✅ tipo corregido
+  setRows: React.Dispatch<React.SetStateAction<SD01Row[]>>;
   cantidadFilasAgregar: number;
   setCantidadFilasAgregar: (value: number) => void;
   selectedRows: number[];
