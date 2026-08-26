@@ -1,5 +1,0 @@
-/* src/components/Transactions/TK/TK01.css */
-
-.tk01-view { background: var(--bg-panel); border-radius: 12px; padding: 24px; }
-.tk01-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.tk01-header h2 { font-size: 20px; font-weight: 600; color: var(--text-primary); }
