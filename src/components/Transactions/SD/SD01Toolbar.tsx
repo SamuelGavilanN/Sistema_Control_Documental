@@ -3,52 +3,32 @@
 import React, { useState, useRef, useEffect } from "react";
 
 interface SD01ToolbarProps {
-  onNuevoTransporte: () => void;
+  onNuevaDocumentacion: () => void;
   onGuardarBorrador: () => void;
   onFinalizar: () => void;
-  onIniciar: () => void;
-  onReabrir: () => void;
   onCancelar: () => void;
-  onEliminar: () => void;
-  onAbrirDocumentos?: () => void;
-  onImprimir?: () => void;
-  onImprimirSeleccionados?: () => void;
-  onCargarExcel?: () => void;
-  onEditarTransporte?: () => void;
+  onAbrirDocumentos: () => void;
+  onImprimir: () => void;
+  onImprimirSeleccionados: () => void;
+  onEditarTransporte: () => void;
   estado: string;
   guardando: boolean;
   documentoCreado: boolean;
-  puedeIniciar: boolean;
-  puedeFinalizar: boolean;
-  puedeReabrir: boolean;
-  puedeEditarTransporte: boolean;
-  puedeCancelar: boolean;
-  puedeEliminar: boolean;
   puedeGuardar: boolean;
 }
 
 const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
-  onNuevoTransporte,
+  onNuevaDocumentacion,
   onGuardarBorrador,
   onFinalizar,
-  onIniciar,
-  onReabrir,
   onCancelar,
-  onEliminar,
   onAbrirDocumentos,
   onImprimir,
   onImprimirSeleccionados,
-  onCargarExcel,
   onEditarTransporte,
   estado,
   guardando,
   documentoCreado,
-  puedeIniciar,
-  puedeFinalizar,
-  puedeReabrir,
-  puedeEditarTransporte,
-  puedeCancelar,
-  puedeEliminar,
   puedeGuardar,
 }) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -69,55 +49,56 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
   }, []);
 
   const getEstadoBadge = () => {
-    const estados: Record<string, { color: string; bg: string; label: string }> = {
-      borrador: { color: "#b45309", bg: "#fef3c7", label: "Borrador" },
-      en_proceso: { color: "#1d4ed8", bg: "#dbeafe", label: "En Proceso" },
-      finalizado: { color: "#15803d", bg: "#dcfce7", label: "Finalizado" },
-      anulado: { color: "#dc2626", bg: "#fef2f2", label: "Anulado" },
-    };
-    const e = estados[estado] || estados.borrador;
-    return (
-      <span
-        style={{
-          background: e.bg,
-          color: e.color,
-          padding: "4px 12px",
-          borderRadius: "20px",
-          fontSize: "13px",
-          fontWeight: 600,
-          marginLeft: "12px",
-        }}
-      >
-        {e.label}
-      </span>
-    );
+    if (estado === "finalizado") {
+      return (
+        <span
+          style={{
+            background: "var(--success-bg)",
+            color: "var(--success-text)",
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "13px",
+            fontWeight: 600,
+            marginLeft: "12px",
+          }}
+        >
+          ✅ Finalizado
+        </span>
+      );
+    }
+    if (documentoCreado && estado === "borrador") {
+      return (
+        <span
+          style={{
+            background: "var(--warning-bg)",
+            color: "var(--warning-text)",
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "13px",
+            fontWeight: 600,
+            marginLeft: "12px",
+          }}
+        >
+          Borrador
+        </span>
+      );
+    }
+    return null;
   };
 
   return (
     <div className="sd01-toolbar" ref={toolbarRef}>
       <div className="toolbar-group">
-        {/* Nuevo Transporte */}
-        <button className="toolbar-btn toolbar-btn-primary" onClick={onNuevoTransporte}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          Nuevo Transporte
-        </button>
-
-        {/* Cargar Excel */}
-        {onCargarExcel && (
-          <button className="toolbar-btn" onClick={onCargarExcel}>
+        {!documentoCreado && (
+          <button className="toolbar-btn toolbar-btn-primary" onClick={onNuevaDocumentacion}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            Cargar Excel
+            Nuevo Transporte
           </button>
         )}
 
-        <div className="toolbar-separator" />
-
-        {/* Editar Transporte */}
-        {documentoCreado && puedeEditarTransporte && (
+        {documentoCreado && (
           <button className="toolbar-btn" onClick={onEditarTransporte}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M11 2L14 5L5 14H2V11L11 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -126,7 +107,6 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
         )}
 
-        {/* Guardar Borrador */}
         {documentoCreado && puedeGuardar && (
           <button className="toolbar-btn" onClick={onGuardarBorrador} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -137,8 +117,7 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
         )}
 
-        {/* Finalizar */}
-        {documentoCreado && puedeFinalizar && (
+        {documentoCreado && puedeGuardar && (
           <button className="toolbar-btn" onClick={onFinalizar} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M14 8L10 4V7H3V9H10V12L14 8Z" fill="currentColor" />
@@ -148,29 +127,8 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
         )}
 
-        {/* Iniciar */}
-        {documentoCreado && puedeIniciar && (
-          <button className="toolbar-btn toolbar-btn-success" onClick={onIniciar} disabled={guardando}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 2L12 8L4 14V2Z" fill="currentColor" />
-            </svg>
-            Iniciar
-          </button>
-        )}
-
-        {/* Reabrir */}
-        {documentoCreado && puedeReabrir && (
-          <button className="toolbar-btn toolbar-btn-warning" onClick={onReabrir}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Reabrir
-          </button>
-        )}
-
-        {/* Cancelar */}
-        {documentoCreado && puedeCancelar && (
-          <button className="toolbar-btn toolbar-btn-danger" onClick={onCancelar} disabled={guardando}>
+        {documentoCreado && (
+          <button className="toolbar-btn" onClick={onCancelar} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10.5 5.5L5.5 10.5M5.5 5.5L10.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
@@ -178,12 +136,10 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
         )}
 
-        {estado === "finalizado" && <div className="estado-badge-finalizado">✅ Finalizado</div>}
-        {documentoCreado && estado !== "finalizado" && getEstadoBadge()}
+        {getEstadoBadge()}
 
         <div className="toolbar-separator" />
 
-        {/* Imprimir */}
         <div className="dropdown-container">
           <button
             className={`toolbar-btn ${openMenu === "print" ? "active" : ""}`}
@@ -202,17 +158,16 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
           {openMenu === "print" && (
             <div className="dropdown-menu">
-              <div className="dropdown-item" onClick={() => { onImprimir?.(); setOpenMenu(null); }}>
+              <div className="dropdown-item" onClick={() => { onImprimir(); setOpenMenu(null); }}>
                 Imprimir Todos los locales
               </div>
-              <div className="dropdown-item" onClick={() => { onImprimirSeleccionados?.(); setOpenMenu(null); }}>
+              <div className="dropdown-item" onClick={() => { onImprimirSeleccionados(); setOpenMenu(null); }}>
                 Imprimir Locales Seleccionados
               </div>
             </div>
           )}
         </div>
 
-        {/* Opciones Avanzadas */}
         <div className="dropdown-container">
           <button
             className={`toolbar-btn ${openMenu === "advanced" ? "active" : ""}`}
@@ -231,14 +186,9 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
           {openMenu === "advanced" && (
             <div className="dropdown-menu">
-              <div className="dropdown-item" onClick={() => { onAbrirDocumentos?.(); setOpenMenu(null); }}>
+              <div className="dropdown-item" onClick={() => { onAbrirDocumentos(); setOpenMenu(null); }}>
                 📂 Archivos
               </div>
-              {puedeEliminar && (
-                <div className="dropdown-item danger" onClick={() => { onEliminar(); setOpenMenu(null); }}>
-                  🗑️ Eliminar Documento
-                </div>
-              )}
             </div>
           )}
         </div>
