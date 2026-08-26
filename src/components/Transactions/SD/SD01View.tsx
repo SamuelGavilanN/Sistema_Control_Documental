@@ -47,7 +47,7 @@ const filaVacia = (): SD01Row => ({
 });
 
 const SD01View: React.FC = () => {
-  // ---- State para el formulario principal ----
+  // ---- State del formulario ----
   const [rows, setRows] = useState<SD01Row[]>([filaVacia()]);
   const [conductorSeleccionado, setConductorSeleccionado] = useState("");
   const [conductorId, setConductorId] = useState<string>("");
@@ -73,7 +73,7 @@ const SD01View: React.FC = () => {
   const [showDocumentosModal, setShowDocumentosModal] = useState(false);
   const [showImprimirModal, setShowImprimirModal] = useState(false);
   const [showImprimirSeleccionModal, setShowImprimirSeleccionModal] = useState(false);
-  const [showNuevaDocModal, setShowNuevaDocModal] = useState(false);
+  const [showCargaExcelModal, setShowCargaExcelModal] = useState(false); // nuevo para carga Excel
   const [showEditarTransporteModal, setShowEditarTransporteModal] = useState(false);
 
   // ---- Impresión ----
@@ -115,71 +115,31 @@ const SD01View: React.FC = () => {
     setSelectedRows([]);
   };
 
-  // ---- Crear nuevo documento ----
-  const handleCrearDocumento = async (datos: {
-    conductor: string;
-    conductorId: string;
-    patentePrincipal: string;
-    patentePrincipalId: string;
-    patenteAdicional: string;
-    patenteAdicionalId: string;
-    fechaProgramacion: string;
-  }) => {
+  // ---- Nuevo transporte (directo, sin modal) ----
+  const handleNuevoTransporte = async () => {
+    // Si ya hay un documento en curso, preguntar si se desea descartar
+    if (documentoCreado && idDocumentoActual) {
+      if (!confirm("¿Descartar el documento actual y comenzar uno nuevo?")) return;
+    }
     try {
       const { data: idData, error: idError } = await supabase.rpc('generar_id_documento_sd', { prefijo: 'SD' });
       if (idError) throw idError;
       const idGenerado = idData || `SD${Date.now()}`;
 
-      setConductorSeleccionado(datos.conductor);
-      setConductorId(datos.conductorId);
-      setPatentePrincipal(datos.patentePrincipal);
-      setPatentePrincipalId(datos.patentePrincipalId);
-      setPatenteAdicional(datos.patenteAdicional);
-      setPatenteAdicionalId(datos.patenteAdicionalId);
-      setFechaProgramacion(datos.fechaProgramacion);
+      limpiarFormulario();
       setIdDocumentoActual(idGenerado);
-      setShowNuevaDocModal(false);
       setDocumentoCreado(true);
       setEstadoDocumento("borrador");
-      setRows([filaVacia()]);
-
-      await guardarDocumento("borrador", true);
+      // No guardamos automáticamente, el usuario llenará y luego guardará.
     } catch (error: any) {
-      alert("Error al crear documento: " + error.message);
-    }
-  };
-
-  // ---- Editar transporte ----
-  const handleEditarTransporte = () => {
-    setShowEditarTransporteModal(true);
-  };
-
-  const handleActualizarTransporte = async (datos: {
-    conductor: string;
-    conductorId: string;
-    patentePrincipal: string;
-    patentePrincipalId: string;
-    patenteAdicional: string;
-    patenteAdicionalId: string;
-    fechaProgramacion: string;
-  }) => {
-    setConductorSeleccionado(datos.conductor);
-    setConductorId(datos.conductorId);
-    setPatentePrincipal(datos.patentePrincipal);
-    setPatentePrincipalId(datos.patentePrincipalId);
-    setPatenteAdicional(datos.patenteAdicional);
-    setPatenteAdicionalId(datos.patenteAdicionalId);
-    setFechaProgramacion(datos.fechaProgramacion);
-    setShowEditarTransporteModal(false);
-    if (idDocumentoActual) {
-      await guardarDocumento(estadoDocumento, true);
+      alert("Error al generar ID: " + error.message);
     }
   };
 
   // ---- Guardar documento ----
   const guardarDocumento = async (estado: string, silencioso: boolean = false) => {
     if (!idDocumentoActual) {
-      if (!silencioso) alert("No hay documento activo.");
+      alert("Primero debe crear un nuevo transporte.");
       return;
     }
     setGuardando(true);
@@ -208,17 +168,40 @@ const SD01View: React.FC = () => {
         documentoData.fecha_finalizacion = new Date().toISOString();
       }
 
-      const { error: updateError } = await supabase
+      // Verificar si ya existe el documento (para actualizar o insertar)
+      const { data: existing, error: checkError } = await supabase
         .from("sd01_documentos")
-        .update(documentoData)
-        .eq("id_documento", idDocumentoActual);
-      if (updateError) throw updateError;
+        .select("id")
+        .eq("id_documento", idDocumentoActual)
+        .single();
 
+      if (checkError && checkError.code !== "PGRST116") throw checkError;
+
+      if (existing) {
+        // Actualizar
+        const { error: updateError } = await supabase
+          .from("sd01_documentos")
+          .update(documentoData)
+          .eq("id_documento", idDocumentoActual);
+        if (updateError) throw updateError;
+      } else {
+        // Insertar
+        documentoData.id_documento = idDocumentoActual;
+        documentoData.creado_por = usuarioActual?.id || null;
+        documentoData.creado_en = new Date().toISOString();
+        const { error: insertError } = await supabase
+          .from("sd01_documentos")
+          .insert([documentoData]);
+        if (insertError) throw insertError;
+      }
+
+      // Eliminar locales existentes
       await supabase
         .from("sd01_documento_locales")
         .delete()
         .eq("documento_id", idDocumentoActual);
 
+      // Insertar nuevos locales y cargas
       for (const row of localesValidos) {
         const { data: localData, error: localError } = await supabase
           .from("sd01_documento_locales")
@@ -274,7 +257,16 @@ const SD01View: React.FC = () => {
       alert("Solo se puede iniciar un transporte en estado Borrador.");
       return;
     }
+    // Validar que haya al menos un local
+    const localesValidos = rows.filter((r) => r.codigoLocal);
+    if (localesValidos.length === 0) {
+      alert("Debe agregar al menos un local antes de iniciar.");
+      return;
+    }
     try {
+      // Primero guardar como borrador para asegurar datos
+      await guardarDocumento("borrador", true);
+      // Luego cambiar a en_proceso
       await supabase
         .from("sd01_documentos")
         .update({ estado: "en_proceso", fecha_inicio: new Date().toISOString() })
@@ -305,7 +297,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Cancelar ----
+  // ---- Cancelar (anular) ----
   const handleCancelar = async () => {
     if (!idDocumentoActual) {
       if (confirm("¿Descartar cambios sin guardar?")) limpiarFormulario();
@@ -357,10 +349,9 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Cargar documento (sin consultas anidadas) ----
+  // ---- Cargar documento existente ----
   const handleAbrirDocumento = async (idDocumento: string) => {
     try {
-      // 1. Obtener cabecera del documento
       const { data: doc, error } = await supabase
         .from("sd01_documentos")
         .select("*")
@@ -368,14 +359,12 @@ const SD01View: React.FC = () => {
         .single();
       if (error) throw error;
 
-      // 2. Obtener locales (sin cargas)
       const { data: localesData, error: localesError } = await supabase
         .from("sd01_documento_locales")
         .select("*")
         .eq("documento_id", idDocumento);
       if (localesError) throw localesError;
 
-      // 3. Obtener cargas de esos locales (si hay locales)
       let cargasData: any[] = [];
       if (localesData && localesData.length > 0) {
         const localIds = localesData.map((l: any) => l.id);
@@ -387,7 +376,6 @@ const SD01View: React.FC = () => {
         cargasData = cargas || [];
       }
 
-      // 4. Unir cargas a cada local
       const localesConCargas = (localesData || []).map((local: any) => ({
         ...local,
         cargas: cargasData.filter((c: any) => c.local_id === local.id),
@@ -403,7 +391,6 @@ const SD01View: React.FC = () => {
       setSelloAdicional(doc.sello_adicional || "");
       setNombreAdministrativo(doc.administrativo || "");
 
-      // Conductor
       if (doc.conductor_id) {
         const cond = conductores.find((c) => c.id === doc.conductor_id);
         if (cond) {
@@ -411,7 +398,6 @@ const SD01View: React.FC = () => {
           setConductorSeleccionado(cond.nombre_completo || `${cond.nombre} ${cond.apellido}`);
         }
       }
-      // Patente principal
       if (doc.patente_principal_id) {
         const pat = patentes.find((p) => p.id === doc.patente_principal_id);
         if (pat) {
@@ -419,7 +405,6 @@ const SD01View: React.FC = () => {
           setPatentePrincipal(pat.numero_patente);
         }
       }
-      // Patente adicional
       if (doc.patente_secundaria_id) {
         const pat = patentes.find((p) => p.id === doc.patente_secundaria_id);
         if (pat) {
@@ -428,7 +413,6 @@ const SD01View: React.FC = () => {
         }
       }
 
-      // Construir filas con locales y cargas
       if (localesConCargas && localesConCargas.length > 0) {
         const filas: SD01Row[] = localesConCargas.map((local: any, index: number) => {
           const cargas = local.cargas || [];
@@ -460,6 +444,37 @@ const SD01View: React.FC = () => {
       }
     } catch (error: any) {
       alert("Error al cargar documento: " + error.message);
+    }
+  };
+
+  // ---- Editar transporte (datos maestros) ----
+  const handleEditarTransporte = () => {
+    if (!idDocumentoActual) {
+      alert("No hay documento activo para editar.");
+      return;
+    }
+    setShowEditarTransporteModal(true);
+  };
+
+  const handleActualizarTransporte = async (datos: {
+    conductor: string;
+    conductorId: string;
+    patentePrincipal: string;
+    patentePrincipalId: string;
+    patenteAdicional: string;
+    patenteAdicionalId: string;
+    fechaProgramacion: string;
+  }) => {
+    setConductorSeleccionado(datos.conductor);
+    setConductorId(datos.conductorId);
+    setPatentePrincipal(datos.patentePrincipal);
+    setPatentePrincipalId(datos.patentePrincipalId);
+    setPatenteAdicional(datos.patenteAdicional);
+    setPatenteAdicionalId(datos.patenteAdicionalId);
+    setFechaProgramacion(datos.fechaProgramacion);
+    setShowEditarTransporteModal(false);
+    if (idDocumentoActual) {
+      await guardarDocumento(estadoDocumento, true);
     }
   };
 
@@ -505,10 +520,12 @@ const SD01View: React.FC = () => {
   const puedeEditarTransporte = estadoDocumento === "borrador" && documentoCreado;
   const puedeCancelar = (estadoDocumento === "borrador" || estadoDocumento === "en_proceso") && documentoCreado;
   const puedeEliminar = (usuarioActual?.rol === "Admin" || usuarioActual?.rol === "Owner") && documentoCreado;
+  const puedeGuardar = documentoCreado && esEditable;
 
   return (
     <div className="sd01-view">
       <SD01Toolbar
+        onNuevoTransporte={handleNuevoTransporte}
         onGuardarBorrador={() => guardarDocumento("borrador", false)}
         onFinalizar={() => guardarDocumento("finalizado", false)}
         onIniciar={handleIniciar}
@@ -518,7 +535,7 @@ const SD01View: React.FC = () => {
         onAbrirDocumentos={() => setShowDocumentosModal(true)}
         onImprimir={handleImprimirTodos}
         onImprimirSeleccionados={handleImprimirSeleccionados}
-        onNuevaDocumentacion={() => setShowNuevaDocModal(true)}
+        onCargarExcel={() => setShowCargaExcelModal(true)}
         onEditarTransporte={handleEditarTransporte}
         estado={estadoDocumento}
         guardando={guardando}
@@ -529,6 +546,7 @@ const SD01View: React.FC = () => {
         puedeEditarTransporte={puedeEditarTransporte}
         puedeCancelar={puedeCancelar}
         puedeEliminar={puedeEliminar}
+        puedeGuardar={puedeGuardar}
       />
 
       <div className="sd01-form-grid">
@@ -596,6 +614,7 @@ const SD01View: React.FC = () => {
         </>
       )}
 
+      {/* Modales */}
       <DocumentosModal
         isOpen={showDocumentosModal}
         onClose={() => setShowDocumentosModal(false)}
@@ -625,13 +644,7 @@ const SD01View: React.FC = () => {
         localesSeleccionados={rowsParaImprimir.length}
       />
 
-      <NuevaDocumentacionModal
-        isOpen={showNuevaDocModal}
-        onClose={() => setShowNuevaDocModal(false)}
-        onCrear={handleCrearDocumento}
-        valoresIniciales={{}}
-      />
-
+      {/* Modal de edición de transporte (datos maestros) */}
       <NuevaDocumentacionModal
         isOpen={showEditarTransporteModal}
         onClose={() => setShowEditarTransporteModal(false)}
@@ -647,6 +660,8 @@ const SD01View: React.FC = () => {
         }}
         modoEdicion={true}
       />
+
+      {/* Aquí iría el modal de carga Excel si se implementa */}
     </div>
   );
 };
