@@ -6,7 +6,7 @@ export interface Conductor {
   id: string;
   nombre: string;
   apellido: string;
-  numero_documento: string;
+  numero_documento: string;  // <- RUT
   telefono: string;
   empresa: string;
   activo: boolean;
@@ -23,7 +23,6 @@ export const cargarConductores = async (): Promise<Conductor[]> => {
     .order('nombre');
   if (error) throw error;
   conductores = data || [];
-  // Agregar nombre_completo para facilitar búsquedas
   conductores.forEach(c => {
     c.nombre_completo = `${c.nombre} ${c.apellido}`.trim();
   });
