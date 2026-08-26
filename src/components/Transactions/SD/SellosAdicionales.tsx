@@ -24,19 +24,8 @@ const SellosAdicionales: React.FC<SellosAdicionalesProps> = ({
     <div className="sellos-container">
       <div className="sellos-header" onClick={() => setExpandido(!expandido)}>
         <span className="sellos-title">Sellos Adicionales</span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          className={`sellos-arrow ${expandido ? "rotated" : ""}`}
-        >
-          <path
-            d="M3 5L7 9L11 5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={`sellos-arrow ${expandido ? "rotated" : ""}`}>
+          <path d="M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       </div>
 
