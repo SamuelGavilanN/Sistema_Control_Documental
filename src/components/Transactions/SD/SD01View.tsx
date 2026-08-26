@@ -1,555 +1,644 @@
 // src/components/Transactions/SD/SD01View.tsx
 
-import React, { useState, useEffect } from 'react';
-import { auth } from '../../../lib/auth';
-import { getTransportesSD01, getUsuarios, invalidarTransportes } from '../../../lib/api';
-import SD01CrearTransporte from './SD01CrearTransporte';
-import SD01VerTransporte from './SD01VerTransporte';
-import SD01CargaExcel from './SD01CargaExcel';
-import SD01IniciarTransporte from './SD01IniciarTransporte';
-import './SD01.css';
+import React, { useState, useRef, useEffect } from "react";
+import SD01Toolbar from "./SD01Toolbar";
+import SD01Table from "./SD01Table";
+import DocumentosModal from "./DocumentosModal";
+import ImprimirModal from "./ImprimirModal";
+import ImprimirSeleccionModal from "./ImprimirSeleccionModal";
+import NuevaDocumentacionModal from "./NuevaDocumentacionModal";
+import TarjetaTransporte from "./TarjetaTransporte";
+import SellosAdicionales from "./SellosAdicionales";
+import { auth } from "../../../lib/auth";
+import { getUsuarios } from "../../../lib/api";
+import { supabase } from "../../../lib/supabase";
+import "./SD01.css";
 
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
+export interface SD01Row {
+  id: number;
+  codigoLocal: string;
+  nombreLocal: string;
+  fechaEntrega: string;
+  horaEntrega: string;
+  selloTrasero: string;
+  cantidadPallet: number;
+  totalCarga: number;
+  carga?: Array<{
+    id: number;
+    origenCarga: string;
+    tipoDocumento: string;
+    numeroDocumento: string;
+    cantidadBultos: number;
+    observacion: string;
+  }>;
+}
+
+const filaVacia = (): SD01Row => ({
+  id: 1,
+  codigoLocal: "",
+  nombreLocal: "",
+  fechaEntrega: "",
+  horaEntrega: "",
+  selloTrasero: "",
+  cantidadPallet: 0,
+  totalCarga: 0,
+});
 
 const SD01View: React.FC = () => {
-  const [transportes, setTransportes] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [transporteSeleccionado, setTransporteSeleccionado] = useState<any>(null);
-  const [transportesSeleccionados, setTransportesSeleccionados] = useState<Set<string>>(new Set());
-  const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
-  const [mostrarCrearTransporte, setMostrarCrearTransporte] = useState(false);
-  const [mostrarEditarTransporte, setMostrarEditarTransporte] = useState(false);
-  const [mostrarVerTransporte, setMostrarVerTransporte] = useState(false);
-  const [mostrarCargaExcel, setMostrarCargaExcel] = useState(false);
-  const [mostrarIniciarTransporte, setMostrarIniciarTransporte] = useState(false);
-  const [usuariosAdmin, setUsuariosAdmin] = useState<any[]>([]);
-  const [mostrarAsignarModal, setMostrarAsignarModal] = useState(false);
-  const [usuarioAsignar, setUsuarioAsignar] = useState('');
-  const usuario = auth.getUsuario();
+  const [rows, setRows] = useState<SD01Row[]>([filaVacia()]);
+  const [conductorSeleccionado, setConductorSeleccionado] = useState("");
+  const [conductorId, setConductorId] = useState<string>("");
+  const [patentePrincipal, setPatentePrincipal] = useState("");
+  const [patentePrincipalId, setPatentePrincipalId] = useState<string>("");
+  const [patenteAdicional, setPatenteAdicional] = useState("");
+  const [patenteAdicionalId, setPatenteAdicionalId] = useState<string>("");
+  const [fechaProgramacion, setFechaProgramacion] = useState("");
+  const [nombreAdministrativo, setNombreAdministrativo] = useState("");
+  const [selloLateral, setSelloLateral] = useState("");
+  const [selloAdicional, setSelloAdicional] = useState("");
+  const [observacionesGenerales, setObservacionesGenerales] = useState("");
+  const [cantidadFilasAgregar, setCantidadFilasAgregar] = useState(1);
+
+  const [guardando, setGuardando] = useState(false);
+  const [idDocumentoActual, setIdDocumentoActual] = useState<string | null>(null);
+  const [estadoDocumento, setEstadoDocumento] = useState<string>("borrador");
+  const [documentoCreado, setDocumentoCreado] = useState(false);
+  const [usuarioActual, setUsuarioActual] = useState<any>(null);
+
+  const [showDocumentosModal, setShowDocumentosModal] = useState(false);
+  const [showImprimirModal, setShowImprimirModal] = useState(false);
+  const [showImprimirSeleccionModal, setShowImprimirSeleccionModal] = useState(false);
+  const [showNuevaDocModal, setShowNuevaDocModal] = useState(false);
+  const [showEditarTransporteModal, setShowEditarTransporteModal] = useState(false);
+
+  const [selectedRows, setSelectedRows] = useState<number[]>([]);
+  const [rowsParaImprimir, setRowsParaImprimir] = useState<SD01Row[]>([]);
+  const [copiasActivas, setCopiasActivas] = useState<string[]>(["Local", "Guardia", "Conductor", "Original"]);
+
+  const observacionesTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    cargarTransportes();
-    cargarUsuariosAdmin();
-    const intervalo = setInterval(cargarTransportes, 15000);
-    return () => clearInterval(intervalo);
+    const user = auth.getUsuario();
+    setUsuarioActual(user);
+    if (user) {
+      setNombreAdministrativo(`${user.nombre || ""} ${user.apellido || ""}`.trim());
+    }
+    // Cargar maestros si es necesario (locales ya están en data/locales)
   }, []);
 
-  const cargarTransportes = async () => {
+  const limpiarFormulario = () => {
+    setRows([filaVacia()]);
+    setConductorSeleccionado("");
+    setConductorId("");
+    setPatentePrincipal("");
+    setPatentePrincipalId("");
+    setPatenteAdicional("");
+    setPatenteAdicionalId("");
+    setFechaProgramacion("");
+    setSelloLateral("");
+    setSelloAdicional("");
+    setObservacionesGenerales("");
+    setCantidadFilasAgregar(1);
+    setIdDocumentoActual(null);
+    setEstadoDocumento("borrador");
+    setDocumentoCreado(false);
+    setSelectedRows([]);
+  };
+
+  // --- Crear / Cargar / Guardar ---
+  const handleCrearDocumento = async (datos: {
+    conductor: string;
+    conductorId: string;
+    patentePrincipal: string;
+    patentePrincipalId: string;
+    patenteAdicional: string;
+    patenteAdicionalId: string;
+    fechaProgramacion: string;
+  }) => {
     try {
-      const data = await getTransportesSD01();
-      if (data && data.length > 0) {
-        const formateados = data.map((t: any) => ({
-          ...t,
-          cantidad_locales: t.locales ? t.locales.length : 0,
-          conductor_nombre: t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '-',
-          patente_principal: t.patente_principal ? t.patente_principal.numero_patente : '-',
-          creado_por_nombre: t.creado_por ? 'Nombre pendiente' : '-'
-        }));
-        setTransportes(formateados);
-      } else {
-        setTransportes([]);
-      }
-    } catch (e) {
-      console.error('Error cargando transportes:', e);
-    }
-    setCargando(false);
-  };
+      // Generar ID del documento (puede ser secuencia o UUID)
+      const { data: idData, error: idError } = await supabase.rpc('generar_id_documento_sd', { prefijo: 'SD' });
+      if (idError) throw idError;
+      const idGenerado = idData || `SD${Date.now()}`;
 
-  const cargarUsuariosAdmin = async () => {
-    try {
-      const data = await getUsuarios();
-      if (data) {
-        setUsuariosAdmin(data.filter((u: any) => u.rol === 'Administrativo' || u.rol === 'Lider'));
-      }
-    } catch (e) {
-      console.error('Error cargando usuarios admin:', e);
-    }
-  };
+      setConductorSeleccionado(datos.conductor);
+      setConductorId(datos.conductorId);
+      setPatentePrincipal(datos.patentePrincipal);
+      setPatentePrincipalId(datos.patentePrincipalId);
+      setPatenteAdicional(datos.patenteAdicional);
+      setPatenteAdicionalId(datos.patenteAdicionalId);
+      setFechaProgramacion(datos.fechaProgramacion);
+      setIdDocumentoActual(idGenerado);
+      setShowNuevaDocModal(false);
+      setDocumentoCreado(true);
+      setEstadoDocumento("borrador");
+      setRows([filaVacia()]);
 
-  const mostrarMensaje = (tipo: string, texto: string) => {
-    setMensaje({ tipo, texto, visible: true });
-    setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
-  };
-
-  const toggleSeleccion = (transporteId: string) => {
-    const nuevos = new Set(transportesSeleccionados);
-    if (nuevos.has(transporteId)) {
-      nuevos.delete(transporteId);
-    } else {
-      nuevos.add(transporteId);
+      // Guardar inmediatamente como borrador para tener el registro en BD
+      await guardarDocumento("borrador", true);
+    } catch (error: any) {
+      alert("Error al crear documento: " + error.message);
     }
-    setTransportesSeleccionados(nuevos);
-    if (nuevos.size === 1) {
-      const seleccionado = transportes.find((t: any) => nuevos.has(t.id));
-      setTransporteSeleccionado(seleccionado || null);
-    } else {
-      setTransporteSeleccionado(null);
-    }
-  };
-
-  const toggleSeleccionarTodos = () => {
-    if (transportesSeleccionados.size === transportes.length) {
-      setTransportesSeleccionados(new Set());
-      setTransporteSeleccionado(null);
-    } else {
-      setTransportesSeleccionados(new Set(transportes.map((t: any) => t.id)));
-      setTransporteSeleccionado(null);
-    }
-  };
-
-  const handleEliminarSeleccionados = async () => {
-    if (transportesSeleccionados.size === 0) {
-      mostrarMensaje('warning', 'Seleccione al menos un transporte');
-      return;
-    }
-    const seleccionados = transportes.filter((t: any) => transportesSeleccionados.has(t.id));
-    const soloPendientes = seleccionados.every((t: any) => t.estado === 'Pendiente');
-    if (!soloPendientes) {
-      mostrarMensaje('error', 'Solo se pueden eliminar transportes en estado Pendiente');
-      return;
-    }
-    const ids = seleccionados.map((t: any) => t.id_documento).join(', ');
-    if (!window.confirm('¿Eliminar ' + transportesSeleccionados.size + ' transporte(s)?\n\n' + ids)) return;
-
-    let eliminados = 0, errores = 0;
-    for (const t of seleccionados) {
-      try {
-        await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
-        const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
-        if (resp.ok) eliminados++;
-        else errores++;
-      } catch (e) { errores++; }
-    }
-    if (errores === 0) mostrarMensaje('success', eliminados + ' transporte(s) eliminado(s) correctamente');
-    else mostrarMensaje('warning', eliminados + ' eliminado(s), ' + errores + ' error(es)');
-    setTransportesSeleccionados(new Set());
-    setTransporteSeleccionado(null);
-    invalidarTransportes();
-    cargarTransportes();
-  };
-
-  const handleCrearTransporte = () => setMostrarCrearTransporte(true);
-  const handleTransporteCreado = () => {
-    setMostrarCrearTransporte(false);
-    invalidarTransportes();
-    cargarTransportes();
-    mostrarMensaje('success', 'Transporte creado exitosamente');
-  };
-  const handleTransporteEditado = () => {
-    setMostrarEditarTransporte(false);
-    setTransporteSeleccionado(null);
-    invalidarTransportes();
-    cargarTransportes();
-    mostrarMensaje('success', 'Transporte editado exitosamente');
-  };
-  const handleCargarTransporte = () => setMostrarCargaExcel(true);
-  const handleCargaExcelCompletada = () => {
-    setMostrarCargaExcel(false);
-    invalidarTransportes();
-    cargarTransportes();
-    mostrarMensaje('success', 'Transportes creados exitosamente');
   };
 
   const handleEditarTransporte = () => {
-    if (!transporteSeleccionado) { mostrarMensaje('warning', 'Debe seleccionar un transporte'); return; }
-    if (transporteSeleccionado.estado !== 'Pendiente') { mostrarMensaje('error', 'Solo se pueden editar transportes en estado Pendiente'); return; }
-    setMostrarEditarTransporte(true);
+    setShowEditarTransporteModal(true);
   };
 
-  const handleCancelarTransporte = async () => {
-    if (!transporteSeleccionado) { mostrarMensaje('warning', 'Debe seleccionar un transporte'); return; }
-    if (transporteSeleccionado.estado !== 'Pendiente') { mostrarMensaje('error', 'Solo se pueden cancelar transportes en estado Pendiente'); return; }
-    const motivo = window.prompt('¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\nPor favor, ingrese el motivo de la cancelación:');
-    if (motivo === null) return;
-    if (!motivo.trim()) { mostrarMensaje('warning', 'Debe ingresar un motivo para cancelar el transporte'); return; }
-    try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Cancelado',
-          cancelado_en: new Date().toISOString(),
-          observaciones: 'Cancelado: ' + motivo.trim(),
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte cancelado exitosamente');
-      setTransporteSeleccionado(null);
-      invalidarTransportes();
-      cargarTransportes();
-    } catch (e) { mostrarMensaje('error', 'Error al cancelar transporte'); }
-  };
-
-  const handleVerTransporte = () => {
-    if (!transporteSeleccionado) { mostrarMensaje('warning', 'Debe seleccionar un transporte'); return; }
-    setMostrarVerTransporte(true);
-  };
-
-  const handleAsignarTransporte = () => {
-    if (!transporteSeleccionado) { mostrarMensaje('warning', 'Debe seleccionar un transporte'); return; }
-    if (transporteSeleccionado.estado !== 'Pendiente') { mostrarMensaje('error', 'Solo se pueden asignar transportes en estado Pendiente'); return; }
-    setUsuarioAsignar(transporteSeleccionado.asignado_a || '');
-    setMostrarAsignarModal(true);
-  };
-
-  const handleConfirmarAsignacion = async () => {
-    if (!usuarioAsignar) { mostrarMensaje('warning', 'Debe seleccionar un usuario'); return; }
-    try {
-      const usuarioSeleccionado = usuariosAdmin.find((u: any) => u.id === usuarioAsignar);
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          asignado_a: usuarioAsignar,
-          administrativo: usuarioSeleccionado ? usuarioSeleccionado.nombre + ' ' + usuarioSeleccionado.apellido : '',
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte asignado exitosamente');
-      setMostrarAsignarModal(false);
-      setTransporteSeleccionado(null);
-      invalidarTransportes();
-      cargarTransportes();
-    } catch (e) { mostrarMensaje('error', 'Error al asignar transporte'); }
-  };
-
-  const handleReabrirTransporte = async () => {
-    if (!transporteSeleccionado) { mostrarMensaje('warning', 'Debe seleccionar un transporte'); return; }
-    if (transporteSeleccionado.estado !== 'Finalizado') { mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado'); return; }
-    if (!window.confirm('¿Está seguro de reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a estado Pendiente.')) return;
-    try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Pendiente',
-          finalizado_en: null,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte reabierto exitosamente');
-      setTransporteSeleccionado(null);
-      invalidarTransportes();
-      cargarTransportes();
-    } catch (e) { mostrarMensaje('error', 'Error al reabrir transporte'); }
-  };
-
-  const handleIniciarTransporte = async () => {
-    if (!transporteSeleccionado) { mostrarMensaje('warning', 'Debe seleccionar un transporte'); return; }
-    if (transporteSeleccionado.estado !== 'Pendiente') { mostrarMensaje('error', 'Solo se pueden iniciar transportes en estado Pendiente'); return; }
-    try {
-      const now = new Date().toISOString();
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'En Proceso',
-          fecha_inicio: now,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: now
-        })
-      });
-      invalidarTransportes();
-      await cargarTransportes();
-      const actualizado = transportes.find((t: any) => t.id === transporteSeleccionado.id);
-      if (actualizado) {
-        setTransporteSeleccionado(actualizado);
-        setMostrarIniciarTransporte(true);
-      } else {
-        mostrarMensaje('error', 'No se pudo cargar el transporte actualizado');
-      }
-    } catch (e) {
-      console.error('Error al iniciar transporte:', e);
-      mostrarMensaje('error', 'Error al iniciar el transporte');
+  const handleActualizarTransporte = async (datos: {
+    conductor: string;
+    conductorId: string;
+    patentePrincipal: string;
+    patentePrincipalId: string;
+    patenteAdicional: string;
+    patenteAdicionalId: string;
+    fechaProgramacion: string;
+  }) => {
+    setConductorSeleccionado(datos.conductor);
+    setConductorId(datos.conductorId);
+    setPatentePrincipal(datos.patentePrincipal);
+    setPatentePrincipalId(datos.patentePrincipalId);
+    setPatenteAdicional(datos.patenteAdicional);
+    setPatenteAdicionalId(datos.patenteAdicionalId);
+    setFechaProgramacion(datos.fechaProgramacion);
+    setShowEditarTransporteModal(false);
+    // Guardar cambios si el documento ya existe
+    if (idDocumentoActual) {
+      await guardarDocumento(estadoDocumento, true);
     }
   };
 
-  const getEstadoBadge = (estado: string) => {
-    const badges: any = {
-      'Pendiente': { color: '#b45309', bg: '#fef3c7' },
-      'En Proceso': { color: '#1d4ed8', bg: '#dbeafe' },
-      'Finalizado': { color: '#15803d', bg: '#dcfce7' },
-      'Cancelado': { color: '#64748b', bg: '#f1f5f9' }
-    };
-    const badge = badges[estado] || badges['Cancelado'];
-    return (
-      <span className="sd01-estado-badge" style={{ color: badge.color, background: badge.bg }}>
-        {estado}
-      </span>
+  const handleGuardarBorrador = () => guardarDocumento("borrador", false);
+  const handleFinalizar = () => guardarDocumento("finalizado", false);
+
+  // Nuevo: Iniciar transporte (cambia a en_proceso)
+  const handleIniciar = async () => {
+    if (!idDocumentoActual) return;
+    if (estadoDocumento !== "borrador") {
+      alert("Solo se puede iniciar un transporte en estado borrador.");
+      return;
+    }
+    try {
+      await supabase
+        .from("sd01_documentos")
+        .update({ estado: "en_proceso", fecha_inicio: new Date().toISOString() })
+        .eq("id_documento", idDocumentoActual);
+      setEstadoDocumento("en_proceso");
+      alert("✅ Transporte iniciado. Ahora puedes gestionar los sellos y bultos.");
+      // Recargar datos si es necesario
+    } catch (error: any) {
+      alert("Error al iniciar: " + error.message);
+    }
+  };
+
+  // Nuevo: Reabrir transporte (solo si está finalizado)
+  const handleReabrir = async () => {
+    if (!idDocumentoActual) return;
+    if (estadoDocumento !== "finalizado") {
+      alert("Solo se puede reabrir un transporte finalizado.");
+      return;
+    }
+    if (!confirm("¿Reabrir este transporte? Volverá a estado 'en_proceso'.")) return;
+    try {
+      await supabase
+        .from("sd01_documentos")
+        .update({ estado: "en_proceso", fecha_finalizacion: null })
+        .eq("id_documento", idDocumentoActual);
+      setEstadoDocumento("en_proceso");
+      alert("✅ Transporte reabierto.");
+    } catch (error: any) {
+      alert("Error al reabrir: " + error.message);
+    }
+  };
+
+  // Cancelar: anula el documento o descarta cambios según estado
+  const handleCancelar = async () => {
+    if (!idDocumentoActual) {
+      if (confirm("¿Descartar cambios sin guardar?")) limpiarFormulario();
+      return;
+    }
+    if (estadoDocumento === "finalizado") {
+      alert("No se puede cancelar un documento finalizado.");
+      return;
+    }
+    const accion = estadoDocumento === "borrador" ? "anular" : "cancelar";
+    if (!confirm(`¿${accion === "anular" ? "Anular" : "Cancelar"} el documento ${idDocumentoActual}?`)) return;
+    try {
+      await supabase
+        .from("sd01_documentos")
+        .update({ estado: "anulado", fecha_anulacion: new Date().toISOString() })
+        .eq("id_documento", idDocumentoActual);
+      setEstadoDocumento("anulado");
+      alert("✅ Documento anulado.");
+      limpiarFormulario();
+    } catch (error: any) {
+      alert("Error al cancelar: " + error.message);
+    }
+  };
+
+  // Eliminar (solo admin)
+  const handleEliminar = async () => {
+    if (!idDocumentoActual) return;
+    if (usuarioActual?.rol !== "Admin" && usuarioActual?.rol !== "Owner") {
+      alert("No tienes permiso para eliminar documentos.");
+      return;
+    }
+    if (!confirm(`¿Eliminar permanentemente el documento ${idDocumentoActual}?`)) return;
+    try {
+      // Eliminar primero locales y cargas (cascada)
+      await supabase
+        .from("sd01_documento_locales")
+        .delete()
+        .eq("documento_id", idDocumentoActual);
+      await supabase
+        .from("sd01_documentos")
+        .delete()
+        .eq("id_documento", idDocumentoActual);
+      alert("✅ Documento eliminado.");
+      limpiarFormulario();
+    } catch (error: any) {
+      alert("Error al eliminar: " + error.message);
+    }
+  };
+
+  // Guardar documento (crear o actualizar)
+  const guardarDocumento = async (estado: string, silencioso: boolean = false) => {
+    if (!idDocumentoActual) {
+      alert("No hay documento activo.");
+      return;
+    }
+    setGuardando(true);
+    try {
+      // Validar que haya al menos un local con código
+      const localesValidos = rows.filter(r => r.codigoLocal);
+      if (localesValidos.length === 0 && estado === "finalizado") {
+        alert("Debe agregar al menos un local antes de finalizar.");
+        setGuardando(false);
+        return;
+      }
+
+      // Preparar datos para guardar
+      const documentoData = {
+        conductor_id: conductorId || null,
+        patente_principal_id: patentePrincipalId || null,
+        patente_secundaria_id: patenteAdicionalId || null,
+        fecha_programacion: fechaProgramacion || null,
+        administrativo: nombreAdministrativo || null,
+        sello_lateral: selloLateral || null,
+        sello_adicional: selloAdicional || null,
+        observaciones: observacionesGenerales || null,
+        estado: estado,
+        modificado_por: usuarioActual?.id || null,
+        modificado_en: new Date().toISOString(),
+      };
+
+      // Si estado es finalizado, guardar fecha_finalizacion
+      if (estado === "finalizado") {
+        (documentoData as any).fecha_finalizacion = new Date().toISOString();
+      }
+
+      // Actualizar documento
+      const { error: updateError } = await supabase
+        .from("sd01_documentos")
+        .update(documentoData)
+        .eq("id_documento", idDocumentoActual);
+      if (updateError) throw updateError;
+
+      // Guardar locales y cargas
+      // Primero eliminar locales existentes (cascada)
+      await supabase
+        .from("sd01_documento_locales")
+        .delete()
+        .eq("documento_id", idDocumentoActual);
+
+      // Insertar nuevos locales
+      for (const row of localesValidos) {
+        // Insertar local
+        const { data: localData, error: localError } = await supabase
+          .from("sd01_documento_locales")
+          .insert({
+            documento_id: idDocumentoActual,
+            codigo_local: row.codigoLocal,
+            nombre_local: row.nombreLocal,
+            fecha_entrega: row.fechaEntrega || null,
+            hora_entrega: row.horaEntrega || null,
+            sello_trasero: row.selloTrasero || null,
+            cantidad_pallet: row.cantidadPallet || 0,
+            total_carga: row.totalCarga || 0,
+          })
+          .select("id")
+          .single();
+        if (localError) throw localError;
+
+        // Insertar cargas (documentos de carga) si existen
+        if (row.carga && row.carga.length > 0) {
+          const cargas = row.carga.map((c) => ({
+            local_id: localData.id,
+            documento_id: idDocumentoActual,
+            origen_carga: c.origenCarga,
+            tipo_documento: c.tipoDocumento || null,
+            numero_documento: c.numeroDocumento || null,
+            cantidad_bultos: c.cantidadBultos || 0,
+            observacion: c.observacion || null,
+          }));
+          const { error: cargaError } = await supabase
+            .from("sd01_documento_cargas")
+            .insert(cargas);
+          if (cargaError) throw cargaError;
+        }
+      }
+
+      setEstadoDocumento(estado);
+      if (!silencioso) {
+        alert(`✅ Documento ${idDocumentoActual} guardado como ${estado}.`);
+      }
+      if (estado === "finalizado") {
+        // Opcional: limpiar formulario o mostrar mensaje
+      }
+    } catch (error: any) {
+      console.error("Error guardando:", error);
+      if (!silencioso) alert("❌ Error al guardar: " + error.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  // Cargar documento existente (desde DocumentosModal)
+  const handleAbrirDocumento = async (idDocumento: string) => {
+    try {
+      const { data: doc, error } = await supabase
+        .from("sd01_documentos")
+        .select("*, locales:sd01_documento_locales(*, cargas:sd01_documento_cargas(*))")
+        .eq("id_documento", idDocumento)
+        .single();
+      if (error) throw error;
+
+      setShowDocumentosModal(false);
+      setIdDocumentoActual(doc.id_documento);
+      setDocumentoCreado(true);
+      setEstadoDocumento(doc.estado);
+      setFechaProgramacion(doc.fecha_programacion || "");
+      setObservacionesGenerales(doc.observaciones || "");
+      setSelloLateral(doc.sello_lateral || "");
+      setSelloAdicional(doc.sello_adicional || "");
+      setNombreAdministrativo(doc.administrativo || "");
+
+      // Conductor
+      if (doc.conductor_id) {
+        const { data: cond } = await supabase
+          .from("conductores")
+          .select("id, nombre, apellido, nombre_completo")
+          .eq("id", doc.conductor_id)
+          .single();
+        if (cond) {
+          setConductorId(cond.id);
+          setConductorSeleccionado(cond.nombre_completo || `${cond.nombre} ${cond.apellido}`);
+        }
+      }
+      // Patente principal
+      if (doc.patente_principal_id) {
+        const { data: pat } = await supabase
+          .from("patentes")
+          .select("id, numero_patente")
+          .eq("id", doc.patente_principal_id)
+          .single();
+        if (pat) {
+          setPatentePrincipalId(pat.id);
+          setPatentePrincipal(pat.numero_patente);
+        }
+      }
+      // Patente adicional
+      if (doc.patente_secundaria_id) {
+        const { data: pat } = await supabase
+          .from("patentes")
+          .select("id, numero_patente")
+          .eq("id", doc.patente_secundaria_id)
+          .single();
+        if (pat) {
+          setPatenteAdicionalId(pat.id);
+          setPatenteAdicional(pat.numero_patente);
+        }
+      }
+
+      // Cargar locales y cargas
+      if (doc.locales && doc.locales.length > 0) {
+        const filas: SD01Row[] = doc.locales.map((local: any, index: number) => {
+          const cargas = local.cargas || [];
+          const totalCarga = cargas.reduce((sum: number, c: any) => sum + (c.cantidad_bultos || 0), 0);
+          return {
+            id: index + 1,
+            codigoLocal: local.codigo_local || "",
+            nombreLocal: local.nombre_local || "",
+            fechaEntrega: local.fecha_entrega || "",
+            horaEntrega: local.hora_entrega || "",
+            selloTrasero: local.sello_trasero || "",
+            cantidadPallet: local.cantidad_pallet || 0,
+            totalCarga: totalCarga,
+            carga: cargas.map((c: any) => ({
+              id: c.id,
+              origenCarga: c.origen_carga || "",
+              tipoDocumento: c.tipo_documento || "",
+              numeroDocumento: c.numero_documento || "",
+              cantidadBultos: c.cantidad_bultos || 0,
+              observacion: c.observacion || "",
+            })),
+          };
+        });
+        setRows(filas);
+        setCantidadFilasAgregar(filas.length);
+      } else {
+        setRows([filaVacia()]);
+        setCantidadFilasAgregar(1);
+      }
+    } catch (error: any) {
+      alert("Error al cargar documento: " + error.message);
+    }
+  };
+
+  // --- Funciones de impresión (sin cambios) ---
+  const handleImprimirTodos = () => {
+    const todos = rows.filter((r) => r.codigoLocal);
+    if (todos.length === 0) {
+      alert("No hay locales para imprimir");
+      return;
+    }
+    setRowsParaImprimir(todos);
+    setCopiasActivas(["Local", "Guardia", "Conductor", "Original"]);
+    setShowImprimirModal(true);
+  };
+
+  const handleImprimirSeleccionados = () => {
+    if (selectedRows.length === 0) {
+      alert("Selecciona al menos un local con el checkbox");
+      return;
+    }
+    const seleccionados = rows.filter(
+      (r) => selectedRows.includes(r.id) && r.codigoLocal
     );
+    if (seleccionados.length === 0) {
+      alert("Los locales seleccionados no tienen código");
+      return;
+    }
+    setRowsParaImprimir(seleccionados);
+    setShowImprimirSeleccionModal(true);
   };
 
-  const formatearFecha = (fecha: string) => {
-    if (!fecha) return '-';
-    const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
-    return new Date(fechaStr).toLocaleDateString('es-CL');
+  const handleImprimirConCopias = (copiasSeleccionadas: string[]) => {
+    setCopiasActivas(copiasSeleccionadas);
+    setShowImprimirSeleccionModal(false);
+    setTimeout(() => setShowImprimirModal(true), 200);
   };
 
-  const formatearFechaHora = (fecha: string) => {
-    if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL') + ' ' + new Date(fecha).toLocaleTimeString('es-CL');
-  };
-
-  if (cargando) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#64748b', fontSize: '16px' }}>
-        Cargando transportes...
-      </div>
-    );
-  }
+  // --- Render ---
+  const esEditable = estadoDocumento !== "finalizado" && estadoDocumento !== "anulado";
+  const puedeIniciar = estadoDocumento === "borrador" && documentoCreado;
+  const puedeFinalizar = estadoDocumento === "en_proceso" && documentoCreado;
+  const puedeReabrir = estadoDocumento === "finalizado" && documentoCreado;
+  const puedeEditarTransporte = estadoDocumento === "borrador" && documentoCreado;
+  const puedeCancelar = (estadoDocumento === "borrador" || estadoDocumento === "en_proceso") && documentoCreado;
+  const puedeEliminar = (usuarioActual?.rol === "Admin" || usuarioActual?.rol === "Owner") && documentoCreado;
 
   return (
-    <div className="sd01-container">
-      {mensaje.visible && (
-        <div className={'sd01-toast sd01-toast-' + mensaje.tipo}>
-          {mensaje.texto}
+    <div className="sd01-view">
+      <SD01Toolbar
+        onGuardarBorrador={handleGuardarBorrador}
+        onFinalizar={handleFinalizar}
+        onIniciar={handleIniciar}
+        onReabrir={handleReabrir}
+        onCancelar={handleCancelar}
+        onEliminar={handleEliminar}
+        onAbrirDocumentos={() => setShowDocumentosModal(true)}
+        onImprimir={handleImprimirTodos}
+        onImprimirSeleccionados={handleImprimirSeleccionados}
+        onNuevaDocumentacion={() => setShowNuevaDocModal(true)}
+        onEditarTransporte={handleEditarTransporte}
+        estado={estadoDocumento}
+        guardando={guardando}
+        documentoCreado={documentoCreado}
+        puedeIniciar={puedeIniciar}
+        puedeFinalizar={puedeFinalizar}
+        puedeReabrir={puedeReabrir}
+        puedeEditarTransporte={puedeEditarTransporte}
+        puedeCancelar={puedeCancelar}
+        puedeEliminar={puedeEliminar}
+      />
+
+      <div className="sd01-form-grid">
+        <div className="sd01-left-column">
+          {documentoCreado ? (
+            <TarjetaTransporte
+              idDocumento={idDocumentoActual || ""}
+              conductor={conductorSeleccionado}
+              patentePrincipal={patentePrincipal}
+              patenteAdicional={patenteAdicional}
+              fechaProgramacion={fechaProgramacion}
+              administrativo={nombreAdministrativo}
+              estado={estadoDocumento}
+            />
+          ) : (
+            <div className="sin-documento">
+              <div className="sin-documento-icon">📋</div>
+              <h3>Sin documento activo</h3>
+              <p>
+                Haz clic en <strong>"Nuevo Transporte"</strong> para comenzar.
+              </p>
+            </div>
+          )}
         </div>
-      )}
 
-      <div className="sd01-toolbar">
-        <button className="sd01-btn sd01-btn-primary" onClick={handleCrearTransporte}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          Crear Transporte
-        </button>
-
-        <button className="sd01-btn" onClick={handleCargarTransporte}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Cargar Excel
-        </button>
-
-        <div className="sd01-separator"></div>
-
-        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M11.3333 2.00004C11.5084 1.82494 11.7163 1.68605 11.9451 1.59129C12.1738 1.49653 12.4187 1.44775 12.6663 1.44775C12.9138 1.44775 13.1587 1.49653 13.3875 1.59129C13.6163 1.68605 13.8242 1.82494 13.9993 2.00004C14.1744 2.17514 14.3133 2.38305 14.408 2.61187C14.5028 2.8407 14.5516 3.08557 14.5516 3.33337C14.5516 3.58118 14.5028 3.82605 14.408 4.05487C14.3133 4.2837 14.1744 4.49161 13.9993 4.66671L5.33333 13.3327L2 13.9994L2.66667 10.666L11.3333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Editar
-        </button>
-
-        <button className="sd01-btn sd01-btn-danger" onClick={handleCancelarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Cancelar
-        </button>
-
-        <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={transportesSeleccionados.size === 0}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Eliminar ({transportesSeleccionados.size})
-        </button>
-
-        <div className="sd01-separator"></div>
-
-        <button className="sd01-btn" onClick={handleVerTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Ver
-        </button>
-
-        <div className="sd01-separator"></div>
-
-        <button className="sd01-btn" onClick={handleAsignarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10.6667 14V12.6667C10.6667 11.9594 10.3857 11.2811 9.88562 10.781C9.38552 10.281 8.70724 10 8 10H4C3.29276 10 2.61448 10.281 2.11438 10.781C1.61428 11.2811 1.33333 11.9594 1.33333 12.6667V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M6 7.33333C7.47276 7.33333 8.66667 6.13943 8.66667 4.66667C8.66667 3.19391 7.47276 2 6 2C4.52724 2 3.33333 3.19391 3.33333 4.66667C3.33333 6.13943 4.52724 7.33333 6 7.33333Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Asignar
-        </button>
-
-        <button
-          className="sd01-btn sd01-btn-success"
-          onClick={handleIniciarTransporte}
-          disabled={!transporteSeleccionado || transporteSeleccionado.estado !== 'Pendiente'}
-          style={{
-            background: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 'var(--bg-readonly)',
-            color: (transporteSeleccionado?.estado === 'Pendiente') ? 'white' : 'var(--text-muted)',
-            borderColor: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 'var(--btn-border)'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M4 2L12 8L4 14V2Z" fill="currentColor"/>
-          </svg>
-          Iniciar
-        </button>
-
-        <div className="sd01-separator"></div>
-
-        <button className="sd01-btn sd01-btn-warning" onClick={handleReabrirTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Reabrir
-        </button>
-      </div>
-
-      <div className="sd01-table-wrapper">
-        <div className="sd01-table-scroll">
-          <table className="sd01-table">
-            <thead>
-              <tr>
-                <th style={{ width: '30px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    className="sd01-radio"
-                    checked={transportes.length > 0 && transportesSeleccionados.size === transportes.length}
-                    onChange={toggleSeleccionarTodos}
-                    style={{ cursor: 'pointer' }}
-                  />
-                </th>
-                <th>ID Transporte</th>
-                <th>Fecha Programación</th>
-                <th>Conductor</th>
-                <th>Patente</th>
-                <th>Asignado A</th>
-                <th style={{ textAlign: 'center' }}>Locales</th>
-                <th>Estado</th>
-                <th>Creado Por</th>
-                <th>Creado En</th>
-                <th>Modificado Por</th>
-                <th>Modificado En</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transportes.length === 0 ? (
-                <tr>
-                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
-                    No hay transportes registrados
-                  </td>
-                </tr>
-              ) : (
-                transportes.map((transporte: any) => {
-                  const seleccionado = transportesSeleccionados.has(transporte.id);
-                  return (
-                    <tr
-                      key={transporte.id}
-                      className={seleccionado ? 'sd01-row-selected' : ''}
-                      style={{ background: seleccionado ? 'var(--table-row-selected)' : 'transparent', cursor: 'pointer' }}
-                      onClick={() => toggleSeleccion(transporte.id)}
-                    >
-                      <td style={{ textAlign: 'center' }} onClick={(e: any) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="sd01-radio"
-                          checked={seleccionado}
-                          onChange={() => toggleSeleccion(transporte.id)}
-                        />
-                      </td>
-                      <td className="sd01-id-documento">{transporte.id_documento}</td>
-                      <td>{formatearFecha(transporte.fecha_programacion)}</td>
-                      <td>{transporte.conductor_nombre}</td>
-                      <td>{transporte.patente_principal}</td>
-                      <td>{transporte.administrativo || '-'}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="sd01-locales-badge">{transporte.cantidad_locales || 0}</span>
-                      </td>
-                      <td>{getEstadoBadge(transporte.estado)}</td>
-                      <td>{transporte.creado_por_nombre || '-'}</td>
-                      <td style={{ fontSize: '12px', color: '#64748b' }}>{formatearFechaHora(transporte.creado_en)}</td>
-                      <td>{transporte.modificado_por || '-'}</td>
-                      <td style={{ fontSize: '12px', color: '#64748b' }}>{transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        <div className="sd01-right-column">
+          {documentoCreado && (
+            <SellosAdicionales
+              selloLateral={selloLateral}
+              selloAdicional={selloAdicional}
+              onSelloLateralChange={setSelloLateral}
+              onSelloAdicionalChange={setSelloAdicional}
+              disabled={!esEditable || estadoDocumento === "finalizado"}
+            />
+          )}
         </div>
       </div>
 
-      <div className="sd01-footer">
-        Total de transportes: <strong style={{ color: '#1e293b' }}>{transportes.length}</strong>
-      </div>
+      {documentoCreado && (
+        <>
+          <SD01Table
+            rows={rows}
+            setRows={setRows}
+            cantidadFilasAgregar={cantidadFilasAgregar}
+            setCantidadFilasAgregar={setCantidadFilasAgregar}
+            selectedRows={selectedRows}
+            setSelectedRows={setSelectedRows}
+            editable={esEditable}
+            idDocumento={idDocumentoActual || ""}
+          />
 
-      {mostrarCrearTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarCrearTransporte(false)}
-          onTransporteCreado={handleTransporteCreado}
-        />
-      )}
-
-      {mostrarEditarTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarEditarTransporte(false)}
-          onTransporteCreado={handleTransporteEditado}
-          transporteEditar={transporteSeleccionado}
-        />
-      )}
-
-      {mostrarVerTransporte && (
-        <SD01VerTransporte
-          onClose={() => setMostrarVerTransporte(false)}
-          transporte={transporteSeleccionado}
-        />
-      )}
-
-      {mostrarCargaExcel && (
-        <SD01CargaExcel
-          onClose={() => setMostrarCargaExcel(false)}
-          onTransportesCreados={handleCargaExcelCompletada}
-        />
-      )}
-
-      {mostrarIniciarTransporte && transporteSeleccionado && (
-        <SD01IniciarTransporte
-          transporte={transporteSeleccionado}
-          onClose={() => {
-            setMostrarIniciarTransporte(false);
-            cargarTransportes();
-          }}
-          onActualizar={cargarTransportes}
-          usuario={usuario}
-        />
-      )}
-
-      {mostrarAsignarModal && (
-        <div className="sd01-modal-overlay" onClick={() => setMostrarAsignarModal(false)}>
-          <div className="sd01-modal" style={{ maxWidth: '480px' }} onClick={(e: any) => e.stopPropagation()}>
-            <div className="sd01-modal-header">
-              <h2>Asignar Transporte</h2>
-              <button className="sd01-modal-close" onClick={() => setMostrarAsignarModal(false)}>×</button>
-            </div>
-            <div className="sd01-modal-body">
-              <div className="sd01-form-group" style={{ marginBottom: '16px' }}>
-                <label className="sd01-form-label">
-                  Transporte: <strong>{transporteSeleccionado?.id_documento}</strong>
-                </label>
-              </div>
-              <div className="sd01-form-group">
-                <label className="sd01-form-label">Asignar a (Administrativo o Líder)</label>
-                <select
-                  className="sd01-form-select"
-                  value={usuarioAsignar}
-                  onChange={(e: any) => setUsuarioAsignar(e.target.value)}
-                >
-                  <option value="">Seleccionar usuario...</option>
-                  {usuariosAdmin.map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.nombre} {u.apellido} ({u.rol})</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="sd01-modal-footer">
-              <button className="sd01-btn-cancel" onClick={() => setMostrarAsignarModal(false)}>Cancelar</button>
-              <button className="sd01-btn-save" onClick={handleConfirmarAsignacion}>Asignar</button>
+          <div className="sd01-footer">
+            <div className="observaciones-section">
+              <label>Observaciones Generales</label>
+              <textarea
+                ref={observacionesTextareaRef}
+                value={observacionesGenerales}
+                onChange={(e) => setObservacionesGenerales(e.target.value)}
+                placeholder="Ingresar observaciones generales del transporte..."
+                rows={2}
+                disabled={!esEditable}
+              />
             </div>
           </div>
-        </div>
+        </>
       )}
+
+      <DocumentosModal
+        isOpen={showDocumentosModal}
+        onClose={() => setShowDocumentosModal(false)}
+        onAbrirDocumento={handleAbrirDocumento}
+      />
+
+      <ImprimirModal
+        isOpen={showImprimirModal}
+        rows={rowsParaImprimir.length > 0 ? rowsParaImprimir : rows}
+        conductor={conductorSeleccionado}
+        patentePrincipal={patentePrincipal}
+        patenteAdicional={patenteAdicional}
+        selloLateral={selloLateral}
+        selloAdicional={selloAdicional}
+        nombreAdministrativo={nombreAdministrativo}
+        onClose={() => {
+          setShowImprimirModal(false);
+          setRowsParaImprimir([]);
+        }}
+        copias={copiasActivas}
+      />
+
+      <ImprimirSeleccionModal
+        isOpen={showImprimirSeleccionModal}
+        onClose={() => setShowImprimirSeleccionModal(false)}
+        onImprimir={handleImprimirConCopias}
+        localesSeleccionados={rowsParaImprimir.length}
+      />
+
+      <NuevaDocumentacionModal
+        isOpen={showNuevaDocModal}
+        onClose={() => setShowNuevaDocModal(false)}
+        onCrear={handleCrearDocumento}
+        valoresIniciales={{}}
+      />
+
+      <NuevaDocumentacionModal
+        isOpen={showEditarTransporteModal}
+        onClose={() => setShowEditarTransporteModal(false)}
+        onCrear={handleActualizarTransporte}
+        valoresIniciales={{
+          conductor: conductorSeleccionado,
+          conductorId: conductorId,
+          patentePrincipal: patentePrincipal,
+          patentePrincipalId: patentePrincipalId,
+          patenteAdicional: patenteAdicional,
+          patenteAdicionalId: patenteAdicionalId,
+          fechaProgramacion: fechaProgramacion,
+        }}
+        modoEdicion={true}
+      />
     </div>
   );
 };
