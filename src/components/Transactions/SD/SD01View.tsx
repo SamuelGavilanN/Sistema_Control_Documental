@@ -46,6 +46,19 @@ const filaVacia = (): SD01Row => ({
   totalCarga: 0,
 });
 
+// ---- Generador de ID de documento (local) ----
+const generarIdDocumento = (): string => {
+  const ahora = new Date();
+  const anio = ahora.getFullYear().toString().slice(-2);
+  const mes = String(ahora.getMonth() + 1).padStart(2, "0");
+  const dia = String(ahora.getDate()).padStart(2, "0");
+  const horas = String(ahora.getHours()).padStart(2, "0");
+  const minutos = String(ahora.getMinutes()).padStart(2, "0");
+  const segundos = String(ahora.getSeconds()).padStart(2, "0");
+  const random = String(Math.floor(Math.random() * 9000) + 1000);
+  return `SD${anio}${mes}${dia}${horas}${minutos}${segundos}${random}`;
+};
+
 const SD01View: React.FC = () => {
   // ---- State del formulario ----
   const [rows, setRows] = useState<SD01Row[]>([filaVacia()]);
@@ -73,7 +86,7 @@ const SD01View: React.FC = () => {
   const [showDocumentosModal, setShowDocumentosModal] = useState(false);
   const [showImprimirModal, setShowImprimirModal] = useState(false);
   const [showImprimirSeleccionModal, setShowImprimirSeleccionModal] = useState(false);
-  const [showCargaExcelModal, setShowCargaExcelModal] = useState(false); // nuevo para carga Excel
+  const [showCargaExcelModal, setShowCargaExcelModal] = useState(false);
   const [showEditarTransporteModal, setShowEditarTransporteModal] = useState(false);
 
   // ---- Impresión ----
@@ -115,17 +128,13 @@ const SD01View: React.FC = () => {
     setSelectedRows([]);
   };
 
-  // ---- Nuevo transporte (directo, sin modal) ----
+  // ---- Nuevo transporte (genera ID manualmente) ----
   const handleNuevoTransporte = async () => {
-    // Si ya hay un documento en curso, preguntar si se desea descartar
     if (documentoCreado && idDocumentoActual) {
       if (!confirm("¿Descartar el documento actual y comenzar uno nuevo?")) return;
     }
     try {
-      const { data: idData, error: idError } = await supabase.rpc('generar_id_documento_sd', { prefijo: 'SD' });
-      if (idError) throw idError;
-      const idGenerado = idData || `SD${Date.now()}`;
-
+      const idGenerado = generarIdDocumento();
       limpiarFormulario();
       setIdDocumentoActual(idGenerado);
       setDocumentoCreado(true);
@@ -136,7 +145,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Guardar documento ----
+  // ---- Guardar documento (crea o actualiza) ----
   const guardarDocumento = async (estado: string, silencioso: boolean = false) => {
     if (!idDocumentoActual) {
       alert("Primero debe crear un nuevo transporte.");
@@ -151,7 +160,9 @@ const SD01View: React.FC = () => {
         return;
       }
 
+      // Preparar datos del documento
       const documentoData: any = {
+        id_documento: idDocumentoActual,
         conductor_id: conductorId || null,
         patente_principal_id: patentePrincipalId || null,
         patente_secundaria_id: patenteAdicionalId || null,
@@ -168,7 +179,7 @@ const SD01View: React.FC = () => {
         documentoData.fecha_finalizacion = new Date().toISOString();
       }
 
-      // Verificar si ya existe el documento (para actualizar o insertar)
+      // Verificar si ya existe el documento
       const { data: existing, error: checkError } = await supabase
         .from("sd01_documentos")
         .select("id")
@@ -185,8 +196,7 @@ const SD01View: React.FC = () => {
           .eq("id_documento", idDocumentoActual);
         if (updateError) throw updateError;
       } else {
-        // Insertar
-        documentoData.id_documento = idDocumentoActual;
+        // Insertar (primera vez)
         documentoData.creado_por = usuarioActual?.id || null;
         documentoData.creado_en = new Date().toISOString();
         const { error: insertError } = await supabase
@@ -257,7 +267,6 @@ const SD01View: React.FC = () => {
       alert("Solo se puede iniciar un transporte en estado Borrador.");
       return;
     }
-    // Validar que haya al menos un local
     const localesValidos = rows.filter((r) => r.codigoLocal);
     if (localesValidos.length === 0) {
       alert("Debe agregar al menos un local antes de iniciar.");
@@ -614,7 +623,6 @@ const SD01View: React.FC = () => {
         </>
       )}
 
-      {/* Modales */}
       <DocumentosModal
         isOpen={showDocumentosModal}
         onClose={() => setShowDocumentosModal(false)}
@@ -644,7 +652,6 @@ const SD01View: React.FC = () => {
         localesSeleccionados={rowsParaImprimir.length}
       />
 
-      {/* Modal de edición de transporte (datos maestros) */}
       <NuevaDocumentacionModal
         isOpen={showEditarTransporteModal}
         onClose={() => setShowEditarTransporteModal(false)}
@@ -661,7 +668,26 @@ const SD01View: React.FC = () => {
         modoEdicion={true}
       />
 
-      {/* Aquí iría el modal de carga Excel si se implementa */}
+      {/* Aquí iría el modal de carga Excel (opcional) */}
+      {showCargaExcelModal && (
+        <div className="sd01-modal-overlay" onClick={() => setShowCargaExcelModal(false)}>
+          <div className="sd01-modal" style={{ maxWidth: "700px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="sd01-modal-header">
+              <h2>Cargar Transportes desde Excel</h2>
+              <button className="sd01-modal-close" onClick={() => setShowCargaExcelModal(false)}>×</button>
+            </div>
+            <div className="sd01-modal-body">
+              <p style={{ color: "var(--text-muted)" }}>
+                Funcionalidad en desarrollo. Puedes cargar un archivo Excel con los datos de los transportes.
+              </p>
+              {/* Aquí iría el componente de carga Excel */}
+            </div>
+            <div className="sd01-modal-footer">
+              <button className="sd01-btn-cancel" onClick={() => setShowCargaExcelModal(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
