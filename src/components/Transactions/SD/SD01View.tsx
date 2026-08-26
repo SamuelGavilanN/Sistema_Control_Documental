@@ -357,7 +357,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Cargar documento (corregido sin consulta anidada) ----
+  // ---- Cargar documento (sin consultas anidadas) ----
   const handleAbrirDocumento = async (idDocumento: string) => {
     try {
       // 1. Obtener cabecera del documento
@@ -368,12 +368,30 @@ const SD01View: React.FC = () => {
         .single();
       if (error) throw error;
 
-      // 2. Obtener locales y cargas por separado
+      // 2. Obtener locales (sin cargas)
       const { data: localesData, error: localesError } = await supabase
         .from("sd01_documento_locales")
-        .select("*, cargas:sd01_documento_cargas(*)")
+        .select("*")
         .eq("documento_id", idDocumento);
       if (localesError) throw localesError;
+
+      // 3. Obtener cargas de esos locales (si hay locales)
+      let cargasData: any[] = [];
+      if (localesData && localesData.length > 0) {
+        const localIds = localesData.map((l: any) => l.id);
+        const { data: cargas, error: cargasError } = await supabase
+          .from("sd01_documento_cargas")
+          .select("*")
+          .in("local_id", localIds);
+        if (cargasError) throw cargasError;
+        cargasData = cargas || [];
+      }
+
+      // 4. Unir cargas a cada local
+      const localesConCargas = (localesData || []).map((local: any) => ({
+        ...local,
+        cargas: cargasData.filter((c: any) => c.local_id === local.id),
+      }));
 
       setShowDocumentosModal(false);
       setIdDocumentoActual(doc.id_documento);
@@ -410,9 +428,9 @@ const SD01View: React.FC = () => {
         }
       }
 
-      // Cargar locales y cargas
-      if (localesData && localesData.length > 0) {
-        const filas: SD01Row[] = localesData.map((local: any, index: number) => {
+      // Construir filas con locales y cargas
+      if (localesConCargas && localesConCargas.length > 0) {
+        const filas: SD01Row[] = localesConCargas.map((local: any, index: number) => {
           const cargas = local.cargas || [];
           const totalCarga = cargas.reduce((sum: number, c: any) => sum + (c.cantidad_bultos || 0), 0);
           return {
