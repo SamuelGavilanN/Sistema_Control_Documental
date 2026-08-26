@@ -126,7 +126,7 @@ const SD01View: React.FC = () => {
     fechaProgramacion: string;
   }) => {
     try {
-      // Generar ID del documento (local)
+      // Generar ID del documento (local, sin RPC)
       const idGenerado = `SD${Date.now()}`;
 
       setConductorSeleccionado(datos.conductor);
