@@ -17,7 +17,7 @@ interface SD01IniciarTransporteProps {
   usuario: any;
 }
 
-// Orígenes de carga y tipos de documento (según DCModal)
+// Orígenes de carga y tipos de documento
 const origenesCarga = [
   "CD01 Fashions-Park",
   "CD16 Bodegas San Francisco",
@@ -52,6 +52,7 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   "SG06 Bultos Quedados en Camion": ["Sap", "Vtradex"],
 };
 
+// Interfaz para bultos
 interface Bulto {
   id: number;
   origenCarga: string;
@@ -61,7 +62,7 @@ interface Bulto {
   observacion: string;
 }
 
-// Autocomplete component (extraído de DCModal)
+// Autocomplete component (extraído de DCModal, con estilos CSS existentes)
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -191,7 +192,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos (adaptado de DCModal)
+// Modal de bultos (adaptado de DCModal, con layout amplio)
 const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) => {
   const [bultos, setBultos] = useState<Bulto[]>([]);
   const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
@@ -216,7 +217,6 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
     : false;
 
   useEffect(() => {
-    // Cargar bultos existentes del local desde la base de datos
     const cargarBultos = async () => {
       try {
         const resp = await fetch(
@@ -296,7 +296,6 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
 
     try {
       if (editandoId !== null) {
-        // Actualizar
         await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -305,7 +304,6 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
         setBultos(bultos.map((b) => b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b));
         setEditandoId(null);
       } else {
-        // Nuevo
         const resp = await fetch(API_URL + '/sd01_bultos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -356,7 +354,7 @@ const BultosModal = ({ local, onClose, onGuardar, usuario, documentoId }: any) =
 
   return (
     <div className="sd01-modal-overlay" onClick={onClose}>
-      <div className="sd01-modal" style={{ maxWidth: '700px' }} onClick={(e) => e.stopPropagation()}>
+      <div className="sd01-modal" style={{ maxWidth: '950px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Bultos - Local {local.codigo_local}</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
@@ -508,9 +506,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [detallesPatentePrincipal, setDetallesPatentePrincipal] = useState<any>(null);
   const [detallesPatenteAdicional, setDetallesPatenteAdicional] = useState<any>(null);
 
-  // Sidebar actions
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [modalImprimir, setModalImprimir] = useState(false);
+  // Acciones
   const [modalCorreo, setModalCorreo] = useState(false);
   const [correosSeleccionados, setCorreosSeleccionados] = useState<string[]>([]);
   const [asunto, setAsunto] = useState('');
@@ -611,7 +607,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Seleccione al menos un local para imprimir');
       return;
     }
-    const localesAImprimir = seleccionados ? locales.filter((l: any) => l.seleccionado) : locales;
     window.print();
   };
 
@@ -628,7 +623,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Complete asunto y detalle');
       return;
     }
-    // Simulación de envío
     alert('Correo enviado a: ' + correosSeleccionados.join(', '));
     setModalCorreo(false);
   };
@@ -667,210 +661,210 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   return (
     <div className="sd01-container">
-      <div style={{ display: 'flex', gap: '20px' }}>
-        {/* Sidebar de acciones */}
-        <div className="sd01-sidebar">
-          <button className="sd01-btn sd01-btn-cancel" onClick={onClose} style={{ width: '100%', marginBottom: '10px' }}>
-            ← Volver a la lista
+      {/* Barra de acciones superior (header) */}
+      <div className="sd01-action-bar">
+        <button className="sd01-btn sd01-btn-cancel" onClick={onClose}>
+          ← Volver a la lista
+        </button>
+        <div className="sd01-action-separator"></div>
+        <div className="sd01-action-group">
+          <span className="sd01-action-label">Imprimir</span>
+          <button className="sd01-btn" onClick={() => imprimirLocales(false)}>Todos los locales</button>
+          <button className="sd01-btn" onClick={() => imprimirLocales(true)}>Locales seleccionados</button>
+        </div>
+        <div className="sd01-action-separator"></div>
+        <div className="sd01-action-group">
+          <span className="sd01-action-label">Envío Correo</span>
+          <button className="sd01-btn" onClick={abrirModalCorreo}>Seleccionar Correos</button>
+          <button className="sd01-btn" onClick={() => setModalCorreo(true)}>Asunto y Detalle</button>
+        </div>
+        <div className="sd01-action-separator"></div>
+        <div className="sd01-action-group">
+          <button className="sd01-btn sd01-btn-success" onClick={finalizarTransporte} style={{ background: '#16a34a', color: 'white' }}>
+            Finalizar Transporte
           </button>
-          <div className="sd01-sidebar-section">
-            <h4>Imprimir</h4>
-            <button className="sd01-btn" onClick={() => imprimirLocales(false)}>Imprimir Todos los locales</button>
-            <button className="sd01-btn" onClick={() => imprimirLocales(true)}>Imprimir Locales Seleccionados</button>
-          </div>
-          <div className="sd01-sidebar-section">
-            <h4>Opciones Envío Correo</h4>
-            <button className="sd01-btn" onClick={abrirModalCorreo}>Seleccionar Correos</button>
-            <button className="sd01-btn" onClick={() => setModalCorreo(true)}>Seleccionar Asunto y Detalle</button>
-          </div>
-          <div className="sd01-sidebar-section">
-            <h4>Finalizar</h4>
-            <button className="sd01-btn sd01-btn-success" onClick={finalizarTransporte} style={{ background: '#16a34a', color: 'white' }}>
-              Finalizar Transporte
-            </button>
-          </div>
+        </div>
+      </div>
+
+      {/* Contenido principal */}
+      <div style={{ marginTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+          <button
+            onClick={() => setMostrarInfo(!mostrarInfo)}
+            style={{
+              background: 'var(--btn-bg)',
+              border: '1px solid var(--btn-border)',
+              borderRadius: '6px',
+              padding: '4px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              color: 'var(--text-muted)'
+            }}
+          >
+            {mostrarInfo ? 'Ocultar datos del transporte' : 'Mostrar datos del transporte'}
+          </button>
         </div>
 
-        {/* Contenido principal */}
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-            <button
-              onClick={() => setMostrarInfo(!mostrarInfo)}
-              style={{
-                background: 'var(--btn-bg)',
-                border: '1px solid var(--btn-border)',
-                borderRadius: '6px',
-                padding: '4px 12px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                color: 'var(--text-muted)'
-              }}
-            >
-              {mostrarInfo ? 'Ocultar datos del transporte' : 'Mostrar datos del transporte'}
-            </button>
-          </div>
-
-          {mostrarInfo && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              <div className="sd01-ver-card">
-                <div className="sd01-ver-card-title">Programación</div>
-                <div className="sd01-ver-field">
-                  <span className="sd01-ver-field-label">Fecha Programación</span>
-                  <span className="sd01-ver-field-value">{formatearFecha(transporte.fecha_programacion)}</span>
-                </div>
-                {transporte.fecha_inicio && (
-                  <div className="sd01-ver-field">
-                    <span className="sd01-ver-field-label">Hora Inicio</span>
-                    <span className="sd01-ver-field-value">
-                      {new Date(transporte.fecha_inicio).toLocaleString('es-CL')}
-                    </span>
-                  </div>
-                )}
+        {mostrarInfo && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Programación</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Fecha Programación</span>
+                <span className="sd01-ver-field-value">{formatearFecha(transporte.fecha_programacion)}</span>
               </div>
-
-              <div className="sd01-ver-card">
-                <div className="sd01-ver-card-title">Conductor</div>
+              {transporte.fecha_inicio && (
                 <div className="sd01-ver-field">
-                  <span className="sd01-ver-field-label">Nombre</span>
+                  <span className="sd01-ver-field-label">Hora Inicio</span>
                   <span className="sd01-ver-field-value">
-                    {detallesConductor ? detallesConductor.nombre + ' ' + detallesConductor.apellido : '-'}
+                    {new Date(transporte.fecha_inicio).toLocaleString('es-CL')}
                   </span>
                 </div>
-                {detallesConductor && (
-                  <>
-                    <div className="sd01-ver-field">
-                      <span className="sd01-ver-field-label">RUT</span>
-                      <span className="sd01-ver-field-value">{formatearRut(detallesConductor.numero_documento)}</span>
-                    </div>
-                    <div className="sd01-ver-field">
-                      <span className="sd01-ver-field-label">Teléfono</span>
-                      <span className="sd01-ver-field-value">{detallesConductor.telefono || '-'}</span>
-                    </div>
-                    <div className="sd01-ver-field">
-                      <span className="sd01-ver-field-label">Transportista</span>
-                      <span className="sd01-ver-field-value">{detallesConductor.empresa || '-'}</span>
-                    </div>
-                  </>
-                )}
-              </div>
+              )}
+            </div>
 
-              <div className="sd01-ver-card">
-                <div className="sd01-ver-card-title">Patente Principal</div>
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Conductor</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Nombre</span>
+                <span className="sd01-ver-field-value">
+                  {detallesConductor ? detallesConductor.nombre + ' ' + detallesConductor.apellido : '-'}
+                </span>
+              </div>
+              {detallesConductor && (
+                <>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">RUT</span>
+                    <span className="sd01-ver-field-value">{formatearRut(detallesConductor.numero_documento)}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Teléfono</span>
+                    <span className="sd01-ver-field-value">{detallesConductor.telefono || '-'}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Transportista</span>
+                    <span className="sd01-ver-field-value">{detallesConductor.empresa || '-'}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Patente Principal</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Patente</span>
+                <span className="sd01-ver-field-value-large">
+                  {detallesPatentePrincipal ? detallesPatentePrincipal.numero_patente : '-'}
+                </span>
+              </div>
+              {detallesPatentePrincipal && (
                 <div className="sd01-ver-field">
-                  <span className="sd01-ver-field-label">Patente</span>
-                  <span className="sd01-ver-field-value-large">
-                    {detallesPatentePrincipal ? detallesPatentePrincipal.numero_patente : '-'}
-                  </span>
+                  <span className="sd01-ver-field-label">Tipo de Vehículo</span>
+                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.tipo_vehiculo || 'Otro'}</span>
                 </div>
-                {detallesPatentePrincipal && (
+              )}
+            </div>
+
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Patente Adicional</div>
+              {detallesPatenteAdicional ? (
+                <>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Patente</span>
+                    <span className="sd01-ver-field-value-large">{detallesPatenteAdicional.numero_patente}</span>
+                  </div>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Tipo de Vehículo</span>
-                    <span className="sd01-ver-field-value">{detallesPatentePrincipal.tipo_vehiculo || 'Otro'}</span>
+                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.tipo_vehiculo || 'Otro'}</span>
                   </div>
-                )}
-              </div>
-
-              <div className="sd01-ver-card">
-                <div className="sd01-ver-card-title">Patente Adicional</div>
-                {detallesPatenteAdicional ? (
-                  <>
-                    <div className="sd01-ver-field">
-                      <span className="sd01-ver-field-label">Patente</span>
-                      <span className="sd01-ver-field-value-large">{detallesPatenteAdicional.numero_patente}</span>
-                    </div>
-                    <div className="sd01-ver-field">
-                      <span className="sd01-ver-field-label">Tipo de Vehículo</span>
-                      <span className="sd01-ver-field-value">{detallesPatenteAdicional.tipo_vehiculo || 'Otro'}</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="sd01-ver-field">
-                    <span className="sd01-ver-field-value" style={{ color: 'var(--text-muted)' }}>No asignada</span>
-                  </div>
-                )}
-              </div>
+                </>
+              ) : (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-value" style={{ color: 'var(--text-muted)' }}>No asignada</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          <div style={{ marginTop: '8px' }}>
-            <div className="sd01-ver-locales-title">
-              Datos Destino
-              <span className="sd01-ver-locales-count">{locales.length} locales</span>
-            </div>
-            <div className="sd01-table-scroll">
-              <table className="sd01-table" style={{ minWidth: '800px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '30px' }}>
-                      <input type="checkbox" onChange={(e) => {
-                        const checked = e.target.checked;
-                        setLocales(locales.map((l: any) => ({ ...l, seleccionado: checked })));
-                      }} />
-                    </th>
-                    <th>Código</th>
-                    <th>Nombre Local</th>
-                    <th>Fecha Entrega</th>
-                    <th>Hora Entrega</th>
-                    <th>Sello Trasero</th>
-                    <th>Cantidad Pallet</th>
-                    <th style={{ width: '50px' }}></th>
+        <div style={{ marginTop: '8px' }}>
+          <div className="sd01-ver-locales-title">
+            Datos Destino
+            <span className="sd01-ver-locales-count">{locales.length} locales</span>
+          </div>
+          <div className="sd01-table-scroll">
+            <table className="sd01-table" style={{ minWidth: '800px' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '30px' }}>
+                    <input type="checkbox" onChange={(e) => {
+                      const checked = e.target.checked;
+                      setLocales(locales.map((l: any) => ({ ...l, seleccionado: checked })));
+                    }} />
+                  </th>
+                  <th>Código</th>
+                  <th>Nombre Local</th>
+                  <th>Fecha Entrega</th>
+                  <th>Hora Entrega</th>
+                  <th>Sello Trasero</th>
+                  <th>Cantidad Pallet</th>
+                  <th style={{ width: '50px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {locales.map((local, index) => (
+                  <tr key={local.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={!!local.seleccionado}
+                        onChange={(e) => {
+                          const nuevos = [...locales];
+                          nuevos[index].seleccionado = e.target.checked;
+                          setLocales(nuevos);
+                        }}
+                      />
+                    </td>
+                    <td><strong>{local.codigo_local}</strong></td>
+                    <td>{local.nombre_local || '-'}</td>
+                    <td>{formatearFecha(local.fecha_entrega)}</td>
+                    <td>{local.hora_entrega || '-'}</td>
+                    <td>
+                      <input
+                        type="text"
+                        className="sd01-form-input"
+                        style={{ width: '100px', padding: '4px 8px', fontSize: '13px' }}
+                        value={local.sello_trasero || ''}
+                        onChange={(e) => handleLocalChange(index, 'sello_trasero', e.target.value)}
+                        onBlur={() => guardarCambiosLocal(index)}
+                        placeholder="Sello"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="sd01-form-input"
+                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                        value={local.cantidad_pallet || ''}
+                        onChange={(e) => handleLocalChange(index, 'cantidad_pallet', e.target.value ? Number(e.target.value) : null)}
+                        onBlur={() => guardarCambiosLocal(index)}
+                        placeholder="0"
+                        min="0"
+                      />
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        className="sd01-btn sd01-btn-primary"
+                        style={{ padding: '2px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                        onClick={() => handleIngresarBultos(local)}
+                      >
+                        + Bultos
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {locales.map((local, index) => (
-                    <tr key={local.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={!!local.seleccionado}
-                          onChange={(e) => {
-                            const nuevos = [...locales];
-                            nuevos[index].seleccionado = e.target.checked;
-                            setLocales(nuevos);
-                          }}
-                        />
-                      </td>
-                      <td><strong>{local.codigo_local}</strong></td>
-                      <td>{local.nombre_local || '-'}</td>
-                      <td>{formatearFecha(local.fecha_entrega)}</td>
-                      <td>{local.hora_entrega || '-'}</td>
-                      <td>
-                        <input
-                          type="text"
-                          className="sd01-form-input"
-                          style={{ width: '100px', padding: '4px 8px', fontSize: '13px' }}
-                          value={local.sello_trasero || ''}
-                          onChange={(e) => handleLocalChange(index, 'sello_trasero', e.target.value)}
-                          onBlur={() => guardarCambiosLocal(index)}
-                          placeholder="Sello"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className="sd01-form-input"
-                          style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
-                          value={local.cantidad_pallet || ''}
-                          onChange={(e) => handleLocalChange(index, 'cantidad_pallet', e.target.value ? Number(e.target.value) : null)}
-                          onBlur={() => guardarCambiosLocal(index)}
-                          placeholder="0"
-                          min="0"
-                        />
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          className="sd01-btn sd01-btn-primary"
-                          style={{ padding: '2px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                          onClick={() => handleIngresarBultos(local)}
-                        >
-                          + Bultos
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
