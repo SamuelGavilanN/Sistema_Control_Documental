@@ -223,32 +223,33 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Iniciar transporte: cambia estado y abre vista detalle (no modal)
+  // Iniciar o continuar transporte: cambia estado y abre vista detalle (no modal)
   const handleIniciarTransporte = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
       return;
     }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden iniciar transportes en estado Pendiente');
+    if (!['Pendiente', 'En Proceso'].includes(transporteSeleccionado.estado)) {
+      mostrarMensaje('error', 'Solo se pueden iniciar o continuar transportes en Pendiente o En Proceso');
       return;
     }
 
     try {
-      const now = new Date().toISOString();
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'En Proceso',
-          fecha_inicio: now,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: now
-        })
-      });
-
-      // Actualizar el transporte seleccionado y abrir la vista detalle
-      const actualizado = { ...transporteSeleccionado, estado: 'En Proceso', fecha_inicio: now };
+      let actualizado = { ...transporteSeleccionado };
+      if (transporteSeleccionado.estado === 'Pendiente') {
+        const now = new Date().toISOString();
+        await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estado: 'En Proceso',
+            fecha_inicio: now,
+            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+            modificado_en: now
+          })
+        });
+        actualizado = { ...transporteSeleccionado, estado: 'En Proceso', fecha_inicio: now };
+      }
       setTransporteSeleccionado(actualizado);
       setMostrarDetalle(actualizado); // abre la vista detalle
       cache.invalidatePrefix('sd01_transportes_');
@@ -501,17 +502,18 @@ const SD01View: React.FC = () => {
         <button
           className="sd01-btn sd01-btn-success"
           onClick={handleIniciarTransporte}
-          disabled={!transporteSeleccionado || transporteSeleccionado.estado !== 'Pendiente'}
+          disabled={!transporteSeleccionado || !['Pendiente', 'En Proceso'].includes(transporteSeleccionado.estado)}
           style={{
-            background: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 'var(--bg-readonly)',
-            color: (transporteSeleccionado?.estado === 'Pendiente') ? 'white' : 'var(--text-muted)',
-            borderColor: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 'var(--btn-border)'
+            background: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 
+                        (transporteSeleccionado?.estado === 'En Proceso') ? '#3b82f6' : 'var(--bg-readonly)',
+            color: (['Pendiente', 'En Proceso'].includes(transporteSeleccionado?.estado)) ? 'white' : 'var(--text-muted)',
+            borderColor: (['Pendiente', 'En Proceso'].includes(transporteSeleccionado?.estado)) ? 'transparent' : 'var(--btn-border)'
           }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 2L12 8L4 14V2Z" fill="currentColor"/>
           </svg>
-          Iniciar
+          {transporteSeleccionado?.estado === 'En Proceso' ? 'Continuar' : 'Iniciar'}
         </button>
 
         <div className="sd01-separator"></div>
