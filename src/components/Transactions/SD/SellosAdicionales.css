@@ -1,0 +1,58 @@
+.sellos-container {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
+}
+.sellos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  background: #fafcff;
+  border-bottom: 1px solid #eef0f5;
+}
+.sellos-header:hover {
+  background: #f1f5f9;
+}
+.sellos-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+}
+.sellos-arrow {
+  transition: transform 0.2s;
+  color: #64748b;
+}
+.sellos-arrow.rotated {
+  transform: rotate(180deg);
+}
+.sellos-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sellos-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sellos-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+.sellos-field input {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.sellos-field input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
