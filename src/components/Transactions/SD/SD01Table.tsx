@@ -7,7 +7,7 @@ import { locales } from "../../../data/locales";
 
 interface Props {
   rows: SD01Row[];
-  setRows: (rows: SD01Row[]) => void;
+  setRows: React.Dispatch<React.SetStateAction<SD01Row[]>>; // ✅ tipo corregido
   cantidadFilasAgregar: number;
   setCantidadFilasAgregar: (value: number) => void;
   selectedRows: number[];
@@ -230,7 +230,12 @@ const SD01Table: React.FC<Props> = ({
           <div className="add-row-controls">
             <button className="add-row-btn" onClick={addSingleRow} disabled={!editable}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path
+                  d="M8 3V13M3 8H13"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
               Agregar Local
             </button>
@@ -241,12 +246,20 @@ const SD01Table: React.FC<Props> = ({
                 type="number"
                 min="1"
                 value={cantidadFilasAgregar}
-                onChange={(e) => setCantidadFilasAgregar(parseInt(e.target.value) || 1)}
+                onChange={(e) =>
+                  setCantidadFilasAgregar(parseInt(e.target.value) || 1)
+                }
                 onBlur={addMultipleRows}
-                onKeyPress={(e) => { if (e.key === "Enter") addMultipleRows(); }}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") addMultipleRows();
+                }}
                 disabled={!editable}
               />
-              <button className="apply-quantity-btn" onClick={addMultipleRows} disabled={!editable}>
+              <button
+                className="apply-quantity-btn"
+                onClick={addMultipleRows}
+                disabled={!editable}
+              >
                 Aplicar
               </button>
             </div>
@@ -260,7 +273,9 @@ const SD01Table: React.FC<Props> = ({
                 <th style={{ width: "40px" }}>
                   <input
                     type="checkbox"
-                    checked={selectedRows.length === rows.length && rows.length > 0}
+                    checked={
+                      selectedRows.length === rows.length && rows.length > 0
+                    }
                     onChange={toggleSelectAll}
                     disabled={!editable}
                   />
@@ -276,8 +291,18 @@ const SD01Table: React.FC<Props> = ({
                       title="Copiar primera fila a todas"
                       disabled={!editable}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 3V11M3 7H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                      >
+                        <path
+                          d="M7 3V11M3 7H11"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -291,8 +316,18 @@ const SD01Table: React.FC<Props> = ({
                       title="Copiar primera fila a todas"
                       disabled={!editable}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 3V11M3 7H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                      >
+                        <path
+                          d="M7 3V11M3 7H11"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -306,8 +341,18 @@ const SD01Table: React.FC<Props> = ({
                       title="Copiar primera fila a todas"
                       disabled={!editable}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 3V11M3 7H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                      >
+                        <path
+                          d="M7 3V11M3 7H11"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -330,12 +375,23 @@ const SD01Table: React.FC<Props> = ({
                   </td>
                   <td>
                     <input
-                      ref={(el) => { if (el) codigoLocalRefs.current.set(row.id, el); else codigoLocalRefs.current.delete(row.id); }}
+                      ref={(el) => {
+                        if (el) codigoLocalRefs.current.set(row.id, el);
+                        else codigoLocalRefs.current.delete(row.id);
+                      }}
                       type="text"
                       className="table-input"
                       value={row.codigoLocal}
-                      onChange={(e) => updateRow(row.id, "codigoLocal", e.target.value.toUpperCase())}
-                      onKeyDown={(e) => handleKeyDown(e, row.id, "codigoLocal", index)}
+                      onChange={(e) =>
+                        updateRow(
+                          row.id,
+                          "codigoLocal",
+                          e.target.value.toUpperCase()
+                        )
+                      }
+                      onKeyDown={(e) =>
+                        handleKeyDown(e, row.id, "codigoLocal", index)
+                      }
                       placeholder="Ej: T001"
                       maxLength={4}
                       disabled={!editable}
@@ -353,50 +409,84 @@ const SD01Table: React.FC<Props> = ({
                   </td>
                   <td>
                     <input
-                      ref={(el) => { if (el) fechaRefs.current.set(row.id, el); else fechaRefs.current.delete(row.id); }}
+                      ref={(el) => {
+                        if (el) fechaRefs.current.set(row.id, el);
+                        else fechaRefs.current.delete(row.id);
+                      }}
                       type="date"
                       className="table-input"
                       value={row.fechaEntrega}
-                      onChange={(e) => updateRow(row.id, "fechaEntrega", e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(e, row.id, "fecha", index)}
+                      onChange={(e) =>
+                        updateRow(row.id, "fechaEntrega", e.target.value)
+                      }
+                      onKeyDown={(e) =>
+                        handleKeyDown(e, row.id, "fecha", index)
+                      }
                       disabled={!editable}
                     />
                   </td>
                   <td>
                     <select
-                      ref={(el) => { if (el) horaRefs.current.set(row.id, el); else horaRefs.current.delete(row.id); }}
+                      ref={(el) => {
+                        if (el) horaRefs.current.set(row.id, el);
+                        else horaRefs.current.delete(row.id);
+                      }}
                       className="table-select"
                       value={row.horaEntrega}
-                      onChange={(e) => updateRow(row.id, "horaEntrega", e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(e, row.id, "hora", index)}
+                      onChange={(e) =>
+                        updateRow(row.id, "horaEntrega", e.target.value)
+                      }
+                      onKeyDown={(e) =>
+                        handleKeyDown(e, row.id, "hora", index)
+                      }
                       disabled={!editable}
                     >
                       <option value="">Seleccionar</option>
                       {timeOptions.map((time) => (
-                        <option key={time} value={time}>{time}</option>
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
                       ))}
                     </select>
                   </td>
                   <td>
                     <input
-                      ref={(el) => { if (el) selloRefs.current.set(row.id, el); else selloRefs.current.delete(row.id); }}
+                      ref={(el) => {
+                        if (el) selloRefs.current.set(row.id, el);
+                        else selloRefs.current.delete(row.id);
+                      }}
                       type="text"
                       className="table-input"
                       value={row.selloTrasero}
-                      onChange={(e) => updateRow(row.id, "selloTrasero", e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(e, row.id, "sello", index)}
+                      onChange={(e) =>
+                        updateRow(row.id, "selloTrasero", e.target.value)
+                      }
+                      onKeyDown={(e) =>
+                        handleKeyDown(e, row.id, "sello", index)
+                      }
                       placeholder="N° Sello"
                       disabled={!editable}
                     />
                   </td>
                   <td>
                     <input
-                      ref={(el) => { if (el) palletRefs.current.set(row.id, el); else palletRefs.current.delete(row.id); }}
+                      ref={(el) => {
+                        if (el) palletRefs.current.set(row.id, el);
+                        else palletRefs.current.delete(row.id);
+                      }}
                       type="number"
                       className="table-input"
                       value={row.cantidadPallet || ""}
-                      onChange={(e) => updateRow(row.id, "cantidadPallet", parseInt(e.target.value) || 0)}
-                      onKeyDown={(e) => handleKeyDown(e, row.id, "pallet", index)}
+                      onChange={(e) =>
+                        updateRow(
+                          row.id,
+                          "cantidadPallet",
+                          parseInt(e.target.value) || 0
+                        )
+                      }
+                      onKeyDown={(e) =>
+                        handleKeyDown(e, row.id, "pallet", index)
+                      }
                       min="0"
                       disabled={!editable}
                     />
@@ -411,7 +501,11 @@ const SD01Table: React.FC<Props> = ({
                         placeholder="Ver detalle"
                         disabled={!editable}
                       />
-                      <button className="dc-btn" onClick={() => handleDCClick(row)} disabled={!editable}>
+                      <button
+                        className="dc-btn"
+                        onClick={() => handleDCClick(row)}
+                        disabled={!editable}
+                      >
                         DC
                       </button>
                     </div>
@@ -443,7 +537,12 @@ const SD01Table: React.FC<Props> = ({
           todosLosLocales={
             localesRegistrados.length > 0
               ? localesRegistrados
-              : [{ codigo: currentRow.codigoLocal || "T001", nombre: currentRow.nombreLocal || "Local" }]
+              : [
+                  {
+                    codigo: currentRow.codigoLocal || "T001",
+                    nombre: currentRow.nombreLocal || "Local",
+                  },
+                ]
           }
           onSave={handleDCSave}
           cargaInicial={cargaInicialMap}
