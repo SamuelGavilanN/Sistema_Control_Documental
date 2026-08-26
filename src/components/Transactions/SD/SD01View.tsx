@@ -40,8 +40,8 @@ const SD01View: React.FC = () => {
   const usuario = auth.getUsuario();
 
   // Cargar transportes con paginación y relaciones
-  const cargarTransportes = useCallback(async (paginaActual: number) => {
-    setCargando(true);
+  const cargarTransportes = useCallback(async (paginaActual: number, mostrarCargando = true) => {
+    if (mostrarCargando) setCargando(true);
     try {
       const offset = (paginaActual - 1) * PAGE_SIZE;
 
@@ -74,25 +74,29 @@ const SD01View: React.FC = () => {
 
       setTotal(totalCount);
       setTotalPaginas(Math.ceil(totalCount / PAGE_SIZE));
-      setCargando(false);
     } catch (e) {
       console.error('Error cargando transportes:', e);
-      setCargando(false);
+      mostrarMensaje('error', 'Error al cargar transportes');
     }
+    setCargando(false);
   }, []);
 
-  // Al montar, cargar primera página
+  // Al montar, cargar primera página y usuarios admin
   useEffect(() => {
     cargarTransportes(1);
     cargarUsuariosAdmin();
-    const intervalo = setInterval(() => cargarTransportes(pagina), 15000);
-    return () => clearInterval(intervalo);
   }, []);
 
   // Actualizar cuando cambia la página
   useEffect(() => {
     cargarTransportes(pagina);
   }, [pagina]);
+
+  // Botón actualizar manual: invalida caché y recarga
+  const handleActualizar = () => {
+    cache.invalidatePrefix('sd01_transportes_');
+    cargarTransportes(pagina);
+  };
 
   const cargarUsuariosAdmin = async () => {
     try {
@@ -458,6 +462,13 @@ const SD01View: React.FC = () => {
 
         <div className="sd01-separator"></div>
 
+        <button className="sd01-btn" onClick={handleActualizar} disabled={cargando}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M13.65 2.35C12.2 0.9 10.2 0 8 0C3.58 0 0 3.58 0 8C0 12.42 3.58 16 8 16C11.73 16 14.84 13.45 15.73 10H13.65C12.83 12.33 10.61 14 8 14C4.69 14 2 11.31 2 8C2 4.69 4.69 2 8 2C9.66 2 11.14 2.69 12.22 3.78L9 7H16V0L13.65 2.35Z" fill="currentColor"/>
+          </svg>
+          {cargando ? 'Actualizando...' : 'Actualizar'}
+        </button>
+
         <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M11.3333 2.00004C11.5084 1.82494 11.7163 1.68605 11.9451 1.59129C12.1738 1.49653 12.4187 1.44775 12.6663 1.44775C12.9138 1.44775 13.1587 1.49653 13.3875 1.59129C13.6163 1.68605 13.8242 1.82494 13.9993 2.00004C14.1744 2.17514 14.3133 2.38305 14.408 2.61187C14.5028 2.8407 14.5516 3.08557 14.5516 3.33337C14.5516 3.58118 14.5028 3.82605 14.408 4.05487C14.3133 4.2837 14.1744 4.49161 13.9993 4.66671L5.33333 13.3327L2 13.9994L2.66667 10.666L11.3333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -526,7 +537,7 @@ const SD01View: React.FC = () => {
         </button>
       </div>
 
-      <div className="sd01-table-wrapper">
+      <div className="sd01-table-wrapper" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
         <div className="sd01-table-scroll">
           <table className="sd01-table">
             <thead>
@@ -607,16 +618,15 @@ const SD01View: React.FC = () => {
       </div>
 
       {/* Paginación */}
-      {totalPaginas > 1 && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+        <div>
+          <span>Total: <strong>{total}</strong></span>
+        </div>
         <div className="sd01-pagination">
           <button disabled={pagina === 1} onClick={() => irPagina(pagina - 1)}>Anterior</button>
-          <span>Página {pagina} de {totalPaginas}</span>
+          <span style={{ margin: '0 10px' }}>Página {pagina} de {totalPaginas}</span>
           <button disabled={pagina === totalPaginas} onClick={() => irPagina(pagina + 1)}>Siguiente</button>
         </div>
-      )}
-
-      <div className="sd01-footer">
-        Total de transportes: <strong style={{ color: '#1e293b' }}>{total}</strong>
       </div>
 
       {/* Modales */}
