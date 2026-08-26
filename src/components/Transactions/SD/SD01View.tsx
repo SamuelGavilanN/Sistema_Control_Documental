@@ -11,7 +11,6 @@ import TarjetaTransporte from "./TarjetaTransporte";
 import SellosAdicionales from "./SellosAdicionales";
 import { auth } from "../../../lib/auth";
 import { supabase } from "../../../lib/supabase";
-import { getUsuarios } from "../../../lib/api";
 import { conductores, cargarConductores } from "../../../data/conductores";
 import { patentes, cargarPatentes } from "../../../data/patentes";
 import { locales, cargarLocales } from "../../../data/locales";
@@ -127,7 +126,6 @@ const SD01View: React.FC = () => {
     fechaProgramacion: string;
   }) => {
     try {
-      // Generar ID del documento (usando RPC o función)
       const { data: idData, error: idError } = await supabase.rpc('generar_id_documento_sd', { prefijo: 'SD' });
       if (idError) throw idError;
       const idGenerado = idData || `SD${Date.now()}`;
@@ -145,14 +143,13 @@ const SD01View: React.FC = () => {
       setEstadoDocumento("borrador");
       setRows([filaVacia()]);
 
-      // Guardar inmediatamente como borrador
       await guardarDocumento("borrador", true);
     } catch (error: any) {
       alert("Error al crear documento: " + error.message);
     }
   };
 
-  // ---- Editar transporte (datos maestros) ----
+  // ---- Editar transporte ----
   const handleEditarTransporte = () => {
     setShowEditarTransporteModal(true);
   };
@@ -179,7 +176,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Guardar documento (crear o actualizar) ----
+  // ---- Guardar documento ----
   const guardarDocumento = async (estado: string, silencioso: boolean = false) => {
     if (!idDocumentoActual) {
       if (!silencioso) alert("No hay documento activo.");
@@ -194,7 +191,6 @@ const SD01View: React.FC = () => {
         return;
       }
 
-      // Preparar datos para actualizar
       const documentoData: any = {
         conductor_id: conductorId || null,
         patente_principal_id: patentePrincipalId || null,
@@ -212,20 +208,17 @@ const SD01View: React.FC = () => {
         documentoData.fecha_finalizacion = new Date().toISOString();
       }
 
-      // Actualizar cabecera
       const { error: updateError } = await supabase
         .from("sd01_documentos")
         .update(documentoData)
         .eq("id_documento", idDocumentoActual);
       if (updateError) throw updateError;
 
-      // Eliminar locales existentes (cascada con cargas)
       await supabase
         .from("sd01_documento_locales")
         .delete()
         .eq("documento_id", idDocumentoActual);
 
-      // Insertar nuevos locales y cargas
       for (const row of localesValidos) {
         const { data: localData, error: localError } = await supabase
           .from("sd01_documento_locales")
@@ -242,7 +235,6 @@ const SD01View: React.FC = () => {
           .select("id")
           .single();
         if (localError) throw localError;
-        // ✅ Validar que localData no sea null antes de usarlo
         if (!localData) {
           throw new Error("No se pudo obtener el ID del local insertado");
         }
@@ -268,9 +260,6 @@ const SD01View: React.FC = () => {
       if (!silencioso) {
         alert(`✅ Documento ${idDocumentoActual} guardado como ${estado}.`);
       }
-      if (estado === "finalizado") {
-        // Podríamos limpiar o bloquear, pero dejamos que el usuario vea el badge
-      }
     } catch (error: any) {
       console.error("Error guardando:", error);
       if (!silencioso) alert("❌ Error al guardar: " + error.message);
@@ -279,7 +268,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Iniciar transporte ----
+  // ---- Iniciar ----
   const handleIniciar = async () => {
     if (!idDocumentoActual || estadoDocumento !== "borrador") {
       alert("Solo se puede iniciar un transporte en estado Borrador.");
@@ -297,7 +286,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Reabrir transporte ----
+  // ---- Reabrir ----
   const handleReabrir = async () => {
     if (!idDocumentoActual || estadoDocumento !== "finalizado") {
       alert("Solo se puede reabrir un transporte finalizado.");
@@ -316,7 +305,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Cancelar (anular) ----
+  // ---- Cancelar ----
   const handleCancelar = async () => {
     if (!idDocumentoActual) {
       if (confirm("¿Descartar cambios sin guardar?")) limpiarFormulario();
@@ -344,7 +333,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Eliminar (solo admin) ----
+  // ---- Eliminar ----
   const handleEliminar = async () => {
     if (!idDocumentoActual) return;
     if (usuarioActual?.rol !== "Admin" && usuarioActual?.rol !== "Owner") {
@@ -368,15 +357,23 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // ---- Cargar documento existente ----
+  // ---- Cargar documento (corregido sin consulta anidada) ----
   const handleAbrirDocumento = async (idDocumento: string) => {
     try {
+      // 1. Obtener cabecera del documento
       const { data: doc, error } = await supabase
         .from("sd01_documentos")
-        .select("*, locales:sd01_documento_locales(*, cargas:sd01_documento_cargas(*))")
+        .select("*")
         .eq("id_documento", idDocumento)
         .single();
       if (error) throw error;
+
+      // 2. Obtener locales y cargas por separado
+      const { data: localesData, error: localesError } = await supabase
+        .from("sd01_documento_locales")
+        .select("*, cargas:sd01_documento_cargas(*)")
+        .eq("documento_id", idDocumento);
+      if (localesError) throw localesError;
 
       setShowDocumentosModal(false);
       setIdDocumentoActual(doc.id_documento);
@@ -414,8 +411,8 @@ const SD01View: React.FC = () => {
       }
 
       // Cargar locales y cargas
-      if (doc.locales && doc.locales.length > 0) {
-        const filas: SD01Row[] = doc.locales.map((local: any, index: number) => {
+      if (localesData && localesData.length > 0) {
+        const filas: SD01Row[] = localesData.map((local: any, index: number) => {
           const cargas = local.cargas || [];
           const totalCarga = cargas.reduce((sum: number, c: any) => sum + (c.cantidad_bultos || 0), 0);
           return {
@@ -482,7 +479,7 @@ const SD01View: React.FC = () => {
     setTimeout(() => setShowImprimirModal(true), 200);
   };
 
-  // ---- Control de visibilidad de botones ----
+  // ---- Control de visibilidad ----
   const esEditable = estadoDocumento !== "finalizado" && estadoDocumento !== "anulado";
   const puedeIniciar = estadoDocumento === "borrador" && documentoCreado;
   const puedeFinalizar = estadoDocumento === "en_proceso" && documentoCreado;
@@ -491,7 +488,6 @@ const SD01View: React.FC = () => {
   const puedeCancelar = (estadoDocumento === "borrador" || estadoDocumento === "en_proceso") && documentoCreado;
   const puedeEliminar = (usuarioActual?.rol === "Admin" || usuarioActual?.rol === "Owner") && documentoCreado;
 
-  // ---- Render ----
   return (
     <div className="sd01-view">
       <SD01Toolbar
