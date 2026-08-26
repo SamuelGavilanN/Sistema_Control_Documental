@@ -120,3 +120,15 @@
   outline: none;
   box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
 }
+/* Ajuste para altura mínima de la tabla */
+.sd01-table-wrapper {
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sd01-table-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 500px;
+}
