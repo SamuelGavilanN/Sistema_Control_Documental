@@ -1,11 +1,12 @@
 // src/components/Transactions/SD/SD01View.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../../lib/auth';
 import SD01CrearTransporte from './SD01CrearTransporte';
 import SD01VerTransporte from './SD01VerTransporte';
 import SD01CargaExcel from './SD01CargaExcel';
-import SD01IniciarTransporte from './SD01IniciarTransporte'; // nuevo
+import SD01IniciarTransporte from './SD01IniciarTransporte';
+import { cache } from '../../../lib/cache';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -14,90 +15,84 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
+const PAGE_SIZE = 20;
+
 const SD01View: React.FC = () => {
-  const [transportes, setTransportes]: any = useState([]);
-  const [cargando, setCargando]: any = useState(true);
-  const [transporteSeleccionado, setTransporteSeleccionado]: any = useState(null);
-  const [transportesSeleccionados, setTransportesSeleccionados]: any = useState(new Set());
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '', visible: false });
-  const [mostrarCrearTransporte, setMostrarCrearTransporte]: any = useState(false);
-  const [mostrarEditarTransporte, setMostrarEditarTransporte]: any = useState(false);
-  const [mostrarVerTransporte, setMostrarVerTransporte]: any = useState(false);
-  const [mostrarCargaExcel, setMostrarCargaExcel]: any = useState(false);
-  const [mostrarIniciarTransporte, setMostrarIniciarTransporte]: any = useState(false); // nuevo
-  const [usuariosAdmin, setUsuariosAdmin]: any = useState([]);
-  const [mostrarAsignarModal, setMostrarAsignarModal]: any = useState(false);
-  const [usuarioAsignar, setUsuarioAsignar]: any = useState('');
-  const usuario: any = auth.getUsuario();
+  const [transportes, setTransportes] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [transporteSeleccionado, setTransporteSeleccionado] = useState<any>(null);
+  const [transportesSeleccionados, setTransportesSeleccionados] = useState<Set<string>>(new Set());
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
+  const [mostrarCrearTransporte, setMostrarCrearTransporte] = useState(false);
+  const [mostrarEditarTransporte, setMostrarEditarTransporte] = useState(false);
+  const [mostrarVerTransporte, setMostrarVerTransporte] = useState(false);
+  const [mostrarCargaExcel, setMostrarCargaExcel] = useState(false);
+  const [mostrarDetalle, setMostrarDetalle] = useState<any>(null); // vista detalle en lugar de modal
+  const [usuariosAdmin, setUsuariosAdmin] = useState<any[]>([]);
+  const [mostrarAsignarModal, setMostrarAsignarModal] = useState(false);
+  const [usuarioAsignar, setUsuarioAsignar] = useState('');
 
-  useEffect(() => {
-    cargarTransportes();
-    cargarUsuariosAdmin();
-    const intervalo = setInterval(cargarTransportes, 10000);
-    return () => clearInterval(intervalo);
-  }, []);
+  // Paginación
+  const [pagina, setPagina] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPaginas, setTotalPaginas] = useState(0);
 
-  const cargarTransportes = async () => {
+  const usuario = auth.getUsuario();
+
+  // Cargar transportes con paginación y relaciones
+  const cargarTransportes = useCallback(async (paginaActual: number) => {
+    setCargando(true);
     try {
-      const resp = await fetch(API_URL + '/sd01_documentos?select=*&order=creado_en.desc', { headers: HEADERS });
-      const data = await resp.json();
-      if (data && data.length > 0) {
-        const transportesConDetalles = await Promise.all(data.map(async (transporte: any) => {
-          const respLocales = await fetch(API_URL + '/sd01_documento_locales?select=id&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
-          const locales = await respLocales.json();
-          
-          let conductorNombre = '-';
-          let patenteNumero = '-';
-          let creadoPorNombre = '-';
-          
-          if (transporte.conductor_id) {
-            try {
-              const respConductor = await fetch(API_URL + '/conductores?select=nombre,apellido&id=eq.' + transporte.conductor_id, { headers: HEADERS });
-              const conductorData = await respConductor.json();
-              if (conductorData && conductorData.length > 0) {
-                conductorNombre = conductorData[0].nombre + ' ' + conductorData[0].apellido;
-              }
-            } catch (e) {}
-          }
-          
-          if (transporte.patente_principal_id) {
-            try {
-              const respPatente = await fetch(API_URL + '/patentes?select=numero_patente&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
-              const patenteData = await respPatente.json();
-              if (patenteData && patenteData.length > 0) {
-                patenteNumero = patenteData[0].numero_patente;
-              }
-            } catch (e) {}
-          }
+      const offset = (paginaActual - 1) * PAGE_SIZE;
 
-          if (transporte.creado_por) {
-            try {
-              const respUsuario = await fetch(API_URL + '/usuarios?select=nombre,apellido&id=eq.' + transporte.creado_por, { headers: HEADERS });
-              const usuarioData = await respUsuario.json();
-              if (usuarioData && usuarioData.length > 0) {
-                creadoPorNombre = usuarioData[0].nombre + ' ' + usuarioData[0].apellido;
-              }
-            } catch (e) {}
-          }
-          
-          return { 
-            ...transporte, 
-            cantidad_locales: locales ? locales.length : 0,
-            conductor_nombre: conductorNombre,
-            patente_principal: patenteNumero,
-            creado_por_nombre: creadoPorNombre
-          };
-        }));
-        setTransportes(transportesConDetalles);
+      // Consulta con relaciones (una sola petición)
+      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}`;
+
+      const cacheKey = `sd01_transportes_p${paginaActual}`;
+      const cacheTTL = 10000; // 10 segundos
+      const cached = cache.get<any>(cacheKey);
+      if (cached) {
+        setTransportes(cached);
       } else {
-        setTransportes([]);
+        const resp = await fetch(query, { headers: HEADERS });
+        if (!resp.ok) throw new Error('Error al cargar transportes');
+        const data = await resp.json();
+        cache.set(cacheKey, data, cacheTTL);
+        setTransportes(data);
       }
+
+      // Contar total (solo si no está cacheado)
+      const countCacheKey = 'sd01_transportes_total';
+      const cachedTotal = cache.get<number>(countCacheKey);
+      let totalCount = cachedTotal;
+      if (!totalCount) {
+        const countResp = await fetch(`${API_URL}/sd01_documentos?select=id`, { headers: { ...HEADERS, 'Prefer': 'count=exact' } });
+        const countData = await countResp.json();
+        totalCount = countData.length;
+        cache.set(countCacheKey, totalCount, cacheTTL);
+      }
+
+      setTotal(totalCount);
+      setTotalPaginas(Math.ceil(totalCount / PAGE_SIZE));
       setCargando(false);
     } catch (e) {
       console.error('Error cargando transportes:', e);
       setCargando(false);
     }
-  };
+  }, []);
+
+  // Al montar, cargar primera página
+  useEffect(() => {
+    cargarTransportes(1);
+    cargarUsuariosAdmin();
+    const intervalo = setInterval(() => cargarTransportes(pagina), 15000);
+    return () => clearInterval(intervalo);
+  }, []);
+
+  // Actualizar cuando cambia la página
+  useEffect(() => {
+    cargarTransportes(pagina);
+  }, [pagina]);
 
   const cargarUsuariosAdmin = async () => {
     try {
@@ -112,6 +107,7 @@ const SD01View: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  // Selección múltiple
   const toggleSeleccion = (transporteId: string) => {
     const nuevos = new Set(transportesSeleccionados);
     if (nuevos.has(transporteId)) {
@@ -120,7 +116,6 @@ const SD01View: React.FC = () => {
       nuevos.add(transporteId);
     }
     setTransportesSeleccionados(nuevos);
-    
     if (nuevos.size === 1) {
       const seleccionado = transportes.find((t: any) => nuevos.has(t.id));
       setTransporteSeleccionado(seleccionado || null);
@@ -139,6 +134,7 @@ const SD01View: React.FC = () => {
     }
   };
 
+  // Eliminar solo pendiente (puedes ampliar a otros estados si lo deseas)
   const handleEliminarSeleccionados = async () => {
     if (transportesSeleccionados.size === 0) {
       mostrarMensaje('warning', 'Seleccione al menos un transporte');
@@ -147,7 +143,6 @@ const SD01View: React.FC = () => {
 
     const seleccionados = transportes.filter((t: any) => transportesSeleccionados.has(t.id));
     const soloPendientes = seleccionados.every((t: any) => t.estado === 'Pendiente');
-    
     if (!soloPendientes) {
       mostrarMensaje('error', 'Solo se pueden eliminar transportes en estado Pendiente');
       return;
@@ -181,55 +176,18 @@ const SD01View: React.FC = () => {
 
     setTransportesSeleccionados(new Set());
     setTransporteSeleccionado(null);
-    cargarTransportes();
+    cache.invalidatePrefix('sd01_transportes_');
+    cargarTransportes(pagina);
   };
 
-  const handleCrearTransporte = () => {
-    setMostrarCrearTransporte(true);
-  };
-
-  const handleTransporteCreado = () => {
-    setMostrarCrearTransporte(false);
-    cargarTransportes();
-    mostrarMensaje('success', 'Transporte creado exitosamente');
-  };
-
-  const handleTransporteEditado = () => {
-    setMostrarEditarTransporte(false);
-    setTransporteSeleccionado(null);
-    cargarTransportes();
-    mostrarMensaje('success', 'Transporte editado exitosamente');
-  };
-
-  const handleCargarTransporte = () => {
-    setMostrarCargaExcel(true);
-  };
-
-  const handleCargaExcelCompletada = () => {
-    setMostrarCargaExcel(false);
-    cargarTransportes();
-    mostrarMensaje('success', 'Transportes creados exitosamente');
-  };
-
-  const handleEditarTransporte = () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden editar transportes en estado Pendiente');
-      return;
-    }
-    setMostrarEditarTransporte(true);
-  };
-
+  // Cancelar: permitir Pendiente y En Proceso
   const handleCancelarTransporte = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
       return;
     }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden cancelar transportes en estado Pendiente');
+    if (!['Pendiente', 'En Proceso'].includes(transporteSeleccionado.estado)) {
+      mostrarMensaje('error', 'Solo se pueden cancelar transportes en Pendiente o En Proceso');
       return;
     }
 
@@ -239,7 +197,6 @@ const SD01View: React.FC = () => {
     );
 
     if (motivo === null) return;
-
     if (!motivo.trim()) {
       mostrarMensaje('warning', 'Debe ingresar un motivo para cancelar el transporte');
       return;
@@ -259,12 +216,113 @@ const SD01View: React.FC = () => {
       });
       mostrarMensaje('success', 'Transporte cancelado exitosamente');
       setTransporteSeleccionado(null);
-      cargarTransportes();
+      cache.invalidatePrefix('sd01_transportes_');
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al cancelar transporte');
     }
   };
 
+  // Iniciar transporte: cambia estado y abre vista detalle (no modal)
+  const handleIniciarTransporte = async () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte');
+      return;
+    }
+    if (transporteSeleccionado.estado !== 'Pendiente') {
+      mostrarMensaje('error', 'Solo se pueden iniciar transportes en estado Pendiente');
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'En Proceso',
+          fecha_inicio: now,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: now
+        })
+      });
+
+      // Actualizar el transporte seleccionado y abrir la vista detalle
+      const actualizado = { ...transporteSeleccionado, estado: 'En Proceso', fecha_inicio: now };
+      setTransporteSeleccionado(actualizado);
+      setMostrarDetalle(actualizado); // abre la vista detalle
+      cache.invalidatePrefix('sd01_transportes_');
+      cargarTransportes(pagina);
+    } catch (e) {
+      console.error('Error al iniciar transporte:', e);
+      mostrarMensaje('error', 'Error al iniciar el transporte');
+    }
+  };
+
+  // Reabrir solo finalizados
+  const handleReabrirTransporte = async () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte');
+      return;
+    }
+    if (transporteSeleccionado.estado !== 'Finalizado') {
+      mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado');
+      return;
+    }
+    if (!window.confirm('¿Está seguro de reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a estado Pendiente.')) return;
+    try {
+      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'Pendiente',
+          finalizado_en: null,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: new Date().toISOString()
+        })
+      });
+      mostrarMensaje('success', 'Transporte reabierto exitosamente');
+      setTransporteSeleccionado(null);
+      cache.invalidatePrefix('sd01_transportes_');
+      cargarTransportes(pagina);
+    } catch (e) {
+      mostrarMensaje('error', 'Error al reabrir transporte');
+    }
+  };
+
+  // Funciones para modales
+  const handleCrearTransporte = () => setMostrarCrearTransporte(true);
+  const handleTransporteCreado = () => {
+    setMostrarCrearTransporte(false);
+    cache.invalidatePrefix('sd01_transportes_');
+    cargarTransportes(1); // volver a primera página
+    mostrarMensaje('success', 'Transporte creado exitosamente');
+  };
+  const handleTransporteEditado = () => {
+    setMostrarEditarTransporte(false);
+    setTransporteSeleccionado(null);
+    cache.invalidatePrefix('sd01_transportes_');
+    cargarTransportes(pagina);
+    mostrarMensaje('success', 'Transporte editado exitosamente');
+  };
+  const handleCargarTransporte = () => setMostrarCargaExcel(true);
+  const handleCargaExcelCompletada = () => {
+    setMostrarCargaExcel(false);
+    cache.invalidatePrefix('sd01_transportes_');
+    cargarTransportes(1);
+    mostrarMensaje('success', 'Transportes creados exitosamente');
+  };
+  const handleEditarTransporte = () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte');
+      return;
+    }
+    if (transporteSeleccionado.estado !== 'Pendiente') {
+      mostrarMensaje('error', 'Solo se pueden editar transportes en estado Pendiente');
+      return;
+    }
+    setMostrarEditarTransporte(true);
+  };
   const handleVerTransporte = () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -273,6 +331,7 @@ const SD01View: React.FC = () => {
     setMostrarVerTransporte(true);
   };
 
+  // Asignación
   const handleAsignarTransporte = () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -306,80 +365,29 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte asignado exitosamente');
       setMostrarAsignarModal(false);
       setTransporteSeleccionado(null);
-      cargarTransportes();
+      cache.invalidatePrefix('sd01_transportes_');
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al asignar transporte');
     }
   };
 
-  const handleReabrirTransporte = async () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Finalizado') {
-      mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado');
-      return;
-    }
-    if (!window.confirm('¿Está seguro de reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a estado Pendiente.')) return;
-    try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Pendiente',
-          finalizado_en: null,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte reabierto exitosamente');
-      setTransporteSeleccionado(null);
-      cargarTransportes();
-    } catch (e) {
-      mostrarMensaje('error', 'Error al reabrir transporte');
-    }
+  // Formatear datos de la tabla
+  const formatearFecha = (fecha: string) => {
+    if (!fecha) return '-';
+    const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
+    return new Date(fechaStr).toLocaleDateString('es-CL');
   };
 
-  // --- NUEVA FUNCIÓN: Iniciar Transporte ---
-  const handleIniciarTransporte = async () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden iniciar transportes en estado Pendiente');
-      return;
-    }
-
-    try {
-      const now = new Date().toISOString();
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'En Proceso',
-          fecha_inicio: now,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: now
-        })
-      });
-
-      // Refrescar lista y abrir modal de inicio
-      await cargarTransportes();
-      // Actualizar el transporte seleccionado con el nuevo estado
-      const actualizado = transportes.find((t: any) => t.id === transporteSeleccionado.id);
-      if (actualizado) {
-        setTransporteSeleccionado(actualizado);
-        setMostrarIniciarTransporte(true);
-      } else {
-        mostrarMensaje('error', 'No se pudo cargar el transporte actualizado');
-      }
-    } catch (e) {
-      console.error('Error al iniciar transporte:', e);
-      mostrarMensaje('error', 'Error al iniciar el transporte');
-    }
+  const formatearFechaHora = (fecha: string) => {
+    if (!fecha) return '-';
+    return new Date(fecha).toLocaleDateString('es-CL') + ' ' + new Date(fecha).toLocaleTimeString('es-CL');
   };
+
+  // Extraer datos de las relaciones
+  const getConductorNombre = (t: any) => t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '-';
+  const getPatenteNumero = (t: any) => t.patente_principal ? t.patente_principal.numero_patente : '-';
+  const getCreadoPorNombre = (t: any) => t.creador ? `${t.creador.nombre} ${t.creador.apellido}` : '-';
 
   const getEstadoBadge = (estado: string) => {
     const badges: any = {
@@ -396,29 +404,38 @@ const SD01View: React.FC = () => {
     );
   };
 
-  const formatearFecha = (fecha: string) => {
-    if (!fecha) return '-';
-    const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
-    return new Date(fechaStr).toLocaleDateString('es-CL');
+  // Paginación
+  const irPagina = (nuevaPagina: number) => {
+    if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
+    setPagina(nuevaPagina);
+    setTransportesSeleccionados(new Set());
+    setTransporteSeleccionado(null);
   };
 
-  const formatearFechaHora = (fecha: string) => {
-    if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL') + ' ' + new Date(fecha).toLocaleTimeString('es-CL');
-  };
-
-  if (cargando) {
+  // Si mostramos la vista detalle, renderizamos ese componente
+  if (mostrarDetalle) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#64748b', fontSize: '16px' }}>
-        Cargando transportes...
-      </div>
+      <SD01IniciarTransporte
+        transporte={mostrarDetalle}
+        onClose={() => {
+          setMostrarDetalle(null);
+          setTransporteSeleccionado(null);
+          cargarTransportes(pagina);
+        }}
+        onActualizar={() => {
+          cache.invalidatePrefix('sd01_transportes_');
+          cargarTransportes(pagina);
+        }}
+        usuario={usuario}
+      />
     );
   }
 
+  // Render normal (tabla y botones)
   return (
     <div className="sd01-container">
       {mensaje.visible && (
-        <div className={'sd01-toast sd01-toast-' + mensaje.tipo}>
+        <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>
           {mensaje.texto}
         </div>
       )}
@@ -440,33 +457,21 @@ const SD01View: React.FC = () => {
 
         <div className="sd01-separator"></div>
 
-        <button 
-          className="sd01-btn" 
-          onClick={handleEditarTransporte}
-          disabled={!transporteSeleccionado}
-        >
+        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M11.3333 2.00004C11.5084 1.82494 11.7163 1.68605 11.9451 1.59129C12.1738 1.49653 12.4187 1.44775 12.6663 1.44775C12.9138 1.44775 13.1587 1.49653 13.3875 1.59129C13.6163 1.68605 13.8242 1.82494 13.9993 2.00004C14.1744 2.17514 14.3133 2.38305 14.408 2.61187C14.5028 2.8407 14.5516 3.08557 14.5516 3.33337C14.5516 3.58118 14.5028 3.82605 14.408 4.05487C14.3133 4.2837 14.1744 4.49161 13.9993 4.66671L5.33333 13.3327L2 13.9994L2.66667 10.666L11.3333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           Editar
         </button>
 
-        <button 
-          className="sd01-btn sd01-btn-danger" 
-          onClick={handleCancelarTransporte}
-          disabled={!transporteSeleccionado}
-        >
+        <button className="sd01-btn sd01-btn-danger" onClick={handleCancelarTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           Cancelar
         </button>
 
-        <button 
-          className="sd01-btn sd01-btn-danger" 
-          onClick={handleEliminarSeleccionados}
-          disabled={transportesSeleccionados.size === 0}
-        >
+        <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={transportesSeleccionados.size === 0}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -475,11 +480,7 @@ const SD01View: React.FC = () => {
 
         <div className="sd01-separator"></div>
 
-        <button 
-          className="sd01-btn" 
-          onClick={handleVerTransporte}
-          disabled={!transporteSeleccionado}
-        >
+        <button className="sd01-btn" onClick={handleVerTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -489,11 +490,7 @@ const SD01View: React.FC = () => {
 
         <div className="sd01-separator"></div>
 
-        <button 
-          className="sd01-btn" 
-          onClick={handleAsignarTransporte}
-          disabled={!transporteSeleccionado}
-        >
+        <button className="sd01-btn" onClick={handleAsignarTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10.6667 14V12.6667C10.6667 11.9594 10.3857 11.2811 9.88562 10.781C9.38552 10.281 8.70724 10 8 10H4C3.29276 10 2.61448 10.281 2.11438 10.781C1.61428 11.2811 1.33333 11.9594 1.33333 12.6667V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M6 7.33333C7.47276 7.33333 8.66667 6.13943 8.66667 4.66667C8.66667 3.19391 7.47276 2 6 2C4.52724 2 3.33333 3.19391 3.33333 4.66667C3.33333 6.13943 4.52724 7.33333 6 7.33333Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -501,9 +498,8 @@ const SD01View: React.FC = () => {
           Asignar
         </button>
 
-        {/* NUEVO BOTÓN INICIAR */}
-        <button 
-          className="sd01-btn sd01-btn-success" 
+        <button
+          className="sd01-btn sd01-btn-success"
           onClick={handleIniciarTransporte}
           disabled={!transporteSeleccionado || transporteSeleccionado.estado !== 'Pendiente'}
           style={{
@@ -520,11 +516,7 @@ const SD01View: React.FC = () => {
 
         <div className="sd01-separator"></div>
 
-        <button 
-          className="sd01-btn sd01-btn-warning" 
-          onClick={handleReabrirTransporte}
-          disabled={!transporteSeleccionado}
-        >
+        <button className="sd01-btn sd01-btn-warning" onClick={handleReabrirTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -538,8 +530,8 @@ const SD01View: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ width: '30px', textAlign: 'center' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="sd01-radio"
                     checked={transportes.length > 0 && transportesSeleccionados.size === transportes.length}
                     onChange={toggleSeleccionarTodos}
@@ -560,7 +552,13 @@ const SD01View: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {transportes.length === 0 ? (
+              {cargando ? (
+                <tr>
+                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                    Cargando transportes...
+                  </td>
+                </tr>
+              ) : transportes.length === 0 ? (
                 <tr>
                   <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                     No hay transportes registrados
@@ -586,14 +584,14 @@ const SD01View: React.FC = () => {
                       </td>
                       <td className="sd01-id-documento">{transporte.id_documento}</td>
                       <td>{formatearFecha(transporte.fecha_programacion)}</td>
-                      <td>{transporte.conductor_nombre}</td>
-                      <td>{transporte.patente_principal}</td>
+                      <td>{getConductorNombre(transporte)}</td>
+                      <td>{getPatenteNumero(transporte)}</td>
                       <td>{transporte.administrativo || '-'}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="sd01-locales-badge">{transporte.cantidad_locales || 0}</span>
+                        <span className="sd01-locales-badge">{transporte.locales?.length || 0}</span>
                       </td>
                       <td>{getEstadoBadge(transporte.estado)}</td>
-                      <td>{transporte.creado_por_nombre || '-'}</td>
+                      <td>{getCreadoPorNombre(transporte)}</td>
                       <td style={{ fontSize: '12px', color: '#64748b' }}>{formatearFechaHora(transporte.creado_en)}</td>
                       <td>{transporte.modificado_por || '-'}</td>
                       <td style={{ fontSize: '12px', color: '#64748b' }}>{transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}</td>
@@ -606,52 +604,32 @@ const SD01View: React.FC = () => {
         </div>
       </div>
 
+      {/* Paginación */}
+      {totalPaginas > 1 && (
+        <div className="sd01-pagination">
+          <button disabled={pagina === 1} onClick={() => irPagina(pagina - 1)}>Anterior</button>
+          <span>Página {pagina} de {totalPaginas}</span>
+          <button disabled={pagina === totalPaginas} onClick={() => irPagina(pagina + 1)}>Siguiente</button>
+        </div>
+      )}
+
       <div className="sd01-footer">
-        Total de transportes: <strong style={{ color: '#1e293b' }}>{transportes.length}</strong>
+        Total de transportes: <strong style={{ color: '#1e293b' }}>{total}</strong>
       </div>
 
+      {/* Modales */}
       {mostrarCrearTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarCrearTransporte(false)}
-          onTransporteCreado={handleTransporteCreado}
-        />
+        <SD01CrearTransporte onClose={() => setMostrarCrearTransporte(false)} onTransporteCreado={handleTransporteCreado} />
       )}
-
       {mostrarEditarTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarEditarTransporte(false)}
-          onTransporteCreado={handleTransporteEditado}
-          transporteEditar={transporteSeleccionado}
-        />
+        <SD01CrearTransporte onClose={() => setMostrarEditarTransporte(false)} onTransporteCreado={handleTransporteEditado} transporteEditar={transporteSeleccionado} />
       )}
-
       {mostrarVerTransporte && (
-        <SD01VerTransporte
-          onClose={() => setMostrarVerTransporte(false)}
-          transporte={transporteSeleccionado}
-        />
+        <SD01VerTransporte onClose={() => setMostrarVerTransporte(false)} transporte={transporteSeleccionado} />
       )}
-
       {mostrarCargaExcel && (
-        <SD01CargaExcel
-          onClose={() => setMostrarCargaExcel(false)}
-          onTransportesCreados={handleCargaExcelCompletada}
-        />
+        <SD01CargaExcel onClose={() => setMostrarCargaExcel(false)} onTransportesCreados={handleCargaExcelCompletada} />
       )}
-
-      {/* NUEVO MODAL INICIAR */}
-      {mostrarIniciarTransporte && transporteSeleccionado && (
-        <SD01IniciarTransporte
-          transporte={transporteSeleccionado}
-          onClose={() => {
-            setMostrarIniciarTransporte(false);
-            cargarTransportes();
-          }}
-          onActualizar={cargarTransportes}
-          usuario={usuario}
-        />
-      )}
-
       {mostrarAsignarModal && (
         <div className="sd01-modal-overlay" onClick={() => setMostrarAsignarModal(false)}>
           <div className="sd01-modal" style={{ maxWidth: '480px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -667,11 +645,7 @@ const SD01View: React.FC = () => {
               </div>
               <div className="sd01-form-group">
                 <label className="sd01-form-label">Asignar a (Administrativo o Líder)</label>
-                <select
-                  className="sd01-form-select"
-                  value={usuarioAsignar}
-                  onChange={(e: any) => setUsuarioAsignar(e.target.value)}
-                >
+                <select className="sd01-form-select" value={usuarioAsignar} onChange={(e: any) => setUsuarioAsignar(e.target.value)}>
                   <option value="">Seleccionar usuario...</option>
                   {usuariosAdmin.map((u: any) => (
                     <option key={u.id} value={u.id}>{u.nombre} {u.apellido} ({u.rol})</option>
