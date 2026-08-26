@@ -36,7 +36,7 @@
   --text-inverse: #ffffff;
   --text-link: #1d4ed8;
   
-  /* Botones */
+  /* Botones estándar */
   --btn-bg: #ffffff;
   --btn-border: #e2e8f0;
   --btn-text: #475569;
@@ -51,6 +51,14 @@
   --btn-warning-text: #d97706;
   --btn-warning-hover-bg: #fffbeb;
   --btn-warning-hover-border: #fcd34d;
+  
+  /* Botones adicionales (SD01) */
+  --btn-success-bg: #16a34a;
+  --btn-success-text: #ffffff;
+  --btn-success-hover: #15803d;
+  --btn-warning-bg: #f59e0b;
+  --btn-warning-text: #ffffff;
+  --btn-warning-hover: #d97706;
   
   /* Sidebar */
   --sidebar-text: #4a5568;
@@ -116,6 +124,9 @@
   --separator: #e2e8f0;
 }
 
+/* =============================================
+   MODO OSCURO
+   ============================================= */
 [data-theme="dark"] {
   /* Fondos */
   --bg-app: #0f172a;
@@ -152,7 +163,7 @@
   --text-inverse: #0f172a;
   --text-link: #60a5fa;
   
-  /* Botones */
+  /* Botones estándar */
   --btn-bg: #334155;
   --btn-border: #475569;
   --btn-text: #cbd5e1;
@@ -167,6 +178,14 @@
   --btn-warning-text: #fbbf24;
   --btn-warning-hover-bg: #78350f;
   --btn-warning-hover-border: #92400e;
+  
+  /* Botones adicionales (SD01) */
+  --btn-success-bg: #22c55e;
+  --btn-success-text: #ffffff;
+  --btn-success-hover: #16a34a;
+  --btn-warning-bg: #fbbf24;
+  --btn-warning-text: #1e293b;
+  --btn-warning-hover: #f59e0b;
   
   /* Sidebar */
   --sidebar-text: #cbd5e1;
