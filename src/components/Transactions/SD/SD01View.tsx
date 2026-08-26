@@ -242,6 +242,10 @@ const SD01View: React.FC = () => {
           .select("id")
           .single();
         if (localError) throw localError;
+        // ✅ Validar que localData no sea null antes de usarlo
+        if (!localData) {
+          throw new Error("No se pudo obtener el ID del local insertado");
+        }
 
         if (row.carga && row.carga.length > 0) {
           const cargas = row.carga.map((c) => ({
