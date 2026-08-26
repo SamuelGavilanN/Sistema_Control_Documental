@@ -1,3 +1,5 @@
+// src/data/locales.ts
+
 import { supabase } from '../lib/supabase';
 
 export interface Local {
@@ -18,7 +20,6 @@ export const cargarLocales = async (): Promise<Local[]> => {
     .select('*')
     .eq('activo', true)
     .order('codigo_local');
-  
   if (error) throw error;
   locales = data || [];
   return locales;
