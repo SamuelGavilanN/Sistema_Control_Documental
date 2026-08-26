@@ -64,11 +64,11 @@ const SD01View: React.FC = () => {
       // Contar total (solo si no está cacheado)
       const countCacheKey = 'sd01_transportes_total';
       const cachedTotal = cache.get<number>(countCacheKey);
-      let totalCount = cachedTotal;
-      if (!totalCount) {
+      let totalCount: number = cachedTotal || 0;
+      if (totalCount === 0) {
         const countResp = await fetch(`${API_URL}/sd01_documentos?select=id`, { headers: { ...HEADERS, 'Prefer': 'count=exact' } });
         const countData = await countResp.json();
-        totalCount = countData.length;
+        totalCount = Array.isArray(countData) ? countData.length : 0;
         cache.set(countCacheKey, totalCount, cacheTTL);
       }
 
