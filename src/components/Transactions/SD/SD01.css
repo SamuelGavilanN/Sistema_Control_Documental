@@ -338,3 +338,69 @@
   background: var(--bg-selected);
   color: var(--text-primary);
 }
+/* Barra de acciones superior */
+.sd01-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.sd01-action-separator {
+  width: 1px;
+  height: 28px;
+  background: var(--separator);
+  margin: 0 4px;
+}
+
+.sd01-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sd01-action-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+/* Modal Bultos - ajustes de tamaño */
+.dc-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dc-form-field {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+.dc-form-field-obs {
+  flex: 2 1 200px;
+}
+.dc-form-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.dc-table-container {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 300px;
+}
