@@ -15,8 +15,6 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
-const PAGE_SIZE = 20;
-
 const SD01View: React.FC = () => {
   const [transportes, setTransportes] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -33,22 +31,23 @@ const SD01View: React.FC = () => {
   const [usuarioAsignar, setUsuarioAsignar] = useState('');
 
   // Paginación
-  const [pagina, setPagina] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [limitePorPagina, setLimitePorPagina] = useState(20);
+  const [totalRegistros, setTotalRegistros] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(0);
 
   const usuario = auth.getUsuario();
 
   // Cargar transportes con paginación y relaciones
-  const cargarTransportes = useCallback(async (paginaActual: number, mostrarCargando = true) => {
-    if (mostrarCargando) setCargando(true);
+  const cargarTransportes = useCallback(async (pagina: number) => {
+    setCargando(true);
     try {
-      const offset = (paginaActual - 1) * PAGE_SIZE;
+      const offset = (pagina - 1) * limitePorPagina;
 
       // Consulta con relaciones (una sola petición)
-      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}`;
+      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${limitePorPagina}&offset=${offset}`;
 
-      const cacheKey = `sd01_transportes_p${paginaActual}`;
+      const cacheKey = `sd01_transportes_p${pagina}_l${limitePorPagina}`;
       const cacheTTL = 10000; // 10 segundos
       const cached = cache.get<any>(cacheKey);
       if (cached) {
@@ -72,31 +71,25 @@ const SD01View: React.FC = () => {
         cache.set(countCacheKey, totalCount, cacheTTL);
       }
 
-      setTotal(totalCount);
-      setTotalPaginas(Math.ceil(totalCount / PAGE_SIZE));
+      setTotalRegistros(totalCount);
+      setTotalPaginas(Math.ceil(totalCount / limitePorPagina));
+      setCargando(false);
     } catch (e) {
       console.error('Error cargando transportes:', e);
-      mostrarMensaje('error', 'Error al cargar transportes');
+      setCargando(false);
     }
-    setCargando(false);
-  }, []);
+  }, [limitePorPagina]);
 
-  // Al montar, cargar primera página y usuarios admin
+  // Al montar, cargar primera página
   useEffect(() => {
     cargarTransportes(1);
     cargarUsuariosAdmin();
   }, []);
 
-  // Actualizar cuando cambia la página
+  // Actualizar cuando cambia la página o límite
   useEffect(() => {
-    cargarTransportes(pagina);
-  }, [pagina]);
-
-  // Botón actualizar manual: invalida caché y recarga
-  const handleActualizar = () => {
-    cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(pagina);
-  };
+    cargarTransportes(paginaActual);
+  }, [paginaActual, limitePorPagina, cargarTransportes]);
 
   const cargarUsuariosAdmin = async () => {
     try {
@@ -138,7 +131,7 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Eliminar solo pendiente (puedes ampliar a otros estados si lo deseas)
+  // Eliminar solo pendiente
   const handleEliminarSeleccionados = async () => {
     if (transportesSeleccionados.size === 0) {
       mostrarMensaje('warning', 'Seleccione al menos un transporte');
@@ -181,7 +174,7 @@ const SD01View: React.FC = () => {
     setTransportesSeleccionados(new Set());
     setTransporteSeleccionado(null);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(pagina);
+    cargarTransportes(paginaActual);
   };
 
   // Cancelar: permitir Pendiente y En Proceso
@@ -221,13 +214,13 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte cancelado exitosamente');
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina);
+      cargarTransportes(paginaActual);
     } catch (e) {
       mostrarMensaje('error', 'Error al cancelar transporte');
     }
   };
 
-  // Iniciar o continuar transporte: cambia estado y abre vista detalle (no modal)
+  // Iniciar o continuar transporte
   const handleIniciarTransporte = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -255,9 +248,9 @@ const SD01View: React.FC = () => {
         actualizado = { ...transporteSeleccionado, estado: 'En Proceso', fecha_inicio: now };
       }
       setTransporteSeleccionado(actualizado);
-      setMostrarDetalle(actualizado); // abre la vista detalle
+      setMostrarDetalle(actualizado);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina);
+      cargarTransportes(paginaActual);
     } catch (e) {
       console.error('Error al iniciar transporte:', e);
       mostrarMensaje('error', 'Error al iniciar el transporte');
@@ -289,7 +282,7 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte reabierto exitosamente');
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina);
+      cargarTransportes(paginaActual);
     } catch (e) {
       mostrarMensaje('error', 'Error al reabrir transporte');
     }
@@ -300,14 +293,14 @@ const SD01View: React.FC = () => {
   const handleTransporteCreado = () => {
     setMostrarCrearTransporte(false);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(1); // volver a primera página
+    cargarTransportes(1);
     mostrarMensaje('success', 'Transporte creado exitosamente');
   };
   const handleTransporteEditado = () => {
     setMostrarEditarTransporte(false);
     setTransporteSeleccionado(null);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(pagina);
+    cargarTransportes(paginaActual);
     mostrarMensaje('success', 'Transporte editado exitosamente');
   };
   const handleCargarTransporte = () => setMostrarCargaExcel(true);
@@ -371,7 +364,7 @@ const SD01View: React.FC = () => {
       setMostrarAsignarModal(false);
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina);
+      cargarTransportes(paginaActual);
     } catch (e) {
       mostrarMensaje('error', 'Error al asignar transporte');
     }
@@ -410,9 +403,16 @@ const SD01View: React.FC = () => {
   };
 
   // Paginación
-  const irPagina = (nuevaPagina: number) => {
+  const cambiarPagina = (nuevaPagina: number) => {
     if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
-    setPagina(nuevaPagina);
+    setPaginaActual(nuevaPagina);
+    setTransportesSeleccionados(new Set());
+    setTransporteSeleccionado(null);
+  };
+
+  const cambiarLimite = (nuevoLimite: number) => {
+    setLimitePorPagina(nuevoLimite);
+    setPaginaActual(1);
     setTransportesSeleccionados(new Set());
     setTransporteSeleccionado(null);
   };
@@ -425,11 +425,11 @@ const SD01View: React.FC = () => {
         onClose={() => {
           setMostrarDetalle(null);
           setTransporteSeleccionado(null);
-          cargarTransportes(pagina);
+          cargarTransportes(paginaActual);
         }}
         onActualizar={() => {
           cache.invalidatePrefix('sd01_transportes_');
-          cargarTransportes(pagina);
+          cargarTransportes(paginaActual);
         }}
         usuario={usuario}
       />
@@ -460,14 +460,15 @@ const SD01View: React.FC = () => {
           Cargar Excel
         </button>
 
-        <div className="sd01-separator"></div>
-
-        <button className="sd01-btn" onClick={handleActualizar} disabled={cargando}>
+        <button className="sd01-btn" onClick={() => cargarTransportes(paginaActual)} title="Actualizar tabla">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M13.65 2.35C12.2 0.9 10.2 0 8 0C3.58 0 0 3.58 0 8C0 12.42 3.58 16 8 16C11.73 16 14.84 13.45 15.73 10H13.65C12.83 12.33 10.61 14 8 14C4.69 14 2 11.31 2 8C2 4.69 4.69 2 8 2C9.66 2 11.14 2.69 12.22 3.78L9 7H16V0L13.65 2.35Z" fill="currentColor"/>
+            <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12.6667 2L12.6667 5.33333L9.33333 5.33333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          {cargando ? 'Actualizando...' : 'Actualizar'}
+          Actualizar
         </button>
+
+        <div className="sd01-separator"></div>
 
         <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -535,11 +536,30 @@ const SD01View: React.FC = () => {
           </svg>
           Reabrir
         </button>
+
+        {/* Paginación en toolbar */}
+        <div className="sd01-separator"></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Mostrar</span>
+          <select
+            value={limitePorPagina}
+            onChange={(e) => cambiarLimite(Number(e.target.value))}
+            style={{ padding: '4px 8px', border: '1px solid var(--border-input)', borderRadius: '6px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px' }}
+          >
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>|</span>
+          <button className="sd01-btn" onClick={() => cambiarPagina(paginaActual - 1)} disabled={paginaActual <= 1} style={{ padding: '4px 8px' }}>‹</button>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{paginaActual} / {totalPaginas}</span>
+          <button className="sd01-btn" onClick={() => cambiarPagina(paginaActual + 1)} disabled={paginaActual >= totalPaginas} style={{ padding: '4px 8px' }}>›</button>
+        </div>
       </div>
 
-      <div className="sd01-table-wrapper" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+      <div className="sd01-table-wrapper" style={{ minHeight: '500px' }}>
         <div className="sd01-table-scroll">
-          <table className="sd01-table">
+          <table className="sd01-table" style={{ minWidth: '1500px' }}>
             <thead>
               <tr>
                 <th style={{ width: '30px', textAlign: 'center' }}>
@@ -617,16 +637,8 @@ const SD01View: React.FC = () => {
         </div>
       </div>
 
-      {/* Paginación */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-        <div>
-          <span>Total: <strong>{total}</strong></span>
-        </div>
-        <div className="sd01-pagination">
-          <button disabled={pagina === 1} onClick={() => irPagina(pagina - 1)}>Anterior</button>
-          <span style={{ margin: '0 10px' }}>Página {pagina} de {totalPaginas}</span>
-          <button disabled={pagina === totalPaginas} onClick={() => irPagina(pagina + 1)}>Siguiente</button>
-        </div>
+      <div className="sd01-footer">
+        Total de transportes: <strong style={{ color: '#1e293b' }}>{totalRegistros}</strong>
       </div>
 
       {/* Modales */}
