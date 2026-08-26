@@ -58,7 +58,11 @@ const PatenteSection: React.FC<Props> = ({
   const getBestMatch = (input: string): Patente | null => {
     if (!input) return null;
     const upperInput = input.toUpperCase();
-    return patentes.find((p) => p.numero_patente.toUpperCase().startsWith(upperInput)) || null;
+    return (
+      patentes.find((p) =>
+        p.numero_patente.toUpperCase().startsWith(upperInput)
+      ) || null
+    );
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,7 +123,9 @@ const PatenteSection: React.FC<Props> = ({
         setIsOpen(true);
         setHighlightIndex(0);
       } else {
-        setHighlightIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+        setHighlightIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -153,10 +159,24 @@ const PatenteSection: React.FC<Props> = ({
 
   return (
     <div className="compact-section">
-      <div className="compact-header" onClick={() => setShowDetails(!showDetails)}>
+      <div
+        className="compact-header"
+        onClick={() => setShowDetails(!showDetails)}
+      >
         <span className="compact-title">{titulo}</span>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`arrow ${showDetails ? "rotated" : ""}`}>
-          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          className={`arrow ${showDetails ? "rotated" : ""}`}
+        >
+          <path
+            d="M3 4.5L6 7.5L9 4.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
 
@@ -185,7 +205,9 @@ const PatenteSection: React.FC<Props> = ({
               {suggestions.map((patente, index) => (
                 <div
                   key={patente.id}
-                  className={`autocomplete-item ${index === highlightIndex ? "highlighted" : ""}`}
+                  className={`autocomplete-item ${
+                    index === highlightIndex ? "highlighted" : ""
+                  }`}
                   onClick={() => handleSelect(patente)}
                 >
                   {patente.numero_patente}
@@ -204,27 +226,50 @@ const PatenteSection: React.FC<Props> = ({
             <input
               placeholder="Patente (ej: ABCD12)"
               value={nuevaPatente.numero_patente || ""}
-              onChange={(e) => setNuevaPatente({ ...nuevaPatente, numero_patente: e.target.value })}
+              onChange={(e) =>
+                setNuevaPatente({ ...nuevaPatente, numero_patente: e.target.value })
+              }
               autoFocus
             />
             <select
               value={nuevaPatente.tipo_vehiculo || ""}
-              onChange={(e) => setNuevaPatente({ ...nuevaPatente, tipo_vehiculo: e.target.value })}
+              onChange={(e) =>
+                setNuevaPatente({ ...nuevaPatente, tipo_vehiculo: e.target.value })
+              }
             >
               <option value="">Tipo de Vehículo</option>
-              {tiposVehiculo.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
+              {tiposVehiculo.map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {tipo}
+                </option>
+              ))}
             </select>
             <input
               type="number"
               placeholder="Cantidad Sellos"
               value={nuevaPatente.cantidad_sellos || ""}
-              onChange={(e) => setNuevaPatente({ ...nuevaPatente, cantidad_sellos: parseInt(e.target.value) })}
+              onChange={(e) =>
+                setNuevaPatente({
+                  ...nuevaPatente,
+                  cantidad_sellos: parseInt(e.target.value) || 1,
+                })
+              }
             />
             <div className="mini-form-actions">
-              <button className="btn-save" onClick={handleAddPatente} disabled={guardando}>
+              <button
+                className="btn-save"
+                onClick={handleAddPatente}
+                disabled={guardando}
+              >
                 {guardando ? "Guardando..." : "Guardar"}
               </button>
-              <button className="btn-cancel" onClick={() => { setShowAddForm(false); setNuevaPatente({}); }}>
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNuevaPatente({});
+                }}
+              >
                 Cancelar
               </button>
             </div>
@@ -235,11 +280,15 @@ const PatenteSection: React.FC<Props> = ({
           <div className="compact-details">
             <div className="detail-row">
               <span className="detail-label">Tipo de Vehículo:</span>
-              <span className="detail-value">{patenteSeleccionada.tipo_vehiculo}</span>
+              <span className="detail-value">
+                {patenteSeleccionada.tipo_vehiculo}
+              </span>
             </div>
             <div className="detail-row">
               <span className="detail-label">Cantidad Sellos:</span>
-              <span className="detail-value">{patenteSeleccionada.cantidad_sellos}</span>
+              <span className="detail-value">
+                {patenteSeleccionada.cantidad_sellos}
+              </span>
             </div>
           </div>
         )}
