@@ -56,10 +56,7 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        toolbarRef.current &&
-        !toolbarRef.current.contains(event.target as Node)
-      ) {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
         setOpenMenu(null);
       }
     };
@@ -95,19 +92,10 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
   return (
     <div className="sd01-toolbar" ref={toolbarRef}>
       <div className="toolbar-group">
-        {/* Nuevo Transporte / Editar Transporte */}
         {!documentoCreado && (
-          <button
-            className="toolbar-btn toolbar-btn-primary"
-            onClick={onNuevaDocumentacion}
-          >
+          <button className="toolbar-btn toolbar-btn-primary" onClick={onNuevaDocumentacion}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M8 3V13M3 8H13"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             Nuevo Transporte
           </button>
@@ -116,43 +104,24 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
         {documentoCreado && puedeEditarTransporte && (
           <button className="toolbar-btn" onClick={onEditarTransporte}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M11 2L14 5L5 14H2V11L11 2Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-              />
+              <path d="M11 2L14 5L5 14H2V11L11 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
             Editar Transporte
           </button>
         )}
 
-        {/* Guardar Borrador */}
         {documentoCreado && estado !== "finalizado" && estado !== "anulado" && (
-          <button
-            className="toolbar-btn"
-            onClick={onGuardarBorrador}
-            disabled={guardando}
-          >
+          <button className="toolbar-btn" onClick={onGuardarBorrador} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M13 2H4C3.44772 2 3 2.44772 3 3V13C3 13.5523 3.44772 14 4 14H13C13.5523 14 14 13.5523 14 13V3C14 2.44772 13.5523 2 13 2Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
+              <path d="M13 2H4C3.44772 2 3 2.44772 3 3V13C3 13.5523 3.44772 14 4 14H13C13.5523 14 14 13.5523 14 13V3C14 2.44772 13.5523 2 13 2Z" stroke="currentColor" strokeWidth="1.5" />
               <path d="M5 2V5H11V2" stroke="currentColor" strokeWidth="1.5" />
             </svg>
             {guardando ? "Guardando..." : "Guardar Borrador"}
           </button>
         )}
 
-        {/* Finalizar */}
         {documentoCreado && puedeFinalizar && (
-          <button
-            className="toolbar-btn"
-            onClick={onFinalizar}
-            disabled={guardando}
-          >
+          <button className="toolbar-btn" onClick={onFinalizar} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M14 8L10 4V7H3V9H10V12L14 8Z" fill="currentColor" />
               <path d="M2 4H1V12H2V4Z" fill="currentColor" />
@@ -161,13 +130,8 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
         )}
 
-        {/* Iniciar */}
         {documentoCreado && puedeIniciar && (
-          <button
-            className="toolbar-btn toolbar-btn-success"
-            onClick={onIniciar}
-            disabled={guardando}
-          >
+          <button className="toolbar-btn toolbar-btn-success" onClick={onIniciar} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M4 2L12 8L4 14V2Z" fill="currentColor" />
             </svg>
@@ -175,55 +139,29 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
           </button>
         )}
 
-        {/* Reabrir */}
         {documentoCreado && puedeReabrir && (
-          <button
-            className="toolbar-btn toolbar-btn-warning"
-            onClick={onReabrir}
-          >
+          <button className="toolbar-btn toolbar-btn-warning" onClick={onReabrir}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Reabrir
           </button>
         )}
 
-        {/* Cancelar */}
         {documentoCreado && puedeCancelar && (
-          <button
-            className="toolbar-btn toolbar-btn-danger"
-            onClick={onCancelar}
-            disabled={guardando}
-          >
+          <button className="toolbar-btn toolbar-btn-danger" onClick={onCancelar} disabled={guardando}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M10.5 5.5L5.5 10.5M5.5 5.5L10.5 10.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
+              <path d="M10.5 5.5L5.5 10.5M5.5 5.5L10.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             Cancelar
           </button>
         )}
 
-        {estado === "finalizado" && (
-          <div className="estado-badge-finalizado">✅ Finalizado</div>
-        )}
-
-        {/* Estado badge para otros estados */}
+        {estado === "finalizado" && <div className="estado-badge-finalizado">✅ Finalizado</div>}
         {documentoCreado && estado !== "finalizado" && getEstadoBadge()}
 
-        {/* Separador */}
         <div className="toolbar-separator" />
 
-        {/* Imprimir */}
         <div className="dropdown-container">
           <button
             className={`toolbar-btn ${openMenu === "print" ? "active" : ""}`}
@@ -231,61 +169,27 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
             disabled={!documentoCreado}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M4 11H3C2.44772 11 2 10.5523 2 10V6C2 5.44772 2.44772 5 3 5H13C13.5523 5 14 5.44772 14 6V10C14 10.5523 13.5523 11 13 11H12"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-              <path
-                d="M4 13V10H12V13H4Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M5 2H11V5H5V2Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-              />
+              <path d="M4 11H3C2.44772 11 2 10.5523 2 10V6C2 5.44772 2.44772 5 3 5H13C13.5523 5 14 5.44772 14 6V10C14 10.5523 13.5523 11 13 11H12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M4 13V10H12V13H4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M5 2H11V5H5V2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
             Imprimir
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M3 4.5L6 7.5L9 4.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           {openMenu === "print" && (
             <div className="dropdown-menu">
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  onImprimir?.();
-                  setOpenMenu(null);
-                }}
-              >
+              <div className="dropdown-item" onClick={() => { onImprimir?.(); setOpenMenu(null); }}>
                 Imprimir Todos los locales
               </div>
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  onImprimirSeleccionados?.();
-                  setOpenMenu(null);
-                }}
-              >
+              <div className="dropdown-item" onClick={() => { onImprimirSeleccionados?.(); setOpenMenu(null); }}>
                 Imprimir Locales Seleccionados
               </div>
             </div>
           )}
         </div>
 
-        {/* Opciones Avanzadas */}
         <div className="dropdown-container">
           <button
             className={`toolbar-btn ${openMenu === "advanced" ? "active" : ""}`}
@@ -299,34 +203,16 @@ const SD01Toolbar: React.FC<SD01ToolbarProps> = ({
             </svg>
             Opciones Avanzadas
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M3 4.5L6 7.5L9 4.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           {openMenu === "advanced" && (
             <div className="dropdown-menu">
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  onAbrirDocumentos?.();
-                  setOpenMenu(null);
-                }}
-              >
+              <div className="dropdown-item" onClick={() => { onAbrirDocumentos?.(); setOpenMenu(null); }}>
                 📂 Archivos
               </div>
               {puedeEliminar && (
-                <div
-                  className="dropdown-item danger"
-                  onClick={() => {
-                    onEliminar();
-                    setOpenMenu(null);
-                  }}
-                >
+                <div className="dropdown-item danger" onClick={() => { onEliminar(); setOpenMenu(null); }}>
                   🗑️ Eliminar Documento
                 </div>
               )}
