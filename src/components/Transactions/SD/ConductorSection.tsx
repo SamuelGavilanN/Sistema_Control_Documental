@@ -13,8 +13,14 @@ interface Props {
 }
 
 const empresas = [
-  "Transportes Pérez", "Logística MG", "Transportes CR", "Logística del Sur",
-  "Transportes Norte", "Distribuidora Central", "Transportes Andes", "Logística Express",
+  "Transportes Pérez",
+  "Logística MG",
+  "Transportes CR",
+  "Logística del Sur",
+  "Transportes Norte",
+  "Distribuidora Central",
+  "Transportes Andes",
+  "Logística Express",
 ];
 
 const ConductorSection: React.FC<Props> = ({
@@ -60,9 +66,11 @@ const ConductorSection: React.FC<Props> = ({
   const getBestMatch = (input: string): Conductor | null => {
     if (!input) return null;
     const lowerInput = input.toLowerCase();
-    return conductores.find((c) =>
-      c.nombre_completo?.toLowerCase().startsWith(lowerInput)
-    ) || null;
+    return (
+      conductores.find((c) =>
+        c.nombre_completo?.toLowerCase().startsWith(lowerInput)
+      ) || null
+    );
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,7 +131,9 @@ const ConductorSection: React.FC<Props> = ({
         setIsOpen(true);
         setHighlightIndex(0);
       } else {
-        setHighlightIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+        setHighlightIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -140,7 +150,7 @@ const ConductorSection: React.FC<Props> = ({
         const creado = await crearConductor({
           nombre: nuevoConductor.nombre,
           apellido: nuevoConductor.apellido || "",
-          numero_documento: nuevoConductor.rut || "",
+          numero_documento: nuevoConductor.numero_documento || "",
           telefono: nuevoConductor.telefono || "",
           empresa: nuevoConductor.empresa || "",
         });
@@ -159,10 +169,24 @@ const ConductorSection: React.FC<Props> = ({
 
   return (
     <div className="compact-section">
-      <div className="compact-header" onClick={() => setShowDetails(!showDetails)}>
+      <div
+        className="compact-header"
+        onClick={() => setShowDetails(!showDetails)}
+      >
         <span className="compact-title">Conductor</span>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`arrow ${showDetails ? "rotated" : ""}`}>
-          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          className={`arrow ${showDetails ? "rotated" : ""}`}
+        >
+          <path
+            d="M3 4.5L6 7.5L9 4.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
 
@@ -191,7 +215,9 @@ const ConductorSection: React.FC<Props> = ({
               {suggestions.map((conductor, index) => (
                 <div
                   key={conductor.id}
-                  className={`autocomplete-item ${index === highlightIndex ? "highlighted" : ""}`}
+                  className={`autocomplete-item ${
+                    index === highlightIndex ? "highlighted" : ""
+                  }`}
                   onClick={() => handleSelect(conductor)}
                 >
                   {conductor.nombre_completo}
@@ -210,33 +236,56 @@ const ConductorSection: React.FC<Props> = ({
             <input
               placeholder="Nombre completo"
               value={nuevoConductor.nombre || ""}
-              onChange={(e) => setNuevoConductor({ ...nuevoConductor, nombre: e.target.value })}
+              onChange={(e) =>
+                setNuevoConductor({ ...nuevoConductor, nombre: e.target.value })
+              }
               autoFocus
             />
             <input
               placeholder="Rut (ej: 12.345.678-9)"
-              value={nuevoConductor.rut || ""}
-              onChange={(e) => setNuevoConductor({ ...nuevoConductor, rut: e.target.value })}
+              value={nuevoConductor.numero_documento || ""}
+              onChange={(e) =>
+                setNuevoConductor({
+                  ...nuevoConductor,
+                  numero_documento: e.target.value,
+                })
+              }
             />
             <input
               placeholder="Empresa"
               value={nuevoConductor.empresa || ""}
-              onChange={(e) => setNuevoConductor({ ...nuevoConductor, empresa: e.target.value })}
+              onChange={(e) =>
+                setNuevoConductor({ ...nuevoConductor, empresa: e.target.value })
+              }
               list="empresas-list"
             />
             <datalist id="empresas-list">
-              {empresas.map((emp) => <option key={emp} value={emp} />)}
+              {empresas.map((emp) => (
+                <option key={emp} value={emp} />
+              ))}
             </datalist>
             <input
               placeholder="Teléfono"
               value={nuevoConductor.telefono || ""}
-              onChange={(e) => setNuevoConductor({ ...nuevoConductor, telefono: e.target.value })}
+              onChange={(e) =>
+                setNuevoConductor({ ...nuevoConductor, telefono: e.target.value })
+              }
             />
             <div className="mini-form-actions">
-              <button className="btn-save" onClick={handleAddConductor} disabled={guardando}>
+              <button
+                className="btn-save"
+                onClick={handleAddConductor}
+                disabled={guardando}
+              >
                 {guardando ? "Guardando..." : "Guardar"}
               </button>
-              <button className="btn-cancel" onClick={() => { setShowAddForm(false); setNuevoConductor({}); }}>
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNuevoConductor({});
+                }}
+              >
                 Cancelar
               </button>
             </div>
@@ -247,15 +296,21 @@ const ConductorSection: React.FC<Props> = ({
           <div className="compact-details">
             <div className="detail-row">
               <span className="detail-label">Rut:</span>
-              <span className="detail-value">{conductorSeleccionado.numero_documento}</span>
+              <span className="detail-value">
+                {conductorSeleccionado.numero_documento}
+              </span>
             </div>
             <div className="detail-row">
               <span className="detail-label">Empresa:</span>
-              <span className="detail-value">{conductorSeleccionado.empresa}</span>
+              <span className="detail-value">
+                {conductorSeleccionado.empresa}
+              </span>
             </div>
             <div className="detail-row">
               <span className="detail-label">Teléfono:</span>
-              <span className="detail-value">{conductorSeleccionado.telefono}</span>
+              <span className="detail-value">
+                {conductorSeleccionado.telefono}
+              </span>
             </div>
           </div>
         )}
