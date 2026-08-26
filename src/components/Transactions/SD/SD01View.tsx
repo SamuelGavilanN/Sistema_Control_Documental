@@ -10,8 +10,11 @@ import NuevaDocumentacionModal from "./NuevaDocumentacionModal";
 import TarjetaTransporte from "./TarjetaTransporte";
 import SellosAdicionales from "./SellosAdicionales";
 import { auth } from "../../../lib/auth";
-import { getUsuarios } from "../../../lib/api";
 import { supabase } from "../../../lib/supabase";
+import { getUsuarios } from "../../../lib/api";
+import { conductores, cargarConductores } from "../../../data/conductores";
+import { patentes, cargarPatentes } from "../../../data/patentes";
+import { locales, cargarLocales } from "../../../data/locales";
 import "./SD01.css";
 
 export interface SD01Row {
@@ -77,15 +80,19 @@ const SD01View: React.FC = () => {
 
   const observacionesTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Carga inicial de maestros y usuario
   useEffect(() => {
     const user = auth.getUsuario();
     setUsuarioActual(user);
     if (user) {
       setNombreAdministrativo(`${user.nombre || ""} ${user.apellido || ""}`.trim());
     }
-    // Cargar maestros si es necesario (locales ya están en data/locales)
+    cargarConductores();
+    cargarPatentes();
+    cargarLocales();
   }, []);
 
+  // Limpiar formulario
   const limpiarFormulario = () => {
     setRows([filaVacia()]);
     setConductorSeleccionado("");
@@ -105,7 +112,7 @@ const SD01View: React.FC = () => {
     setSelectedRows([]);
   };
 
-  // --- Crear / Cargar / Guardar ---
+  // Crear nuevo documento (desde modal)
   const handleCrearDocumento = async (datos: {
     conductor: string;
     conductorId: string;
@@ -116,7 +123,7 @@ const SD01View: React.FC = () => {
     fechaProgramacion: string;
   }) => {
     try {
-      // Generar ID del documento (puede ser secuencia o UUID)
+      // Generar ID del documento (usando RPC o función)
       const { data: idData, error: idError } = await supabase.rpc('generar_id_documento_sd', { prefijo: 'SD' });
       if (idError) throw idError;
       const idGenerado = idData || `SD${Date.now()}`;
@@ -134,13 +141,14 @@ const SD01View: React.FC = () => {
       setEstadoDocumento("borrador");
       setRows([filaVacia()]);
 
-      // Guardar inmediatamente como borrador para tener el registro en BD
+      // Guardar inmediatamente como borrador
       await guardarDocumento("borrador", true);
     } catch (error: any) {
       alert("Error al crear documento: " + error.message);
     }
   };
 
+  // Editar transporte (datos maestros)
   const handleEditarTransporte = () => {
     setShowEditarTransporteModal(true);
   };
@@ -162,114 +170,19 @@ const SD01View: React.FC = () => {
     setPatenteAdicionalId(datos.patenteAdicionalId);
     setFechaProgramacion(datos.fechaProgramacion);
     setShowEditarTransporteModal(false);
-    // Guardar cambios si el documento ya existe
     if (idDocumentoActual) {
       await guardarDocumento(estadoDocumento, true);
-    }
-  };
-
-  const handleGuardarBorrador = () => guardarDocumento("borrador", false);
-  const handleFinalizar = () => guardarDocumento("finalizado", false);
-
-  // Nuevo: Iniciar transporte (cambia a en_proceso)
-  const handleIniciar = async () => {
-    if (!idDocumentoActual) return;
-    if (estadoDocumento !== "borrador") {
-      alert("Solo se puede iniciar un transporte en estado borrador.");
-      return;
-    }
-    try {
-      await supabase
-        .from("sd01_documentos")
-        .update({ estado: "en_proceso", fecha_inicio: new Date().toISOString() })
-        .eq("id_documento", idDocumentoActual);
-      setEstadoDocumento("en_proceso");
-      alert("✅ Transporte iniciado. Ahora puedes gestionar los sellos y bultos.");
-      // Recargar datos si es necesario
-    } catch (error: any) {
-      alert("Error al iniciar: " + error.message);
-    }
-  };
-
-  // Nuevo: Reabrir transporte (solo si está finalizado)
-  const handleReabrir = async () => {
-    if (!idDocumentoActual) return;
-    if (estadoDocumento !== "finalizado") {
-      alert("Solo se puede reabrir un transporte finalizado.");
-      return;
-    }
-    if (!confirm("¿Reabrir este transporte? Volverá a estado 'en_proceso'.")) return;
-    try {
-      await supabase
-        .from("sd01_documentos")
-        .update({ estado: "en_proceso", fecha_finalizacion: null })
-        .eq("id_documento", idDocumentoActual);
-      setEstadoDocumento("en_proceso");
-      alert("✅ Transporte reabierto.");
-    } catch (error: any) {
-      alert("Error al reabrir: " + error.message);
-    }
-  };
-
-  // Cancelar: anula el documento o descarta cambios según estado
-  const handleCancelar = async () => {
-    if (!idDocumentoActual) {
-      if (confirm("¿Descartar cambios sin guardar?")) limpiarFormulario();
-      return;
-    }
-    if (estadoDocumento === "finalizado") {
-      alert("No se puede cancelar un documento finalizado.");
-      return;
-    }
-    const accion = estadoDocumento === "borrador" ? "anular" : "cancelar";
-    if (!confirm(`¿${accion === "anular" ? "Anular" : "Cancelar"} el documento ${idDocumentoActual}?`)) return;
-    try {
-      await supabase
-        .from("sd01_documentos")
-        .update({ estado: "anulado", fecha_anulacion: new Date().toISOString() })
-        .eq("id_documento", idDocumentoActual);
-      setEstadoDocumento("anulado");
-      alert("✅ Documento anulado.");
-      limpiarFormulario();
-    } catch (error: any) {
-      alert("Error al cancelar: " + error.message);
-    }
-  };
-
-  // Eliminar (solo admin)
-  const handleEliminar = async () => {
-    if (!idDocumentoActual) return;
-    if (usuarioActual?.rol !== "Admin" && usuarioActual?.rol !== "Owner") {
-      alert("No tienes permiso para eliminar documentos.");
-      return;
-    }
-    if (!confirm(`¿Eliminar permanentemente el documento ${idDocumentoActual}?`)) return;
-    try {
-      // Eliminar primero locales y cargas (cascada)
-      await supabase
-        .from("sd01_documento_locales")
-        .delete()
-        .eq("documento_id", idDocumentoActual);
-      await supabase
-        .from("sd01_documentos")
-        .delete()
-        .eq("id_documento", idDocumentoActual);
-      alert("✅ Documento eliminado.");
-      limpiarFormulario();
-    } catch (error: any) {
-      alert("Error al eliminar: " + error.message);
     }
   };
 
   // Guardar documento (crear o actualizar)
   const guardarDocumento = async (estado: string, silencioso: boolean = false) => {
     if (!idDocumentoActual) {
-      alert("No hay documento activo.");
+      if (!silencioso) alert("No hay documento activo.");
       return;
     }
     setGuardando(true);
     try {
-      // Validar que haya al menos un local con código
       const localesValidos = rows.filter(r => r.codigoLocal);
       if (localesValidos.length === 0 && estado === "finalizado") {
         alert("Debe agregar al menos un local antes de finalizar.");
@@ -277,8 +190,8 @@ const SD01View: React.FC = () => {
         return;
       }
 
-      // Preparar datos para guardar
-      const documentoData = {
+      // Preparar datos para actualizar
+      const documentoData: any = {
         conductor_id: conductorId || null,
         patente_principal_id: patentePrincipalId || null,
         patente_secundaria_id: patenteAdicionalId || null,
@@ -291,29 +204,25 @@ const SD01View: React.FC = () => {
         modificado_por: usuarioActual?.id || null,
         modificado_en: new Date().toISOString(),
       };
-
-      // Si estado es finalizado, guardar fecha_finalizacion
       if (estado === "finalizado") {
-        (documentoData as any).fecha_finalizacion = new Date().toISOString();
+        documentoData.fecha_finalizacion = new Date().toISOString();
       }
 
-      // Actualizar documento
+      // Actualizar cabecera
       const { error: updateError } = await supabase
         .from("sd01_documentos")
         .update(documentoData)
         .eq("id_documento", idDocumentoActual);
       if (updateError) throw updateError;
 
-      // Guardar locales y cargas
-      // Primero eliminar locales existentes (cascada)
+      // Eliminar locales existentes (cascada con cargas)
       await supabase
         .from("sd01_documento_locales")
         .delete()
         .eq("documento_id", idDocumentoActual);
 
-      // Insertar nuevos locales
+      // Insertar nuevos locales y cargas
       for (const row of localesValidos) {
-        // Insertar local
         const { data: localData, error: localError } = await supabase
           .from("sd01_documento_locales")
           .insert({
@@ -330,7 +239,6 @@ const SD01View: React.FC = () => {
           .single();
         if (localError) throw localError;
 
-        // Insertar cargas (documentos de carga) si existen
         if (row.carga && row.carga.length > 0) {
           const cargas = row.carga.map((c) => ({
             local_id: localData.id,
@@ -353,7 +261,7 @@ const SD01View: React.FC = () => {
         alert(`✅ Documento ${idDocumentoActual} guardado como ${estado}.`);
       }
       if (estado === "finalizado") {
-        // Opcional: limpiar formulario o mostrar mensaje
+        // Podríamos limpiar o bloquear, pero dejamos que el usuario vea el badge
       }
     } catch (error: any) {
       console.error("Error guardando:", error);
@@ -363,7 +271,96 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Cargar documento existente (desde DocumentosModal)
+  // Iniciar transporte (cambia a en_proceso)
+  const handleIniciar = async () => {
+    if (!idDocumentoActual || estadoDocumento !== "borrador") {
+      alert("Solo se puede iniciar un transporte en estado Borrador.");
+      return;
+    }
+    try {
+      await supabase
+        .from("sd01_documentos")
+        .update({ estado: "en_proceso", fecha_inicio: new Date().toISOString() })
+        .eq("id_documento", idDocumentoActual);
+      setEstadoDocumento("en_proceso");
+      alert("✅ Transporte iniciado. Ahora puedes gestionar los sellos y bultos.");
+    } catch (error: any) {
+      alert("Error al iniciar: " + error.message);
+    }
+  };
+
+  // Reabrir transporte (solo finalizado)
+  const handleReabrir = async () => {
+    if (!idDocumentoActual || estadoDocumento !== "finalizado") {
+      alert("Solo se puede reabrir un transporte finalizado.");
+      return;
+    }
+    if (!confirm("¿Reabrir este transporte? Volverá a estado 'en_proceso'.")) return;
+    try {
+      await supabase
+        .from("sd01_documentos")
+        .update({ estado: "en_proceso", fecha_finalizacion: null })
+        .eq("id_documento", idDocumentoActual);
+      setEstadoDocumento("en_proceso");
+      alert("✅ Transporte reabierto.");
+    } catch (error: any) {
+      alert("Error al reabrir: " + error.message);
+    }
+  };
+
+  // Cancelar: anula el documento (borrador o en_proceso)
+  const handleCancelar = async () => {
+    if (!idDocumentoActual) {
+      if (confirm("¿Descartar cambios sin guardar?")) limpiarFormulario();
+      return;
+    }
+    if (estadoDocumento === "finalizado") {
+      alert("No se puede cancelar un documento finalizado.");
+      return;
+    }
+    if (estadoDocumento === "anulado") {
+      alert("El documento ya está anulado.");
+      return;
+    }
+    if (!confirm(`¿Anular el documento ${idDocumentoActual}?`)) return;
+    try {
+      await supabase
+        .from("sd01_documentos")
+        .update({ estado: "anulado", fecha_anulacion: new Date().toISOString() })
+        .eq("id_documento", idDocumentoActual);
+      setEstadoDocumento("anulado");
+      alert("✅ Documento anulado.");
+      limpiarFormulario();
+    } catch (error: any) {
+      alert("Error al anular: " + error.message);
+    }
+  };
+
+  // Eliminar (solo admin/owner)
+  const handleEliminar = async () => {
+    if (!idDocumentoActual) return;
+    if (usuarioActual?.rol !== "Admin" && usuarioActual?.rol !== "Owner") {
+      alert("No tienes permiso para eliminar documentos.");
+      return;
+    }
+    if (!confirm(`¿Eliminar permanentemente el documento ${idDocumentoActual}?`)) return;
+    try {
+      await supabase
+        .from("sd01_documento_locales")
+        .delete()
+        .eq("documento_id", idDocumentoActual);
+      await supabase
+        .from("sd01_documentos")
+        .delete()
+        .eq("id_documento", idDocumentoActual);
+      alert("✅ Documento eliminado.");
+      limpiarFormulario();
+    } catch (error: any) {
+      alert("Error al eliminar: " + error.message);
+    }
+  };
+
+  // Cargar documento existente (desde modal de archivos)
   const handleAbrirDocumento = async (idDocumento: string) => {
     try {
       const { data: doc, error } = await supabase
@@ -385,11 +382,7 @@ const SD01View: React.FC = () => {
 
       // Conductor
       if (doc.conductor_id) {
-        const { data: cond } = await supabase
-          .from("conductores")
-          .select("id, nombre, apellido, nombre_completo")
-          .eq("id", doc.conductor_id)
-          .single();
+        const cond = conductores.find(c => c.id === doc.conductor_id);
         if (cond) {
           setConductorId(cond.id);
           setConductorSeleccionado(cond.nombre_completo || `${cond.nombre} ${cond.apellido}`);
@@ -397,11 +390,7 @@ const SD01View: React.FC = () => {
       }
       // Patente principal
       if (doc.patente_principal_id) {
-        const { data: pat } = await supabase
-          .from("patentes")
-          .select("id, numero_patente")
-          .eq("id", doc.patente_principal_id)
-          .single();
+        const pat = patentes.find(p => p.id === doc.patente_principal_id);
         if (pat) {
           setPatentePrincipalId(pat.id);
           setPatentePrincipal(pat.numero_patente);
@@ -409,11 +398,7 @@ const SD01View: React.FC = () => {
       }
       // Patente adicional
       if (doc.patente_secundaria_id) {
-        const { data: pat } = await supabase
-          .from("patentes")
-          .select("id, numero_patente")
-          .eq("id", doc.patente_secundaria_id)
-          .single();
+        const pat = patentes.find(p => p.id === doc.patente_secundaria_id);
         if (pat) {
           setPatenteAdicionalId(pat.id);
           setPatenteAdicional(pat.numero_patente);
@@ -489,7 +474,7 @@ const SD01View: React.FC = () => {
     setTimeout(() => setShowImprimirModal(true), 200);
   };
 
-  // --- Render ---
+  // --- Control de visibilidad de botones ---
   const esEditable = estadoDocumento !== "finalizado" && estadoDocumento !== "anulado";
   const puedeIniciar = estadoDocumento === "borrador" && documentoCreado;
   const puedeFinalizar = estadoDocumento === "en_proceso" && documentoCreado;
@@ -501,7 +486,7 @@ const SD01View: React.FC = () => {
   return (
     <div className="sd01-view">
       <SD01Toolbar
-        onGuardarBorrador={handleGuardarBorrador}
+        onGuardarBorrador={() => guardarDocumento("borrador", false)}
         onFinalizar={handleFinalizar}
         onIniciar={handleIniciar}
         onReabrir={handleReabrir}
@@ -553,7 +538,7 @@ const SD01View: React.FC = () => {
               selloAdicional={selloAdicional}
               onSelloLateralChange={setSelloLateral}
               onSelloAdicionalChange={setSelloAdicional}
-              disabled={!esEditable || estadoDocumento === "finalizado"}
+              disabled={!esEditable}
             />
           )}
         </div>
