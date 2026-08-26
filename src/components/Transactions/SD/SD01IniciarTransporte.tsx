@@ -53,7 +53,7 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
 };
 
 interface Bulto {
-  id: string; // id temporal (puede ser uuid generado)
+  id: string;
   origenCarga: string;
   tipoDocumento: string;
   numeroDocumento: string;
@@ -61,7 +61,7 @@ interface Bulto {
   observacion: string;
 }
 
-// Autocomplete component (extraído de DCModal)
+// Autocomplete component
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -191,16 +191,18 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos (solo estado local, sin fetch a Supabase)
+// Modal de bultos - ahora con navegación entre locales
 const BultosModal = ({
-  local,
-  bultosIniciales,
+  localInicial,
+  locales,
+  bultosPorLocal,
   onBultosChange,
   onClose,
   usuario,
   documentoId
 }: any) => {
-  const [bultos, setBultos] = useState<Bulto[]>(bultosIniciales || []);
+  const [localActual, setLocalActual] = useState(localInicial);
+  const [bultos, setBultos] = useState<Bulto[]>(bultosPorLocal[localInicial.id] || []);
   const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
     origenCarga: "",
     tipoDocumento: "",
@@ -221,6 +223,15 @@ const BultosModal = ({
   const tipoNoAplica = nuevoBulto.origenCarga
     ? tiposDocumentoPorOrigen[nuevoBulto.origenCarga]?.length === 0
     : false;
+
+  // Al cambiar de local, actualizar bultos
+  useEffect(() => {
+    setBultos(bultosPorLocal[localActual.id] || []);
+    setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
+    setEditandoId(null);
+    setTiposDisponibles([]);
+    setTimeout(() => origenRef.current?.focus(), 100);
+  }, [localActual.id]);
 
   const handleOrigenChange = (origen: string) => {
     const tipos = tiposDocumentoPorOrigen[origen] || [];
@@ -267,11 +278,11 @@ const BultosModal = ({
         b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
       );
       setBultos(nuevos);
-      onBultosChange(nuevos);
+      onBultosChange(localActual.id, nuevos);
       setEditandoId(null);
     } else {
       const nuevo: Bulto = {
-        id: Date.now().toString(), // id temporal
+        id: Date.now().toString(),
         origenCarga: nuevoBulto.origenCarga || "",
         tipoDocumento: nuevoBulto.tipoDocumento || "",
         numeroDocumento: nuevoBulto.numeroDocumento || "",
@@ -280,7 +291,7 @@ const BultosModal = ({
       };
       const nuevos = [...bultos, nuevo];
       setBultos(nuevos);
-      onBultosChange(nuevos);
+      onBultosChange(localActual.id, nuevos);
     }
 
     setNuevoBulto({
@@ -297,7 +308,7 @@ const BultosModal = ({
   const eliminarBulto = (id: string) => {
     const nuevos = bultos.filter((b) => b.id !== id);
     setBultos(nuevos);
-    onBultosChange(nuevos);
+    onBultosChange(localActual.id, nuevos);
     if (editandoId === id) {
       setEditandoId(null);
       setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
@@ -307,13 +318,35 @@ const BultosModal = ({
   const totalBultos = bultos.reduce((sum, b) => sum + b.cantidad, 0);
 
   return (
-    <div className="sd01-modal-overlay" onClick={onClose}>
+    <div className="sd01-modal-overlay">
+      {/* Sin onClick en overlay para no cerrar accidentalmente */}
       <div className="sd01-modal sd01-modal-bultos" onClick={(e) => e.stopPropagation()}>
         <div className="sd01-modal-header">
-          <h2>Bultos - Local {local.codigo_local}</h2>
+          <h2>Bultos por Local</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
+          {/* Selector de locales */}
+          <div className="dc-local-selector" style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+              Seleccionar Local
+            </label>
+            <select
+              className="dc-input"
+              value={localActual.id}
+              onChange={(e) => {
+                const local = locales.find((l: any) => l.id === e.target.value);
+                if (local) setLocalActual(local);
+              }}
+            >
+              {locales.map((local: any) => (
+                <option key={local.id} value={local.id}>
+                  {local.codigo_local} - {local.nombre_local || ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="dc-form-section">
             <h3>{editandoId !== null ? "Editar Bulto" : "Agregar Bulto"}</h3>
             <div className="dc-form-grid">
@@ -409,7 +442,7 @@ const BultosModal = ({
               </thead>
               <tbody>
                 {bultos.length === 0 ? (
-                  <tr><td colSpan={6} className="dc-empty-table">No hay bultos registrados.</td></tr>
+                  <tr><td colSpan={6} className="dc-empty-table">No hay bultos registrados en este local.</td></tr>
                 ) : (
                   bultos.map((bulto) => (
                     <tr key={bulto.id} className={editandoId === bulto.id ? "fila-editando" : ""}>
@@ -438,7 +471,7 @@ const BultosModal = ({
 
           <div className="dc-modal-footer">
             <div className="dc-total">
-              <span>Total Bultos:</span>
+              <span>Total Bultos ({localActual.codigo_local}):</span>
               <strong>{totalBultos}</strong>
             </div>
             <button className="dc-btn-save" onClick={onClose}>Cerrar</button>
@@ -449,7 +482,7 @@ const BultosModal = ({
   );
 };
 
-// Componente principal de la vista de detalle
+// Componente principal
 const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transporte, onClose, onActualizar, usuario }) => {
   const [locales, setLocales] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -464,7 +497,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [bultosPorLocal, setBultosPorLocal] = useState<Record<string, Bulto[]>>({});
 
   // Barra de acciones
-  const [modalImprimir, setModalImprimir] = useState(false);
   const [modalCorreo, setModalCorreo] = useState(false);
   const [correosSeleccionados, setCorreosSeleccionados] = useState<string[]>([]);
   const [asunto, setAsunto] = useState('');
@@ -539,11 +571,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setMostrarModalBultos(true);
   };
 
-  const handleBultosChange = (nuevosBultos: Bulto[]) => {
-    if (!localActual) return;
+  const handleBultosChange = (localId: string, nuevosBultos: Bulto[]) => {
     setBultosPorLocal((prev) => ({
       ...prev,
-      [localActual.id]: nuevosBultos
+      [localId]: nuevosBultos
     }));
   };
 
@@ -590,17 +621,16 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Complete asunto y detalle');
       return;
     }
-    // Simulación de envío
     alert('Correo enviado a: ' + correosSeleccionados.join(', '));
     setModalCorreo(false);
   };
 
-  // Finalizar transporte: envía todos los bultos a Supabase
+  // Finalizar transporte
   const finalizarTransporte = async () => {
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
 
     try {
-      // 1. Guardar todos los bultos de todos los locales en la tabla sd01_bultos
+      // Guardar todos los bultos en Supabase
       for (const local of locales) {
         const bultosLocal = bultosPorLocal[local.id] || [];
         for (const bulto of bultosLocal) {
@@ -622,7 +652,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         }
       }
 
-      // 2. Cambiar estado del transporte a Finalizado
+      // Cambiar estado a Finalizado
       const now = new Date().toISOString();
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
         method: 'PATCH',
@@ -869,8 +899,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       {/* Modal Bultos */}
       {mostrarModalBultos && localActual && (
         <BultosModal
-          local={localActual}
-          bultosIniciales={bultosPorLocal[localActual.id] || []}
+          localInicial={localActual}
+          locales={locales}
+          bultosPorLocal={bultosPorLocal}
           onBultosChange={handleBultosChange}
           onClose={() => setMostrarModalBultos(false)}
           usuario={usuario}
