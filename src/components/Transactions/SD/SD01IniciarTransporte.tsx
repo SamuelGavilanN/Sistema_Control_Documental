@@ -751,68 +751,68 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   };
 
   const copiarCuadro = async () => {
-    // Construir destino (nombres de locales)
-    const destino = [...new Set(
-      locales.map((l: any) => {
-        const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
-        return localMaestro?.nombre_local || l.nombre_local;
-      }).filter(Boolean)
-    )].join(', ');
+  const destino = [...new Set(
+    locales.map((l: any) => {
+      const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
+      return localMaestro?.nombre_local || l.nombre_local;
+    }).filter(Boolean)
+  )].join(', ');
 
-    // Construir actas informadas (todos los números de documento)
-    const actasSet = new Set<string>();
-    Object.values(bultosPorLocal).forEach((bultos) => {
-      bultos.forEach((b) => {
-        if (b.numeroDocumento) actasSet.add(b.numeroDocumento);
-      });
+  const actasSet = new Set<string>();
+  Object.values(bultosPorLocal).forEach((bultos) => {
+    bultos.forEach((b) => {
+      if (b.numeroDocumento) actasSet.add(b.numeroDocumento);
     });
-    const actas = [...actasSet].join(' - ');
+  });
+  const actas = [...actasSet].join(' - ');
 
-    // Preparar locales para el cuadro
-    const localesCuadro = locales.map((local: any) => {
-      const bultosLocal = bultosPorLocal[local.id] || [];
-      return {
-        codigo: local.codigo_local,
-        nombre: local.nombre_local || '',
-        selloTrasero: local.sello_trasero || '',
-        bultos: bultosLocal.map((b: any) => ({
-          origenCarga: b.origenCarga,
-          tipoDocumento: b.tipoDocumento,
-          numeroDocumento: b.numeroDocumento,
-          cantidad: b.cantidad,
-          observacion: b.observacion,
-        })),
-      };
-    });
-
-    const datos = {
-      idDocumento: transporte.id_documento,
-      destino,
-      fechaEntrega: transporte.fecha_programacion ? formatearFecha(transporte.fecha_programacion) : '',
-      horaEntrega: transporte.hora_entrega || '',
-      chofer: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
-      rutChofer: detallesConductor?.numero_documento || '',
-      celularChofer: detallesConductor?.telefono || '',
-      patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
-      patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
-      transportista: detallesConductor?.empresa || '',
-      selloTrasero: locales[0]?.sello_trasero || '',
-      selloLateral: selloLateralGlobal,
-      selloAdicional: selloAdicionalGlobal,
-      fiscal: '',
-      administrativo: transporte.administrativo || '',
-      actasInformadas: actas,
-      locales: localesCuadro,
+  const localesCuadro = locales.map((local: any) => {
+    const bultosLocal = bultosPorLocal[local.id] || [];
+    return {
+      codigo: local.codigo_local,
+      nombre: local.nombre_local || '',
+      selloTrasero: local.sello_trasero || '',
+      bultos: bultosLocal.map((b: any) => ({
+        origenCarga: b.origenCarga,
+        tipoDocumento: b.tipoDocumento,
+        numeroDocumento: b.numeroDocumento,
+        cantidad: b.cantidad,
+        observacion: b.observacion,
+      })),
     };
+  });
 
-    const exito = await copiarCuadroDespacho(datos);
-    if (exito) {
-      alert('Cuadro copiado al portapapeles. Puedes pegarlo en Outlook.');
-    } else {
-      alert('Error al copiar el cuadro');
-    }
+  // Hora de entrega: usar la primera hora de entrega de los locales o la del transporte
+  const horaEntrega = transporte.hora_entrega || locales[0]?.hora_entrega || '';
+  // Administrativo: usar el asignado o el usuario actual
+  const administrativo = transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
+
+  const datos = {
+    idDocumento: transporte.id_documento,
+    destino,
+    fechaEntrega: transporte.fecha_programacion ? formatearFecha(transporte.fecha_programacion) : '',
+    horaEntrega,
+    chofer: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
+    rutChofer: detallesConductor?.numero_documento || '',
+    celularChofer: detallesConductor?.telefono || '',
+    patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
+    patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
+    transportista: detallesConductor?.empresa || '',
+    selloTrasero: locales[0]?.sello_trasero || '',
+    selloLateral: selloLateralGlobal,
+    selloAdicional: selloAdicionalGlobal,
+    administrativo,
+    actasInformadas: actas,
+    locales: localesCuadro,
   };
 
+  const exito = await copiarCuadroDespacho(datos);
+  if (exito) {
+    alert('Cuadro copiado al portapapeles. Puedes pegarlo en Outlook.');
+  } else {
+    alert('Error al copiar el cuadro');
+  }
+};
   // ---------- IMPRESIÓN ----------
   const prepararImpresion = (localesAImprimir: any[], copias: string[]) => {
     const localesParaImprimir = localesAImprimir.map((local: any) => {
