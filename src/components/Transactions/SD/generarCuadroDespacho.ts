@@ -111,6 +111,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
+    // Se agrega width:100% y sin table-layout:fixed para que se adapte en móviles
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
         <tr>
@@ -245,12 +246,23 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
-  // HTML final
+  // HTML final con estilos responsivos
   const html = `
     <html>
-      <head><meta charset="utf-8"></head>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          @media screen and (max-width: 600px) {
+            body { font-size: 11px !important; }
+            table { font-size: 11px !important; }
+            td, th { padding: 3px !important; }
+            .contenedor { padding: 8px !important; }
+          }
+        </style>
+      </head>
       <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
-        <div style="max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 15px; background: #fff; text-align: center;">
+        <div style="width:100%; max-width:800px; margin:0 auto; border:2px solid #000; padding:15px; background:#fff; text-align:center; box-sizing:border-box;">
           <p style="margin:0 0 10px 0;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
           ${
             totalPallets > 0
