@@ -54,7 +54,7 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
 };
 
 interface Bulto {
-  id: string; // UUID real de Supabase
+  id: string;
   origenCarga: string;
   tipoDocumento: string;
   numeroDocumento: string;
@@ -62,7 +62,6 @@ interface Bulto {
   observacion: string;
 }
 
-// Estructura para imprimir
 interface LocalImprimir {
   codigoLocal: string;
   nombreLocal: string;
@@ -243,7 +242,6 @@ const BultosModal = ({
     ? tiposDocumentoPorOrigen[nuevoBulto.origenCarga]?.length === 0
     : false;
 
-  // Al cambiar de local, actualizar bultos y limpiar formulario
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
     setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
@@ -575,20 +573,16 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [detallesPatentePrincipal, setDetallesPatentePrincipal] = useState<any>(null);
   const [detallesPatenteAdicional, setDetallesPatenteAdicional] = useState<any>(null);
 
-  // Bultos por local (memoria, sincronizada con BD)
   const [bultosPorLocal, setBultosPorLocal] = useState<Record<string, Bulto[]>>({});
 
-  // Sellos globales del transporte
   const [selloLateralGlobal, setSelloLateralGlobal] = useState(transporte.sello_lateral || '');
   const [selloAdicionalGlobal, setSelloAdicionalGlobal] = useState(transporte.sello_adicional || '');
 
-  // Barra de acciones
   const [modalCorreo, setModalCorreo] = useState(false);
   const [correosSeleccionados, setCorreosSeleccionados] = useState<string[]>([]);
   const [asunto, setAsunto] = useState('');
   const [detalleCorreo, setDetalleCorreo] = useState('');
 
-  // Impresión
   const [mostrarImprimirModal, setMostrarImprimirModal] = useState(false);
   const [localesImprimir, setLocalesImprimir] = useState<LocalImprimir[]>([]);
 
@@ -629,7 +623,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       const data = await resp.json();
       if (data) setLocales(data);
 
-      // Cargar bultos existentes
       const respBultos = await fetch(API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
       const bultosData = await respBultos.json();
       if (Array.isArray(bultosData)) {
@@ -646,8 +639,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           });
         });
         setBultosPorLocal(map);
-      } else {
-        console.warn('Respuesta inesperada al cargar bultos:', bultosData);
       }
     } catch (e) {
       console.error('Error cargando locales:', e);
@@ -655,7 +646,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setCargando(false);
   };
 
-  // Guardar sellos globales en el documento
   const guardarSellosGlobales = async () => {
     try {
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
@@ -714,7 +704,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     onActualizar();
   };
 
-  // Total de bultos global
   const totalBultosGlobal = Object.values(bultosPorLocal).reduce((sum, bultos) => 
     sum + bultos.reduce((s, b) => s + b.cantidad, 0), 0
   );
@@ -734,7 +723,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     return numeroFormateado + '-' + dv;
   };
 
-  // Imprimir
   const imprimirLocales = (seleccionados: boolean) => {
     if (seleccionados && !locales.some((l: any) => l.seleccionado)) {
       alert('Seleccione al menos un local para imprimir');
@@ -745,7 +733,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       ? locales.filter((l: any) => l.seleccionado)
       : locales;
 
-    // Mapear a la estructura que espera ImprimirModal
     const localesParaImprimir = localesAImprimir.map((local: any) => {
       const bultos = bultosPorLocal[local.id] || [];
       return {
@@ -768,7 +755,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setMostrarImprimirModal(true);
   };
 
-  // Copiar cuadro
   const copiarCuadro = () => {
     const lineas = locales.map((l: any) => {
       const bultos = bultosPorLocal[l.id] || [];
@@ -779,7 +765,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     navigator.clipboard.writeText(texto).then(() => alert('Cuadro copiado al portapapeles'));
   };
 
-  // Correo
   const abrirModalCorreo = () => {
     setCorreosSeleccionados(locales.map((l: any) => l.correo).filter(Boolean));
     setAsunto('');
@@ -796,15 +781,28 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setModalCorreo(false);
   };
 
-  // Finalizar transporte (ya no inserta bultos, solo cambia estado)
   const finalizarTransporte = async () => {
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
 
     try {
-      // Guardar sellos globales
+      // 1. Guardar sellos globales
       await guardarSellosGlobales();
 
-      // Cambiar estado a Finalizado
+      // 2. Guardar sello trasero y cantidad pallet de cada local
+      for (const local of locales) {
+        await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sello_trasero: local.sello_trasero || null,
+            cantidad_pallet: local.cantidad_pallet || null,
+            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+            modificado_en: new Date().toISOString()
+          })
+        });
+      }
+
+      // 3. Cambiar estado a Finalizado
       const now = new Date().toISOString();
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
         method: 'PATCH',
@@ -817,7 +815,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         })
       });
 
-      alert('Transporte finalizado exitosamente.');
+      alert('Transporte finalizado exitosamente. Sellos y pallets guardados.');
       onActualizar();
       onClose();
     } catch (e) {
@@ -826,7 +824,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
   };
 
-  // Habilitación de sellos según patentes
   const selloLateralHabilitado = (detallesPatentePrincipal?.cantidad_sellos || 0) >= 2 || (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
   const selloAdicionalHabilitado = (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
 
@@ -1145,6 +1142,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           isOpen={mostrarImprimirModal}
           locales={localesImprimir}
           conductor={detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : ''}
+          rutConductor={detallesConductor?.numero_documento || ''}
           patentePrincipal={detallesPatentePrincipal?.numero_patente || ''}
           patenteAdicional={detallesPatenteAdicional?.numero_patente || undefined}
           selloLateral={selloLateralGlobal}
