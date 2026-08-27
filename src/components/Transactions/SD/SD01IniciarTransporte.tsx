@@ -191,7 +191,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos - ahora con navegación entre locales
+// Modal de bultos con navegación por botones entre locales
 const BultosModal = ({
   localInicial,
   locales,
@@ -224,7 +224,7 @@ const BultosModal = ({
     ? tiposDocumentoPorOrigen[nuevoBulto.origenCarga]?.length === 0
     : false;
 
-  // Al cambiar de local, actualizar bultos
+  // Al cambiar de local, actualizar bultos y limpiar formulario
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
     setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
@@ -326,29 +326,21 @@ const BultosModal = ({
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
-          {/* Selector de locales */}
-          <div className="dc-local-selector" style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-              Seleccionar Local
-            </label>
-            <select
-              className="dc-input"
-              value={localActual.id}
-              onChange={(e) => {
-                const local = locales.find((l: any) => l.id === e.target.value);
-                if (local) setLocalActual(local);
-              }}
-            >
-              {locales.map((local: any) => (
-                <option key={local.id} value={local.id}>
-                  {local.codigo_local} - {local.nombre_local || ''}
-                </option>
-              ))}
-            </select>
+          {/* Selector de locales con botones */}
+          <div className="dc-local-nav" style={{ marginBottom: '16px' }}>
+            {locales.map((local: any) => (
+              <button
+                key={local.id}
+                className={`local-nav-btn ${localActual.id === local.id ? "active" : ""}`}
+                onClick={() => setLocalActual(local)}
+              >
+                {local.codigo_local} - {local.nombre_local || ''}
+              </button>
+            ))}
           </div>
 
           <div className="dc-form-section">
-            <h3>{editandoId !== null ? "Editar Bulto" : "Agregar Bulto"}</h3>
+            <h3>{editandoId !== null ? "Editar Bulto" : "Agregar Bulto"} - Local {localActual.codigo_local}</h3>
             <div className="dc-form-grid">
               <div className="dc-form-field">
                 <label>Origen de Carga</label>
@@ -556,6 +548,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sello_trasero: local.sello_trasero || null,
+          sello_lateral: local.sello_lateral || null,
+          sello_adicional: local.sello_adicional || null,
           cantidad_pallet: local.cantidad_pallet || null,
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
           modificado_en: new Date().toISOString()
@@ -606,6 +600,17 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
     const localesAImprimir = seleccionados ? locales.filter((l: any) => l.seleccionado) : locales;
     window.print();
+  };
+
+  // Copiar cuadro
+  const copiarCuadro = () => {
+    const lineas = locales.map((l: any) => {
+      const bultos = bultosPorLocal[l.id] || [];
+      const totalBultos = bultos.reduce((s: number, b: any) => s + b.cantidad, 0);
+      return `${l.codigo_local} - ${l.nombre_local || ''} | Sellos: ${l.sello_trasero || '-'}/${l.sello_lateral || '-'}/${l.sello_adicional || '-'} | Bultos: ${totalBultos}`;
+    });
+    const texto = `Transporte ${transporte.id_documento}\n${lineas.join('\n')}`;
+    navigator.clipboard.writeText(texto).then(() => alert('Cuadro copiado al portapapeles'));
   };
 
   // Correo
@@ -674,6 +679,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
   };
 
+  // Habilitación de sellos según patentes
+  const selloLateralHabilitado = (detallesPatentePrincipal?.cantidad_sellos || 0) >= 2 || (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
+  const selloAdicionalHabilitado = (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
+
   if (cargando) {
     return (
       <div className="sd01-container" style={{ padding: '40px', textAlign: 'center' }}>
@@ -704,6 +713,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           <span className="sd01-action-label">Envío Correo</span>
           <button className="sd01-btn" onClick={abrirModalCorreo}>Seleccionar Correos</button>
           <button className="sd01-btn" onClick={() => setModalCorreo(true)}>Asunto y Detalle</button>
+          <button className="sd01-btn" onClick={copiarCuadro}>Copiar Cuadro</button>
         </div>
 
         <div className="sd01-separator"></div>
@@ -790,6 +800,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                   <span className="sd01-ver-field-value">{detallesPatentePrincipal.tipo_vehiculo || 'Otro'}</span>
                 </div>
               )}
+              {detallesPatentePrincipal && (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Cant. Sellos</span>
+                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.cantidad_sellos || 0}</span>
+                </div>
+              )}
             </div>
 
             <div className="sd01-ver-card">
@@ -803,6 +819,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Tipo de Vehículo</span>
                     <span className="sd01-ver-field-value">{detallesPatenteAdicional.tipo_vehiculo || 'Otro'}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Cant. Sellos</span>
+                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.cantidad_sellos || 0}</span>
                   </div>
                 </>
               ) : (
@@ -820,7 +840,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
             <span className="sd01-ver-locales-count">{locales.length} locales</span>
           </div>
           <div className="sd01-table-scroll">
-            <table className="sd01-table" style={{ minWidth: '800px' }}>
+            <table className="sd01-table" style={{ minWidth: '1000px' }}>
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}>
@@ -834,6 +854,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                   <th>Fecha Entrega</th>
                   <th>Hora Entrega</th>
                   <th>Sello Trasero</th>
+                  <th>Sello Lateral</th>
+                  <th>Sello Adicional</th>
                   <th>Cantidad Pallet</th>
                   <th style={{ width: '50px' }}></th>
                 </tr>
@@ -860,11 +882,37 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                       <input
                         type="text"
                         className="sd01-form-input"
-                        style={{ width: '100px', padding: '4px 8px', fontSize: '13px' }}
+                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
                         value={local.sello_trasero || ''}
                         onChange={(e) => handleLocalChange(index, 'sello_trasero', e.target.value)}
                         onBlur={() => guardarCambiosLocal(index)}
                         placeholder="Sello"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        className="sd01-form-input"
+                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                        value={local.sello_lateral || ''}
+                        onChange={(e) => handleLocalChange(index, 'sello_lateral', e.target.value)}
+                        onBlur={() => guardarCambiosLocal(index)}
+                        placeholder="Sello"
+                        disabled={!selloLateralHabilitado}
+                        title={!selloLateralHabilitado ? 'Requiere 2 sellos en patente principal o 1 en adicional' : ''}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        className="sd01-form-input"
+                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                        value={local.sello_adicional || ''}
+                        onChange={(e) => handleLocalChange(index, 'sello_adicional', e.target.value)}
+                        onBlur={() => guardarCambiosLocal(index)}
+                        placeholder="Sello"
+                        disabled={!selloAdicionalHabilitado}
+                        title={!selloAdicionalHabilitado ? 'Requiere al menos 1 sello en patente adicional' : ''}
                       />
                     </td>
                     <td>
