@@ -53,7 +53,7 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
 };
 
 interface Bulto {
-  id: string; // UUID real de Supabase
+  id: string; // UUID real de Supabase, o ID temporal si aún no se guardó
   origenCarga: string;
   tipoDocumento: string;
   numeroDocumento: string;
@@ -191,7 +191,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos con guardado inmediato en Supabase
+// Modal de bultos con guardado inmediato en Supabase (con manejo de errores)
 const BultosModal = ({
   localInicial,
   locales,
@@ -213,6 +213,7 @@ const BultosModal = ({
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [tiposDisponibles, setTiposDisponibles] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const origenRef = useRef<HTMLInputElement>(null);
   const tipoDocRef = useRef<HTMLInputElement>(null);
@@ -231,6 +232,7 @@ const BultosModal = ({
     setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
     setEditandoId(null);
     setTiposDisponibles([]);
+    setErrorMsg('');
     setTimeout(() => origenRef.current?.focus(), 100);
   }, [localActual.id]);
 
@@ -268,6 +270,7 @@ const BultosModal = ({
     });
     setTiposDisponibles([]);
     setEditandoId(null);
+    setErrorMsg('');
     setTimeout(() => origenRef.current?.focus(), 50);
   };
 
@@ -275,6 +278,7 @@ const BultosModal = ({
     if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
 
     setGuardando(true);
+    setErrorMsg('');
     try {
       const data = {
         local_id: localActual.id,
@@ -290,11 +294,15 @@ const BultosModal = ({
 
       if (editandoId) {
         // Actualizar en BD
-        await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
+        const resp = await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          throw new Error(errorText || 'Error al actualizar');
+        }
 
         const nuevos = bultos.map((b) =>
           b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
@@ -303,13 +311,20 @@ const BultosModal = ({
         onBultosChange(localActual.id, nuevos);
         setEditandoId(null);
       } else {
-        // Insertar en BD y obtener el registro creado con su UUID
+        // Insertar en BD
         const resp = await fetch(API_URL + '/sd01_bultos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
           body: JSON.stringify(data)
         });
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          throw new Error(errorText || 'Error al insertar');
+        }
         const result = await resp.json();
+        if (!Array.isArray(result) || result.length === 0) {
+          throw new Error('No se recibió el registro creado');
+        }
         const creado = result[0];
         const nuevo: Bulto = {
           id: creado.id,
@@ -333,9 +348,10 @@ const BultosModal = ({
       });
       setTiposDisponibles([]);
       setTimeout(() => origenRef.current?.focus(), 50);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error guardando bulto:', e);
-      alert('Error al guardar bulto');
+      setErrorMsg('Error al guardar bulto: ' + (e.message || 'Desconocido'));
+      // No revertimos, el bulto no se agrega a la lista porque falló la BD
     } finally {
       setGuardando(false);
     }
@@ -344,7 +360,11 @@ const BultosModal = ({
   const eliminarBulto = async (id: string) => {
     if (!window.confirm('¿Eliminar este bulto?')) return;
     try {
-      await fetch(API_URL + '/sd01_bultos?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
+      const resp = await fetch(API_URL + '/sd01_bultos?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(errorText || 'Error al eliminar');
+      }
       const nuevos = bultos.filter((b) => b.id !== id);
       setBultos(nuevos);
       onBultosChange(localActual.id, nuevos);
@@ -354,6 +374,7 @@ const BultosModal = ({
       }
     } catch (e) {
       console.error('Error eliminando bulto:', e);
+      setErrorMsg('Error al eliminar bulto: ' + (e.message || 'Desconocido'));
     }
   };
 
@@ -367,6 +388,21 @@ const BultosModal = ({
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
+          {errorMsg && (
+            <div style={{
+              background: 'var(--error-bg)',
+              color: 'var(--error-text)',
+              border: '1px solid var(--error-border)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              marginBottom: '12px',
+              fontSize: '13px',
+              fontWeight: 500
+            }}>
+              {errorMsg}
+            </div>
+          )}
+
           <div className="dc-local-nav" style={{ marginBottom: '16px' }}>
             {locales.map((local: any) => (
               <button
@@ -578,7 +614,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       // Cargar bultos existentes
       const respBultos = await fetch(API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
       const bultosData = await respBultos.json();
-      if (bultosData) {
+      if (Array.isArray(bultosData)) {
         const map: Record<string, Bulto[]> = {};
         bultosData.forEach((b: any) => {
           if (!map[b.local_id]) map[b.local_id] = [];
@@ -592,6 +628,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           });
         });
         setBultosPorLocal(map);
+      } else {
+        console.warn('Respuesta inesperada al cargar bultos:', bultosData);
       }
     } catch (e) {
       console.error('Error cargando locales:', e);
