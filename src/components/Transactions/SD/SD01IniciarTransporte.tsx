@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
+import ImprimirModal from './ImprimirModal';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -59,6 +60,22 @@ interface Bulto {
   numeroDocumento: string;
   cantidad: number;
   observacion: string;
+}
+
+// Estructura para imprimir
+interface LocalImprimir {
+  codigoLocal: string;
+  nombreLocal: string;
+  fechaEntrega: string;
+  horaEntrega: string;
+  selloTrasero: string;
+  carga: Array<{
+    origenCarga: string;
+    tipoDocumento: string;
+    numeroDocumento: string;
+    cantidadBultos: number;
+    observacion: string;
+  }>;
 }
 
 // Autocomplete component
@@ -191,7 +208,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos con guardado inmediato en Supabase (con manejo de errores)
+// Modal de bultos con guardado inmediato en Supabase
 const BultosModal = ({
   localInicial,
   locales,
@@ -293,7 +310,6 @@ const BultosModal = ({
       };
 
       if (editandoId) {
-        // Actualizar en BD
         const resp = await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -311,7 +327,6 @@ const BultosModal = ({
         onBultosChange(localActual.id, nuevos);
         setEditandoId(null);
       } else {
-        // Insertar en BD
         const resp = await fetch(API_URL + '/sd01_bultos', {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -573,6 +588,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [asunto, setAsunto] = useState('');
   const [detalleCorreo, setDetalleCorreo] = useState('');
 
+  // Impresión
+  const [mostrarImprimirModal, setMostrarImprimirModal] = useState(false);
+  const [localesImprimir, setLocalesImprimir] = useState<LocalImprimir[]>([]);
+
   useEffect(() => {
     if (transporte) {
       cargarDetalles();
@@ -721,8 +740,32 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Seleccione al menos un local para imprimir');
       return;
     }
-    const localesAImprimir = seleccionados ? locales.filter((l: any) => l.seleccionado) : locales;
-    window.print();
+
+    const localesAImprimir = seleccionados
+      ? locales.filter((l: any) => l.seleccionado)
+      : locales;
+
+    // Mapear a la estructura que espera ImprimirModal
+    const localesParaImprimir = localesAImprimir.map((local: any) => {
+      const bultos = bultosPorLocal[local.id] || [];
+      return {
+        codigoLocal: local.codigo_local,
+        nombreLocal: local.nombre_local || '',
+        fechaEntrega: local.fecha_entrega,
+        horaEntrega: local.hora_entrega || '',
+        selloTrasero: local.sello_trasero || '',
+        carga: bultos.map((b: any) => ({
+          origenCarga: b.origenCarga,
+          tipoDocumento: b.tipoDocumento,
+          numeroDocumento: b.numeroDocumento,
+          cantidadBultos: b.cantidad,
+          observacion: b.observacion
+        }))
+      };
+    });
+
+    setLocalesImprimir(localesParaImprimir);
+    setMostrarImprimirModal(true);
   };
 
   // Copiar cuadro
@@ -1094,6 +1137,21 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Imprimir */}
+      {mostrarImprimirModal && (
+        <ImprimirModal
+          isOpen={mostrarImprimirModal}
+          locales={localesImprimir}
+          conductor={detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : ''}
+          patentePrincipal={detallesPatentePrincipal?.numero_patente || ''}
+          patenteAdicional={detallesPatenteAdicional?.numero_patente || undefined}
+          selloLateral={selloLateralGlobal}
+          selloAdicional={selloAdicionalGlobal}
+          nombreAdministrativo={transporte.administrativo || ''}
+          onClose={() => setMostrarImprimirModal(false)}
+        />
       )}
     </div>
   );
