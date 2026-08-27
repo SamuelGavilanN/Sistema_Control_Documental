@@ -111,142 +111,142 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Eliminamos table-layout:fixed y usamos word-break para que se adapte a móviles
+    // TODAS las celdas tienen white-space:nowrap
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
-          <td colspan="5" style="border:1px solid #000; padding:5px; word-break:break-word;"><strong>${codigo}-${nombre}</strong></td>
+          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;"><strong>${codigo}-${nombre}</strong></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Actas Entrega</td>
-          <td colspan="5" style="border:1px solid #000; padding:5px; word-break:break-word;">${actas}</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${actas}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
-          <td colspan="5" style="border:1px solid #000; padding:5px; word-break:break-word;">${administrativo}</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
         </tr>
         <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${fechaLarga}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLarga}</td>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${horaConHrs}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${horaConHrs}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${chofer}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${chofer}</td>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Patente</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${patente}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${patente}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Rut</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${rut}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${rut}</td>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${selloTrasero}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloTrasero}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Empresa</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${transportista}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${transportista}</td>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Lateral</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${selloLateral}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloLateral}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Teléfono</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${celular}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${celular}</td>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${selloAdicional}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
         <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td>
         </tr>
 
         ${
           centros.length > 0
             ? `
               <tr>
-                <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold;">Centro de Distribución</td>
+                <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
               </tr>
               <tr bgcolor="#B4C6E7">
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Cant. Bultos</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold;">Observación</td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Observación</td>
               </tr>
               ${centros
                 .map((b) => {
                   const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
                   const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
                   return `<tr>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; word-break:break-word;">${escaparHTML(b.origenCarga)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(tipoDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(numDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px;">${b.cantidad}</td>
-                    <td colspan="3" style="border:1px solid #000; padding:3px; word-break:break-word;">${escaparHTML(b.observacion || '')}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(b.origenCarga)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(tipoDoc)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(numDoc)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${b.cantidad}</td>
+                    <td colspan="3" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(b.observacion || '')}</td>
                   </tr>`;
                 })
                 .join('')}
               <tr bgcolor="#FFFF00" style="font-weight:bold;">
-                <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center;">Total de Bultos Origen Centro de Distribución</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; text-align:center;">${totalCentros}</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px;"></td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de Bultos Origen Centro de Distribución</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">${totalCentros}</td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; white-space:nowrap;"></td>
               </tr>
             `
             : ''
         }
 
         <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td>
         </tr>
 
         ${
           segmentos.length > 0
             ? `
               <tr>
-                <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold;">Segmentos Adicionales</td>
+                <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Segmentos Adicionales</td>
               </tr>
               <tr bgcolor="#B4C6E7">
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Segmento</td>
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
                 <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Cant. Bultos</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold;">Observación</td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Observación</td>
               </tr>
               ${segmentos
                 .map((b) => {
                   const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
                   const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
                   return `<tr>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; word-break:break-word;">${escaparHTML(b.origenCarga)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(tipoDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(numDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px;">${b.cantidad}</td>
-                    <td colspan="3" style="border:1px solid #000; padding:3px; word-break:break-word;">${escaparHTML(b.observacion || '')}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(b.origenCarga)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(tipoDoc)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(numDoc)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:nowrap;">${b.cantidad}</td>
+                    <td colspan="3" style="border:1px solid #000; padding:3px; white-space:nowrap;">${escaparHTML(b.observacion || '')}</td>
                   </tr>`;
                 })
                 .join('')}
               <tr bgcolor="#FFFF00" style="font-weight:bold;">
-                <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center;">Total de bultos Segmentos Adicionales</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; text-align:center;">${totalSegmentos}</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px;"></td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de bultos Segmentos Adicionales</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">${totalSegmentos}</td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; white-space:nowrap;"></td>
               </tr>
             `
             : ''
         }
 
         <tr bgcolor="#FFFF00" style="font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center;">Total de Bultos Despachados</td>
-          <td colspan="1" style="border:1px solid #000; padding:5px; text-align:center;">${totalGeneral}</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">${totalGeneral}</td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
         </tr>
       </table>
     `;
   }
 
-  // Usamos una tabla contenedora en lugar de div para mejor compatibilidad en correos
+  // HTML final con tabla contenedora y media query
   const html = `
     <html>
       <head>
@@ -254,8 +254,8 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           @media screen and (max-width: 600px) {
-            body { font-size: 11px !important; }
-            table { font-size: 11px !important; }
+            body { font-size: 10px !important; }
+            table { font-size: 10px !important; }
             td, th { padding: 2px !important; }
             .contenedor { padding: 5px !important; }
           }
@@ -265,10 +265,10 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:800px; margin:0 auto; background:#fff; border:2px solid #000;">
           <tr>
             <td style="padding:15px; text-align:center;">
-              <p style="margin:0 0 10px 0;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
+              <p style="margin:0 0 10px 0; white-space:nowrap;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
               ${
                 totalPallets > 0
-                  ? `<p style="margin:0 0 10px 0; font-weight:bold; font-size:14px;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</p>`
+                  ? `<p style="margin:0 0 10px 0; font-weight:bold; font-size:14px; white-space:nowrap;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</p>`
                   : ''
               }
               ${htmlLocales}
