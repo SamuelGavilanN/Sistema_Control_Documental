@@ -5,7 +5,6 @@ import { conductores } from "../../../data/conductores";
 import logoPath from "../../../assets/fashions-park-logo2.png";
 import "./ImprimirModal.css";
 
-// Estructura de un local para imprimir
 interface LocalImprimir {
   codigoLocal: string;
   nombreLocal: string;
@@ -318,11 +317,16 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
   const copiasUsar =
     copias.length > 0 ? copias : ["Local", "Guardia", "Conductor", "Original"];
 
+  // Fallback: si no se recibe rutConductor, buscar en conductores
+  const rutRespaldo = rutConductor || conductores.find(
+    (c) => c.nombre_completo === conductor
+  )?.numero_documento || "";
+
   const htmlString = logoBase64
     ? generarHTML(
         locales,
         conductor,
-        rutConductor || "",
+        rutRespaldo,
         patentePrincipal,
         patenteAdicional,
         selloLateral,
@@ -336,7 +340,7 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
     const html = generarHTML(
       locales,
       conductor,
-      rutConductor || "",
+      rutRespaldo,
       patentePrincipal,
       patenteAdicional,
       selloLateral,
