@@ -619,26 +619,43 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const cargarLocales = async () => {
     try {
-      const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
+      const resp = await fetch(
+        API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento,
+        { headers: HEADERS }
+      );
       const data = await resp.json();
-      if (data) setLocales(data);
 
-      const respBultos = await fetch(API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
-      const bultosData = await respBultos.json();
-      if (Array.isArray(bultosData)) {
-        const map: Record<string, Bulto[]> = {};
-        bultosData.forEach((b: any) => {
-          if (!map[b.local_id]) map[b.local_id] = [];
-          map[b.local_id].push({
-            id: b.id,
-            origenCarga: b.origen_carga,
-            tipoDocumento: b.tipo_documento || '',
-            numeroDocumento: b.numero_documento || '',
-            cantidad: b.cantidad,
-            observacion: b.observacion || ''
+      if (Array.isArray(data)) {
+        // Mapear explícitamente los campos
+        const localesMapeados = data.map((local: any) => ({
+          ...local,
+          sello_trasero: local.sello_trasero || '',
+          cantidad_pallet: local.cantidad_pallet || null,
+          seleccionado: false,
+        }));
+        setLocales(localesMapeados);
+
+        // Cargar bultos existentes
+        const respBultos = await fetch(
+          API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento,
+          { headers: HEADERS }
+        );
+        const bultosData = await respBultos.json();
+        if (Array.isArray(bultosData)) {
+          const map: Record<string, Bulto[]> = {};
+          bultosData.forEach((b: any) => {
+            if (!map[b.local_id]) map[b.local_id] = [];
+            map[b.local_id].push({
+              id: b.id,
+              origenCarga: b.origen_carga,
+              tipoDocumento: b.tipo_documento || '',
+              numeroDocumento: b.numero_documento || '',
+              cantidad: b.cantidad,
+              observacion: b.observacion || ''
+            });
           });
-        });
-        setBultosPorLocal(map);
+          setBultosPorLocal(map);
+        }
       }
     } catch (e) {
       console.error('Error cargando locales:', e);
@@ -672,18 +689,27 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const guardarCambiosLocal = async (index: number) => {
     const local = locales[index];
     try {
-      await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sello_trasero: local.sello_trasero || null,
-          cantidad_pallet: local.cantidad_pallet || null,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
+      const resp = await fetch(
+        API_URL + '/sd01_documento_locales?id=eq.' + local.id,
+        {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sello_trasero: local.sello_trasero || null,
+            cantidad_pallet: local.cantidad_pallet || null,
+            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+            modificado_en: new Date().toISOString()
+          })
+        }
+      );
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Error guardando local:', errorText);
+        alert('Error al guardar local: ' + errorText);
+      }
     } catch (e) {
       console.error('Error guardando local:', e);
+      alert('Error de red al guardar local');
     }
   };
 
@@ -785,24 +811,28 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
 
     try {
-      // 1. Guardar sellos globales
       await guardarSellosGlobales();
 
-      // 2. Guardar sello trasero y cantidad pallet de cada local
       for (const local of locales) {
-        await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
-          method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sello_trasero: local.sello_trasero || null,
-            cantidad_pallet: local.cantidad_pallet || null,
-            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-            modificado_en: new Date().toISOString()
-          })
-        });
+        const resp = await fetch(
+          API_URL + '/sd01_documento_locales?id=eq.' + local.id,
+          {
+            method: 'PATCH',
+            headers: { ...HEADERS, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sello_trasero: local.sello_trasero || null,
+              cantidad_pallet: local.cantidad_pallet || null,
+              modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+              modificado_en: new Date().toISOString()
+            })
+          }
+        );
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          console.error('Error guardando local al finalizar:', errorText);
+        }
       }
 
-      // 3. Cambiar estado a Finalizado
       const now = new Date().toISOString();
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
         method: 'PATCH',
