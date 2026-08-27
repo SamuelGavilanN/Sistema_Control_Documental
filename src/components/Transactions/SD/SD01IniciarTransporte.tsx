@@ -224,7 +224,6 @@ const BultosModal = ({
     ? tiposDocumentoPorOrigen[nuevoBulto.origenCarga]?.length === 0
     : false;
 
-  // Al cambiar de local, actualizar bultos y limpiar formulario
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
     setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
@@ -319,14 +318,12 @@ const BultosModal = ({
 
   return (
     <div className="sd01-modal-overlay">
-      {/* Sin onClick en overlay para no cerrar accidentalmente */}
       <div className="sd01-modal sd01-modal-bultos" onClick={(e) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Bultos por Local</h2>
           <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
-          {/* Selector de locales con botones */}
           <div className="dc-local-nav" style={{ marginBottom: '16px' }}>
             {locales.map((local: any) => (
               <button
@@ -488,6 +485,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   // Bultos por local (memoria)
   const [bultosPorLocal, setBultosPorLocal] = useState<Record<string, Bulto[]>>({});
 
+  // Sellos globales del transporte
+  const [selloLateralGlobal, setSelloLateralGlobal] = useState(transporte.sello_lateral || '');
+  const [selloAdicionalGlobal, setSelloAdicionalGlobal] = useState(transporte.sello_adicional || '');
+
   // Barra de acciones
   const [modalCorreo, setModalCorreo] = useState(false);
   const [correosSeleccionados, setCorreosSeleccionados] = useState<string[]>([]);
@@ -498,6 +499,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     if (transporte) {
       cargarDetalles();
       cargarLocales();
+      setSelloLateralGlobal(transporte.sello_lateral || '');
+      setSelloAdicionalGlobal(transporte.sello_adicional || '');
     }
   }, [transporte]);
 
@@ -534,6 +537,24 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setCargando(false);
   };
 
+  // Guardar sellos globales en el documento
+  const guardarSellosGlobales = async () => {
+    try {
+      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sello_lateral: selloLateralGlobal || null,
+          sello_adicional: selloAdicionalGlobal || null,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: new Date().toISOString()
+        })
+      });
+    } catch (e) {
+      console.error('Error guardando sellos globales:', e);
+    }
+  };
+
   const handleLocalChange = (index: number, field: string, value: any) => {
     const nuevos = [...locales];
     nuevos[index][field] = value;
@@ -548,8 +569,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sello_trasero: local.sello_trasero || null,
-          sello_lateral: local.sello_lateral || null,
-          sello_adicional: local.sello_adicional || null,
           cantidad_pallet: local.cantidad_pallet || null,
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
           modificado_en: new Date().toISOString()
@@ -576,6 +595,11 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setMostrarModalBultos(false);
     onActualizar();
   };
+
+  // Total de bultos global
+  const totalBultosGlobal = Object.values(bultosPorLocal).reduce((sum, bultos) => 
+    sum + bultos.reduce((s, b) => s + b.cantidad, 0), 0
+  );
 
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
@@ -607,9 +631,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     const lineas = locales.map((l: any) => {
       const bultos = bultosPorLocal[l.id] || [];
       const totalBultos = bultos.reduce((s: number, b: any) => s + b.cantidad, 0);
-      return `${l.codigo_local} - ${l.nombre_local || ''} | Sellos: ${l.sello_trasero || '-'}/${l.sello_lateral || '-'}/${l.sello_adicional || '-'} | Bultos: ${totalBultos}`;
+      return `${l.codigo_local} - ${l.nombre_local || ''} | Sellos: ${l.sello_trasero || '-'} | Bultos: ${totalBultos}`;
     });
-    const texto = `Transporte ${transporte.id_documento}\n${lineas.join('\n')}`;
+    const texto = `Transporte ${transporte.id_documento}\nSello Lateral: ${selloLateralGlobal || '-'} | Sello Adicional: ${selloAdicionalGlobal || '-'}\n${lineas.join('\n')}\nTotal Bultos: ${totalBultosGlobal}`;
     navigator.clipboard.writeText(texto).then(() => alert('Cuadro copiado al portapapeles'));
   };
 
@@ -635,6 +659,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
 
     try {
+      // Guardar sellos globales
+      await guardarSellosGlobales();
+
       // Guardar todos los bultos en Supabase
       for (const local of locales) {
         const bultosLocal = bultosPorLocal[local.id] || [];
@@ -834,13 +861,42 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           </div>
         )}
 
+        {/* Sección Datos Destino con sellos globales */}
         <div style={{ marginTop: '8px' }}>
-          <div className="sd01-ver-locales-title">
-            Datos Destino
+          <div className="sd01-ver-locales-title" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span>Datos Destino</span>
             <span className="sd01-ver-locales-count">{locales.length} locales</span>
+            <span className="sd01-ver-locales-count">Total Bultos: {totalBultosGlobal}</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Sello Lateral</label>
+              <input
+                type="text"
+                className="sd01-form-input"
+                style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                value={selloLateralGlobal}
+                onChange={(e) => setSelloLateralGlobal(e.target.value)}
+                onBlur={guardarSellosGlobales}
+                placeholder="Sello"
+                disabled={!selloLateralHabilitado}
+                title={!selloLateralHabilitado ? 'Requiere 2 sellos en patente principal o 1 en adicional' : ''}
+              />
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Sello Adicional</label>
+              <input
+                type="text"
+                className="sd01-form-input"
+                style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                value={selloAdicionalGlobal}
+                onChange={(e) => setSelloAdicionalGlobal(e.target.value)}
+                onBlur={guardarSellosGlobales}
+                placeholder="Sello"
+                disabled={!selloAdicionalHabilitado}
+                title={!selloAdicionalHabilitado ? 'Requiere al menos 1 sello en patente adicional' : ''}
+              />
+            </div>
           </div>
-          <div className="sd01-table-scroll">
-            <table className="sd01-table" style={{ minWidth: '1000px' }}>
+
+          <div className="sd01-table-scroll" style={{ marginTop: '10px' }}>
+            <table className="sd01-table" style={{ minWidth: '900px' }}>
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}>
@@ -854,8 +910,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                   <th>Fecha Entrega</th>
                   <th>Hora Entrega</th>
                   <th>Sello Trasero</th>
-                  <th>Sello Lateral</th>
-                  <th>Sello Adicional</th>
                   <th>Cantidad Pallet</th>
                   <th style={{ width: '50px' }}></th>
                 </tr>
@@ -887,32 +941,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                         onChange={(e) => handleLocalChange(index, 'sello_trasero', e.target.value)}
                         onBlur={() => guardarCambiosLocal(index)}
                         placeholder="Sello"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        className="sd01-form-input"
-                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
-                        value={local.sello_lateral || ''}
-                        onChange={(e) => handleLocalChange(index, 'sello_lateral', e.target.value)}
-                        onBlur={() => guardarCambiosLocal(index)}
-                        placeholder="Sello"
-                        disabled={!selloLateralHabilitado}
-                        title={!selloLateralHabilitado ? 'Requiere 2 sellos en patente principal o 1 en adicional' : ''}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        className="sd01-form-input"
-                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
-                        value={local.sello_adicional || ''}
-                        onChange={(e) => handleLocalChange(index, 'sello_adicional', e.target.value)}
-                        onBlur={() => guardarCambiosLocal(index)}
-                        placeholder="Sello"
-                        disabled={!selloAdicionalHabilitado}
-                        title={!selloAdicionalHabilitado ? 'Requiere al menos 1 sello en patente adicional' : ''}
                       />
                     </td>
                     <td>
