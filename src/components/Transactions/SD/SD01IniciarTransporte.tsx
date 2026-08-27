@@ -53,7 +53,7 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
 };
 
 interface Bulto {
-  id: string; // UUID real de Supabase, o ID temporal si aún no se guardó
+  id: string; // UUID real de Supabase
   origenCarga: string;
   tipoDocumento: string;
   numeroDocumento: string;
@@ -351,7 +351,6 @@ const BultosModal = ({
     } catch (e: any) {
       console.error('Error guardando bulto:', e);
       setErrorMsg('Error al guardar bulto: ' + (e.message || 'Desconocido'));
-      // No revertimos, el bulto no se agrega a la lista porque falló la BD
     } finally {
       setGuardando(false);
     }
@@ -372,7 +371,7 @@ const BultosModal = ({
         setEditandoId(null);
         setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error eliminando bulto:', e);
       setErrorMsg('Error al eliminar bulto: ' + (e.message || 'Desconocido'));
     }
