@@ -47,6 +47,19 @@ function obtenerSaludo(): string {
   return 'Buenas noches';
 }
 
+function formatearFechaLarga(fecha: string): string {
+  if (!fecha) return '';
+  const d = new Date(fecha + 'T00:00:00');
+  if (isNaN(d.getTime())) return fecha;
+  const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  return `${dias[d.getDay()]}, ${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+}
+
+function formatearHora(hora: string): string {
+  if (!hora) return '';
+  return hora.endsWith('Hrs') ? hora : `${hora} Hrs`;
+}
+
 function escaparHTML(texto: string): string {
   return texto
     .replace(/&/g, '&amp;')
@@ -68,8 +81,8 @@ function esCentroDistribucion(origen: string): boolean {
 
 export function generarCuadroHTML(datos: TransporteData): string {
   const saludo = obtenerSaludo();
-  const fecha = escaparHTML(datos.fechaEntrega);
-  const hora = escaparHTML(datos.horaEntrega);
+  const fechaLarga = formatearFechaLarga(datos.fechaEntrega);
+  const horaConHrs = formatearHora(datos.horaEntrega);
   const chofer = escaparHTML(datos.chofer);
   const rut = escaparHTML(datos.rutChofer);
   const celular = escaparHTML(datos.celularChofer);
@@ -98,7 +111,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // ---------- Tabla principal del local (7 columnas) ----------
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
         <colgroup>
@@ -111,49 +123,49 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <col style="width:20%;">
         </colgroup>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
-          <td colspan="6" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Actas Entrega</td>
-          <td colspan="6" style="border:1px solid #000; padding:5px;">${actas}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Actas Entrega</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px;">${actas}</td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Administrativo</td>
-          <td colspan="6" style="border:1px solid #000; padding:5px;">${administrativo}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Administrativo</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px;">${administrativo}</td>
         </tr>
         <tr>
           <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Fecha Entrega</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;">${fecha}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Hora Entrega</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px;">${hora}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Fecha Entrega</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px;">${fechaLarga}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Hora Entrega</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${horaConHrs}</td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Conductor</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Conductor</td>
           <td colspan="2" style="border:1px solid #000; padding:5px;">${chofer}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Patente</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px;">${patente}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Patente</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${patente}</td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Rut</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Rut</td>
           <td colspan="2" style="border:1px solid #000; padding:5px;">${rut}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Trasero</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px;">${selloTrasero}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Trasero</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${selloTrasero}</td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Empresa</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Empresa</td>
           <td colspan="2" style="border:1px solid #000; padding:5px;">${transportista}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Lateral</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px;">${selloLateral}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Lateral</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${selloLateral}</td>
         </tr>
         <tr>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Telefono</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Telefono</td>
           <td colspan="2" style="border:1px solid #000; padding:5px;">${celular}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Adicional</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px;">${selloAdicional}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Adicional</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${selloAdicional}</td>
         </tr>
         <tr>
           <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
@@ -242,13 +254,13 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
-  // HTML final con contenedor principal y saludo arriba (una sola vez)
+  // HTML final
   const html = `
     <html>
       <head><meta charset="utf-8"></head>
       <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
         <div style="max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 15px; background: #fff; text-align: center;">
-          <p style="margin:0 0 10px 0;">${saludo} estimados (as). Se detalla planilla de despacho.</p>
+          <p style="margin:0 0 10px 0;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
           ${
             totalPallets > 0
               ? `<p style="margin:0 0 10px 0; font-weight:bold; font-size:14px;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</p>`
