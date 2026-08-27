@@ -1,0 +1,191 @@
+/* src/components/Transactions/SD/ImprimirSeleccionModal.css */
+
+.isel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-overlay);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.isel-modal {
+  background: var(--bg-panel);
+  border-radius: 16px;
+  width: 95%;
+  max-width: 500px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+}
+
+.isel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.isel-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.isel-close {
+  width: 32px;
+  height: 32px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.15s;
+}
+
+.isel-close:hover {
+  background: var(--btn-hover-bg);
+}
+
+.isel-body {
+  padding: 24px;
+}
+
+.isel-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--info-bg);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--info-text);
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+.isel-info-icon {
+  font-size: 20px;
+}
+
+.isel-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+.isel-copias {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.isel-copia {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.isel-copia:hover {
+  border-color: var(--text-muted);
+  background: var(--bg-hover);
+}
+
+.isel-copia.selected {
+  border-color: var(--btn-primary-bg);
+  background: var(--bg-selected);
+}
+
+.isel-copia-check {
+  flex-shrink: 0;
+}
+
+.isel-copia-icon {
+  font-size: 22px;
+}
+
+.isel-copia-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.isel-resumen {
+  background: var(--bg-section);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.isel-resumen-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.isel-resumen-item strong {
+  color: var(--text-primary);
+}
+
+.isel-total {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  font-weight: 600;
+}
+
+.isel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.isel-btn-cancel {
+  padding: 10px 20px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.isel-btn-cancel:hover {
+  background: var(--btn-hover-bg);
+}
+
+.isel-btn-print {
+  padding: 10px 20px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.isel-btn-print:hover {
+  background: var(--btn-primary-hover);
+}
