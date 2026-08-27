@@ -1,4 +1,4 @@
-// src/components/Transactions/SD/SD01IniciarTransporte.tsx
+/// src/components/Transactions/SD/SD01IniciarTransporte.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
@@ -626,7 +626,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       const data = await resp.json();
 
       if (Array.isArray(data)) {
-        // Mapear explícitamente los campos
         const localesMapeados = data.map((local: any) => ({
           ...local,
           sello_trasero: local.sello_trasero || '',
@@ -635,7 +634,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         }));
         setLocales(localesMapeados);
 
-        // Cargar bultos existentes
         const respBultos = await fetch(
           API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento,
           { headers: HEADERS }
@@ -686,6 +684,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setLocales(nuevos);
   };
 
+  // Corregido: sin modificado_por ni modificado_en
   const guardarCambiosLocal = async (index: number) => {
     const local = locales[index];
     try {
@@ -697,8 +696,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           body: JSON.stringify({
             sello_trasero: local.sello_trasero || null,
             cantidad_pallet: local.cantidad_pallet || null,
-            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-            modificado_en: new Date().toISOString()
           })
         }
       );
@@ -807,6 +804,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setModalCorreo(false);
   };
 
+  // Corregido: sin modificado_por ni modificado_en en el PATCH de locales
   const finalizarTransporte = async () => {
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
 
@@ -822,8 +820,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
             body: JSON.stringify({
               sello_trasero: local.sello_trasero || null,
               cantidad_pallet: local.cantidad_pallet || null,
-              modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-              modificado_en: new Date().toISOString()
             })
           }
         );
