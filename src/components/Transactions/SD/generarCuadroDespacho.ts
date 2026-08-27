@@ -111,16 +111,19 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <col style="width:20%;">
         </colgroup>
         <tr>
-          <td colspan="3" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
-          <td colspan="4" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
+          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
+          <td colspan="6" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
         </tr>
         <tr>
-          <td colspan="3" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Actas Entrega</td>
-          <td colspan="4" style="border:1px solid #000; padding:5px;">${actas}</td>
+          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Actas Entrega</td>
+          <td colspan="6" style="border:1px solid #000; padding:5px;">${actas}</td>
         </tr>
         <tr>
-          <td colspan="3" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Administrativo</td>
-          <td colspan="4" style="border:1px solid #000; padding:5px;">${administrativo}</td>
+          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Administrativo</td>
+          <td colspan="6" style="border:1px solid #000; padding:5px;">${administrativo}</td>
+        </tr>
+        <tr>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
         </tr>
         <tr>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Fecha Entrega</td>
