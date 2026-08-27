@@ -53,7 +53,7 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
 };
 
 interface Bulto {
-  id: string;
+  id: string; // UUID real de Supabase
   origenCarga: string;
   tipoDocumento: string;
   numeroDocumento: string;
@@ -191,7 +191,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos con navegación por botones entre locales
+// Modal de bultos con guardado inmediato en Supabase
 const BultosModal = ({
   localInicial,
   locales,
@@ -212,6 +212,7 @@ const BultosModal = ({
   });
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [tiposDisponibles, setTiposDisponibles] = useState<string[]>([]);
+  const [guardando, setGuardando] = useState(false);
 
   const origenRef = useRef<HTMLInputElement>(null);
   const tipoDocRef = useRef<HTMLInputElement>(null);
@@ -224,6 +225,7 @@ const BultosModal = ({
     ? tiposDocumentoPorOrigen[nuevoBulto.origenCarga]?.length === 0
     : false;
 
+  // Al cambiar de local, actualizar bultos y limpiar formulario
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
     setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
@@ -269,48 +271,89 @@ const BultosModal = ({
     setTimeout(() => origenRef.current?.focus(), 50);
   };
 
-  const agregarOActualizarBulto = () => {
+  const agregarOActualizarBulto = async () => {
     if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
 
-    if (editandoId) {
-      const nuevos = bultos.map((b) =>
-        b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
-      );
-      setBultos(nuevos);
-      onBultosChange(localActual.id, nuevos);
-      setEditandoId(null);
-    } else {
-      const nuevo: Bulto = {
-        id: Date.now().toString(),
-        origenCarga: nuevoBulto.origenCarga || "",
-        tipoDocumento: nuevoBulto.tipoDocumento || "",
-        numeroDocumento: nuevoBulto.numeroDocumento || "",
-        cantidad: nuevoBulto.cantidad || 0,
-        observacion: nuevoBulto.observacion || ""
+    setGuardando(true);
+    try {
+      const data = {
+        local_id: localActual.id,
+        documento_id: documentoId,
+        origen_carga: nuevoBulto.origenCarga,
+        tipo_documento: nuevoBulto.tipoDocumento || '',
+        numero_documento: nuevoBulto.numeroDocumento || '',
+        cantidad: nuevoBulto.cantidad,
+        observacion: nuevoBulto.observacion || '',
+        creado_por: usuario?.id,
+        creado_en: new Date().toISOString()
       };
-      const nuevos = [...bultos, nuevo];
-      setBultos(nuevos);
-      onBultosChange(localActual.id, nuevos);
-    }
 
-    setNuevoBulto({
-      origenCarga: "",
-      tipoDocumento: "",
-      numeroDocumento: "",
-      cantidad: 0,
-      observacion: ""
-    });
-    setTiposDisponibles([]);
-    setTimeout(() => origenRef.current?.focus(), 50);
+      if (editandoId) {
+        // Actualizar en BD
+        await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const nuevos = bultos.map((b) =>
+          b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
+        );
+        setBultos(nuevos);
+        onBultosChange(localActual.id, nuevos);
+        setEditandoId(null);
+      } else {
+        // Insertar en BD y obtener el registro creado con su UUID
+        const resp = await fetch(API_URL + '/sd01_bultos', {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        const creado = result[0];
+        const nuevo: Bulto = {
+          id: creado.id,
+          origenCarga: creado.origen_carga,
+          tipoDocumento: creado.tipo_documento || '',
+          numeroDocumento: creado.numero_documento || '',
+          cantidad: creado.cantidad,
+          observacion: creado.observacion || ''
+        };
+        const nuevos = [...bultos, nuevo];
+        setBultos(nuevos);
+        onBultosChange(localActual.id, nuevos);
+      }
+
+      setNuevoBulto({
+        origenCarga: "",
+        tipoDocumento: "",
+        numeroDocumento: "",
+        cantidad: 0,
+        observacion: ""
+      });
+      setTiposDisponibles([]);
+      setTimeout(() => origenRef.current?.focus(), 50);
+    } catch (e) {
+      console.error('Error guardando bulto:', e);
+      alert('Error al guardar bulto');
+    } finally {
+      setGuardando(false);
+    }
   };
 
-  const eliminarBulto = (id: string) => {
-    const nuevos = bultos.filter((b) => b.id !== id);
-    setBultos(nuevos);
-    onBultosChange(localActual.id, nuevos);
-    if (editandoId === id) {
-      setEditandoId(null);
-      setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
+  const eliminarBulto = async (id: string) => {
+    if (!window.confirm('¿Eliminar este bulto?')) return;
+    try {
+      await fetch(API_URL + '/sd01_bultos?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
+      const nuevos = bultos.filter((b) => b.id !== id);
+      setBultos(nuevos);
+      onBultosChange(localActual.id, nuevos);
+      if (editandoId === id) {
+        setEditandoId(null);
+        setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
+      }
+    } catch (e) {
+      console.error('Error eliminando bulto:', e);
     }
   };
 
@@ -405,11 +448,11 @@ const BultosModal = ({
               </div>
             </div>
             <div className="dc-form-actions">
-              <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto}>
+              <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto} disabled={guardando}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                {editandoId !== null ? "Actualizar" : "Agregar"}
+                {guardando ? 'Guardando...' : editandoId !== null ? "Actualizar" : "Agregar"}
               </button>
               {editandoId !== null && (
                 <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>Cancelar</button>
@@ -482,7 +525,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [detallesPatentePrincipal, setDetallesPatentePrincipal] = useState<any>(null);
   const [detallesPatenteAdicional, setDetallesPatenteAdicional] = useState<any>(null);
 
-  // Bultos por local (memoria)
+  // Bultos por local (memoria, sincronizada con BD)
   const [bultosPorLocal, setBultosPorLocal] = useState<Record<string, Bulto[]>>({});
 
   // Sellos globales del transporte
@@ -531,6 +574,25 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
       const data = await resp.json();
       if (data) setLocales(data);
+
+      // Cargar bultos existentes
+      const respBultos = await fetch(API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
+      const bultosData = await respBultos.json();
+      if (bultosData) {
+        const map: Record<string, Bulto[]> = {};
+        bultosData.forEach((b: any) => {
+          if (!map[b.local_id]) map[b.local_id] = [];
+          map[b.local_id].push({
+            id: b.id,
+            origenCarga: b.origen_carga,
+            tipoDocumento: b.tipo_documento || '',
+            numeroDocumento: b.numero_documento || '',
+            cantidad: b.cantidad,
+            observacion: b.observacion || ''
+          });
+        });
+        setBultosPorLocal(map);
+      }
     } catch (e) {
       console.error('Error cargando locales:', e);
     }
@@ -654,35 +716,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setModalCorreo(false);
   };
 
-  // Finalizar transporte
+  // Finalizar transporte (ya no inserta bultos, solo cambia estado)
   const finalizarTransporte = async () => {
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
 
     try {
       // Guardar sellos globales
       await guardarSellosGlobales();
-
-      // Guardar todos los bultos en Supabase
-      for (const local of locales) {
-        const bultosLocal = bultosPorLocal[local.id] || [];
-        for (const bulto of bultosLocal) {
-          await fetch(API_URL + '/sd01_bultos', {
-            method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              local_id: local.id,
-              documento_id: transporte.id_documento,
-              origen_carga: bulto.origenCarga,
-              tipo_documento: bulto.tipoDocumento || '',
-              numero_documento: bulto.numeroDocumento || '',
-              cantidad: bulto.cantidad,
-              observacion: bulto.observacion || '',
-              creado_por: usuario?.id,
-              creado_en: new Date().toISOString()
-            })
-          });
-        }
-      }
 
       // Cambiar estado a Finalizado
       const now = new Date().toISOString();
@@ -697,12 +737,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         })
       });
 
-      alert('Transporte finalizado exitosamente. Bultos guardados.');
+      alert('Transporte finalizado exitosamente.');
       onActualizar();
       onClose();
     } catch (e) {
       console.error('Error finalizando transporte:', e);
-      alert('Error al finalizar transporte o guardar bultos');
+      alert('Error al finalizar transporte');
     }
   };
 
