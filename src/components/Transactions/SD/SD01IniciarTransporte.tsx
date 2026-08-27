@@ -78,7 +78,7 @@ interface LocalImprimir {
   }>;
 }
 
-// Autocomplete component (mismo que antes)
+// Autocomplete component
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -208,7 +208,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos (mismo que antes, se omiten detalles para brevedad)
+// Modal de bultos con guardado inmediato en Supabase
 const BultosModal = ({
   localInicial,
   locales,
@@ -431,7 +431,70 @@ const BultosModal = ({
           <div className="dc-form-section">
             <h3>{editandoId !== null ? "Editar Bulto" : "Agregar Bulto"} - Local {localActual.codigo_local}</h3>
             <div className="dc-form-grid">
-              {/* campos del formulario */}
+              <div className="dc-form-field">
+                <label>Origen de Carga</label>
+                <AutocompleteInput
+                  value={nuevoBulto.origenCarga || ""}
+                  onChange={handleOrigenChange}
+                  suggestions={origenesCarga}
+                  placeholder="Buscar o escribir..."
+                  onEnter={() => tipoDocRef.current?.focus()}
+                  inputRef={origenRef}
+                />
+              </div>
+              <div className="dc-form-field">
+                <label>Tipo de Documento</label>
+                <AutocompleteInput
+                  value={nuevoBulto.tipoDocumento || ""}
+                  onChange={(val) => setNuevoBulto({ ...nuevoBulto, tipoDocumento: val })}
+                  suggestions={tiposDisponibles}
+                  placeholder={tipoNoAplica ? "No aplica" : "Buscar o escribir..."}
+                  disabled={tipoNoAplica}
+                  onEnter={() => {
+                    if (tipoNoAplica) cantidadRef.current?.focus();
+                    else numeroDocRef.current?.focus();
+                  }}
+                  inputRef={tipoDocRef}
+                />
+              </div>
+              <div className="dc-form-field">
+                <label>Número Documento</label>
+                <input
+                  ref={numeroDocRef}
+                  type="text"
+                  className={`dc-input ${tipoNoAplica ? "disabled" : ""}`}
+                  value={nuevoBulto.numeroDocumento || ""}
+                  onChange={(e) => setNuevoBulto({ ...nuevoBulto, numeroDocumento: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); cantidadRef.current?.focus(); } }}
+                  placeholder={tipoNoAplica ? "No aplica" : "Ej: 22687"}
+                  disabled={tipoNoAplica}
+                />
+              </div>
+              <div className="dc-form-field">
+                <label>Cantidad Bultos</label>
+                <input
+                  ref={cantidadRef}
+                  type="number"
+                  className="dc-input"
+                  value={nuevoBulto.cantidad || ""}
+                  onChange={(e) => setNuevoBulto({ ...nuevoBulto, cantidad: parseInt(e.target.value) || 0 })}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); observacionRef.current?.focus(); } }}
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+              <div className="dc-form-field">
+                <label>Observación</label>
+                <input
+                  ref={observacionRef}
+                  type="text"
+                  className="dc-input"
+                  value={nuevoBulto.observacion || ""}
+                  onChange={(e) => setNuevoBulto({ ...nuevoBulto, observacion: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarBtnRef.current?.focus(); } }}
+                  placeholder="Observación opcional"
+                />
+              </div>
             </div>
             <div className="dc-form-actions">
               <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto} disabled={guardando}>
@@ -846,7 +909,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </button>
       </div>
 
-      {/* Contenido principal (tabla de locales) */}
+      {/* Contenido principal */}
       <div style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
           <button
@@ -865,27 +928,210 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           </button>
         </div>
 
-        {mostrarInfo && ( ... )}
+        {mostrarInfo && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Programación</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Fecha Programación</span>
+                <span className="sd01-ver-field-value">{formatearFecha(transporte.fecha_programacion)}</span>
+              </div>
+              {transporte.fecha_inicio && (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Hora Inicio</span>
+                  <span className="sd01-ver-field-value">
+                    {new Date(transporte.fecha_inicio).toLocaleString('es-CL')}
+                  </span>
+                </div>
+              )}
+            </div>
 
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Conductor</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Nombre</span>
+                <span className="sd01-ver-field-value">
+                  {detallesConductor ? detallesConductor.nombre + ' ' + detallesConductor.apellido : '-'}
+                </span>
+              </div>
+              {detallesConductor && (
+                <>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">RUT</span>
+                    <span className="sd01-ver-field-value">{formatearRut(detallesConductor.numero_documento)}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Teléfono</span>
+                    <span className="sd01-ver-field-value">{detallesConductor.telefono || '-'}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Transportista</span>
+                    <span className="sd01-ver-field-value">{detallesConductor.empresa || '-'}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Patente Principal</div>
+              <div className="sd01-ver-field">
+                <span className="sd01-ver-field-label">Patente</span>
+                <span className="sd01-ver-field-value-large">
+                  {detallesPatentePrincipal ? detallesPatentePrincipal.numero_patente : '-'}
+                </span>
+              </div>
+              {detallesPatentePrincipal && (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Tipo de Vehículo</span>
+                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.tipo_vehiculo || 'Otro'}</span>
+                </div>
+              )}
+              {detallesPatentePrincipal && (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-label">Cant. Sellos</span>
+                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.cantidad_sellos || 0}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="sd01-ver-card">
+              <div className="sd01-ver-card-title">Patente Adicional</div>
+              {detallesPatenteAdicional ? (
+                <>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Patente</span>
+                    <span className="sd01-ver-field-value-large">{detallesPatenteAdicional.numero_patente}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Tipo de Vehículo</span>
+                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.tipo_vehiculo || 'Otro'}</span>
+                  </div>
+                  <div className="sd01-ver-field">
+                    <span className="sd01-ver-field-label">Cant. Sellos</span>
+                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.cantidad_sellos || 0}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="sd01-ver-field">
+                  <span className="sd01-ver-field-value" style={{ color: 'var(--text-muted)' }}>No asignada</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sección Datos Destino con sellos globales */}
         <div style={{ marginTop: '8px' }}>
           <div className="sd01-ver-locales-title" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <span>Datos Destino</span>
             <span className="sd01-ver-locales-count">{locales.length} locales</span>
             <span className="sd01-ver-locales-count">Total Bultos: {totalBultosGlobal}</span>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
-              {/* campos de sellos globales */}
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Sello Lateral</label>
+              <input
+                type="text"
+                className="sd01-form-input"
+                style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                value={selloLateralGlobal}
+                onChange={(e) => setSelloLateralGlobal(e.target.value)}
+                onBlur={guardarSellosGlobales}
+                placeholder="Sello"
+                disabled={!selloLateralHabilitado}
+                title={!selloLateralHabilitado ? 'Requiere 2 sellos en patente principal o 1 en adicional' : ''}
+              />
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Sello Adicional</label>
+              <input
+                type="text"
+                className="sd01-form-input"
+                style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                value={selloAdicionalGlobal}
+                onChange={(e) => setSelloAdicionalGlobal(e.target.value)}
+                onBlur={guardarSellosGlobales}
+                placeholder="Sello"
+                disabled={!selloAdicionalHabilitado}
+                title={!selloAdicionalHabilitado ? 'Requiere al menos 1 sello en patente adicional' : ''}
+              />
             </div>
           </div>
 
           <div className="sd01-table-scroll" style={{ marginTop: '10px' }}>
             <table className="sd01-table" style={{ minWidth: '900px' }}>
-              {/* tabla de locales */}
+              <thead>
+                <tr>
+                  <th style={{ width: '30px' }}>
+                    <input type="checkbox" onChange={(e) => {
+                      const checked = e.target.checked;
+                      setLocales(locales.map((l: any) => ({ ...l, seleccionado: checked })));
+                    }} />
+                  </th>
+                  <th>Código</th>
+                  <th>Nombre Local</th>
+                  <th>Fecha Entrega</th>
+                  <th>Hora Entrega</th>
+                  <th>Sello Trasero</th>
+                  <th>Cantidad Pallet</th>
+                  <th style={{ width: '50px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {locales.map((local, index) => (
+                  <tr key={local.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={!!local.seleccionado}
+                        onChange={(e) => {
+                          const nuevos = [...locales];
+                          nuevos[index].seleccionado = e.target.checked;
+                          setLocales(nuevos);
+                        }}
+                      />
+                    </td>
+                    <td><strong>{local.codigo_local}</strong></td>
+                    <td>{local.nombre_local || '-'}</td>
+                    <td>{formatearFecha(local.fecha_entrega)}</td>
+                    <td>{local.hora_entrega || '-'}</td>
+                    <td>
+                      <input
+                        type="text"
+                        className="sd01-form-input"
+                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                        value={local.sello_trasero || ''}
+                        onChange={(e) => handleLocalChange(index, 'sello_trasero', e.target.value)}
+                        onBlur={() => guardarCambiosLocal(index)}
+                        placeholder="Sello"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="sd01-form-input"
+                        style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
+                        value={local.cantidad_pallet || ''}
+                        onChange={(e) => handleLocalChange(index, 'cantidad_pallet', e.target.value ? Number(e.target.value) : null)}
+                        onBlur={() => guardarCambiosLocal(index)}
+                        placeholder="0"
+                        min="0"
+                      />
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        className="sd01-btn sd01-btn-primary"
+                        style={{ padding: '2px 8px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                        onClick={() => handleIngresarBultos(local)}
+                      >
+                        + Bultos
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      {/* Modales */}
+      {/* Modal Bultos */}
       {mostrarModalBultos && localActual && (
         <BultosModal
           localInicial={localActual}
@@ -898,7 +1144,39 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         />
       )}
 
-      {modalCorreo && ( ... )}
+      {/* Modal Correo */}
+      {modalCorreo && (
+        <div className="sd01-modal-overlay" onClick={() => setModalCorreo(false)}>
+          <div className="sd01-modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="sd01-modal-header">
+              <h2>Enviar Correo</h2>
+              <button className="sd01-modal-close" onClick={() => setModalCorreo(false)}>×</button>
+            </div>
+            <div className="sd01-modal-body">
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Correos Destinatarios</label>
+                <select multiple className="sd01-form-select" value={correosSeleccionados} onChange={(e) => setCorreosSeleccionados(Array.from(e.target.selectedOptions, option => option.value))}>
+                  {locales.filter((l: any) => l.correo).map((l: any) => (
+                    <option key={l.id} value={l.correo}>{l.codigo_local} - {l.correo}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Asunto</label>
+                <input type="text" className="sd01-form-input" value={asunto} onChange={(e) => setAsunto(e.target.value)} />
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Detalle</label>
+                <textarea className="sd01-form-input" rows={4} value={detalleCorreo} onChange={(e) => setDetalleCorreo(e.target.value)} />
+              </div>
+            </div>
+            <div className="sd01-modal-footer">
+              <button className="sd01-btn-cancel" onClick={() => setModalCorreo(false)}>Cancelar</button>
+              <button className="sd01-btn-save" onClick={enviarCorreo}>Enviar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Imprimir (previa) */}
       {mostrarImprimirModal && (
