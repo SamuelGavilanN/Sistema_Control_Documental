@@ -59,6 +59,7 @@ function escaparHTML(texto: string): string {
 export function generarCuadroHTML(datos: TransporteData): string {
   const saludo = obtenerSaludo();
 
+  // Datos generales
   const fecha = escaparHTML(datos.fechaEntrega);
   const hora = escaparHTML(datos.horaEntrega);
   const chofer = escaparHTML(datos.chofer);
@@ -71,138 +72,161 @@ export function generarCuadroHTML(datos: TransporteData): string {
   const selloTrasero = escaparHTML(datos.selloTrasero);
   const selloLateral = escaparHTML(datos.selloLateral);
   const selloAdicional = escaparHTML(datos.selloAdicional);
-  const fiscal = escaparHTML(datos.fiscal);
-  const administrativo = escaparHTML(datos.administrativo);
-  const destino = escaparHTML(datos.destino);
   const actas = escaparHTML(datos.actasInformadas);
+  const administrativo = escaparHTML(datos.administrativo);
 
-  // Estilos inline para mantener formato en Outlook
-  const styles = `
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 0; padding: 0; }
-    .contenedor { max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 10px; background: #fff; }
-    .titulo { background-color: #ffff00; text-align: center; font-weight: bold; padding: 8px; margin: 0; border: 1px solid #000; }
-    .seccion { background-color: #f2f2f2; text-align: center; font-weight: bold; padding: 5px; border: 1px solid #000; }
-    .tabla { width: 100%; border-collapse: collapse; margin-top: 5px; }
-    .tabla th, .tabla td { border: 1px solid #000; padding: 4px; }
-    .tabla th { background-color: #e0e0e0; }
-    .celda-clara { background-color: #f9f9f9; }
-    .destacado { background-color: #fff2cc; }
-    .fila-alternada { background-color: #fafafa; }
-  `;
-
-  let html = `
-    <html>
-      <head><meta charset="utf-8"><style>${styles}</style></head>
-      <body>
-        <p>${saludo} estimados (as). Se detalla planilla de despacho.</p>
-        <div class="contenedor">
-          <div class="titulo">PLANILLA DE DESPACHO</div>
-
-          <div class="seccion">DETALLE DE TRANSPORTE</div>
-          <table class="tabla">
-            <tr>
-              <td style="width:25%; background:#f2f2f2;"><strong>DESTINO</strong></td>
-              <td colspan="3">${destino}</td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>ACTAS INFORMADAS</strong></td>
-              <td colspan="3">${actas}</td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>FECHA ENTREGA</strong></td>
-              <td>${fecha}</td>
-              <td style="background:#f2f2f2;"><strong>HORA ENTREGA</strong></td>
-              <td>${hora}</td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>CHOFER</strong></td>
-              <td>${chofer}</td>
-              <td style="background:#f2f2f2;"><strong>RUT</strong></td>
-              <td>${rut}</td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>N° CELULAR</strong></td>
-              <td>${celular}</td>
-              <td style="background:#f2f2f2;"><strong>N° PATENTE</strong></td>
-              <td>${patente}</td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>TRANSPORTE</strong></td>
-              <td>${transportista}</td>
-              <td></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>N° DE SELLO TRASERO</strong></td>
-              <td>${selloTrasero}</td>
-              <td style="background:#f2f2f2;"><strong>N° DE SELLO LATERAL</strong></td>
-              <td>${selloLateral}</td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>N° DE SELLO ADICIONAL</strong></td>
-              <td>${selloAdicional}</td>
-              <td></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>FISCAL</strong></td>
-              <td>${fiscal}</td>
-              <td></td>
-              <td></td>
-            </tr>
-            <tr>
-              <td style="background:#f2f2f2;"><strong>ADMINISTRATIVO</strong></td>
-              <td>${administrativo}</td>
-              <td></td>
-              <td></td>
-            </tr>
-          </table>
-  `;
-
+  // Construir HTML para cada local
+  let htmlLocal = '';
   for (const local of datos.locales) {
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
+    const selloLocal = escaparHTML(local.selloTrasero || selloTrasero);
 
-    let filasBultos = '';
-    if (local.bultos.length === 0) {
-      filasBultos = '<tr><td colspan="5" style="text-align:center;">Sin bultos registrados</td></tr>';
-    } else {
-      let contador = 0;
-      for (const bulto of local.bultos) {
-        const detalle = escaparHTML(bulto.origenCarga);
-        const actaVtradex = bulto.tipoDocumento === 'Vtradex' ? escaparHTML(bulto.numeroDocumento) : '';
-        const actaSap = bulto.tipoDocumento === 'Sap' ? escaparHTML(bulto.numeroDocumento) : '';
-        const cantidad = bulto.cantidad.toString();
-        const obs = escaparHTML(bulto.observacion || '');
-        const claseFila = contador % 2 === 0 ? 'fila-alternada' : '';
-        filasBultos += `<tr class="${claseFila}">
-          <td>${detalle}</td>
-          <td>${actaVtradex}</td>
-          <td>${actaSap}</td>
-          <td>${cantidad}</td>
-          <td>${obs}</td>
+    // Separar bultos en Centros de Distribución (CD) y Segmentos (SG/OUT)
+    const centros = local.bultos.filter(b => b.origenCarga.toUpperCase().startsWith('CD'));
+    const segmentos = local.bultos.filter(b => !b.origenCarga.toUpperCase().startsWith('CD'));
+
+    const totalCentros = centros.reduce((s, b) => s + b.cantidad, 0);
+    const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
+    const totalGeneral = totalCentros + totalSegmentos;
+
+    // Tabla de Centros de Distribución
+    let tablaCentros = '';
+    if (centros.length > 0) {
+      let filas = '';
+      for (const b of centros) {
+        filas += `<tr>
+          <td>${escaparHTML(b.origenCarga)}</td>
+          <td>${escaparHTML(b.tipoDocumento || '')}</td>
+          <td>${escaparHTML(b.numeroDocumento || '')}</td>
+          <td style="text-align:right;">${b.cantidad}</td>
+          <td>${escaparHTML(b.observacion || '')}</td>
         </tr>`;
-        contador++;
       }
+      tablaCentros = `
+        <table style="width:100%; border-collapse:collapse; margin-top:5px;">
+          <tr style="background:#d9e2f3;">
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Centro de Distribución</th>
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Tipo de Documento</th>
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Número de Documento</th>
+            <th style="border:1px solid #000; padding:4px; text-align:right;">Cantidad Bultos</th>
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Observación</th>
+          </tr>
+          ${filas}
+          <tr style="background:#f2f2f2; font-weight:bold;">
+            <td colspan="3" style="border:1px solid #000; padding:4px;">Total de Bultos Origen Centro de Distribución</td>
+            <td style="border:1px solid #000; padding:4px; text-align:right;">${totalCentros}</td>
+            <td style="border:1px solid #000; padding:4px;"></td>
+          </tr>
+        </table>`;
     }
 
-    html += `
-      <br>
-      <div class="seccion">DETALLE DE CARGA - ${codigo} ${nombre}</div>
-      <table class="tabla">
-        <tr style="background:#d9e2f3;">
-          <th>DETALLE</th>
-          <th>ACTA VTRADEX</th>
-          <th>ACTA SAP</th>
-          <th>CANTIDAD</th>
-          <th>OBSERVACIÓN</th>
-        </tr>
-        ${filasBultos}
-      </table>
+    // Tabla de Segmentos Adicionales
+    let tablaSegmentos = '';
+    if (segmentos.length > 0) {
+      let filas = '';
+      for (const b of segmentos) {
+        filas += `<tr>
+          <td>${escaparHTML(b.origenCarga)}</td>
+          <td>${escaparHTML(b.tipoDocumento || '')}</td>
+          <td>${escaparHTML(b.numeroDocumento || '')}</td>
+          <td style="text-align:right;">${b.cantidad}</td>
+          <td>${escaparHTML(b.observacion || '')}</td>
+        </tr>`;
+      }
+      tablaSegmentos = `
+        <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+          <tr style="background:#d9e2f3;">
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Segmentos Adicionales</th>
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Tipo de Documento</th>
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Número de Documento</th>
+            <th style="border:1px solid #000; padding:4px; text-align:right;">Cantidad Bultos</th>
+            <th style="border:1px solid #000; padding:4px; text-align:left;">Observación</th>
+          </tr>
+          ${filas}
+          <tr style="background:#f2f2f2; font-weight:bold;">
+            <td colspan="3" style="border:1px solid #000; padding:4px;">Total de bultos Segmentos Adicionales</td>
+            <td style="border:1px solid #000; padding:4px; text-align:right;">${totalSegmentos}</td>
+            <td style="border:1px solid #000; padding:4px;"></td>
+          </tr>
+        </table>`;
+    }
+
+    // Tabla de Total General
+    let tablaTotal = '';
+    if (totalGeneral > 0) {
+      tablaTotal = `
+        <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+          <tr style="background:#ffff00; font-weight:bold;">
+            <td colspan="3" style="border:1px solid #000; padding:4px;">Total de Bultos Despachados</td>
+            <td style="border:1px solid #000; padding:4px; text-align:right;">${totalGeneral}</td>
+            <td style="border:1px solid #000; padding:4px;"></td>
+          </tr>
+        </table>`;
+    }
+
+    htmlLocal += `
+      <div style="margin-top:15px; border-top:2px solid #000; padding-top:10px;">
+        <table style="width:100%; border-collapse:collapse;">
+          <tr>
+            <td style="padding:4px; width:30%;"><strong>Nombre Local</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${codigo}-${nombre}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px;"><strong>Actas Entrega</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${actas}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px;"><strong>Fecha Entrega</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${fecha}</td>
+            <td style="padding:4px;"><strong>Hora Entrega</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${hora}</td>
+          </tr>
+        </table>
+
+        <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+          <tr>
+            <td style="padding:4px; width:30%;"><strong>Conductor</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${chofer}</td>
+            <td style="padding:4px; width:15%;"><strong>Patente</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${patente}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px;"><strong>Rut</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${rut}</td>
+            <td style="padding:4px;"><strong>Sello Trasero</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${selloLocal}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px;"><strong>Empresa</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${transportista}</td>
+            <td style="padding:4px;"><strong>Sello Lateral</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${selloLateral}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px;"><strong>Teléfono</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${celular}</td>
+            <td style="padding:4px;"><strong>Sello Adicional</strong></td>
+            <td style="padding:4px; border:1px solid #000;">${selloAdicional}</td>
+          </tr>
+        </table>
+
+        ${tablaCentros}
+        ${tablaSegmentos}
+        ${tablaTotal}
+      </div>
     `;
   }
 
-  html += `
+  // Estructura general del correo
+  const html = `
+    <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
+        <div style="max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 15px; background: #fff;">
+          <p style="margin-top:0;">${saludo} estimados (as). Se detalla planilla de despacho.</p>
+          <p style="margin:5px 0; font-weight:bold;">1 PALLET</p>
+          ${htmlLocal}
         </div>
       </body>
     </html>
