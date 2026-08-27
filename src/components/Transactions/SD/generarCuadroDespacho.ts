@@ -76,25 +76,87 @@ export function generarCuadroHTML(datos: TransporteData): string {
   const destino = escaparHTML(datos.destino);
   const actas = escaparHTML(datos.actasInformadas);
 
+  // Estilos inline para mantener formato en Outlook
+  const styles = `
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 0; padding: 0; }
+    .contenedor { max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 10px; background: #fff; }
+    .titulo { background-color: #ffff00; text-align: center; font-weight: bold; padding: 8px; margin: 0; border: 1px solid #000; }
+    .seccion { background-color: #f2f2f2; text-align: center; font-weight: bold; padding: 5px; border: 1px solid #000; }
+    .tabla { width: 100%; border-collapse: collapse; margin-top: 5px; }
+    .tabla th, .tabla td { border: 1px solid #000; padding: 4px; }
+    .tabla th { background-color: #e0e0e0; }
+    .celda-clara { background-color: #f9f9f9; }
+    .destacado { background-color: #fff2cc; }
+    .fila-alternada { background-color: #fafafa; }
+  `;
+
   let html = `
     <html>
-      <head><meta charset="utf-8"></head>
-      <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000;">
+      <head><meta charset="utf-8"><style>${styles}</style></head>
+      <body>
         <p>${saludo} estimados (as). Se detalla planilla de despacho.</p>
-        <h2 style="text-align:center; background:#ffff00; padding:5px; margin:0;">PLANILLA DE DESPACHO</h2>
-        <table border="1" cellpadding="4" style="border-collapse:collapse; width:100%; margin-top:5px;">
-          <tr><td colspan="4" style="background:#f2f2f2; text-align:center; font-weight:bold;">DETALLE DE TRANSPORTE</td></tr>
-          <tr><td><strong>DESTINO</strong></td><td colspan="3">${destino}</td></tr>
-          <tr><td><strong>ACTAS INFORMADAS</strong></td><td colspan="3">${actas}</td></tr>
-          <tr><td><strong>FECHA ENTREGA</strong></td><td>${fecha}</td><td><strong>HORA ENTREGA</strong></td><td>${hora}</td></tr>
-          <tr><td><strong>CHOFER</strong></td><td>${chofer}</td><td><strong>RUT</strong></td><td>${rut}</td></tr>
-          <tr><td><strong>N° CELULAR</strong></td><td>${celular}</td><td><strong>N° PATENTE</strong></td><td>${patente}</td></tr>
-          <tr><td><strong>TRANSPORTE</strong></td><td>${transportista}</td><td></td><td></td></tr>
-          <tr><td><strong>N° DE SELLO TRASERO</strong></td><td>${selloTrasero}</td><td><strong>N° DE SELLO LATERAL</strong></td><td>${selloLateral}</td></tr>
-          <tr><td><strong>N° DE SELLO ADICIONAL</strong></td><td>${selloAdicional}</td><td></td><td></td></tr>
-          <tr><td><strong>FISCAL</strong></td><td>${fiscal}</td><td></td><td></td></tr>
-          <tr><td><strong>ADMINISTRATIVO</strong></td><td>${administrativo}</td><td></td><td></td></tr>
-        </table>
+        <div class="contenedor">
+          <div class="titulo">PLANILLA DE DESPACHO</div>
+
+          <div class="seccion">DETALLE DE TRANSPORTE</div>
+          <table class="tabla">
+            <tr>
+              <td style="width:25%; background:#f2f2f2;"><strong>DESTINO</strong></td>
+              <td colspan="3">${destino}</td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>ACTAS INFORMADAS</strong></td>
+              <td colspan="3">${actas}</td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>FECHA ENTREGA</strong></td>
+              <td>${fecha}</td>
+              <td style="background:#f2f2f2;"><strong>HORA ENTREGA</strong></td>
+              <td>${hora}</td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>CHOFER</strong></td>
+              <td>${chofer}</td>
+              <td style="background:#f2f2f2;"><strong>RUT</strong></td>
+              <td>${rut}</td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>N° CELULAR</strong></td>
+              <td>${celular}</td>
+              <td style="background:#f2f2f2;"><strong>N° PATENTE</strong></td>
+              <td>${patente}</td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>TRANSPORTE</strong></td>
+              <td>${transportista}</td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>N° DE SELLO TRASERO</strong></td>
+              <td>${selloTrasero}</td>
+              <td style="background:#f2f2f2;"><strong>N° DE SELLO LATERAL</strong></td>
+              <td>${selloLateral}</td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>N° DE SELLO ADICIONAL</strong></td>
+              <td>${selloAdicional}</td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>FISCAL</strong></td>
+              <td>${fiscal}</td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td style="background:#f2f2f2;"><strong>ADMINISTRATIVO</strong></td>
+              <td>${administrativo}</td>
+              <td></td>
+              <td></td>
+            </tr>
+          </table>
   `;
 
   for (const local of datos.locales) {
@@ -105,27 +167,30 @@ export function generarCuadroHTML(datos: TransporteData): string {
     if (local.bultos.length === 0) {
       filasBultos = '<tr><td colspan="5" style="text-align:center;">Sin bultos registrados</td></tr>';
     } else {
+      let contador = 0;
       for (const bulto of local.bultos) {
         const detalle = escaparHTML(bulto.origenCarga);
         const actaVtradex = bulto.tipoDocumento === 'Vtradex' ? escaparHTML(bulto.numeroDocumento) : '';
         const actaSap = bulto.tipoDocumento === 'Sap' ? escaparHTML(bulto.numeroDocumento) : '';
         const cantidad = bulto.cantidad.toString();
         const obs = escaparHTML(bulto.observacion || '');
-        filasBultos += `<tr>
+        const claseFila = contador % 2 === 0 ? 'fila-alternada' : '';
+        filasBultos += `<tr class="${claseFila}">
           <td>${detalle}</td>
           <td>${actaVtradex}</td>
           <td>${actaSap}</td>
           <td>${cantidad}</td>
           <td>${obs}</td>
         </tr>`;
+        contador++;
       }
     }
 
     html += `
       <br>
-      <table border="1" cellpadding="4" style="border-collapse:collapse; width:100%;">
-        <tr><td colspan="5" style="background:#f2f2f2; text-align:center; font-weight:bold;">DETALLE DE CARGA - ${codigo} ${nombre}</td></tr>
-        <tr style="background:#e0e0e0;">
+      <div class="seccion">DETALLE DE CARGA - ${codigo} ${nombre}</div>
+      <table class="tabla">
+        <tr style="background:#d9e2f3;">
           <th>DETALLE</th>
           <th>ACTA VTRADEX</th>
           <th>ACTA SAP</th>
@@ -138,6 +203,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
   }
 
   html += `
+        </div>
       </body>
     </html>
   `;
@@ -149,7 +215,6 @@ export async function copiarCuadroDespacho(datos: TransporteData): Promise<boole
   const html = generarCuadroHTML(datos);
   try {
     if (navigator.clipboard && navigator.clipboard.write) {
-      // CORRECCIÓN: envolver los Blobs en Promise.resolve()
       const clipboardItem = new ClipboardItem({
         'text/html': Promise.resolve(new Blob([html], { type: 'text/html' })),
         'text/plain': Promise.resolve(new Blob([html], { type: 'text/plain' })),
@@ -157,7 +222,6 @@ export async function copiarCuadroDespacho(datos: TransporteData): Promise<boole
       await navigator.clipboard.write([clipboardItem]);
       return true;
     }
-    // Fallback para navegadores antiguos
     const textarea = document.createElement('textarea');
     textarea.value = html;
     textarea.style.position = 'fixed';
