@@ -91,6 +91,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
+    // Tabla de centros
     let tablaCentros = '';
     if (centros.length > 0) {
       let filas = '';
@@ -98,30 +99,31 @@ export function generarCuadroHTML(datos: TransporteData): string {
         const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
         const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
         filas += `<tr>
-          <td style="border:1px solid #000; padding:3px; text-align:left;">${escaparHTML(b.origenCarga)}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.origenCarga)}</td>
           <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(tipoDoc)}</td>
           <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(numDoc)}</td>
-          <td style="border:1px solid #000; padding:3px; text-align:right;">${b.cantidad}</td>
-          <td style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${b.cantidad}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.observacion || '')}</td>
         </tr>`;
       }
       tablaCentros = `
-        <tr><td colspan="5" style="background:#f2f2f2; border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">DETALLE DE CARGA (Centros de Distribución)</td></tr>
-        <tr style="background:#d9e2f3;">
-          <th style="border:1px solid #000; padding:3px; text-align:left;">Centro de Distribución</th>
+        <tr><td colspan="5" bgcolor="#F2F2F2" style="border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">DETALLE DE CARGA (Centros de Distribución)</td></tr>
+        <tr bgcolor="#D9E2F3">
+          <th style="border:1px solid #000; padding:3px; text-align:center;">Centro de Distribución</th>
           <th style="border:1px solid #000; padding:3px; text-align:center;">Tipo Doc</th>
           <th style="border:1px solid #000; padding:3px; text-align:center;">N° Doc</th>
-          <th style="border:1px solid #000; padding:3px; text-align:right;">Cant.</th>
-          <th style="border:1px solid #000; padding:3px;">Observación</th>
+          <th style="border:1px solid #000; padding:3px; text-align:center;">Cant.</th>
+          <th style="border:1px solid #000; padding:3px; text-align:center;">Observación</th>
         </tr>
         ${filas}
-        <tr style="background:#f2f2f2; font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:right;">Total de Bultos Origen Centro de Distribución</td>
-          <td style="border:1px solid #000; padding:3px; text-align:right;">${totalCentros}</td>
+        <tr bgcolor="#F2F2F2" style="font-weight:bold;">
+          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:center;">Total de Bultos Origen Centro de Distribución</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${totalCentros}</td>
           <td style="border:1px solid #000; padding:3px;"></td>
         </tr>`;
     }
 
+    // Tabla de segmentos
     let tablaSegmentos = '';
     if (segmentos.length > 0) {
       let filas = '';
@@ -129,45 +131,47 @@ export function generarCuadroHTML(datos: TransporteData): string {
         const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
         const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
         filas += `<tr>
-          <td style="border:1px solid #000; padding:3px; text-align:left;">${escaparHTML(b.origenCarga)}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.origenCarga)}</td>
           <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(tipoDoc)}</td>
           <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(numDoc)}</td>
-          <td style="border:1px solid #000; padding:3px; text-align:right;">${b.cantidad}</td>
-          <td style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${b.cantidad}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.observacion || '')}</td>
         </tr>`;
       }
       tablaSegmentos = `
-        <tr><td colspan="5" style="background:#f2f2f2; border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">SEGMENTOS ADICIONALES</td></tr>
-        <tr style="background:#d9e2f3;">
-          <th style="border:1px solid #000; padding:3px; text-align:left;">Segmento</th>
+        <tr><td colspan="5" bgcolor="#F2F2F2" style="border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">SEGMENTOS ADICIONALES</td></tr>
+        <tr bgcolor="#D9E2F3">
+          <th style="border:1px solid #000; padding:3px; text-align:center;">Segmento</th>
           <th style="border:1px solid #000; padding:3px; text-align:center;">Tipo Doc</th>
           <th style="border:1px solid #000; padding:3px; text-align:center;">N° Doc</th>
-          <th style="border:1px solid #000; padding:3px; text-align:right;">Cant.</th>
-          <th style="border:1px solid #000; padding:3px;">Observación</th>
+          <th style="border:1px solid #000; padding:3px; text-align:center;">Cant.</th>
+          <th style="border:1px solid #000; padding:3px; text-align:center;">Observación</th>
         </tr>
         ${filas}
-        <tr style="background:#f2f2f2; font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:right;">Total de bultos Segmentos Adicionales</td>
-          <td style="border:1px solid #000; padding:3px; text-align:right;">${totalSegmentos}</td>
+        <tr bgcolor="#F2F2F2" style="font-weight:bold;">
+          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:center;">Total de bultos Segmentos Adicionales</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${totalSegmentos}</td>
           <td style="border:1px solid #000; padding:3px;"></td>
         </tr>`;
     }
 
+    // Total general
     let totalGeneralHTML = '';
     if (totalGeneral > 0) {
       totalGeneralHTML = `
-        <tr style="background:#ffff00; font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:right;">Total de Bultos Despachados</td>
-          <td style="border:1px solid #000; padding:3px; text-align:right;">${totalGeneral}</td>
+        <tr bgcolor="#FFFF00" style="font-weight:bold;">
+          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:center;">Total de Bultos Despachados</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${totalGeneral}</td>
           <td style="border:1px solid #000; padding:3px;"></td>
         </tr>`;
     }
 
+    // Tabla principal del local
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
-        <tr><td colspan="4" style="background:#ffff00; border:2px solid #000; padding:6px; text-align:center; font-weight:bold; font-size:14px;">PLANILLA DE DESPACHO - ${codigo} ${nombre}</td></tr>
-        
-        <tr><td colspan="4" style="background:#f2f2f2; border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">DETALLE DE TRANSPORTE</td></tr>
+        <tr><td colspan="4" bgcolor="#FFFF00" style="border:2px solid #000; padding:6px; text-align:center; font-weight:bold; font-size:14px;">PLANILLA DE DESPACHO - ${codigo} ${nombre}</td></tr>
+
+        <tr><td colspan="4" bgcolor="#F2F2F2" style="border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">DETALLE DE TRANSPORTE</td></tr>
         <tr>
           <td style="border:1px solid #000; padding:4px; width:20%;"><strong>Nombre Local</strong></td>
           <td style="border:1px solid #000; padding:4px; width:30%;">${codigo}-${nombre}</td>
@@ -219,7 +223,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
   const html = `
     <html>
       <head><meta charset="utf-8"></head>
-      <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
+      <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0; text-align:center;">
         <div style="max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 15px; background: #fff; text-align: center;">
           <p style="margin:0 0 10px 0;">${saludo} estimados (as). Se detalla planilla de despacho.</p>
           <p style="margin:0 0 10px 0; font-weight:bold;">1 PALLET</p>
