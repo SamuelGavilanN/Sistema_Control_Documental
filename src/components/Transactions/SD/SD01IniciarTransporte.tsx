@@ -5,6 +5,7 @@ import { auth } from '../../../lib/auth';
 import { locales as localesMaestros } from '../../../data/locales';
 import ImprimirModal from './ImprimirModal';
 import ImprimirSeleccionModal from './ImprimirSeleccionModal';
+import { copiarCuadroDespacho } from './generarCuadroDespacho';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -209,8 +210,16 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos (completo, con guardado inmediato)
-const BultosModal = ({ localInicial, locales, bultosPorLocal, onBultosChange, onClose, usuario, documentoId }: any) => {
+// Modal de bultos con guardado inmediato en Supabase
+const BultosModal = ({
+  localInicial,
+  locales,
+  bultosPorLocal,
+  onBultosChange,
+  onClose,
+  usuario,
+  documentoId
+}: any) => {
   const [localActual, setLocalActual] = useState(localInicial);
   const [bultos, setBultos] = useState<Bulto[]>(bultosPorLocal[localInicial.id] || []);
   const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
@@ -741,6 +750,69 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     });
   };
 
+  const copiarCuadro = async () => {
+    // Construir destino (nombres de locales)
+    const destino = [...new Set(
+      locales.map((l: any) => {
+        const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
+        return localMaestro?.nombre_local || l.nombre_local;
+      }).filter(Boolean)
+    )].join(', ');
+
+    // Construir actas informadas (todos los números de documento)
+    const actasSet = new Set<string>();
+    Object.values(bultosPorLocal).forEach((bultos) => {
+      bultos.forEach((b) => {
+        if (b.numeroDocumento) actasSet.add(b.numeroDocumento);
+      });
+    });
+    const actas = [...actasSet].join(' - ');
+
+    // Preparar locales para el cuadro
+    const localesCuadro = locales.map((local: any) => {
+      const bultosLocal = bultosPorLocal[local.id] || [];
+      return {
+        codigo: local.codigo_local,
+        nombre: local.nombre_local || '',
+        selloTrasero: local.sello_trasero || '',
+        bultos: bultosLocal.map((b: any) => ({
+          origenCarga: b.origenCarga,
+          tipoDocumento: b.tipoDocumento,
+          numeroDocumento: b.numeroDocumento,
+          cantidad: b.cantidad,
+          observacion: b.observacion,
+        })),
+      };
+    });
+
+    const datos = {
+      idDocumento: transporte.id_documento,
+      destino,
+      fechaEntrega: transporte.fecha_programacion ? formatearFecha(transporte.fecha_programacion) : '',
+      horaEntrega: transporte.hora_entrega || '',
+      chofer: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
+      rutChofer: detallesConductor?.numero_documento || '',
+      celularChofer: detallesConductor?.telefono || '',
+      patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
+      patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
+      transportista: detallesConductor?.empresa || '',
+      selloTrasero: locales[0]?.sello_trasero || '',
+      selloLateral: selloLateralGlobal,
+      selloAdicional: selloAdicionalGlobal,
+      fiscal: '',
+      administrativo: transporte.administrativo || '',
+      actasInformadas: actas,
+      locales: localesCuadro,
+    };
+
+    const exito = await copiarCuadroDespacho(datos);
+    if (exito) {
+      alert('Cuadro copiado al portapapeles. Puedes pegarlo en Outlook.');
+    } else {
+      alert('Error al copiar el cuadro');
+    }
+  };
+
   // ---------- IMPRESIÓN ----------
   const prepararImpresion = (localesAImprimir: any[], copias: string[]) => {
     const localesParaImprimir = localesAImprimir.map((local: any) => {
@@ -782,16 +854,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     const localesSeleccionados = locales.filter((l: any) => l.seleccionado);
     setMostrarSeleccionCopias(false);
     prepararImpresion(localesSeleccionados, copias);
-  };
-
-  const copiarCuadro = () => {
-    const lineas = locales.map((l: any) => {
-      const bultos = bultosPorLocal[l.id] || [];
-      const totalBultos = bultos.reduce((s: number, b: any) => s + b.cantidad, 0);
-      return `${l.codigo_local} - ${l.nombre_local || ''} | Sellos: ${l.sello_trasero || '-'} | Bultos: ${totalBultos}`;
-    });
-    const texto = `Transporte ${transporte.id_documento}\nSello Lateral: ${selloLateralGlobal || '-'} | Sello Adicional: ${selloAdicionalGlobal || '-'}\n${lineas.join('\n')}\nTotal Bultos: ${totalBultosGlobal}`;
-    navigator.clipboard.writeText(texto).then(() => alert('Cuadro copiado al portapapeles'));
   };
 
   const finalizarTransporte = async () => {
