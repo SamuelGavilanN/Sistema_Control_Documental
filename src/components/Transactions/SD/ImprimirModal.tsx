@@ -24,7 +24,7 @@ interface ImprimirModalProps {
   isOpen: boolean;
   locales: LocalImprimir[];
   conductor: string;
-  rutConductor?: string;  // Nueva prop opcional
+  rutConductor?: string;
   patentePrincipal: string;
   patenteAdicional?: string;
   selloLateral: string;
@@ -60,6 +60,16 @@ const limpiarValor = (val: string): string => {
   return val;
 };
 
+// Nueva función: determina si un origen es Centro de Distribución
+const esCentroDistribucion = (origen: string): boolean => {
+  const o = origen.toUpperCase().trim();
+  return (
+    o.startsWith("CD") ||
+    o.startsWith("OUT") ||
+    o.startsWith("AGV")
+  );
+};
+
 const generarHTML = (
   locales: LocalImprimir[],
   conductor: string,
@@ -76,12 +86,9 @@ const generarHTML = (
     .join(" / ");
 
   const separarCarga = (carga: any[] = []) => {
-    const centros = carga.filter((c: any) =>
-      c.origenCarga?.toUpperCase().startsWith("CD")
-    );
-    const segmentos = carga.filter(
-      (c: any) => !c.origenCarga?.toUpperCase().startsWith("CD")
-    );
+    // Usamos la nueva función para clasificar
+    const centros = carga.filter((c: any) => esCentroDistribucion(c.origenCarga));
+    const segmentos = carga.filter((c: any) => !esCentroDistribucion(c.origenCarga));
     return { centros, segmentos };
   };
 
@@ -317,16 +324,11 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
   const copiasUsar =
     copias.length > 0 ? copias : ["Local", "Guardia", "Conductor", "Original"];
 
-  // Fallback: si no se recibe rutConductor, buscar en conductores
-  const rutRespaldo = rutConductor || conductores.find(
-    (c) => c.nombre_completo === conductor
-  )?.numero_documento || "";
-
   const htmlString = logoBase64
     ? generarHTML(
         locales,
         conductor,
-        rutRespaldo,
+        rutConductor || "",
         patentePrincipal,
         patenteAdicional,
         selloLateral,
@@ -340,7 +342,7 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
     const html = generarHTML(
       locales,
       conductor,
-      rutRespaldo,
+      rutConductor || "",
       patentePrincipal,
       patenteAdicional,
       selloLateral,
