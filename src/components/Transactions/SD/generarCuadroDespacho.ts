@@ -112,16 +112,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalGeneral = totalCentros + totalSegmentos;
 
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
-        <colgroup>
-          <col style="width:10%;">
-          <col style="width:15%;">
-          <col style="width:15%;">
-          <col style="width:15%;">
-          <col style="width:10%;">
-          <col style="width:15%;">
-          <col style="width:20%;">
-        </colgroup>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
@@ -139,33 +130,38 @@ export function generarCuadroHTML(datos: TransporteData): string {
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Fecha Entrega</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;">${fechaLarga}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${fechaLarga}</td>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Hora Entrega</td>
-          <td colspan="1" style="border:1px solid #000; padding:5px;">${horaConHrs}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; min-width:90px;">${horaConHrs}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;"></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Conductor</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;">${chofer}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${chofer}</td>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Patente</td>
           <td colspan="1" style="border:1px solid #000; padding:5px;">${patente}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;"></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Rut</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;">${rut}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${rut}</td>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Trasero</td>
           <td colspan="1" style="border:1px solid #000; padding:5px;">${selloTrasero}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;"></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Empresa</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;">${transportista}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${transportista}</td>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Lateral</td>
           <td colspan="1" style="border:1px solid #000; padding:5px;">${selloLateral}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;"></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Telefono</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;">${celular}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;">${celular}</td>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Sello Adicional</td>
           <td colspan="1" style="border:1px solid #000; padding:5px;">${selloAdicional}</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px;"></td>
         </tr>
         <tr>
           <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
