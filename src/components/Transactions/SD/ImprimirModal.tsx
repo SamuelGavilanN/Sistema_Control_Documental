@@ -1,7 +1,6 @@
 // src/components/Transactions/SD/ImprimirModal.tsx
 
 import React, { useRef, useEffect, useState } from "react";
-import { auth } from "../../../lib/auth";
 import { conductores } from "../../../data/conductores";
 import logoPath from "../../../assets/fashions-park-logo2.png";
 import "./ImprimirModal.css";
@@ -24,8 +23,9 @@ interface LocalImprimir {
 
 interface ImprimirModalProps {
   isOpen: boolean;
-  locales: LocalImprimir[];  // todos los locales a imprimir
+  locales: LocalImprimir[];
   conductor: string;
+  rutConductor?: string;  // Nueva prop opcional
   patentePrincipal: string;
   patenteAdicional?: string;
   selloLateral: string;
@@ -64,6 +64,7 @@ const limpiarValor = (val: string): string => {
 const generarHTML = (
   locales: LocalImprimir[],
   conductor: string,
+  rutConductor: string,
   patentePrincipal: string,
   patenteAdicional: string | undefined,
   selloLateral: string,
@@ -74,10 +75,6 @@ const generarHTML = (
   const patenteCompleta = [patentePrincipal, patenteAdicional]
     .filter(Boolean)
     .join(" / ");
-  const conductorData = conductores.find(
-    (c) => c.nombre_completo === conductor
-  );
-  const rutConductor = conductorData?.numero_documento || "";
 
   const separarCarga = (carga: any[] = []) => {
     const centros = carga.filter((c: any) =>
@@ -193,7 +190,7 @@ const generarHTML = (
     <div class="tabla-transporte-container">
      <table class="tabla-transporte-table">
       <tr><td>Conductor</td><td>${conductor}</td></tr>
-      <tr><td>Rut</td><td>${rutConductor}</td></tr>
+      <tr><td>Rut</td><td>${rutConductor || ""}</td></tr>
       <tr><td>Patente</td><td>${patenteCompleta}</td></tr>
      </table>
     </div>
@@ -290,6 +287,7 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
   isOpen,
   locales,
   conductor,
+  rutConductor,
   patentePrincipal,
   patenteAdicional,
   selloLateral,
@@ -324,6 +322,7 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
     ? generarHTML(
         locales,
         conductor,
+        rutConductor || "",
         patentePrincipal,
         patenteAdicional,
         selloLateral,
@@ -337,6 +336,7 @@ const ImprimirModal: React.FC<ImprimirModalProps> = ({
     const html = generarHTML(
       locales,
       conductor,
+      rutConductor || "",
       patentePrincipal,
       patenteAdicional,
       selloLateral,
