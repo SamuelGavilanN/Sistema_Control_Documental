@@ -61,6 +61,16 @@ function esNoAplica(valor: string): boolean {
   return v === '' || v === 'no aplica' || v === 'n/a';
 }
 
+// Función para determinar si un origen es Centro de Distribución
+function esCentroDistribucion(origen: string): boolean {
+  const o = origen.toUpperCase().trim();
+  return (
+    o.startsWith('CD') ||
+    o.startsWith('OUT') ||
+    o.startsWith('AGV')
+  );
+}
+
 export function generarCuadroHTML(datos: TransporteData): string {
   const saludo = obtenerSaludo();
   const fecha = escaparHTML(datos.fechaEntrega);
@@ -85,8 +95,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const nombre = escaparHTML(local.nombre);
     const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
 
-    const centros = local.bultos.filter(b => b.origenCarga.toUpperCase().startsWith('CD'));
-    const segmentos = local.bultos.filter(b => !b.origenCarga.toUpperCase().startsWith('CD'));
+    // Filtrar usando la nueva función
+    const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
+    const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
 
     const totalCentros = centros.reduce((s, b) => s + b.cantidad, 0);
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
