@@ -111,9 +111,23 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // TODAS las celdas tienen white-space:nowrap
+    // Definir anchos fijos con porcentajes
+    const colgroup = `
+      <colgroup>
+        <col style="width:12%;">
+        <col style="width:15%;">
+        <col style="width:15%;">
+        <col style="width:15%;">
+        <col style="width:12%;">
+        <col style="width:15%;">
+        <col style="width:16%;">
+      </colgroup>
+    `;
+
+    // Usamos table-layout: fixed para respetar los anchos
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
+        ${colgroup}
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;"><strong>${codigo}-${nombre}</strong></td>
@@ -127,7 +141,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
         </tr>
         <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
@@ -160,7 +174,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
         <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
         </tr>
 
         ${
@@ -199,7 +213,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         }
 
         <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td>
+          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
         </tr>
 
         ${
