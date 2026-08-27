@@ -31,7 +31,7 @@ interface TransporteData {
   selloAdicional: string;
   administrativo: string;
   actasInformadas: string;
-  totalPallets?: number;   // NUEVO
+  totalPallets?: number;
   locales: LocalData[];
 }
 
@@ -92,22 +92,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
+    // ---------- Tabla principal del local (7 columnas) ----------
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
-        <tr>
-          <td colspan="7" style="border:1px solid #000; padding:6px; text-align:center; font-size:13px;">${saludo} estimados (as). Se detalla planilla de despacho.</td>
-        </tr>
-        ${
-          totalPallets > 0
-            ? `<tr>
-                <td colspan="7" style="border:1px solid #000; padding:6px; text-align:center; font-weight:bold; font-size:14px;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</td>
-              </tr>`
-            : `<tr><td colspan="7" style="border:1px solid #000; padding:2px; background:#fff;"></td></tr>`
-        }
-        <tr>
-          <td colspan="7" style="border:1px solid #000; padding:2px; background:#fff;"></td>
-        </tr>
-
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
@@ -233,11 +220,18 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
+  // HTML final con contenedor principal y saludo arriba (una sola vez)
   const html = `
     <html>
       <head><meta charset="utf-8"></head>
       <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
-        <div style="max-width: 800px; margin: 0 auto;">
+        <div style="max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 15px; background: #fff; text-align: center;">
+          <p style="margin:0 0 10px 0;">${saludo} estimados (as). Se detalla planilla de despacho.</p>
+          ${
+            totalPallets > 0
+              ? `<p style="margin:0 0 10px 0; font-weight:bold; font-size:14px;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</p>`
+              : ''
+          }
           ${htmlLocales}
         </div>
       </body>
