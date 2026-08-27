@@ -111,20 +111,19 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Definir anchos fijos con porcentajes
+    // Anchos simétricos: col1+col2 = 26%, col3+col4 = 26%, col5+col6 = 24%, col7 = 24%
     const colgroup = `
       <colgroup>
+        <col style="width:13%;">
+        <col style="width:13%;">
+        <col style="width:13%;">
+        <col style="width:13%;">
         <col style="width:12%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
         <col style="width:12%;">
-        <col style="width:15%;">
-        <col style="width:16%;">
+        <col style="width:24%;">
       </colgroup>
     `;
 
-    // Usamos table-layout: fixed para respetar los anchos
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
         ${colgroup}
@@ -260,7 +259,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
-  // HTML final con tabla contenedora y media query
   const html = `
     <html>
       <head>
