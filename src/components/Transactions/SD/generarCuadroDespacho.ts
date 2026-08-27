@@ -29,7 +29,6 @@ interface TransporteData {
   selloTrasero: string;
   selloLateral: string;
   selloAdicional: string;
-  fiscal: string;
   administrativo: string;
   actasInformadas: string;
   locales: LocalData[];
@@ -56,6 +55,11 @@ function escaparHTML(texto: string): string {
     .replace(/'/g, '&#039;');
 }
 
+function esNoAplica(valor: string): boolean {
+  const v = valor.trim().toLowerCase();
+  return v === '' || v === 'no aplica' || v === 'n/a';
+}
+
 export function generarCuadroHTML(datos: TransporteData): string {
   const saludo = obtenerSaludo();
   const fecha = escaparHTML(datos.fechaEntrega);
@@ -73,7 +77,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
   const actas = escaparHTML(datos.actasInformadas);
   const administrativo = escaparHTML(datos.administrativo);
 
-  // Construir el HTML para cada local
   let htmlLocales = '';
 
   for (const local of datos.locales) {
@@ -81,7 +84,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const nombre = escaparHTML(local.nombre);
     const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
 
-    // Separar bultos en Centros (CD) y Segmentos (SG/OUT)
     const centros = local.bultos.filter(b => b.origenCarga.toUpperCase().startsWith('CD'));
     const segmentos = local.bultos.filter(b => !b.origenCarga.toUpperCase().startsWith('CD'));
 
@@ -89,15 +91,16 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Tabla de centros
     let tablaCentros = '';
     if (centros.length > 0) {
       let filas = '';
       for (const b of centros) {
+        const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
+        const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
         filas += `<tr>
-          <td style="border:1px solid #000; padding:3px;">${escaparHTML(b.origenCarga)}</td>
-          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.tipoDocumento || '')}</td>
-          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.numeroDocumento || '')}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:left;">${escaparHTML(b.origenCarga)}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(tipoDoc)}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(numDoc)}</td>
           <td style="border:1px solid #000; padding:3px; text-align:right;">${b.cantidad}</td>
           <td style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
         </tr>`;
@@ -113,21 +116,22 @@ export function generarCuadroHTML(datos: TransporteData): string {
         </tr>
         ${filas}
         <tr style="background:#f2f2f2; font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:3px;">Total de Bultos Origen Centro de Distribución</td>
+          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:right;">Total de Bultos Origen Centro de Distribución</td>
           <td style="border:1px solid #000; padding:3px; text-align:right;">${totalCentros}</td>
           <td style="border:1px solid #000; padding:3px;"></td>
         </tr>`;
     }
 
-    // Tabla de segmentos
     let tablaSegmentos = '';
     if (segmentos.length > 0) {
       let filas = '';
       for (const b of segmentos) {
+        const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
+        const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
         filas += `<tr>
-          <td style="border:1px solid #000; padding:3px;">${escaparHTML(b.origenCarga)}</td>
-          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.tipoDocumento || '')}</td>
-          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(b.numeroDocumento || '')}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:left;">${escaparHTML(b.origenCarga)}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(tipoDoc)}</td>
+          <td style="border:1px solid #000; padding:3px; text-align:center;">${escaparHTML(numDoc)}</td>
           <td style="border:1px solid #000; padding:3px; text-align:right;">${b.cantidad}</td>
           <td style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
         </tr>`;
@@ -143,36 +147,32 @@ export function generarCuadroHTML(datos: TransporteData): string {
         </tr>
         ${filas}
         <tr style="background:#f2f2f2; font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:3px;">Total de bultos Segmentos Adicionales</td>
+          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:right;">Total de bultos Segmentos Adicionales</td>
           <td style="border:1px solid #000; padding:3px; text-align:right;">${totalSegmentos}</td>
           <td style="border:1px solid #000; padding:3px;"></td>
         </tr>`;
     }
 
-    // Total general
     let totalGeneralHTML = '';
     if (totalGeneral > 0) {
       totalGeneralHTML = `
         <tr style="background:#ffff00; font-weight:bold;">
-          <td colspan="3" style="border:1px solid #000; padding:3px;">Total de Bultos Despachados</td>
+          <td colspan="3" style="border:1px solid #000; padding:3px; text-align:right;">Total de Bultos Despachados</td>
           <td style="border:1px solid #000; padding:3px; text-align:right;">${totalGeneral}</td>
           <td style="border:1px solid #000; padding:3px;"></td>
         </tr>`;
     }
 
-    // Construcción de la tabla principal del local
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
-        <!-- Título -->
         <tr><td colspan="4" style="background:#ffff00; border:2px solid #000; padding:6px; text-align:center; font-weight:bold; font-size:14px;">PLANILLA DE DESPACHO - ${codigo} ${nombre}</td></tr>
         
-        <!-- Datos del transporte -->
         <tr><td colspan="4" style="background:#f2f2f2; border:1px solid #000; padding:4px; font-weight:bold; text-align:center;">DETALLE DE TRANSPORTE</td></tr>
         <tr>
           <td style="border:1px solid #000; padding:4px; width:20%;"><strong>Nombre Local</strong></td>
           <td style="border:1px solid #000; padding:4px; width:30%;">${codigo}-${nombre}</td>
           <td style="border:1px solid #000; padding:4px; width:20%;"><strong>Actas Entrega</strong></td>
-          <td style="border:1px solid #000; padding:4px; width:30%;" colspan="1">${actas}</td>
+          <td style="border:1px solid #000; padding:4px; width:30%;">${actas}</td>
         </tr>
         <tr>
           <td style="border:1px solid #000; padding:4px;"><strong>Fecha Entrega</strong></td>
@@ -184,29 +184,29 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td style="border:1px solid #000; padding:4px;"><strong>Conductor</strong></td>
           <td style="border:1px solid #000; padding:4px;">${chofer}</td>
           <td style="border:1px solid #000; padding:4px;"><strong>Rut</strong></td>
-          <td style="border:1px solid #000; padding:4px;" colspan="1">${rut}</td>
+          <td style="border:1px solid #000; padding:4px;">${rut}</td>
         </tr>
         <tr>
           <td style="border:1px solid #000; padding:4px;"><strong>Empresa</strong></td>
           <td style="border:1px solid #000; padding:4px;">${transportista}</td>
           <td style="border:1px solid #000; padding:4px;"><strong>Teléfono</strong></td>
-          <td style="border:1px solid #000; padding:4px;" colspan="1">${celular}</td>
+          <td style="border:1px solid #000; padding:4px;">${celular}</td>
         </tr>
         <tr>
           <td style="border:1px solid #000; padding:4px;"><strong>Patente</strong></td>
           <td style="border:1px solid #000; padding:4px;">${patente}</td>
-          <td style="border:1px solid #000; padding:4px;"><strong>Administrativo</strong></td>
-          <td style="border:1px solid #000; padding:4px;" colspan="1">${administrativo}</td>
-        </tr>
-        <tr>
           <td style="border:1px solid #000; padding:4px;"><strong>Sello Trasero</strong></td>
           <td style="border:1px solid #000; padding:4px;">${selloTrasero}</td>
-          <td style="border:1px solid #000; padding:4px;"><strong>Sello Lateral</strong></td>
-          <td style="border:1px solid #000; padding:4px;" colspan="1">${selloLateral}</td>
         </tr>
         <tr>
+          <td style="border:1px solid #000; padding:4px;"><strong>Sello Lateral</strong></td>
+          <td style="border:1px solid #000; padding:4px;">${selloLateral}</td>
           <td style="border:1px solid #000; padding:4px;"><strong>Sello Adicional</strong></td>
-          <td style="border:1px solid #000; padding:4px;" colspan="3">${selloAdicional}</td>
+          <td style="border:1px solid #000; padding:4px;">${selloAdicional}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000; padding:4px;"><strong>Administrativo</strong></td>
+          <td style="border:1px solid #000; padding:4px;" colspan="3">${administrativo}</td>
         </tr>
 
         ${tablaCentros}
@@ -216,12 +216,11 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
-  // HTML final del correo
   const html = `
     <html>
       <head><meta charset="utf-8"></head>
       <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
-        <div style="max-width: 800px; margin: 0 auto; padding: 10px;">
+        <div style="max-width: 800px; margin: 0 auto; border: 2px solid #000; padding: 15px; background: #fff; text-align: center;">
           <p style="margin:0 0 10px 0;">${saludo} estimados (as). Se detalla planilla de despacho.</p>
           <p style="margin:0 0 10px 0; font-weight:bold;">1 PALLET</p>
           ${htmlLocales}
