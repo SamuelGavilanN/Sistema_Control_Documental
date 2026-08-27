@@ -97,23 +97,18 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Definir anchos de columna fijos para toda la tabla
-    const colgroup = `
-      <colgroup>
-        <col style="width:10%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:10%;">
-        <col style="width:15%;">
-        <col style="width:20%;">
-      </colgroup>
-    `;
-
     // ---------- Tabla principal del local (7 columnas) ----------
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
-        ${colgroup}
+        <colgroup>
+          <col style="width:10%;">
+          <col style="width:15%;">
+          <col style="width:15%;">
+          <col style="width:15%;">
+          <col style="width:10%;">
+          <col style="width:15%;">
+          <col style="width:20%;">
+        </colgroup>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
@@ -163,22 +158,22 @@ export function generarCuadroHTML(datos: TransporteData): string {
                 <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold;">Centro de Distribución</td>
               </tr>
               <tr bgcolor="#B4C6E7">
-                <td colspan="2" style="border:1px solid #000; padding:4px; font-weight:bold;">Centro de Distribución</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Tipo de Documento</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Numero de Documento</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Cantidad Bultos</td>
-                <td colspan="2" style="border:1px solid #000; padding:4px; font-weight:bold;">Observación</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Centro de Distribución</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Tipo Doc</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">N° Doc</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Cant. Bultos</td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold;">Observación</td>
               </tr>
               ${centros
                 .map((b) => {
                   const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
                   const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
                   return `<tr>
-                    <td colspan="2" style="border:1px solid #000; padding:3px;">${escaparHTML(b.origenCarga)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(b.origenCarga)}</td>
                     <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(tipoDoc)}</td>
                     <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(numDoc)}</td>
                     <td colspan="1" style="border:1px solid #000; padding:3px;">${b.cantidad}</td>
-                    <td colspan="2" style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
+                    <td colspan="3" style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
                   </tr>`;
                 })
                 .join('')}
@@ -202,22 +197,22 @@ export function generarCuadroHTML(datos: TransporteData): string {
                 <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold;">Segmentos Adicionales</td>
               </tr>
               <tr bgcolor="#B4C6E7">
-                <td colspan="2" style="border:1px solid #000; padding:4px; font-weight:bold;">Segmentos Adicionales</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Tipo de Documento</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Numero de Documento</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Cantidad Bultos</td>
-                <td colspan="2" style="border:1px solid #000; padding:4px; font-weight:bold;">Observación</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Segmento</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Tipo Doc</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">N° Doc</td>
+                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold;">Cant. Bultos</td>
+                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold;">Observación</td>
               </tr>
               ${segmentos
                 .map((b) => {
                   const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
                   const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
                   return `<tr>
-                    <td colspan="2" style="border:1px solid #000; padding:3px;">${escaparHTML(b.origenCarga)}</td>
+                    <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(b.origenCarga)}</td>
                     <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(tipoDoc)}</td>
                     <td colspan="1" style="border:1px solid #000; padding:3px;">${escaparHTML(numDoc)}</td>
                     <td colspan="1" style="border:1px solid #000; padding:3px;">${b.cantidad}</td>
-                    <td colspan="2" style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
+                    <td colspan="3" style="border:1px solid #000; padding:3px;">${escaparHTML(b.observacion || '')}</td>
                   </tr>`;
                 })
                 .join('')}
