@@ -61,14 +61,9 @@ function esNoAplica(valor: string): boolean {
   return v === '' || v === 'no aplica' || v === 'n/a';
 }
 
-// Función para determinar si un origen es Centro de Distribución
 function esCentroDistribucion(origen: string): boolean {
   const o = origen.toUpperCase().trim();
-  return (
-    o.startsWith('CD') ||
-    o.startsWith('OUT') ||
-    o.startsWith('AGV')
-  );
+  return o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV');
 }
 
 export function generarCuadroHTML(datos: TransporteData): string {
@@ -95,7 +90,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const nombre = escaparHTML(local.nombre);
     const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
 
-    // Filtrar usando la nueva función
     const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
     const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
 
@@ -103,9 +97,23 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
+    // Definir anchos de columna fijos para toda la tabla
+    const colgroup = `
+      <colgroup>
+        <col style="width:10%;">
+        <col style="width:15%;">
+        <col style="width:15%;">
+        <col style="width:15%;">
+        <col style="width:10%;">
+        <col style="width:15%;">
+        <col style="width:20%;">
+      </colgroup>
+    `;
+
     // ---------- Tabla principal del local (7 columnas) ----------
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
+      <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
+        ${colgroup}
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px;"><strong>${codigo}-${nombre}</strong></td>
