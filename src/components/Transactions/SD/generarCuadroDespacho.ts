@@ -111,16 +111,16 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Anchos simétricos: col1+col2 = 26%, col3+col4 = 26%, col5+col6 = 24%, col7 = 24%
+    // Anchos: col1-col4 = 16% cada una (64%), col5=10%, col6=14%, col7=12%
     const colgroup = `
       <colgroup>
-        <col style="width:13%;">
-        <col style="width:13%;">
-        <col style="width:13%;">
-        <col style="width:13%;">
+        <col style="width:16%;">
+        <col style="width:16%;">
+        <col style="width:16%;">
+        <col style="width:16%;">
+        <col style="width:10%;">
+        <col style="width:14%;">
         <col style="width:12%;">
-        <col style="width:12%;">
-        <col style="width:24%;">
       </colgroup>
     `;
 
