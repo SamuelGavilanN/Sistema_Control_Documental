@@ -111,9 +111,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // CORRECCIÓN: Usamos table-layout:auto y white-space:nowrap en etiquetas
+    // Eliminamos table-layout:fixed y usamos word-break para que se adapte a móviles
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:40px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; word-break:break-word;"><strong>${codigo}-${nombre}</strong></td>
@@ -133,7 +133,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${fechaLarga}</td>
           <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; min-width:90px; word-break:break-word;">${horaConHrs}</td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; word-break:break-word;">${horaConHrs}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
@@ -246,7 +246,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
-  // HTML final con estilos responsivos
+  // Usamos una tabla contenedora en lugar de div para mejor compatibilidad en correos
   const html = `
     <html>
       <head>
@@ -262,15 +262,19 @@ export function generarCuadroHTML(datos: TransporteData): string {
         </style>
       </head>
       <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
-        <div style="width:100%; max-width:800px; margin:0 auto; border:2px solid #000; padding:15px; background:#fff; text-align:center; box-sizing:border-box;">
-          <p style="margin:0 0 10px 0;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
-          ${
-            totalPallets > 0
-              ? `<p style="margin:0 0 10px 0; font-weight:bold; font-size:14px;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</p>`
-              : ''
-          }
-          ${htmlLocales}
-        </div>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:800px; margin:0 auto; background:#fff; border:2px solid #000;">
+          <tr>
+            <td style="padding:15px; text-align:center;">
+              <p style="margin:0 0 10px 0;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
+              ${
+                totalPallets > 0
+                  ? `<p style="margin:0 0 10px 0; font-weight:bold; font-size:14px;">${totalPallets} PALLET${totalPallets > 1 ? 'S' : ''}</p>`
+                  : ''
+              }
+              ${htmlLocales}
+            </td>
+          </tr>
+        </table>
       </body>
     </html>
   `;
