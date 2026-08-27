@@ -49,12 +49,13 @@ const ImprimirSeleccionModal: React.FC<ImprimirSeleccionModalProps> = ({
         <div className="isel-header">
           <h2>Imprimir Locales Seleccionados</h2>
           <button className="isel-close" onClick={onClose}>
-            Ã—
+            ×
           </button>
         </div>
 
         <div className="isel-body">
           <div className="isel-info">
+            <span className="isel-info-icon">ℹ️</span>
             {localesSeleccionados} local(es) seleccionado(s)
           </div>
 
