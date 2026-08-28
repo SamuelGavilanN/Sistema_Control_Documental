@@ -111,9 +111,11 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Encabezado de pallets por local (grande, negrita, rojo)
+    // Encabezado de pallets por local (grande, negrita, rojo - con !important)
     htmlLocales += `
-      <p style="margin:0 0 5px 0; font-weight:bold; font-size:18px; color:#dc2626; white-space:nowrap;">${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}</p>
+      <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#dc2626 !important; white-space:nowrap !important;">
+        ${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}
+      </p>
     `;
 
     // ===== TABLA ÚNICA DEL LOCAL (sin fila redundante de pallets) =====
