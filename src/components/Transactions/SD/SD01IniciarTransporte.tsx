@@ -7,7 +7,7 @@ import ImprimirModal from './ImprimirModal';
 import ImprimirSeleccionModal from './ImprimirSeleccionModal';
 import { copiarCuadroDespacho } from './generarCuadroDespacho';
 import { generarResumenFinalizarHTML } from './generarResumenFinalizar';
-import logoPath from '../../../assets/fashions-park-logo2.png'; // Asegúrate de que esta ruta sea correcta
+import logoPath from '../../../assets/fashions-park-logo2.png'; // Asegúrate de la ruta
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -82,7 +82,7 @@ interface LocalImprimir {
   }>;
 }
 
-// Autocomplete component (extraído de DCModal)
+// Autocomplete component
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
