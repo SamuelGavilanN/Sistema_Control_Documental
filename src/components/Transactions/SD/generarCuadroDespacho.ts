@@ -111,16 +111,16 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Anchos: col1-col4 = 16% cada una (64%), col5=10%, col6=14%, col7=12%
+    // Porcentajes definidos por el usuario
     const colgroup = `
       <colgroup>
-        <col style="width:16%;">
-        <col style="width:16%;">
-        <col style="width:16%;">
-        <col style="width:16%;">
-        <col style="width:10%;">
         <col style="width:14%;">
-        <col style="width:12%;">
+        <col style="width:5%;">
+        <col style="width:8%;">
+        <col style="width:8%;">
+        <col style="width:14%;">
+        <col style="width:5%;">
+        <col style="width:15%;">
       </colgroup>
     `;
 
@@ -145,32 +145,32 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLarga}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${horaConHrs}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; white-space:nowrap;">${horaConHrs}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${chofer}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Patente</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${patente}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Patente</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; white-space:nowrap;">${patente}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Rut</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${rut}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloTrasero}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloTrasero}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Empresa</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${transportista}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Lateral</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloLateral}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Lateral</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloLateral}</td>
         </tr>
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Teléfono</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${celular}</td>
-          <td colspan="1" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
+          <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
+          <td colspan="1" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
         <tr>
           <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
@@ -259,22 +259,12 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
+  // Contenedor principal como tabla para compatibilidad con Outlook
   const html = `
     <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          @media screen and (max-width: 600px) {
-            body { font-size: 10px !important; }
-            table { font-size: 10px !important; }
-            td, th { padding: 2px !important; }
-            .contenedor { padding: 5px !important; }
-          }
-        </style>
-      </head>
-      <body style="font-family: Arial, sans-serif; font-size: 12px; color:#000; margin:0; padding:0;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:800px; margin:0 auto; background:#fff; border:2px solid #000;">
+      <head><meta charset="utf-8"></head>
+      <body style="margin:0; padding:0; font-family:Arial, sans-serif; font-size:12px; color:#000;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:1000px; margin:0 auto; background:#fff; border:2px solid #000;">
           <tr>
             <td style="padding:15px; text-align:center;">
               <p style="margin:0 0 10px 0; white-space:nowrap;"><strong>${saludo} estimados (as). Se detalla planilla de despacho.</strong></p>
@@ -299,8 +289,8 @@ export async function copiarCuadroDespacho(datos: TransporteData): Promise<boole
   try {
     if (navigator.clipboard && navigator.clipboard.write) {
       const clipboardItem = new ClipboardItem({
-        'text/html': Promise.resolve(new Blob([html], { type: 'text/html' })),
-        'text/plain': Promise.resolve(new Blob([html], { type: 'text/plain' })),
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([html], { type: 'text/plain' }),
       });
       await navigator.clipboard.write([clipboardItem]);
       return true;
