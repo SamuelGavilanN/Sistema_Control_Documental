@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD01CargaExcel.tsx
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
 
@@ -26,7 +26,7 @@ const generarIdDocumento = () => {
 
 const convertirFechaExcel = (valor: any): string => {
   if (valor === null || valor === undefined || valor === '') return '';
-  
+
   if (typeof valor === 'number') {
     const fecha = new Date((valor - 25569) * 86400 * 1000);
     if (isNaN(fecha.getTime())) return '';
@@ -35,67 +35,29 @@ const convertirFechaExcel = (valor: any): string => {
     const anio = fecha.getFullYear();
     return anio + '-' + mes + '-' + dia;
   }
-  
+
   const str = String(valor).trim();
   if (!str) return '';
-  
+
   if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
-  
+
   const match = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
   if (match) return match[3] + '-' + match[2] + '-' + match[1];
-  
+
   const match2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (match2) return match2[3] + '-' + match2[2] + '-' + match2[1];
-  
-  return str;
-};
 
-const convertirHoraExcel = (valor: any): string => {
-  if (valor === null || valor === undefined || valor === '') return '';
-  
-  if (typeof valor === 'number' && valor < 1) {
-    const totalMinutos = Math.round(valor * 24 * 60);
-    const horas = Math.floor(totalMinutos / 60);
-    const minutos = totalMinutos % 60;
-    return String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0');
-  }
-  
-  const str = String(valor).trim();
-  if (!str) return '';
-  
-  if (str.match(/^\d{1,2}:\d{2}$/)) {
-    const partes = str.split(':');
-    return partes[0].padStart(2, '0') + ':' + partes[1];
-  }
-  
   return str;
 };
 
 const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesCreados }) => {
-  const [archivo, setArchivo] = useState<any>(null);
-  const [archivoNombre, setArchivoNombre] = useState('');
-  const [procesando, setProcesando] = useState(false);
-  const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
-  const [resumen, setResumen] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const usuario = auth.getUsuario();
-
-  // Almacén local de códigos de locales para obtener nombre
-  const [localesData, setLocalesData] = useState<any[]>([]);
-
-  // Cargar los locales desde la base de datos al montar el componente
-  useEffect(() => {
-    const cargarLocales = async () => {
-      try {
-        const resp = await fetch(API_URL + '/locales?select=codigo_local,nombre_local&activo=eq.true', { headers: HEADERS });
-        const data = await resp.json();
-        if (data) setLocalesData(data);
-      } catch (e) {
-        console.error('Error cargando locales:', e);
-      }
-    };
-    cargarLocales();
-  }, []);
+  const [archivo, setArchivo]: any = useState(null);
+  const [archivoNombre, setArchivoNombre]: any = useState('');
+  const [procesando, setProcesando]: any = useState(false);
+  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
+  const [resumen, setResumen]: any = useState(null);
+  const fileInputRef: any = useRef(null);
+  const usuario: any = auth.getUsuario();
 
   const extraerFechaDeNombre = (nombre: string): string | null => {
     const fechaMatch = nombre.match(/(\d{2}-\d{2}-\d{4})/);
@@ -108,12 +70,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
     const diaStr = String(fecha.getDate()).padStart(2, '0');
     const mesStr = String(fecha.getMonth() + 1).padStart(2, '0');
     return fecha.getFullYear() + '-' + mesStr + '-' + diaStr;
-  };
-
-  // Obtener nombre local desde la BD
-  const obtenerNombreLocal = (codigo: string) => {
-    const local = localesData.find(l => l.codigo_local === codigo);
-    return local ? local.nombre_local : '';
   };
 
   const procesarArchivo = async () => {
@@ -202,12 +158,9 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           };
         }
 
-        // Obtener nombre desde la base de datos (ignorar tienda del Excel)
-        const nombreLocal = obtenerNombreLocal(codTI);
-
         transporteActual.locales.push({
           codigo_local: codTI,
-          nombre_local: nombreLocal, // Usa el nombre de la BD
+          nombre_local: tienda,
           bultos,
           fechaEntrega,
           horaEntrega
@@ -238,6 +191,27 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
       setMensaje({ tipo: 'error', texto: 'Error al procesar el archivo' });
     }
     setProcesando(false);
+  };
+
+  const convertirHoraExcel = (valor: any): string => {
+    if (valor === null || valor === undefined || valor === '') return '';
+
+    if (typeof valor === 'number' && valor < 1) {
+      const totalMinutos = Math.round(valor * 24 * 60);
+      const horas = Math.floor(totalMinutos / 60);
+      const minutos = totalMinutos % 60;
+      return String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0');
+    }
+
+    const str = String(valor).trim();
+    if (!str) return '';
+
+    if (str.match(/^\d{1,2}:\d{2}$/)) {
+      const partes = str.split(':');
+      return partes[0].padStart(2, '0') + ':' + partes[1];
+    }
+
+    return str;
   };
 
   const handleEliminarTransporte = (index: number) => {
@@ -340,7 +314,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         }
 
         const idDocumento = generarIdDocumento();
-        
+
         const transporteData: any = {
           id_documento: idDocumento,
           fecha_programacion: trans.fechaProgramacion + 'T12:00:00',
@@ -373,12 +347,12 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           const localData = {
             documento_id: idDocumento,
             codigo_local: local.codigo_local,
-            nombre_local: local.nombre_local, // Ya viene de la BD
+            nombre_local: '',
             fecha_entrega: local.fechaEntrega || null,
             hora_entrega: local.horaEntrega || null,
             cantidad_solicitada: local.bultos || 0
           };
-          
+
           await fetch(API_URL + '/sd01_documento_locales', {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'application/json' },
