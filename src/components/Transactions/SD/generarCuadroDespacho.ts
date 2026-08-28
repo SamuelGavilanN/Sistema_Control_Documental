@@ -32,6 +32,7 @@ interface TransporteData {
   selloAdicional: string;
   administrativo: string;
   actasInformadas: string;
+  totalPallets?: number;
   locales: LocalData[];
 }
 
@@ -76,7 +77,10 @@ function esNoAplica(valor: string): boolean {
 
 function esCentroDistribucion(origen: string): boolean {
   const o = origen.toUpperCase().trim();
-  return o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV');
+  if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV')) return true;
+  // Reconocer orígenes tipo C144, C12, etc.
+  if (/^C\d+/.test(o)) return true;
+  return false;
 }
 
 export function generarCuadroHTML(datos: TransporteData): string {
@@ -95,6 +99,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
   const selloAdicional = escaparHTML(datos.selloAdicional);
   const actas = escaparHTML(datos.actasInformadas);
   const administrativo = escaparHTML(datos.administrativo);
+  const totalPallets = datos.totalPallets || 0;
 
   let htmlLocales = '';
 
@@ -102,7 +107,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
     const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
-    const cantidadPallet = local.cantidadPallet || 0;
 
     const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
     const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
@@ -111,18 +115,15 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Encabezado de pallets por local (grande, negrita, rojo - con !important)
+    // ===== TABLA ÚNICA DEL LOCAL (con separación 60px) =====
     htmlLocales += `
       <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#dc2626 !important; white-space:nowrap !important;">
-        ${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}
+        ${local.cantidadPallet || 0} PALLET${local.cantidadPallet !== 1 ? 'S' : ''}
       </p>
     `;
 
-    // ===== TABLA ÚNICA DEL LOCAL (sin fila redundante de pallets) =====
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
-
-        <!-- Campos largos -->
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;"><strong>${codigo}-${nombre}</strong></td>
@@ -135,11 +136,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
         </tr>
-
-        <!-- Separación -->
-        <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
-
-        <!-- Campos en pares -->
+        <tr>
+          <td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td>
+        </tr>
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLarga}</td>
@@ -170,11 +169,10 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
+        <tr>
+          <td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td>
+        </tr>
 
-        <!-- Separación -->
-        <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
-
-        <!-- CENTROS DE DISTRIBUCIÓN -->
         ${
           centros.length > 0
             ? `
@@ -204,16 +202,16 @@ export function generarCuadroHTML(datos: TransporteData): string {
               <tr bgcolor="#FFFF00" style="font-weight:bold;">
                 <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de Bultos Origen Centro de Distribución</td>
                 <td style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">${totalCentros}</td>
-                <td colspan="2" style="border:1px solid #000; padding:4px; white-space:nowrap;"></td>
+                <td colspan="2" style="border:1px solid #000; padding:4px;"></td>
               </tr>
             `
             : ''
         }
 
-        <!-- Separación -->
-        <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
+        <tr>
+          <td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td>
+        </tr>
 
-        <!-- SEGMENTOS ADICIONALES -->
         ${
           segmentos.length > 0
             ? `
@@ -243,17 +241,16 @@ export function generarCuadroHTML(datos: TransporteData): string {
               <tr bgcolor="#FFFF00" style="font-weight:bold;">
                 <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de bultos Segmentos Adicionales</td>
                 <td style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">${totalSegmentos}</td>
-                <td colspan="2" style="border:1px solid #000; padding:4px; white-space:nowrap;"></td>
+                <td colspan="2" style="border:1px solid #000; padding:4px;"></td>
               </tr>
             `
             : ''
         }
 
-        <!-- TOTAL GENERAL -->
         <tr bgcolor="#FFFF00" style="font-weight:bold;">
           <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
           <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">${totalGeneral}</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
+          <td colspan="2" style="border:1px solid #000; padding:5px;"></td>
         </tr>
       </table>
     `;
