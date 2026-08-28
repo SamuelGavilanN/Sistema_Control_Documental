@@ -7,7 +7,7 @@ import ImprimirModal from './ImprimirModal';
 import ImprimirSeleccionModal from './ImprimirSeleccionModal';
 import { copiarCuadroDespacho } from './generarCuadroDespacho';
 import { generarResumenFinalizarHTML } from './generarResumenFinalizar';
-import logoPath from '../../../assets/fashions-park-logo2.png'; // Asegúrate de la ruta
+import logoPath from '../../../assets/fashions-park-logo2.png';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -550,6 +550,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [copiasImprimir, setCopiasImprimir] = useState<string[]>([]);
   const [mostrarSeleccionCopias, setMostrarSeleccionCopias] = useState(false);
 
+  // Sistema de toasts
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
+  const mostrarMensaje = (tipo: string, texto: string) => {
+    setMensaje({ tipo, texto, visible: true });
+    setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
+  };
+
   useEffect(() => {
     if (transporte) {
       cargarDetalles();
@@ -665,11 +672,11 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       if (!resp.ok) {
         const errorText = await resp.text();
         console.error('Error guardando local:', errorText);
-        alert('Error al guardar local: ' + errorText);
+        mostrarMensaje('error', 'Error al guardar local');
       }
     } catch (e) {
       console.error('Error guardando local:', e);
-      alert('Error de red al guardar local');
+      mostrarMensaje('error', 'Error de red al guardar local');
     }
   };
 
@@ -716,14 +723,14 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       return localMaestro?.correo;
     }).filter(Boolean).join(';');
     if (!correos) {
-      alert('No hay correos configurados para los locales');
+      mostrarMensaje('warning', 'No hay correos configurados para los locales');
       return;
     }
     navigator.clipboard.writeText(correos).then(() => {
-      alert('Correos copiados al portapapeles');
+      mostrarMensaje('success', 'Correos copiados al portapapeles');
     }).catch((err) => {
       console.error('Error al copiar correos:', err);
-      alert('Error al copiar correos');
+      mostrarMensaje('error', 'Error al copiar correos');
     });
   };
 
@@ -745,10 +752,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     const texto = `DETALLE DE DESPACHO: ${nombresUnicos} /// N° DE ACTA: ${actasUnicas}`;
 
     navigator.clipboard.writeText(texto).then(() => {
-      alert('Detalle copiado al portapapeles');
+      mostrarMensaje('success', 'Detalle copiado al portapapeles');
     }).catch((err) => {
       console.error('Error al copiar detalle:', err);
-      alert('Error al copiar detalle');
+      mostrarMensaje('error', 'Error al copiar detalle');
     });
   };
 
@@ -809,9 +816,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
     const exito = await copiarCuadroDespacho(datos);
     if (exito) {
-      alert('Cuadro copiado al portapapeles. Puedes pegarlo en Outlook.');
+      mostrarMensaje('success', 'Cuadro copiado al portapapeles');
     } else {
-      alert('Error al copiar el cuadro');
+      mostrarMensaje('error', 'Error al copiar el cuadro');
     }
   };
 
@@ -846,7 +853,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const imprimirSeleccionados = () => {
     if (!locales.some((l: any) => l.seleccionado)) {
-      alert('Seleccione al menos un local para imprimir');
+      mostrarMensaje('warning', 'Seleccione al menos un local para imprimir');
       return;
     }
     setMostrarSeleccionCopias(true);
@@ -894,7 +901,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         })
       });
 
-      alert('Transporte finalizado exitosamente. Sellos y pallets guardados.');
+      mostrarMensaje('success', 'Transporte finalizado exitosamente');
 
       // Generar resumen e imprimir automáticamente
       const logoImg = new Image();
@@ -941,7 +948,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       onClose();
     } catch (e) {
       console.error('Error finalizando transporte:', e);
-      alert('Error al finalizar transporte');
+      mostrarMensaje('error', 'Error al finalizar transporte');
     }
   };
 
@@ -958,6 +965,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   return (
     <div className="sd01-container">
+      {mensaje.visible && (
+        <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>
+          {mensaje.texto}
+        </div>
+      )}
+
       {/* Barra de acciones horizontal */}
       <div className="sd01-action-bar">
         <button className="sd01-btn sd01-btn-cancel" onClick={onClose}>
