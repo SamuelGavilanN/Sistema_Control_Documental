@@ -12,6 +12,7 @@ interface LocalData {
   codigo: string;
   nombre: string;
   selloTrasero: string;
+  cantidadPallet?: number;   // NUEVO
   bultos: BultoData[];
 }
 
@@ -103,6 +104,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
     const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
+    const cantidadPallet = local.cantidadPallet || 0;
 
     const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
     const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
@@ -111,8 +113,8 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // ===== TABLA ÚNICA CON table-layout: auto (las columnas se expanden al contenido) =====
-    // Separación entre locales: 60px (3 veces más amplia que los 20px anteriores)
+    // ===== TABLA ÚNICA CON table-layout: auto =====
+    // Separación entre locales: 60px
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
 
@@ -128,6 +130,10 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
+        </tr>
+        <tr>
+          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Cantidad Pallet</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${cantidadPallet}</td>
         </tr>
 
         <!-- Separación -->
