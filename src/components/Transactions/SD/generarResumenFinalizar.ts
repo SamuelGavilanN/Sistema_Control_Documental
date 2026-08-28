@@ -57,25 +57,29 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
   const conductor = escaparHTML(datos.conductor);
   const rutConductor = escaparHTML(datos.rutConductor);
 
-  // Tabla 1: Documentación (2 columnas)
+  // Tabla Documentación (2 columnas: etiqueta | valor)
   const tablaDocumentacion = `
-    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
+    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">FECHA DOCUMENTACIÓN</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${fechaDocumentacion}</td>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">ADMINISTRATIVO</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${administrativo}</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">FECHA DOCUMENTACIÓN</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${fechaDocumentacion}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">DESPACHO</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">DESP05</td>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">N° DOCUMENTACIÓN</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%; font-weight:bold; font-size:14px;">${datos.numeroTransporte}</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">ADMINISTRATIVO</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${administrativo}</td>
+      </tr>
+      <tr>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">DESPACHO</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">DESP05</td>
+      </tr>
+      <tr>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">N° DOCUMENTACIÓN</td>
+        <td style="border:1px solid #000; padding:6px; width:70%; font-weight:bold; font-size:14px;">${datos.numeroTransporte}</td>
       </tr>
     </table>
   `;
 
-  // Filas de locales (tabla separada)
+  // Filas de locales (tabla separada, se mantiene de 4 columnas)
   let filasLocales = '';
   datos.locales.forEach((local) => {
     filasLocales += `
@@ -88,26 +92,32 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
     `;
   });
 
-  // Tabla 2: Conductor y vehículo (2 columnas, sin NUMERO DE TRANSPORTE)
+  // Tabla Conductor (2 columnas: etiqueta | valor)
   const tablaConductor = `
-    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
+    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">CONDUCTOR</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${conductor}</td>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">PATENTE</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${patenteCompleta}</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">CONDUCTOR</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${conductor}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">RUT</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${rutConductor}</td>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">SELLO LATERAL</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${datos.selloLateral}</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">PATENTE</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${patenteCompleta}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">SELLO ADICIONAL</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${datos.selloAdicional}</td>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap; width:25%;">FECHA PROGRAMACIÓN</td>
-        <td style="border:1px solid #000; padding:5px; white-space:nowrap; width:25%;">${formatearFechaLarga(datos.fechaProgramacion)}</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">RUT</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${rutConductor}</td>
+      </tr>
+      <tr>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">SELLO LATERAL</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${datos.selloLateral}</td>
+      </tr>
+      <tr>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">SELLO ADICIONAL</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${datos.selloAdicional}</td>
+      </tr>
+      <tr>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px; font-weight:bold; width:30%;">FECHA PROGRAMACIÓN</td>
+        <td style="border:1px solid #000; padding:6px; width:70%;">${formatearFechaLarga(datos.fechaProgramacion)}</td>
       </tr>
     </table>
   `;
