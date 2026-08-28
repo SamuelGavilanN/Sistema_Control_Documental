@@ -88,7 +88,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             border: 2px solid #000;
             box-sizing: border-box;
             font-family: Arial, sans-serif;
-            font-size: 12px;
+            font-size: 10px; /* Reducido de 12px a 10px */
             color: #000;
           }
           .tabla-unica {
@@ -97,7 +97,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             table-layout: fixed;
           }
           .tabla-unica td {
-            padding: 6px 8px;
+            padding: 6px 8px; /* Padding intacto */
           }
           .celda-etiqueta {
             border: 1px solid #000;
@@ -125,10 +125,10 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
       </head>
       <body style="margin:0; padding:0;">
         <div class="carta">
-          <!-- Encabezado con logo y título -->
+          <!-- Encabezado con logo y título (fuente reducida de 20px a 16px) -->
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:5px;">
             <img src="${logoBase64}" alt="Logo FASHIONSPARK" style="height:40px; width:auto;" />
-            <span style="font-size:20px; font-weight:bold; font-family:'Comic Sans MS', cursive;">Resumen</span>
+            <span style="font-size:16px; font-weight:bold; font-family:'Comic Sans MS', cursive;">Resumen</span>
           </div>
 
           <!-- Tabla única -->
@@ -143,7 +143,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             <!-- Separación 1 (21px) -->
             <tr class="fila-separacion" style="height:21px;"><td colspan="4"></td></tr>
 
-            <!-- Documentación -->
+            <!-- Documentación (sin fila DESPACHO) -->
             <tr>
               <td class="celda-etiqueta">FECHA DOCUMENTACIÓN</td>
               <td class="celda-dato">${fechaDocumentacion}</td>
@@ -153,12 +153,6 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             <tr>
               <td class="celda-etiqueta">ADMINISTRATIVO</td>
               <td class="celda-dato">${administrativo}</td>
-              <td class="celda-vacia"></td>
-              <td class="celda-vacia"></td>
-            </tr>
-            <tr>
-              <td class="celda-etiqueta">DESPACHO</td>
-              <td class="celda-dato">DESP05</td>
               <td class="celda-vacia"></td>
               <td class="celda-vacia"></td>
             </tr>
