@@ -288,9 +288,10 @@ export async function copiarCuadroDespacho(datos: TransporteData): Promise<boole
   const html = generarCuadroHTML(datos);
   try {
     if (navigator.clipboard && navigator.clipboard.write) {
+      // CORRECCIÓN: envolver los Blobs en Promise.resolve()
       const clipboardItem = new ClipboardItem({
-        'text/html': new Blob([html], { type: 'text/html' }),
-        'text/plain': new Blob([html], { type: 'text/plain' }),
+        'text/html': Promise.resolve(new Blob([html], { type: 'text/html' })),
+        'text/plain': Promise.resolve(new Blob([html], { type: 'text/plain' })),
       });
       await navigator.clipboard.write([clipboardItem]);
       return true;
