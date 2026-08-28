@@ -111,21 +111,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Definir 6 columnas fijas con anchos que suman 100%
-    const colgroup = `
-      <colgroup>
-        <col style="width:25%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-      </colgroup>
-    `;
-
+    // ===== TABLA ÚNICA CON table-layout: auto =====
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
-        ${colgroup}
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
 
         <!-- Campos largos -->
         <tr>
@@ -144,7 +132,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td></tr>
 
-        <!-- Campos en pares (usando 6 columnas: etiqueta, valor, etiqueta, valor, etiqueta, valor) -->
+        <!-- Campos en pares -->
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${fechaLarga}</td>
