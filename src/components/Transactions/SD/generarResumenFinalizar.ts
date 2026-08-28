@@ -57,85 +57,18 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
   const conductor = escaparHTML(datos.conductor);
   const rutConductor = escaparHTML(datos.rutConductor);
 
-  // Tabla 1: Documentación (ancho 100%, col1=30%, col2=30%)
-  const tablaDocumentacion = `
-    <table style="width:100%; border-collapse:collapse; margin-bottom:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">FECHA DOCUMENTACIÓN</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${fechaDocumentacion}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">ADMINISTRATIVO</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${administrativo}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">DESPACHO</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">DESP05</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">N° DOCUMENTACIÓN</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%; font-weight:bold; font-size:14px;">${datos.numeroTransporte}</td>
-      </tr>
-    </table>
-  `;
-
-  // Tabla 2: Detalle de locales (col1=30%, col2=30%, col3=20%, col4=16%)
+  // Filas de locales
   let filasLocales = '';
   datos.locales.forEach((local) => {
     filasLocales += `
       <tr>
-        <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap; width:30%;">${local.codigo}-${local.nombre}</td>
-        <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap; width:30%;">${local.actas}</td>
-        <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap; width:20%;">${formatearFechaLarga(local.fechaEntrega)}</td>
-        <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap; width:16%;">${local.selloTrasero}</td>
+        <td class="celda-dato" style="text-align:center;">${local.codigo}-${local.nombre}</td>
+        <td class="celda-dato" style="text-align:center;">${local.actas}</td>
+        <td class="celda-dato" style="text-align:center;">${formatearFechaLarga(local.fechaEntrega)}</td>
+        <td class="celda-dato" style="text-align:center;">${local.selloTrasero}</td>
       </tr>
     `;
   });
-
-  const tablaLocales = `
-    <table style="width:100%; border-collapse:collapse; margin-bottom:100px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:center;">
-      <tr>
-        <td colspan="4" bgcolor="#d9e2f3" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">DETALLE DE LOCALES</td>
-      </tr>
-      <tr bgcolor="#d9e2f3">
-        <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap; width:30%;">LOCAL</td>
-        <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap; width:30%;">N° DE ACTAS</td>
-        <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap; width:20%;">FECHA ENTREGA</td>
-        <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap; width:16%;">SELLO TRASERO</td>
-      </tr>
-      ${filasLocales}
-    </table>
-  `;
-
-  // Tabla 3: Conductor (ancho 100%, col1=30%, col2=30%)
-  const tablaConductor = `
-    <table style="width:100%; border-collapse:collapse; margin-top:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">CONDUCTOR</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${conductor}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">PATENTE</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${patenteCompleta}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">RUT</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${rutConductor}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">SELLO LATERAL</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${datos.selloLateral}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">SELLO ADICIONAL</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${datos.selloAdicional}</td>
-      </tr>
-      <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">FECHA PROGRAMACIÓN</td>
-        <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${formatearFechaLarga(datos.fechaProgramacion)}</td>
-      </tr>
-    </table>
-  `;
 
   const html = `
     <html>
@@ -146,22 +79,152 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
           @media print {
             body { margin: 0; }
           }
+          .carta {
+            width: 21.59cm;
+            min-height: 27.94cm;
+            margin: 0 auto;
+            background: #fff;
+            padding: 1cm;
+            border: 2px solid #000;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #000;
+          }
+          .tabla-unica {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+          }
+          .tabla-unica td {
+            padding: 6px 8px;
+          }
+          .celda-etiqueta {
+            border: 1px solid #000;
+            background: #e0e0e0;
+            font-weight: bold;
+          }
+          .celda-dato {
+            border: 1px solid #000;
+          }
+          .celda-encabezado {
+            border: 1px solid #000;
+            background: #d9e2f3;
+            font-weight: bold;
+            text-align: center;
+          }
+          .celda-vacia {
+            border: none;
+            background: transparent;
+          }
+          .fila-separacion td {
+            border: none;
+            background: transparent;
+          }
         </style>
       </head>
-      <body style="font-family:Arial, sans-serif; font-size:12px; color:#000; margin:0; padding:0;">
-        <!-- Contenedor que bordea una hoja carta completa -->
-        <div style="width: 21.59cm; min-height: 27.94cm; margin: 0 auto; background:#fff; padding: 1cm; border: 2px solid #000; box-sizing: border-box; position: relative;">
-
-          <!-- ENCABEZADO CON LOGO -->
+      <body style="margin:0; padding:0;">
+        <div class="carta">
+          <!-- Encabezado con logo y título -->
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:5px;">
             <img src="${logoBase64}" alt="Logo FASHIONSPARK" style="height:40px; width:auto;" />
             <span style="font-size:20px; font-weight:bold; font-family:'Comic Sans MS', cursive;">Resumen</span>
           </div>
 
-          ${tablaDocumentacion}
-          ${tablaLocales}
-          ${tablaConductor}
+          <!-- Tabla única -->
+          <table class="tabla-unica">
+            <colgroup>
+              <col style="width:30%;">
+              <col style="width:30%;">
+              <col style="width:30%;">
+              <col style="width:25%;">
+            </colgroup>
 
+            <!-- Separación 1 (21px) -->
+            <tr class="fila-separacion" style="height:21px;"><td colspan="4"></td></tr>
+
+            <!-- Documentación -->
+            <tr>
+              <td class="celda-etiqueta">FECHA DOCUMENTACIÓN</td>
+              <td class="celda-dato">${fechaDocumentacion}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">ADMINISTRATIVO</td>
+              <td class="celda-dato">${administrativo}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">DESPACHO</td>
+              <td class="celda-dato">DESP05</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">N° DOCUMENTACIÓN</td>
+              <td class="celda-dato" style="font-weight:bold;">${datos.numeroTransporte}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+
+            <!-- Separación 2 (40px) -->
+            <tr class="fila-separacion" style="height:40px;"><td colspan="4"></td></tr>
+
+            <!-- Detalle de Locales -->
+            <tr>
+              <td colspan="4" class="celda-encabezado">DETALLE DE LOCALES</td>
+            </tr>
+            <tr>
+              <td class="celda-encabezado">LOCAL</td>
+              <td class="celda-encabezado">N° DE ACTAS</td>
+              <td class="celda-encabezado">FECHA ENTREGA</td>
+              <td class="celda-encabezado">SELLO TRASERO</td>
+            </tr>
+            ${filasLocales}
+
+            <!-- Separación 3 (75px) -->
+            <tr class="fila-separacion" style="height:75px;"><td colspan="4"></td></tr>
+
+            <!-- Conductor y vehículo -->
+            <tr>
+              <td class="celda-etiqueta">CONDUCTOR</td>
+              <td class="celda-dato">${conductor}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">PATENTE</td>
+              <td class="celda-dato">${patenteCompleta}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">RUT</td>
+              <td class="celda-dato">${rutConductor}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">SELLO LATERAL</td>
+              <td class="celda-dato">${datos.selloLateral}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">SELLO ADICIONAL</td>
+              <td class="celda-dato">${datos.selloAdicional}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+            <tr>
+              <td class="celda-etiqueta">FECHA PROGRAMACIÓN</td>
+              <td class="celda-dato">${formatearFechaLarga(datos.fechaProgramacion)}</td>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+            </tr>
+          </table>
         </div>
       </body>
     </html>
