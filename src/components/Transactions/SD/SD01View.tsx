@@ -77,13 +77,13 @@ const SD01View: React.FC = () => {
     }
   }, []);
 
+  // Cargar al montar (sin polling)
   useEffect(() => {
     cargarTransportes(1);
     cargarUsuariosAdmin();
-    const intervalo = setInterval(() => cargarTransportes(pagina), 15000);
-    return () => clearInterval(intervalo);
   }, []);
 
+  // Recargar al cambiar de página (manual, no polling)
   useEffect(() => {
     cargarTransportes(pagina);
   }, [pagina]);
@@ -106,7 +106,6 @@ const SD01View: React.FC = () => {
     setTransporteSeleccionado(transporte);
   };
 
-  // Eliminar seleccionados (ya no aplica, eliminado)
   const handleEliminarSeleccionados = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Seleccione un transporte para eliminar');
@@ -242,7 +241,6 @@ const SD01View: React.FC = () => {
     }
   };
 
-  // Editar cualquier estado excepto Cancelado y Finalizado
   const handleEditarTransporte = () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -284,18 +282,13 @@ const SD01View: React.FC = () => {
     setMostrarVerTransporte(true);
   };
 
-  // Funciones de paginación
+  // Paginación
   const cambiarPagina = (nuevaPagina: number) => {
     if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
     setPagina(nuevaPagina);
     setTransporteSeleccionado(null);
   };
-  const cambiarLimite = (nuevoLimite: number) => {
-    setPagina(1);
-    setTransporteSeleccionado(null);
-  };
 
-  // Formatear datos
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
     const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
@@ -333,7 +326,6 @@ const SD01View: React.FC = () => {
     );
   }
 
-  // Si mostramos la vista detalle
   if (mostrarDetalle) {
     return (
       <SD01IniciarTransporte
@@ -375,6 +367,7 @@ const SD01View: React.FC = () => {
           Cargar Excel
         </button>
 
+        {/* Botón manual de actualización (sin polling) */}
         <button className="sd01-btn" onClick={() => cargarTransportes(pagina)} title="Actualizar tabla">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -432,11 +425,11 @@ const SD01View: React.FC = () => {
           Reabrir
         </button>
 
-        {/* Paginación en toolbar */}
+        {/* Paginación */}
         <div className="sd01-separator"></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Mostrar</span>
-          <select value={20} onChange={(e) => cambiarLimite(Number(e.target.value))} style={{ padding: '4px 8px', border: '1px solid var(--border-input)', borderRadius: '6px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px' }}>
+          <select value={20} onChange={(e) => { setPagina(1); cargarTransportes(1); }} style={{ padding: '4px 8px', border: '1px solid var(--border-input)', borderRadius: '6px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px' }}>
             <option value={20}>20</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
