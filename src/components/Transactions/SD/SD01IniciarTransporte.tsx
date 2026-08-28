@@ -6,6 +6,7 @@ import { locales as localesMaestros } from '../../../data/locales';
 import ImprimirModal from './ImprimirModal';
 import ImprimirSeleccionModal from './ImprimirSeleccionModal';
 import { copiarCuadroDespacho } from './generarCuadroDespacho';
+import { generarResumenFinalizarHTML } from './generarResumenFinalizar';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -785,12 +786,11 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
     const horaEntrega = transporte.hora_entrega || locales[0]?.hora_entrega || '';
     const administrativo = transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
-    const totalPallets = locales.reduce((sum, l) => sum + (Number(l.cantidad_pallet) || 0), 0);
 
     const datos = {
       idDocumento: transporte.id_documento,
       destino,
-      fechaEntrega: transporte.fecha_programacion ? formatearFecha(transporte.fecha_programacion) : '',
+      fechaEntrega: transporte.fecha_programacion || '',
       horaEntrega,
       chofer: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
       rutChofer: detallesConductor?.numero_documento || '',
@@ -803,7 +803,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       selloAdicional: selloAdicionalGlobal,
       administrativo,
       actasInformadas: actas,
-      totalPallets,
       locales: localesCuadro,
     };
 
@@ -895,6 +894,36 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       });
 
       alert('Transporte finalizado exitosamente. Sellos y pallets guardados.');
+
+      // Generar resumen e imprimir automáticamente
+      const datosResumen = {
+        numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
+        fechaProgramacion: transporte.fecha_programacion || '',
+        administrativo: transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
+        conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
+        rutConductor: detallesConductor?.numero_documento || '',
+        patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
+        patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
+        selloLateral: selloLateralGlobal,
+        selloAdicional: selloAdicionalGlobal,
+        locales: locales.map((local: any) => ({
+          codigo: local.codigo_local,
+          nombre: local.nombre_local || '',
+          actas: (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
+          fechaEntrega: local.fecha_entrega || '',
+          selloTrasero: local.sello_trasero || ''
+        }))
+      };
+
+      const html = generarResumenFinalizarHTML(datosResumen);
+      const ventana = window.open('', '_blank');
+      if (ventana) {
+        ventana.document.write(html);
+        ventana.document.close();
+        ventana.focus();
+        setTimeout(() => ventana.print(), 500);
+      }
+
       onActualizar();
       onClose();
     } catch (e) {
