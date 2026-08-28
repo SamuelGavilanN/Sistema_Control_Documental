@@ -57,29 +57,29 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
   const conductor = escaparHTML(datos.conductor);
   const rutConductor = escaparHTML(datos.rutConductor);
 
-  // Tabla 1: Documentación (ancho 55%, columnas 25% y 30%, separación 40px)
+  // Tabla 1: Documentación (col1=30%, col2=30%)
   const tablaDocumentacion = `
     <table style="width:calc(55% - 0px); border-collapse:collapse; margin-bottom:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">FECHA DOCUMENTACIÓN</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">FECHA DOCUMENTACIÓN</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${fechaDocumentacion}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">ADMINISTRATIVO</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">ADMINISTRATIVO</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${administrativo}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">DESPACHO</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">DESPACHO</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">DESP05</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">N° DOCUMENTACIÓN</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">N° DOCUMENTACIÓN</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%; font-weight:bold; font-size:14px;">${datos.numeroTransporte}</td>
       </tr>
     </table>
   `;
 
-  // Tabla 2: Detalle de locales (ancho 100%, columnas 30%, 30%, 20%, 16%, separación 100px)
+  // Tabla 2: Detalle de locales (columnas 30%, 30%, 20%, 16%)
   let filasLocales = '';
   datos.locales.forEach((local) => {
     filasLocales += `
@@ -107,31 +107,31 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
     </table>
   `;
 
-  // Tabla 3: Conductor y vehículo (ancho 55%, columnas 25% y 30%, separación 40px)
+  // Tabla 3: Conductor (col1=30%, col2=30%)
   const tablaConductor = `
     <table style="width:calc(55% - 0px); border-collapse:collapse; margin-top:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">CONDUCTOR</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">CONDUCTOR</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${conductor}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">PATENTE</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">PATENTE</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${patenteCompleta}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">RUT</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">RUT</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${rutConductor}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">SELLO LATERAL</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">SELLO LATERAL</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${datos.selloLateral}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">SELLO ADICIONAL</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">SELLO ADICIONAL</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${datos.selloAdicional}</td>
       </tr>
       <tr>
-        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:25%;">FECHA PROGRAMACIÓN</td>
+        <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">FECHA PROGRAMACIÓN</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${formatearFechaLarga(datos.fechaProgramacion)}</td>
       </tr>
     </table>
@@ -144,12 +144,13 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
         <title>Resumen Final - ${datos.numeroTransporte}</title>
         <style>
           @media print {
-            body { margin: 0; padding: 15px; }
+            body { margin: 0; }
           }
         </style>
       </head>
       <body style="font-family:Arial, sans-serif; font-size:12px; color:#000; margin:0; padding:0;">
-        <div style="max-width:750px; margin:0 auto; background:#fff; padding:15px; border:2px solid #000;">
+        <!-- Contenedor que bordea una hoja carta completa -->
+        <div style="width: 21.59cm; min-height: 27.94cm; margin: 0 auto; background:#fff; padding: 1cm; border: 2px solid #000; box-sizing: border-box; position: relative;">
 
           <!-- ENCABEZADO CON LOGO -->
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:5px;">
