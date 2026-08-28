@@ -38,15 +38,7 @@ const formatearFecha = (fecha: string): string => {
   if (!fecha) return "";
   const d = new Date(fecha + "T00:00:00");
   if (isNaN(d.getTime())) return fecha;
-  const dias = [
-    "domingo",
-    "lunes",
-    "martes",
-    "miércoles",
-    "jueves",
-    "viernes",
-    "sábado",
-  ];
+  const dias = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   return `${dias[d.getDay()]}, ${d.getDate().toString().padStart(2, "0")}.${(
     d.getMonth() + 1
   )
@@ -60,14 +52,12 @@ const limpiarValor = (val: string): string => {
   return val;
 };
 
-// Nueva función: determina si un origen es Centro de Distribución
 const esCentroDistribucion = (origen: string): boolean => {
   const o = origen.toUpperCase().trim();
-  return (
-    o.startsWith("CD") ||
-    o.startsWith("OUT") ||
-    o.startsWith("AGV")
-  );
+  if (o.startsWith("CD") || o.startsWith("OUT") || o.startsWith("AGV")) return true;
+  // Reconocer orígenes tipo C144, C12, etc.
+  if (/^C\d+/.test(o)) return true;
+  return false;
 };
 
 const generarHTML = (
@@ -86,7 +76,6 @@ const generarHTML = (
     .join(" / ");
 
   const separarCarga = (carga: any[] = []) => {
-    // Usamos la nueva función para clasificar
     const centros = carga.filter((c: any) => esCentroDistribucion(c.origenCarga));
     const segmentos = carga.filter((c: any) => !esCentroDistribucion(c.origenCarga));
     return { centros, segmentos };
@@ -116,7 +105,7 @@ const generarHTML = (
         centrosHTML = `
     <div class="centros-table-container">
      <table class="centros-table">
-      <tr><th>Centro de Distribucion</th><th>Tipo de Documento</th><th>Numero de Documento</th><th>Cantidad de Bultos</th><th>Observacion</th></tr>
+      <tr><th>Centro de Distribución</th><th>Tipo de Documento</th><th>Número de Documento</th><th>Cantidad de Bultos</th><th>Observación</th></tr>
       ${centros
         .map((c) => {
           const tipoDoc = limpiarValor(c.tipoDocumento);
@@ -133,7 +122,7 @@ const generarHTML = (
      </table>
     </div>
     <div class="total-centros-container">
-     <table class="total-centros-table"><tr><td>Total de Bultos Centros de Distribucion</td><td>${totalCentros}</td></tr></table>
+     <table class="total-centros-table"><tr><td>Total de Bultos Centros de Distribución</td><td>${totalCentros}</td></tr></table>
     </div>`;
       }
 
@@ -142,7 +131,7 @@ const generarHTML = (
         segmentosHTML = `
     <div class="otros-segmentos-table-container">
      <table class="otros-segmentos-table">
-      <tr><th>Segmentos Adicionales</th><th>Tipo de Documento</th><th>Numero de Documento</th><th>Cantidad Bultos</th><th>Observación</th></tr>
+      <tr><th>Segmentos Adicionales</th><th>Tipo de Documento</th><th>Número de Documento</th><th>Cantidad Bultos</th><th>Observación</th></tr>
       ${segmentos
         .map((c) => {
           const tipoDoc = limpiarValor(c.tipoDocumento);
