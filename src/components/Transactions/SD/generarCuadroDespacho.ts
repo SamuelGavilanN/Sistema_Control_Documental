@@ -111,21 +111,21 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Porcentajes ajustados para dar más espacio a datos
+    // ===== TABLA PRINCIPAL (TRANSPORTE) con layout fijo y anchos porcentuales =====
     const colgroup = `
       <colgroup>
-        <col style="width:15%;">
-        <col style="width:7%;">
-        <col style="width:7%;">
-        <col style="width:9%;">
-        <col style="width:13%;">
-        <col style="width:7%;">
+        <col style="width:16%;">
+        <col style="width:6%;">
+        <col style="width:8%;">
+        <col style="width:8%;">
+        <col style="width:14%;">
+        <col style="width:6%;">
         <col style="width:12%;">
       </colgroup>
     `;
 
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
+      <table style="width:100%; border-collapse:collapse; margin-bottom:0; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
         ${colgroup}
         <tr>
           <td colspan="2" bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
@@ -175,91 +175,96 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <tr>
           <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
         </tr>
+      </table>
+    `;
 
-        ${
-          centros.length > 0
-            ? `
-              <tr>
-                <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
-              </tr>
-              <tr bgcolor="#B4C6E7">
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Cant. Bultos</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Observación</td>
-              </tr>
-              ${centros
-                .map((b) => {
-                  const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
-                  const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
-                  return `<tr>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(b.origenCarga)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(tipoDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(numDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${b.cantidad}</td>
-                    <td colspan="3" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(b.observacion || '')}</td>
-                  </tr>`;
-                })
-                .join('')}
-              <tr bgcolor="#FFFF00" style="font-weight:bold;">
-                <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de Bultos Origen Centro de Distribución</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; text-align:center; white-space:normal; word-break:break-word;">${totalCentros}</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px; white-space:nowrap;"></td>
-              </tr>
-            `
-            : ''
-        }
+    // ===== SUBTABLA DE CENTROS DE DISTRIBUCIÓN (layout automático) =====
+    if (centros.length > 0) {
+      let filasCentros = '';
+      for (const b of centros) {
+        const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
+        const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
+        filasCentros += `<tr>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word; text-align:left;">${escaparHTML(b.origenCarga)}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(tipoDoc)}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(numDoc)}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${b.cantidad}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(b.observacion || '')}</td>
+        </tr>`;
+      }
 
-        <tr>
-          <td colspan="7" style="border:1px solid #000; padding:3px; background:#fff;"></td>
-        </tr>
+      htmlLocales += `
+        <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
+          <tr>
+            <td colspan="5" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
+          </tr>
+          <tr bgcolor="#B4C6E7">
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Cant. Bultos</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Observación</td>
+          </tr>
+          ${filasCentros}
+          <tr bgcolor="#FFFF00" style="font-weight:bold;">
+            <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de Bultos Origen Centro de Distribución</td>
+            <td style="border:1px solid #000; padding:4px; text-align:center; white-space:normal; word-break:break-word;">${totalCentros}</td>
+            <td style="border:1px solid #000; padding:4px;"></td>
+          </tr>
+        </table>
+      `;
+    }
 
-        ${
-          segmentos.length > 0
-            ? `
-              <tr>
-                <td colspan="7" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Segmentos Adicionales</td>
-              </tr>
-              <tr bgcolor="#B4C6E7">
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Segmento</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Cant. Bultos</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Observación</td>
-              </tr>
-              ${segmentos
-                .map((b) => {
-                  const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
-                  const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
-                  return `<tr>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(b.origenCarga)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(tipoDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(numDoc)}</td>
-                    <td colspan="1" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${b.cantidad}</td>
-                    <td colspan="3" style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(b.observacion || '')}</td>
-                  </tr>`;
-                })
-                .join('')}
-              <tr bgcolor="#FFFF00" style="font-weight:bold;">
-                <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de bultos Segmentos Adicionales</td>
-                <td colspan="1" style="border:1px solid #000; padding:4px; text-align:center; white-space:normal; word-break:break-word;">${totalSegmentos}</td>
-                <td colspan="3" style="border:1px solid #000; padding:4px; white-space:nowrap;"></td>
-              </tr>
-            `
-            : ''
-        }
+    // ===== SUBTABLA DE SEGMENTOS ADICIONALES (layout automático) =====
+    if (segmentos.length > 0) {
+      let filasSegmentos = '';
+      for (const b of segmentos) {
+        const tipoDoc = esNoAplica(b.tipoDocumento) ? '' : b.tipoDocumento;
+        const numDoc = esNoAplica(b.numeroDocumento) ? '' : b.numeroDocumento;
+        filasSegmentos += `<tr>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word; text-align:left;">${escaparHTML(b.origenCarga)}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(tipoDoc)}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(numDoc)}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${b.cantidad}</td>
+          <td style="border:1px solid #000; padding:3px; white-space:normal; word-break:break-word;">${escaparHTML(b.observacion || '')}</td>
+        </tr>`;
+      }
 
+      htmlLocales += `
+        <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
+          <tr>
+            <td colspan="5" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Segmentos Adicionales</td>
+          </tr>
+          <tr bgcolor="#B4C6E7">
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Segmento</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Cant. Bultos</td>
+            <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Observación</td>
+          </tr>
+          ${filasSegmentos}
+          <tr bgcolor="#FFFF00" style="font-weight:bold;">
+            <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de bultos Segmentos Adicionales</td>
+            <td style="border:1px solid #000; padding:4px; text-align:center; white-space:normal; word-break:break-word;">${totalSegmentos}</td>
+            <td style="border:1px solid #000; padding:4px;"></td>
+          </tr>
+        </table>
+      `;
+    }
+
+    // ===== TOTAL GENERAL =====
+    htmlLocales += `
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:fixed;">
         <tr bgcolor="#FFFF00" style="font-weight:bold;">
           <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
-          <td colspan="1" style="border:1px solid #000; padding:5px; text-align:center; white-space:normal; word-break:break-word;">${totalGeneral}</td>
+          <td style="border:1px solid #000; padding:5px; text-align:center; white-space:normal; word-break:break-word;">${totalGeneral}</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
         </tr>
       </table>
     `;
   }
 
-  // Contenedor principal: tabla con max-width: 750px para móviles
+  // Contenedor principal como tabla para compatibilidad con Outlook
   const html = `
     <html>
       <head>
