@@ -112,8 +112,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalGeneral = totalCentros + totalSegmentos;
 
     // ===== TABLA ÚNICA CON table-layout: auto (las columnas se expanden al contenido) =====
+    // Separación entre locales: 60px (3 veces más amplia que los 20px anteriores)
     htmlLocales += `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
+      <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
 
         <!-- Campos largos: etiqueta y valor, todo con white-space:nowrap -->
         <tr>
