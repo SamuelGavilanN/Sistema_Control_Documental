@@ -132,46 +132,36 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td></tr>
 
-        <!-- Campos en pares -->
+        <!-- Campos en pares: etiqueta, valor, etiqueta, valor (colspan=3 para valor) -->
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${fechaLarga}</td>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
-          <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${horaConHrs}</td>
-          <td style="border:1px solid #000; padding:5px;"></td>
-          <td style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${horaConHrs}</td>
         </tr>
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
           <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${chofer}</td>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Patente</td>
-          <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${patente}</td>
-          <td style="border:1px solid #000; padding:5px;"></td>
-          <td style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${patente}</td>
         </tr>
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Rut</td>
           <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${rut}</td>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
-          <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${selloTrasero}</td>
-          <td style="border:1px solid #000; padding:5px;"></td>
-          <td style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${selloTrasero}</td>
         </tr>
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Empresa</td>
           <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${transportista}</td>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Lateral</td>
-          <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${selloLateral}</td>
-          <td style="border:1px solid #000; padding:5px;"></td>
-          <td style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${selloLateral}</td>
         </tr>
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Teléfono</td>
           <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${celular}</td>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
-          <td style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${selloAdicional}</td>
-          <td style="border:1px solid #000; padding:5px;"></td>
-          <td style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:normal; word-break:break-word;">${selloAdicional}</td>
         </tr>
 
         <!-- Separación -->
