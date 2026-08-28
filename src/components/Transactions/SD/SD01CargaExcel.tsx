@@ -50,6 +50,27 @@ const convertirFechaExcel = (valor: any): string => {
   return str;
 };
 
+const convertirHoraExcel = (valor: any): string => {
+  if (valor === null || valor === undefined || valor === '') return '';
+
+  if (typeof valor === 'number' && valor < 1) {
+    const totalMinutos = Math.round(valor * 24 * 60);
+    const horas = Math.floor(totalMinutos / 60);
+    const minutos = totalMinutos % 60;
+    return String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0');
+  }
+
+  const str = String(valor).trim();
+  if (!str) return '';
+
+  if (str.match(/^\d{1,2}:\d{2}$/)) {
+    const partes = str.split(':');
+    return partes[0].padStart(2, '0') + ':' + partes[1];
+  }
+
+  return str;
+};
+
 const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesCreados }) => {
   const [archivo, setArchivo]: any = useState(null);
   const [archivoNombre, setArchivoNombre]: any = useState('');
@@ -193,27 +214,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
     setProcesando(false);
   };
 
-  const convertirHoraExcel = (valor: any): string => {
-    if (valor === null || valor === undefined || valor === '') return '';
-
-    if (typeof valor === 'number' && valor < 1) {
-      const totalMinutos = Math.round(valor * 24 * 60);
-      const horas = Math.floor(totalMinutos / 60);
-      const minutos = totalMinutos % 60;
-      return String(horas).padStart(2, '0') + ':' + String(minutos).padStart(2, '0');
-    }
-
-    const str = String(valor).trim();
-    if (!str) return '';
-
-    if (str.match(/^\d{1,2}:\d{2}$/)) {
-      const partes = str.split(':');
-      return partes[0].padStart(2, '0') + ':' + partes[1];
-    }
-
-    return str;
-  };
-
   const handleEliminarTransporte = (index: number) => {
     if (!resumen) return;
     const nuevosTransportes = resumen.transportes.filter((_: any, i: number) => i !== index);
@@ -281,7 +281,8 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
         let patenteId = null;
         if (trans.vehiculo) {
-          const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          // CORRECCIÓN: mantener el guion en la patente
+          const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9-]/g, '');
           if (patenteLimpia) {
             try {
               const respPatente = await fetch(
