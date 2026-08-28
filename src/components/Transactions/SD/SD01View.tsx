@@ -15,40 +15,38 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
+const PAGE_SIZE = 20;
+
 const SD01View: React.FC = () => {
   const [transportes, setTransportes] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [transporteSeleccionado, setTransporteSeleccionado] = useState<any>(null);
-  const [transportesSeleccionados, setTransportesSeleccionados] = useState<Set<string>>(new Set());
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [mostrarCrearTransporte, setMostrarCrearTransporte] = useState(false);
   const [mostrarEditarTransporte, setMostrarEditarTransporte] = useState(false);
   const [mostrarVerTransporte, setMostrarVerTransporte] = useState(false);
   const [mostrarCargaExcel, setMostrarCargaExcel] = useState(false);
-  const [mostrarDetalle, setMostrarDetalle] = useState<any>(null); // vista detalle en lugar de modal
+  const [mostrarDetalle, setMostrarDetalle] = useState<any>(null);
   const [usuariosAdmin, setUsuariosAdmin] = useState<any[]>([]);
   const [mostrarAsignarModal, setMostrarAsignarModal] = useState(false);
   const [usuarioAsignar, setUsuarioAsignar] = useState('');
 
   // Paginación
-  const [paginaActual, setPaginaActual] = useState(1);
-  const [limitePorPagina, setLimitePorPagina] = useState(20);
-  const [totalRegistros, setTotalRegistros] = useState(0);
+  const [pagina, setPagina] = useState(1);
+  const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(0);
 
   const usuario = auth.getUsuario();
 
-  // Cargar transportes con paginación y relaciones
-  const cargarTransportes = useCallback(async (pagina: number) => {
+  const cargarTransportes = useCallback(async (paginaActual: number) => {
     setCargando(true);
     try {
-      const offset = (pagina - 1) * limitePorPagina;
+      const offset = (paginaActual - 1) * PAGE_SIZE;
 
-      // Consulta con relaciones (una sola petición)
-      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${limitePorPagina}&offset=${offset}`;
+      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}`;
 
-      const cacheKey = `sd01_transportes_p${pagina}_l${limitePorPagina}`;
-      const cacheTTL = 10000; // 10 segundos
+      const cacheKey = `sd01_transportes_p${paginaActual}`;
+      const cacheTTL = 10000;
       const cached = cache.get<any>(cacheKey);
       if (cached) {
         setTransportes(cached);
@@ -60,7 +58,6 @@ const SD01View: React.FC = () => {
         setTransportes(data);
       }
 
-      // Contar total (solo si no está cacheado)
       const countCacheKey = 'sd01_transportes_total';
       const cachedTotal = cache.get<number>(countCacheKey);
       let totalCount: number = cachedTotal || 0;
@@ -71,25 +68,25 @@ const SD01View: React.FC = () => {
         cache.set(countCacheKey, totalCount, cacheTTL);
       }
 
-      setTotalRegistros(totalCount);
-      setTotalPaginas(Math.ceil(totalCount / limitePorPagina));
+      setTotal(totalCount);
+      setTotalPaginas(Math.ceil(totalCount / PAGE_SIZE));
       setCargando(false);
     } catch (e) {
       console.error('Error cargando transportes:', e);
       setCargando(false);
     }
-  }, [limitePorPagina]);
+  }, []);
 
-  // Al montar, cargar primera página
   useEffect(() => {
     cargarTransportes(1);
     cargarUsuariosAdmin();
+    const intervalo = setInterval(() => cargarTransportes(pagina), 15000);
+    return () => clearInterval(intervalo);
   }, []);
 
-  // Actualizar cuando cambia la página o límite
   useEffect(() => {
-    cargarTransportes(paginaActual);
-  }, [paginaActual, limitePorPagina, cargarTransportes]);
+    cargarTransportes(pagina);
+  }, [pagina]);
 
   const cargarUsuariosAdmin = async () => {
     try {
@@ -104,80 +101,42 @@ const SD01View: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Selección múltiple
-  const toggleSeleccion = (transporteId: string) => {
-    const nuevos = new Set(transportesSeleccionados);
-    if (nuevos.has(transporteId)) {
-      nuevos.delete(transporteId);
-    } else {
-      nuevos.add(transporteId);
-    }
-    setTransportesSeleccionados(nuevos);
-    if (nuevos.size === 1) {
-      const seleccionado = transportes.find((t: any) => nuevos.has(t.id));
-      setTransporteSeleccionado(seleccionado || null);
-    } else {
-      setTransporteSeleccionado(null);
-    }
+  // Selección única
+  const seleccionarTransporte = (transporte: any) => {
+    setTransporteSeleccionado(transporte);
   };
 
-  const toggleSeleccionarTodos = () => {
-    if (transportesSeleccionados.size === transportes.length) {
-      setTransportesSeleccionados(new Set());
-      setTransporteSeleccionado(null);
-    } else {
-      setTransportesSeleccionados(new Set(transportes.map((t: any) => t.id)));
-      setTransporteSeleccionado(null);
-    }
-  };
-
-  // Eliminar solo pendiente
+  // Eliminar seleccionados (ya no aplica, eliminado)
   const handleEliminarSeleccionados = async () => {
-    if (transportesSeleccionados.size === 0) {
-      mostrarMensaje('warning', 'Seleccione al menos un transporte');
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Seleccione un transporte para eliminar');
       return;
     }
 
-    const seleccionados = transportes.filter((t: any) => transportesSeleccionados.has(t.id));
-    const soloPendientes = seleccionados.every((t: any) => t.estado === 'Pendiente');
-    if (!soloPendientes) {
+    const t = transporteSeleccionado;
+    if (t.estado !== 'Pendiente') {
       mostrarMensaje('error', 'Solo se pueden eliminar transportes en estado Pendiente');
       return;
     }
 
-    const ids = seleccionados.map((t: any) => t.id_documento).join(', ');
-    if (!window.confirm('¿Eliminar ' + transportesSeleccionados.size + ' transporte(s)?\n\n' + ids)) return;
+    if (!window.confirm('¿Eliminar el transporte ' + t.id_documento + '?')) return;
 
-    let eliminados = 0;
-    let errores = 0;
-
-    for (const t of seleccionados) {
-      try {
-        await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
-        const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
-        if (resp.ok) {
-          eliminados++;
-        } else {
-          errores++;
-        }
-      } catch (e) {
-        errores++;
+    try {
+      await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
+      const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
+      if (resp.ok) {
+        mostrarMensaje('success', 'Transporte eliminado correctamente');
+        setTransporteSeleccionado(null);
+        cache.invalidatePrefix('sd01_transportes_');
+        cargarTransportes(pagina);
+      } else {
+        mostrarMensaje('error', 'Error al eliminar transporte');
       }
+    } catch (e) {
+      mostrarMensaje('error', 'Error de red al eliminar');
     }
-
-    if (errores === 0) {
-      mostrarMensaje('success', eliminados + ' transporte(s) eliminado(s) correctamente');
-    } else {
-      mostrarMensaje('warning', eliminados + ' eliminado(s), ' + errores + ' error(es)');
-    }
-
-    setTransportesSeleccionados(new Set());
-    setTransporteSeleccionado(null);
-    cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(paginaActual);
   };
 
-  // Cancelar: permitir Pendiente y En Proceso
   const handleCancelarTransporte = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -189,13 +148,11 @@ const SD01View: React.FC = () => {
     }
 
     const motivo = window.prompt(
-      '¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\n' +
-      'Por favor, ingrese el motivo de la cancelación:'
+      '¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\nIngrese el motivo:'
     );
-
     if (motivo === null) return;
     if (!motivo.trim()) {
-      mostrarMensaje('warning', 'Debe ingresar un motivo para cancelar el transporte');
+      mostrarMensaje('warning', 'Debe ingresar un motivo');
       return;
     }
 
@@ -214,13 +171,12 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte cancelado exitosamente');
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(paginaActual);
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al cancelar transporte');
     }
   };
 
-  // Iniciar o continuar transporte
   const handleIniciarTransporte = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -250,14 +206,12 @@ const SD01View: React.FC = () => {
       setTransporteSeleccionado(actualizado);
       setMostrarDetalle(actualizado);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(paginaActual);
+      cargarTransportes(pagina);
     } catch (e) {
-      console.error('Error al iniciar transporte:', e);
-      mostrarMensaje('error', 'Error al iniciar el transporte');
+      mostrarMensaje('error', 'Error al iniciar transporte');
     }
   };
 
-  // Reabrir solo finalizados
   const handleReabrirTransporte = async () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -267,7 +221,7 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado');
       return;
     }
-    if (!window.confirm('¿Está seguro de reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a estado Pendiente.')) return;
+    if (!window.confirm('¿Reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a Pendiente.')) return;
     try {
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
         method: 'PATCH',
@@ -282,13 +236,25 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte reabierto exitosamente');
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(paginaActual);
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al reabrir transporte');
     }
   };
 
-  // Funciones para modales
+  // Editar cualquier estado excepto Cancelado y Finalizado
+  const handleEditarTransporte = () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte');
+      return;
+    }
+    if (transporteSeleccionado.estado === 'Cancelado' || transporteSeleccionado.estado === 'Finalizado') {
+      mostrarMensaje('error', 'No se puede editar un transporte cancelado o finalizado');
+      return;
+    }
+    setMostrarEditarTransporte(true);
+  };
+
   const handleCrearTransporte = () => setMostrarCrearTransporte(true);
   const handleTransporteCreado = () => {
     setMostrarCrearTransporte(false);
@@ -300,7 +266,7 @@ const SD01View: React.FC = () => {
     setMostrarEditarTransporte(false);
     setTransporteSeleccionado(null);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(paginaActual);
+    cargarTransportes(pagina);
     mostrarMensaje('success', 'Transporte editado exitosamente');
   };
   const handleCargarTransporte = () => setMostrarCargaExcel(true);
@@ -310,17 +276,6 @@ const SD01View: React.FC = () => {
     cargarTransportes(1);
     mostrarMensaje('success', 'Transportes creados exitosamente');
   };
-  const handleEditarTransporte = () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden editar transportes en estado Pendiente');
-      return;
-    }
-    setMostrarEditarTransporte(true);
-  };
   const handleVerTransporte = () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -329,60 +284,28 @@ const SD01View: React.FC = () => {
     setMostrarVerTransporte(true);
   };
 
-  // Asignación
-  const handleAsignarTransporte = () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Pendiente') {
-      mostrarMensaje('error', 'Solo se pueden asignar transportes en estado Pendiente');
-      return;
-    }
-    setUsuarioAsignar(transporteSeleccionado.asignado_a || '');
-    setMostrarAsignarModal(true);
+  // Funciones de paginación
+  const cambiarPagina = (nuevaPagina: number) => {
+    if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
+    setPagina(nuevaPagina);
+    setTransporteSeleccionado(null);
+  };
+  const cambiarLimite = (nuevoLimite: number) => {
+    setPagina(1);
+    setTransporteSeleccionado(null);
   };
 
-  const handleConfirmarAsignacion = async () => {
-    if (!usuarioAsignar) {
-      mostrarMensaje('warning', 'Debe seleccionar un usuario');
-      return;
-    }
-    try {
-      const usuarioSeleccionado = usuariosAdmin.find((u: any) => u.id === usuarioAsignar);
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          asignado_a: usuarioAsignar,
-          administrativo: usuarioSeleccionado ? usuarioSeleccionado.nombre + ' ' + usuarioSeleccionado.apellido : '',
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte asignado exitosamente');
-      setMostrarAsignarModal(false);
-      setTransporteSeleccionado(null);
-      cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(paginaActual);
-    } catch (e) {
-      mostrarMensaje('error', 'Error al asignar transporte');
-    }
-  };
-
-  // Formatear datos de la tabla
+  // Formatear datos
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
     const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
     return new Date(fechaStr).toLocaleDateString('es-CL');
   };
-
   const formatearFechaHora = (fecha: string) => {
     if (!fecha) return '-';
     return new Date(fecha).toLocaleDateString('es-CL') + ' ' + new Date(fecha).toLocaleTimeString('es-CL');
   };
 
-  // Extraer datos de las relaciones
   const getConductorNombre = (t: any) => t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '-';
   const getPatenteNumero = (t: any) => t.patente_principal ? t.patente_principal.numero_patente : '-';
   const getCreadoPorNombre = (t: any) => t.creador ? `${t.creador.nombre} ${t.creador.apellido}` : '-';
@@ -402,22 +325,15 @@ const SD01View: React.FC = () => {
     );
   };
 
-  // Paginación
-  const cambiarPagina = (nuevaPagina: number) => {
-    if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
-    setPaginaActual(nuevaPagina);
-    setTransportesSeleccionados(new Set());
-    setTransporteSeleccionado(null);
-  };
+  if (cargando) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#64748b', fontSize: '16px' }}>
+        Cargando transportes...
+      </div>
+    );
+  }
 
-  const cambiarLimite = (nuevoLimite: number) => {
-    setLimitePorPagina(nuevoLimite);
-    setPaginaActual(1);
-    setTransportesSeleccionados(new Set());
-    setTransporteSeleccionado(null);
-  };
-
-  // Si mostramos la vista detalle, renderizamos ese componente
+  // Si mostramos la vista detalle
   if (mostrarDetalle) {
     return (
       <SD01IniciarTransporte
@@ -425,18 +341,17 @@ const SD01View: React.FC = () => {
         onClose={() => {
           setMostrarDetalle(null);
           setTransporteSeleccionado(null);
-          cargarTransportes(paginaActual);
+          cargarTransportes(pagina);
         }}
         onActualizar={() => {
           cache.invalidatePrefix('sd01_transportes_');
-          cargarTransportes(paginaActual);
+          cargarTransportes(pagina);
         }}
         usuario={usuario}
       />
     );
   }
 
-  // Render normal (tabla y botones)
   return (
     <div className="sd01-container">
       {mensaje.visible && (
@@ -460,7 +375,7 @@ const SD01View: React.FC = () => {
           Cargar Excel
         </button>
 
-        <button className="sd01-btn" onClick={() => cargarTransportes(paginaActual)} title="Actualizar tabla">
+        <button className="sd01-btn" onClick={() => cargarTransportes(pagina)} title="Actualizar tabla">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M12.6667 2L12.6667 5.33333L9.33333 5.33333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -484,11 +399,11 @@ const SD01View: React.FC = () => {
           Cancelar
         </button>
 
-        <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={transportesSeleccionados.size === 0}>
+        <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={!transporteSeleccionado}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Eliminar ({transportesSeleccionados.size})
+          Eliminar ({transporteSeleccionado ? 1 : 0})
         </button>
 
         <div className="sd01-separator"></div>
@@ -501,27 +416,7 @@ const SD01View: React.FC = () => {
           Ver
         </button>
 
-        <div className="sd01-separator"></div>
-
-        <button className="sd01-btn" onClick={handleAsignarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10.6667 14V12.6667C10.6667 11.9594 10.3857 11.2811 9.88562 10.781C9.38552 10.281 8.70724 10 8 10H4C3.29276 10 2.61448 10.281 2.11438 10.781C1.61428 11.2811 1.33333 11.9594 1.33333 12.6667V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M6 7.33333C7.47276 7.33333 8.66667 6.13943 8.66667 4.66667C8.66667 3.19391 7.47276 2 6 2C4.52724 2 3.33333 3.19391 3.33333 4.66667C3.33333 6.13943 4.52724 7.33333 6 7.33333Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Asignar
-        </button>
-
-        <button
-          className="sd01-btn sd01-btn-success"
-          onClick={handleIniciarTransporte}
-          disabled={!transporteSeleccionado || !['Pendiente', 'En Proceso'].includes(transporteSeleccionado.estado)}
-          style={{
-            background: (transporteSeleccionado?.estado === 'Pendiente') ? '#16a34a' : 
-                        (transporteSeleccionado?.estado === 'En Proceso') ? '#3b82f6' : 'var(--bg-readonly)',
-            color: (['Pendiente', 'En Proceso'].includes(transporteSeleccionado?.estado)) ? 'white' : 'var(--text-muted)',
-            borderColor: (['Pendiente', 'En Proceso'].includes(transporteSeleccionado?.estado)) ? 'transparent' : 'var(--btn-border)'
-          }}
-        >
+        <button className="sd01-btn sd01-btn-success" onClick={handleIniciarTransporte} disabled={!transporteSeleccionado || !['Pendiente', 'En Proceso'].includes(transporteSeleccionado.estado)} style={{ background: transporteSeleccionado?.estado === 'Pendiente' ? '#16a34a' : transporteSeleccionado?.estado === 'En Proceso' ? '#3b82f6' : 'var(--bg-readonly)', color: ['Pendiente', 'En Proceso'].includes(transporteSeleccionado?.estado) ? 'white' : 'var(--text-muted)' }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 2L12 8L4 14V2Z" fill="currentColor"/>
           </svg>
@@ -541,19 +436,15 @@ const SD01View: React.FC = () => {
         <div className="sd01-separator"></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Mostrar</span>
-          <select
-            value={limitePorPagina}
-            onChange={(e) => cambiarLimite(Number(e.target.value))}
-            style={{ padding: '4px 8px', border: '1px solid var(--border-input)', borderRadius: '6px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px' }}
-          >
+          <select value={20} onChange={(e) => cambiarLimite(Number(e.target.value))} style={{ padding: '4px 8px', border: '1px solid var(--border-input)', borderRadius: '6px', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '13px' }}>
             <option value={20}>20</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
           </select>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>|</span>
-          <button className="sd01-btn" onClick={() => cambiarPagina(paginaActual - 1)} disabled={paginaActual <= 1} style={{ padding: '4px 8px' }}>‹</button>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{paginaActual} / {totalPaginas}</span>
-          <button className="sd01-btn" onClick={() => cambiarPagina(paginaActual + 1)} disabled={paginaActual >= totalPaginas} style={{ padding: '4px 8px' }}>›</button>
+          <button className="sd01-btn" onClick={() => cambiarPagina(pagina - 1)} disabled={pagina <= 1} style={{ padding: '4px 8px' }}>‹</button>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{pagina} / {totalPaginas}</span>
+          <button className="sd01-btn" onClick={() => cambiarPagina(pagina + 1)} disabled={pagina >= totalPaginas} style={{ padding: '4px 8px' }}>›</button>
         </div>
       </div>
 
@@ -562,15 +453,6 @@ const SD01View: React.FC = () => {
           <table className="sd01-table" style={{ minWidth: '1500px' }}>
             <thead>
               <tr>
-                <th style={{ width: '30px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    className="sd01-radio"
-                    checked={transportes.length > 0 && transportesSeleccionados.size === transportes.length}
-                    onChange={toggleSeleccionarTodos}
-                    style={{ cursor: 'pointer' }}
-                  />
-                </th>
                 <th>ID Transporte</th>
                 <th>Fecha Programación</th>
                 <th>Conductor</th>
@@ -585,36 +467,22 @@ const SD01View: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {cargando ? (
+              {transportes.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
-                    Cargando transportes...
-                  </td>
-                </tr>
-              ) : transportes.length === 0 ? (
-                <tr>
-                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                  <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                     No hay transportes registrados
                   </td>
                 </tr>
               ) : (
                 transportes.map((transporte: any) => {
-                  const seleccionado = transportesSeleccionados.has(transporte.id);
+                  const seleccionado = transporteSeleccionado?.id === transporte.id;
                   return (
                     <tr
                       key={transporte.id}
                       className={seleccionado ? 'sd01-row-selected' : ''}
                       style={{ background: seleccionado ? 'var(--table-row-selected)' : 'transparent', cursor: 'pointer' }}
-                      onClick={() => toggleSeleccion(transporte.id)}
+                      onClick={() => seleccionarTransporte(transporte)}
                     >
-                      <td style={{ textAlign: 'center' }} onClick={(e: any) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="sd01-radio"
-                          checked={seleccionado}
-                          onChange={() => toggleSeleccion(transporte.id)}
-                        />
-                      </td>
                       <td className="sd01-id-documento">{transporte.id_documento}</td>
                       <td>{formatearFecha(transporte.fecha_programacion)}</td>
                       <td>{getConductorNombre(transporte)}</td>
@@ -638,10 +506,9 @@ const SD01View: React.FC = () => {
       </div>
 
       <div className="sd01-footer">
-        Total de transportes: <strong style={{ color: '#1e293b' }}>{totalRegistros}</strong>
+        Total de transportes: <strong style={{ color: '#1e293b' }}>{total}</strong>
       </div>
 
-      {/* Modales */}
       {mostrarCrearTransporte && (
         <SD01CrearTransporte onClose={() => setMostrarCrearTransporte(false)} onTransporteCreado={handleTransporteCreado} />
       )}
@@ -653,36 +520,6 @@ const SD01View: React.FC = () => {
       )}
       {mostrarCargaExcel && (
         <SD01CargaExcel onClose={() => setMostrarCargaExcel(false)} onTransportesCreados={handleCargaExcelCompletada} />
-      )}
-      {mostrarAsignarModal && (
-        <div className="sd01-modal-overlay" onClick={() => setMostrarAsignarModal(false)}>
-          <div className="sd01-modal" style={{ maxWidth: '480px' }} onClick={(e: any) => e.stopPropagation()}>
-            <div className="sd01-modal-header">
-              <h2>Asignar Transporte</h2>
-              <button className="sd01-modal-close" onClick={() => setMostrarAsignarModal(false)}>×</button>
-            </div>
-            <div className="sd01-modal-body">
-              <div className="sd01-form-group" style={{ marginBottom: '16px' }}>
-                <label className="sd01-form-label">
-                  Transporte: <strong>{transporteSeleccionado?.id_documento}</strong>
-                </label>
-              </div>
-              <div className="sd01-form-group">
-                <label className="sd01-form-label">Asignar a (Administrativo o Líder)</label>
-                <select className="sd01-form-select" value={usuarioAsignar} onChange={(e: any) => setUsuarioAsignar(e.target.value)}>
-                  <option value="">Seleccionar usuario...</option>
-                  {usuariosAdmin.map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.nombre} {u.apellido} ({u.rol})</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="sd01-modal-footer">
-              <button className="sd01-btn-cancel" onClick={() => setMostrarAsignarModal(false)}>Cancelar</button>
-              <button className="sd01-btn-save" onClick={handleConfirmarAsignacion}>Asignar</button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
