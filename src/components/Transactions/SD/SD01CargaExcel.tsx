@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD01CargaExcel.tsx
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
 
@@ -72,13 +72,30 @@ const convertirHoraExcel = (valor: any): string => {
 };
 
 const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesCreados }) => {
-  const [archivo, setArchivo]: any = useState(null);
-  const [archivoNombre, setArchivoNombre]: any = useState('');
-  const [procesando, setProcesando]: any = useState(false);
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
-  const [resumen, setResumen]: any = useState(null);
-  const fileInputRef: any = useRef(null);
-  const usuario: any = auth.getUsuario();
+  const [archivo, setArchivo] = useState<any>(null);
+  const [archivoNombre, setArchivoNombre] = useState('');
+  const [procesando, setProcesando] = useState(false);
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+  const [resumen, setResumen] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const usuario = auth.getUsuario();
+
+  // Almacén local de códigos de locales para obtener nombre
+  const [localesData, setLocalesData] = useState<any[]>([]);
+
+  // Cargar los locales desde la base de datos al montar el componente
+  useEffect(() => {
+    const cargarLocales = async () => {
+      try {
+        const resp = await fetch(API_URL + '/locales?select=codigo_local,nombre_local&activo=eq.true', { headers: HEADERS });
+        const data = await resp.json();
+        if (data) setLocalesData(data);
+      } catch (e) {
+        console.error('Error cargando locales:', e);
+      }
+    };
+    cargarLocales();
+  }, []);
 
   const extraerFechaDeNombre = (nombre: string): string | null => {
     const fechaMatch = nombre.match(/(\d{2}-\d{2}-\d{4})/);
@@ -91,6 +108,12 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
     const diaStr = String(fecha.getDate()).padStart(2, '0');
     const mesStr = String(fecha.getMonth() + 1).padStart(2, '0');
     return fecha.getFullYear() + '-' + mesStr + '-' + diaStr;
+  };
+
+  // Obtener nombre local desde la BD
+  const obtenerNombreLocal = (codigo: string) => {
+    const local = localesData.find(l => l.codigo_local === codigo);
+    return local ? local.nombre_local : '';
   };
 
   const procesarArchivo = async () => {
@@ -179,9 +202,12 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           };
         }
 
+        // Obtener nombre desde la base de datos (ignorar tienda del Excel)
+        const nombreLocal = obtenerNombreLocal(codTI);
+
         transporteActual.locales.push({
           codigo_local: codTI,
-          nombre_local: tienda,
+          nombre_local: nombreLocal, // Usa el nombre de la BD
           bultos,
           fechaEntrega,
           horaEntrega
@@ -347,7 +373,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           const localData = {
             documento_id: idDocumento,
             codigo_local: local.codigo_local,
-            nombre_local: local.nombre_local || '',
+            nombre_local: local.nombre_local, // Ya viene de la BD
             fecha_entrega: local.fechaEntrega || null,
             hora_entrega: local.horaEntrega || null,
             cantidad_solicitada: local.bultos || 0
