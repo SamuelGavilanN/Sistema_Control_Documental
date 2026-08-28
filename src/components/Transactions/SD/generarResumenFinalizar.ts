@@ -80,7 +80,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
           /* Estilos generales */
           body {
             font-family: Arial, sans-serif;
-            font-size: 9px;
+            font-size: 11px;
             margin: 0;
             padding: 0;
             color: #000;
@@ -103,7 +103,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
           }
           .tabla-unica td {
             padding: 6px 8px;
-            font-size: 9px;
+            font-size: 11px;
           }
           .celda-etiqueta {
             border: 1px solid #000;
@@ -130,7 +130,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
           @media print {
             body {
               margin: 0;
-              font-size: 9px !important;
+              font-size: 11px !important;
             }
             .carta {
               width: 21.59cm;
@@ -138,7 +138,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
               box-shadow: none;
             }
             .tabla-unica td {
-              font-size: 9px !important;
+              font-size: 11px !important;
             }
           }
         </style>
