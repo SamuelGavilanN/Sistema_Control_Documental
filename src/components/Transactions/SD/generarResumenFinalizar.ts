@@ -88,7 +88,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             border: 2px solid #000;
             box-sizing: border-box;
             font-family: Arial, sans-serif;
-            font-size: 10px; /* Reducido de 12px a 10px */
+            font-size: 9px; /* Reducido de 10px a 9px */
             color: #000;
           }
           .tabla-unica {
@@ -125,7 +125,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
       </head>
       <body style="margin:0; padding:0;">
         <div class="carta">
-          <!-- Encabezado con logo y título (fuente reducida de 20px a 16px) -->
+          <!-- Encabezado con logo y título -->
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:5px;">
             <img src="${logoBase64}" alt="Logo FASHIONSPARK" style="height:40px; width:auto;" />
             <span style="font-size:16px; font-weight:bold; font-family:'Comic Sans MS', cursive;">Resumen</span>
