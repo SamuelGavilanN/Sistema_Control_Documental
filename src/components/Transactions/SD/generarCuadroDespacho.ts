@@ -111,12 +111,12 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Encabezado de pallets por local
+    // Encabezado de pallets por local (grande, negrita, rojo)
     htmlLocales += `
-      <p style="margin:0 0 5px 0; font-weight:bold; font-size:14px; white-space:nowrap;">${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}</p>
+      <p style="margin:0 0 5px 0; font-weight:bold; font-size:18px; color:#dc2626; white-space:nowrap;">${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}</p>
     `;
 
-    // ===== TABLA ÚNICA DEL LOCAL =====
+    // ===== TABLA ÚNICA DEL LOCAL (sin fila redundante de pallets) =====
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
 
@@ -132,10 +132,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
-        </tr>
-        <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Cantidad Pallet</td>
-          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${cantidadPallet}</td>
         </tr>
 
         <!-- Separación -->
