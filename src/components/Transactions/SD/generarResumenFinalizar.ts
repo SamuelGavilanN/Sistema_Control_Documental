@@ -57,9 +57,9 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
   const conductor = escaparHTML(datos.conductor);
   const rutConductor = escaparHTML(datos.rutConductor);
 
-  // Tabla 1: Documentación (col1=30%, col2=30%)
+  // Tabla 1: Documentación (ancho 100%, col1=30%, col2=30%)
   const tablaDocumentacion = `
-    <table style="width:calc(55% - 0px); border-collapse:collapse; margin-bottom:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
+    <table style="width:100%; border-collapse:collapse; margin-bottom:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
       <tr>
         <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">FECHA DOCUMENTACIÓN</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${fechaDocumentacion}</td>
@@ -79,7 +79,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
     </table>
   `;
 
-  // Tabla 2: Detalle de locales (columnas 30%, 30%, 20%, 16%)
+  // Tabla 2: Detalle de locales (col1=30%, col2=30%, col3=20%, col4=16%)
   let filasLocales = '';
   datos.locales.forEach((local) => {
     filasLocales += `
@@ -107,9 +107,9 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
     </table>
   `;
 
-  // Tabla 3: Conductor (col1=30%, col2=30%)
+  // Tabla 3: Conductor (ancho 100%, col1=30%, col2=30%)
   const tablaConductor = `
-    <table style="width:calc(55% - 0px); border-collapse:collapse; margin-top:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
+    <table style="width:100%; border-collapse:collapse; margin-top:40px; margin-left:0px; margin-right:0px; table-layout:auto; font-family:Arial, sans-serif; font-size:12px; text-align:left;">
       <tr>
         <td bgcolor="#e0e0e0" style="border:1px solid #000; padding:6px 8px; font-weight:bold; white-space:nowrap; width:30%;">CONDUCTOR</td>
         <td style="border:1px solid #000; padding:6px 8px; white-space:nowrap; width:30%;">${conductor}</td>
