@@ -7,6 +7,7 @@ import ImprimirModal from './ImprimirModal';
 import ImprimirSeleccionModal from './ImprimirSeleccionModal';
 import { copiarCuadroDespacho } from './generarCuadroDespacho';
 import { generarResumenFinalizarHTML } from './generarResumenFinalizar';
+import logoPath from '../../../assets/fashions-park-logo2.png'; // Asegúrate de que esta ruta sea correcta
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -81,7 +82,7 @@ interface LocalImprimir {
   }>;
 }
 
-// Autocomplete component
+// Autocomplete component (extraído de DCModal)
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -896,33 +897,45 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       alert('Transporte finalizado exitosamente. Sellos y pallets guardados.');
 
       // Generar resumen e imprimir automáticamente
-      const datosResumen = {
-        numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
-        fechaProgramacion: transporte.fecha_programacion || '',
-        administrativo: transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
-        conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
-        rutConductor: detallesConductor?.numero_documento || '',
-        patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
-        patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
-        selloLateral: selloLateralGlobal,
-        selloAdicional: selloAdicionalGlobal,
-        locales: locales.map((local: any) => ({
-          codigo: local.codigo_local,
-          nombre: local.nombre_local || '',
-          actas: (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
-          fechaEntrega: local.fecha_entrega || '',
-          selloTrasero: local.sello_trasero || ''
-        }))
-      };
+      const logoImg = new Image();
+      logoImg.crossOrigin = "anonymous";
+      logoImg.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = logoImg.naturalWidth;
+        canvas.height = logoImg.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(logoImg, 0, 0);
+        const logoBase64 = canvas.toDataURL("image/png");
 
-      const html = generarResumenFinalizarHTML(datosResumen);
-      const ventana = window.open('', '_blank');
-      if (ventana) {
-        ventana.document.write(html);
-        ventana.document.close();
-        ventana.focus();
-        setTimeout(() => ventana.print(), 500);
-      }
+        const datosResumen = {
+          numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
+          fechaProgramacion: transporte.fecha_programacion || '',
+          administrativo: transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
+          conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
+          rutConductor: detallesConductor?.numero_documento || '',
+          patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
+          patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
+          selloLateral: selloLateralGlobal,
+          selloAdicional: selloAdicionalGlobal,
+          locales: locales.map((local: any) => ({
+            codigo: local.codigo_local,
+            nombre: local.nombre_local || '',
+            actas: (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
+            fechaEntrega: local.fecha_entrega || '',
+            selloTrasero: local.sello_trasero || ''
+          }))
+        };
+
+        const html = generarResumenFinalizarHTML(datosResumen, logoBase64);
+        const ventana = window.open('', '_blank');
+        if (ventana) {
+          ventana.document.write(html);
+          ventana.document.close();
+          ventana.focus();
+          setTimeout(() => ventana.print(), 500);
+        }
+      };
+      logoImg.src = logoPath;
 
       onActualizar();
       onClose();
