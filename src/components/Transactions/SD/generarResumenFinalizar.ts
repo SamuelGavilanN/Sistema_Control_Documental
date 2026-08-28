@@ -71,13 +71,21 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
   });
 
   const html = `
+    <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
         <title>Resumen Final - ${datos.numeroTransporte}</title>
         <style>
-          @media print {
-            body { margin: 0; }
+          /* Estilos generales */
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            margin: 0;
+            padding: 0;
+            color: #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .carta {
             width: 21.59cm;
@@ -87,9 +95,6 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             padding: 1cm;
             border: 2px solid #000;
             box-sizing: border-box;
-            font-family: Arial, sans-serif;
-            font-size: 9px; /* Reducido de 10px a 9px */
-            color: #000;
           }
           .tabla-unica {
             width: 100%;
@@ -97,7 +102,8 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             table-layout: fixed;
           }
           .tabla-unica td {
-            padding: 6px 8px; /* Padding intacto */
+            padding: 6px 8px;
+            font-size: 9px;
           }
           .celda-etiqueta {
             border: 1px solid #000;
@@ -121,9 +127,23 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             border: none;
             background: transparent;
           }
+          @media print {
+            body {
+              margin: 0;
+              font-size: 9px !important;
+            }
+            .carta {
+              width: 21.59cm;
+              min-height: 27.94cm;
+              box-shadow: none;
+            }
+            .tabla-unica td {
+              font-size: 9px !important;
+            }
+          }
         </style>
       </head>
-      <body style="margin:0; padding:0;">
+      <body>
         <div class="carta">
           <!-- Encabezado con logo y título -->
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:5px;">
