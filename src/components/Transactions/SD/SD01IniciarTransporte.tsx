@@ -703,7 +703,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL');
+    const fechaObj = new Date(fecha);
+    if (isNaN(fechaObj.getTime())) return fecha;
+    return fechaObj.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
   };
 
   const formatearRut = (rut: string) => {
