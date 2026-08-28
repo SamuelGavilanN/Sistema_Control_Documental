@@ -772,7 +772,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         codigo: local.codigo_local,
         nombre: local.nombre_local || '',
         selloTrasero: local.sello_trasero || '',
-        cantidadPallet: local.cantidad_pallet || 0,  // NUEVO
+        cantidadPallet: local.cantidad_pallet || 0,
         bultos: bultosLocal.map((b: any) => ({
           origenCarga: b.origenCarga,
           tipoDocumento: b.tipoDocumento,
