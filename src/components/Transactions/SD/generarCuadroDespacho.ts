@@ -107,6 +107,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
     const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
+    const cantidadPallet = local.cantidadPallet || 0;
 
     const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
     const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
@@ -115,15 +116,20 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // ===== TABLA ÚNICA DEL LOCAL (con separación 60px) =====
-    htmlLocales += `
-      <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#dc2626 !important; white-space:nowrap !important;">
-        ${local.cantidadPallet || 0} PALLET${local.cantidadPallet !== 1 ? 'S' : ''}
-      </p>
-    `;
+    // Encabezado de pallets por local (solo si es mayor a 0)
+    if (cantidadPallet > 0) {
+      htmlLocales += `
+        <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#dc2626 !important; white-space:nowrap !important;">
+          ${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}
+        </p>
+      `;
+    }
 
+    // ===== TABLA ÚNICA DEL LOCAL (table-layout: auto, sin word-break) =====
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
+
+        <!-- Campos largos -->
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;"><strong>${codigo}-${nombre}</strong></td>
@@ -136,9 +142,11 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
         </tr>
-        <tr>
-          <td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td>
-        </tr>
+
+        <!-- Separación -->
+        <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
+
+        <!-- Campos en pares -->
         <tr>
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLarga}</td>
@@ -169,10 +177,11 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
-        <tr>
-          <td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td>
-        </tr>
 
+        <!-- Separación -->
+        <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
+
+        <!-- CENTROS DE DISTRIBUCIÓN -->
         ${
           centros.length > 0
             ? `
@@ -208,10 +217,10 @@ export function generarCuadroHTML(datos: TransporteData): string {
             : ''
         }
 
-        <tr>
-          <td colspan="6" style="border:1px solid #000; padding:3px; background:#fff;"></td>
-        </tr>
+        <!-- Separación -->
+        <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
 
+        <!-- SEGMENTOS ADICIONALES -->
         ${
           segmentos.length > 0
             ? `
@@ -247,16 +256,17 @@ export function generarCuadroHTML(datos: TransporteData): string {
             : ''
         }
 
+        <!-- TOTAL GENERAL -->
         <tr bgcolor="#FFFF00" style="font-weight:bold;">
           <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
           <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">${totalGeneral}</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px;"></td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
         </tr>
       </table>
     `;
   }
 
-  // Contenedor principal
+  // Contenedor principal como tabla para compatibilidad con Outlook
   const html = `
     <html>
       <head>
