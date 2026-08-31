@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
+import { generarIdTransporte } from '../../../lib/generarIdTransporte';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
 const HEADERS: any = {
@@ -14,15 +15,6 @@ interface SD01CargaExcelProps {
   onClose: () => void;
   onTransportesCreados: () => void;
 }
-
-const generarIdDocumento = () => {
-  const ahora = new Date();
-  const dia = String(ahora.getDate()).padStart(2, '0');
-  const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-  const anio = ahora.getFullYear();
-  const random = String(Math.floor(Math.random() * 90000) + 10000);
-  return 'SD' + dia + mes + anio + random;
-};
 
 const convertirFechaExcel = (valor: any): string => {
   if (valor === null || valor === undefined || valor === '') return '';
@@ -242,6 +234,9 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
     for (const trans of resumen.transportes) {
       try {
+        // Generar ID correlativo usando la fecha de programación
+        const idDocumento = await generarIdTransporte(trans.fechaProgramacion);
+
         let conductorId = null;
         if (trans.conductor) {
           const partesNombre = trans.conductor.split(' ');
@@ -281,7 +276,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
         let patenteId = null;
         if (trans.vehiculo) {
-          // CORRECCIÓN: mantener el guion en la patente
           const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9-]/g, '');
           if (patenteLimpia) {
             try {
@@ -313,8 +307,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
             }
           }
         }
-
-        const idDocumento = generarIdDocumento();
 
         const transporteData: any = {
           id_documento: idDocumento,
