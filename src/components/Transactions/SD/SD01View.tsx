@@ -367,7 +367,6 @@ const SD01View: React.FC = () => {
           Cargar Excel
         </button>
 
-        {/* Botón manual de actualización (sin polling) */}
         <button className="sd01-btn" onClick={() => cargarTransportes(pagina)} title="Actualizar tabla">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -450,7 +449,6 @@ const SD01View: React.FC = () => {
                 <th>Fecha Programación</th>
                 <th>Conductor</th>
                 <th>Patente</th>
-                <th>Asignado A</th>
                 <th style={{ textAlign: 'center' }}>Locales</th>
                 <th>Estado</th>
                 <th>Creado Por</th>
@@ -462,7 +460,7 @@ const SD01View: React.FC = () => {
             <tbody>
               {transportes.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                  <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                     No hay transportes registrados
                   </td>
                 </tr>
@@ -480,7 +478,6 @@ const SD01View: React.FC = () => {
                       <td>{formatearFecha(transporte.fecha_programacion)}</td>
                       <td>{getConductorNombre(transporte)}</td>
                       <td>{getPatenteNumero(transporte)}</td>
-                      <td>{transporte.administrativo || '-'}</td>
                       <td style={{ textAlign: 'center' }}>
                         <span className="sd01-locales-badge">{transporte.locales?.length || 0}</span>
                       </td>
