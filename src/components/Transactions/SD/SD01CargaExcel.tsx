@@ -72,6 +72,30 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
+  // Lista de locales maestros (se carga una vez)
+  const [todosLocales, setTodosLocales]: any = useState([]);
+
+  // Cargar locales al montar para obtener los nombres
+  React.useEffect(() => {
+    cargarLocales();
+  }, []);
+
+  const cargarLocales = async () => {
+    try {
+      const resp = await fetch(API_URL + '/locales?select=codigo_local,nombre_local&activo=eq.true', { headers: HEADERS });
+      const data = await resp.json();
+      if (data) setTodosLocales(data);
+    } catch (e) {
+      console.error('Error cargando locales:', e);
+    }
+  };
+
+  // Obtener nombre local por código
+  const obtenerNombreLocal = (codigo: string) => {
+    const local = todosLocales.find((l: any) => l.codigo_local.toUpperCase() === codigo.toUpperCase());
+    return local ? local.nombre_local : '';
+  };
+
   const extraerFechaDeNombre = (nombre: string): string | null => {
     const fechaMatch = nombre.match(/(\d{2}-\d{2}-\d{4})/);
     if (!fechaMatch) return null;
@@ -147,7 +171,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         }
 
         const codTI = String(row[colCodTI] || '').trim();
-        const tienda = colTienda >= 0 ? String(row[colTienda] || '').trim() : '';
         const conductor = colConductor >= 0 ? String(row[colConductor] || '').trim() : '';
         const vehiculo = colVehiculo >= 0 ? String(row[colVehiculo] || '').trim() : '';
         const bultos = colBultos >= 0 ? (parseInt(row[colBultos]) || 0) : 0;
@@ -173,7 +196,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
         transporteActual.locales.push({
           codigo_local: codTI,
-          nombre_local: tienda,
           bultos,
           fechaEntrega,
           horaEntrega
@@ -234,7 +256,6 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
     for (const trans of resumen.transportes) {
       try {
-        // Generar ID correlativo usando la fecha de programación
         const idDocumento = await generarIdTransporte(trans.fechaProgramacion);
 
         let conductorId = null;
@@ -337,10 +358,11 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         }
 
         for (const local of trans.locales) {
+          const nombreLocal = obtenerNombreLocal(local.codigo_local);
           const localData = {
             documento_id: idDocumento,
             codigo_local: local.codigo_local,
-            nombre_local: '',
+            nombre_local: nombreLocal, // Ahora se obtiene el nombre real
             fecha_entrega: local.fechaEntrega || null,
             hora_entrega: local.horaEntrega || null,
             cantidad_solicitada: local.bultos || 0
