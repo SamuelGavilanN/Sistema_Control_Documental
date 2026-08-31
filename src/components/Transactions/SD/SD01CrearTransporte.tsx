@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
+import { generarIdTransporte } from '../../../lib/generarIdTransporte';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -63,7 +64,15 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   }, []);
 
   const cargarDatosEdicion = async () => {
-    setFechaProgramacion(transporteEditar.fecha_programacion || '');
+    // Al editar, la fecha viene con formato YYYY-MM-DD (posiblemente con hora)
+    if (transporteEditar.fecha_programacion) {
+      const fecha = transporteEditar.fecha_programacion;
+      if (fecha.includes('T')) {
+        setFechaProgramacion(fecha.split('T')[0]);
+      } else {
+        setFechaProgramacion(fecha);
+      }
+    }
     
     if (transporteEditar.conductor_id) {
       try {
@@ -392,15 +401,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setLocales(nuevosLocales);
   };
 
-  const generarIdDocumento = () => {
-    const ahora = new Date();
-    const dia = String(ahora.getDate()).padStart(2, '0');
-    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-    const anio = ahora.getFullYear();
-    const random = String(Math.floor(Math.random() * 90000) + 10000);
-    return 'SD' + dia + mes + anio + random;
-  };
-
   const validarFormulario = () => {
     if (!fechaProgramacion) {
       setMensaje({ tipo: 'error', texto: 'Debe seleccionar una fecha de programación' });
@@ -435,6 +435,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
     setGuardando(true);
     try {
+      // En edición, el ID no cambia (se usa el existente)
       if (esEdicion) {
         await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
           method: 'PATCH',
@@ -443,7 +444,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             conductor_id: conductorId,
             patente_principal_id: patentePrincipalId,
             patente_adicional_id: patenteAdicionalId || null,
-            fecha_programacion: fechaProgramacion,
+            fecha_programacion: fechaProgramacion + 'T12:00:00',
             modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
             modificado_en: new Date().toISOString()
           })
@@ -469,14 +470,15 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           });
         }
       } else {
-        const idDocumento = generarIdDocumento();
+        // Generar ID correlativo con la fecha de programación (YYYY-MM-DD)
+        const idDocumento = await generarIdTransporte(fechaProgramacion);
         
         const transporteData = {
           id_documento: idDocumento,
           conductor_id: conductorId,
           patente_principal_id: patentePrincipalId,
           patente_adicional_id: patenteAdicionalId || null,
-          fecha_programacion: fechaProgramacion,
+          fecha_programacion: fechaProgramacion + 'T12:00:00',
           estado: 'Pendiente',
           creado_por: usuario?.id,
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido
