@@ -105,20 +105,24 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             padding: 6px 8px;
             font-size: 11px;
           }
+          /* Celdas de etiquetas (datos fijos) - gris más oscuro */
           .celda-etiqueta {
             border: 1px solid #000;
-            background: #e0e0e0;
+            background: #d1d5db;
             font-weight: bold;
           }
+          /* Celdas de datos (resultados) - sin fondo */
           .celda-dato {
             border: 1px solid #000;
           }
+          /* Encabezados de secciones y títulos de columnas - azul claro */
           .celda-encabezado {
             border: 1px solid #000;
-            background: #d9e2f3;
+            background: #93c5fd;
             font-weight: bold;
             text-align: center;
           }
+          /* Celdas vacías - sin fondo ni borde */
           .celda-vacia {
             border: none;
             background: transparent;
@@ -163,7 +167,7 @@ export function generarResumenFinalizarHTML(datos: DatosResumen, logoBase64: str
             <!-- Separación 1 (21px) -->
             <tr class="fila-separacion" style="height:21px;"><td colspan="4"></td></tr>
 
-            <!-- Documentación (sin fila DESPACHO) -->
+            <!-- Documentación -->
             <tr>
               <td class="celda-etiqueta">FECHA DOCUMENTACIÓN</td>
               <td class="celda-dato">${fechaDocumentacion}</td>
