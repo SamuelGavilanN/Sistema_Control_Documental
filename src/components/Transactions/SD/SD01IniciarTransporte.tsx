@@ -557,6 +557,20 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  // Función para ordenar locales por fecha y hora de entrega
+  const ordenarLocales = (localesArray: any[]) => {
+    return [...localesArray].sort((a, b) => {
+      // Primero por fecha
+      const fechaA = a.fecha_entrega || '';
+      const fechaB = b.fecha_entrega || '';
+      if (fechaA !== fechaB) return fechaA.localeCompare(fechaB);
+      // Si misma fecha, por hora
+      const horaA = a.hora_entrega || '';
+      const horaB = b.hora_entrega || '';
+      return horaA.localeCompare(horaB);
+    });
+  };
+
   useEffect(() => {
     if (transporte) {
       cargarDetalles();
@@ -597,12 +611,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       const data = await resp.json();
 
       if (Array.isArray(data)) {
-        const localesMapeados = data.map((local: any) => ({
+        // Ordenar por fecha y hora de entrega
+        const localesMapeados = ordenarLocales(data.map((local: any) => ({
           ...local,
           sello_trasero: local.sello_trasero || '',
           cantidad_pallet: local.cantidad_pallet || null,
           seleccionado: false,
-        }));
+        })));
         setLocales(localesMapeados);
 
         const respBultos = await fetch(
@@ -703,9 +718,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    const fechaObj = new Date(fecha);
-    if (isNaN(fechaObj.getTime())) return fecha;
-    return fechaObj.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+    return new Date(fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
   };
 
   const formatearRut = (rut: string) => {
@@ -1114,7 +1127,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           </div>
         )}
 
-        {/* Sección Datos Destino con sellos globales y TABLA DE LOCALES */}
+        {/* Sección Datos Destino con sellos globales y TABLA DE LOCALES (ordenados) */}
         <div style={{ marginTop: '8px' }}>
           <div className="sd01-ver-locales-title" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <span>Datos Destino</span>
