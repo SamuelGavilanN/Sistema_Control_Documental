@@ -17,6 +17,19 @@ interface SD01CrearTransporteProps {
   transporteEditar?: any;
 }
 
+// Función para ordenar locales por fecha/hora
+const ordenarLocales = (localesArray: any[]) => {
+  return [...localesArray].sort((a: any, b: any) => {
+    const fechaA = a.fecha_entrega ? new Date(a.fecha_entrega + 'T00:00:00').getTime() : 0;
+    const fechaB = b.fecha_entrega ? new Date(b.fecha_entrega + 'T00:00:00').getTime() : 0;
+    if (fechaA !== fechaB) return fechaA - fechaB;
+
+    const horaA = a.hora_entrega || '00:00';
+    const horaB = b.hora_entrega || '00:00';
+    return horaA.localeCompare(horaB);
+  });
+};
+
 const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTransporteCreado, transporteEditar }) => {
   const usuario: any = auth.getUsuario();
   const esEdicion = !!transporteEditar;
@@ -28,7 +41,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [patentePrincipalTexto, setPatentePrincipalTexto]: any = useState('');
   const [patenteAdicionalId, setPatenteAdicionalId]: any = useState('');
   const [patenteAdicionalTexto, setPatenteAdicionalTexto]: any = useState('');
-  const [locales, setLocales]: any = useState([{ codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
+  const [locales, setLocales]: any = useState([{ id: null, codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
   const [guardando, setGuardando]: any = useState(false);
   const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
 
@@ -110,16 +123,16 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
       const data = await resp.json();
       if (data && data.length > 0) {
-        // Guardar los IDs de los locales existentes en el estado
         const localesData = data.map((l: any) => ({
-          id: l.id,  // IMPORTANTE: guardar el id
+          id: l.id,
           codigo_local: l.codigo_local || '',
           nombre_local: l.nombre_local || '',
           fecha_entrega: l.fecha_entrega || '',
           hora_entrega: l.hora_entrega || '',
           cantidad_solicitada: l.cantidad_solicitada || ''
         }));
-        setLocales(localesData);
+        // Ordenar locales por fecha/hora
+        setLocales(ordenarLocales(localesData));
       }
     } catch (e) {}
   };
@@ -154,21 +167,18 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  // Funciones de autocompletado (iguales a antes)
+  // Funciones de autocompletado (sin cambios)
   const handleBuscarConductor = (valor: string) => {
     setConductorTexto(valor);
     setConductorId('');
-    
     if (valor.trim() === '') {
       setSugerenciasConductor([]);
       setMostrarSugerenciasConductor(false);
       setIndiceSeleccionadoConductor(-1);
       return;
     }
-    
     const palabras = valor.trim().split(/\s+/);
     let sugerencias: any[] = [];
-    
     if (palabras.length === 1) {
       const busqueda = palabras[0];
       sugerencias = conductores.filter((c: any) => {
@@ -189,7 +199,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                (apellido.startsWith(busqueda1) && nombre.startsWith(busqueda2));
       });
     }
-    
     setSugerenciasConductor(sugerencias);
     setMostrarSugerenciasConductor(sugerencias.length > 0);
     setIndiceSeleccionadoConductor(-1);
@@ -226,9 +235,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       setMostrarSugerenciasConductor(false);
     }
   };
-
-  // (Se repiten funciones para patente principal y adicional, igual que antes)
-  // ... (las dejaré igual para no repetir todo)
 
   const handleBuscarPatentePrincipal = (valor: string) => {
     setPatentePrincipalTexto(valor.toUpperCase());
@@ -332,7 +338,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  // Funciones de locales (iguales)
+  // Funciones de locales (con agregar y eliminar)
   const handleCodigoLocalChange = (index: number, valor: string) => {
     const nuevosLocales = [...locales];
     nuevosLocales[index].codigo_local = valor.toUpperCase();
@@ -400,7 +406,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setGuardando(true);
     try {
       if (esEdicion) {
-        // Actualizar datos del transporte (conductor, patentes, fecha)
         await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -414,20 +419,15 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           })
         });
 
-        // Obtener locales existentes de la base de datos
         const resp = await fetch(API_URL + '/sd01_documento_locales?select=id,codigo_local&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
-        const existentes = await resp.json(); // array con {id, codigo_local}
+        const existentes = await resp.json();
 
-        // Mapa de locales existentes por codigo_local
         const existentesMap = new Map(existentes.map((e: any) => [e.codigo_local, e.id]));
-
-        // Obtener los códigos actuales del estado
         const codigosActuales = locales.map((l: any) => l.codigo_local);
 
-        // 1. Eliminar los locales que ya no están en el estado
+        // Eliminar los que ya no están
         for (const existente of existentes) {
           if (!codigosActuales.includes(existente.codigo_local)) {
-            // Eliminar locales que se quitaron (y sus bultos asociados en cascada si la FK lo permite)
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + existente.id, {
               method: 'DELETE',
               headers: HEADERS
@@ -435,10 +435,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           }
         }
 
-        // 2. Actualizar o insertar locales
+        // Actualizar o insertar
         for (const local of locales) {
           if (local.id) {
-            // Ya existe (tiene id), actualizarlo
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
               method: 'PATCH',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -451,7 +450,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
               })
             });
           } else {
-            // No existe (es nuevo), insertarlo
             await fetch(API_URL + '/sd01_documento_locales', {
               method: 'POST',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -467,7 +465,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           }
         }
       } else {
-        // Crear transporte (nuevo)
         const idDocumento = await generarIdTransporte(fechaProgramacion);
         
         const transporteData = {
@@ -520,7 +517,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   };
 
   return (
-    // El JSX se mantiene igual, solo cambió la lógica de guardado
     <div className="sd01-modal-overlay" onClick={onClose}>
       <div className="sd01-modal" onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
