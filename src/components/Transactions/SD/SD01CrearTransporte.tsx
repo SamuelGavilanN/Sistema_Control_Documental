@@ -64,7 +64,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   }, []);
 
   const cargarDatosEdicion = async () => {
-    // Al editar, la fecha viene con formato YYYY-MM-DD (posiblemente con hora)
     if (transporteEditar.fecha_programacion) {
       const fecha = transporteEditar.fecha_programacion;
       if (fecha.includes('T')) {
@@ -111,7 +110,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
       const data = await resp.json();
       if (data && data.length > 0) {
+        // Guardar los IDs de los locales existentes en el estado
         const localesData = data.map((l: any) => ({
+          id: l.id,  // IMPORTANTE: guardar el id
           codigo_local: l.codigo_local || '',
           nombre_local: l.nombre_local || '',
           fecha_entrega: l.fecha_entrega || '',
@@ -127,9 +128,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     try {
       const resp = await fetch(API_URL + '/conductores?select=*&activo=eq.true&order=nombre.asc', { headers: HEADERS });
       const data = await resp.json();
-      if (data) {
-        setConductores(data);
-      }
+      if (data) setConductores(data);
     } catch (e) {
       console.error('Error cargando conductores:', e);
     }
@@ -139,9 +138,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     try {
       const resp = await fetch(API_URL + '/patentes?select=*&activo=eq.true&order=numero_patente.asc', { headers: HEADERS });
       const data = await resp.json();
-      if (data) {
-        setPatentes(data);
-      }
+      if (data) setPatentes(data);
     } catch (e) {
       console.error('Error cargando patentes:', e);
     }
@@ -157,6 +154,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
+  // Funciones de autocompletado (iguales a antes)
   const handleBuscarConductor = (valor: string) => {
     setConductorTexto(valor);
     setConductorId('');
@@ -203,30 +201,20 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setMostrarSugerenciasConductor(false);
     setSugerenciasConductor([]);
     setIndiceSeleccionadoConductor(-1);
-    if (inputConductorRef.current) {
-      inputConductorRef.current.focus();
-    }
+    if (inputConductorRef.current) inputConductorRef.current.focus();
   };
 
   const handleKeyDownConductor = (e: any) => {
     if (!mostrarSugerenciasConductor || sugerenciasConductor.length === 0) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        return;
-      }
+      if (e.key === 'Enter') { e.preventDefault(); return; }
       return;
     }
-    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setIndiceSeleccionadoConductor((prev: number) => 
-        prev < sugerenciasConductor.length - 1 ? prev + 1 : 0
-      );
+      setIndiceSeleccionadoConductor((prev: number) => prev < sugerenciasConductor.length - 1 ? prev + 1 : 0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setIndiceSeleccionadoConductor((prev: number) => 
-        prev > 0 ? prev - 1 : sugerenciasConductor.length - 1
-      );
+      setIndiceSeleccionadoConductor((prev: number) => prev > 0 ? prev - 1 : sugerenciasConductor.length - 1);
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       if (indiceSeleccionadoConductor >= 0 && indiceSeleccionadoConductor < sugerenciasConductor.length) {
@@ -239,23 +227,23 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
+  // (Se repiten funciones para patente principal y adicional, igual que antes)
+  // ... (las dejaré igual para no repetir todo)
+
   const handleBuscarPatentePrincipal = (valor: string) => {
     setPatentePrincipalTexto(valor.toUpperCase());
     setPatentePrincipalId('');
-    
     if (valor.trim() === '') {
       setSugerenciasPatentePrincipal([]);
       setMostrarSugerenciasPatentePrincipal(false);
       setIndiceSeleccionadoPatentePrincipal(-1);
       return;
     }
-    
     const busqueda = valor.toUpperCase();
     const sugerencias = patentes.filter((p: any) => {
       const numeroPatente = String(p.numero_patente || '').toUpperCase();
       return numeroPatente.startsWith(busqueda);
     });
-    
     setSugerenciasPatentePrincipal(sugerencias);
     setMostrarSugerenciasPatentePrincipal(sugerencias.length > 0);
     setIndiceSeleccionadoPatentePrincipal(-1);
@@ -267,30 +255,20 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setMostrarSugerenciasPatentePrincipal(false);
     setSugerenciasPatentePrincipal([]);
     setIndiceSeleccionadoPatentePrincipal(-1);
-    if (inputPatentePrincipalRef.current) {
-      inputPatentePrincipalRef.current.focus();
-    }
+    if (inputPatentePrincipalRef.current) inputPatentePrincipalRef.current.focus();
   };
 
   const handleKeyDownPatentePrincipal = (e: any) => {
     if (!mostrarSugerenciasPatentePrincipal || sugerenciasPatentePrincipal.length === 0) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        return;
-      }
+      if (e.key === 'Enter') { e.preventDefault(); return; }
       return;
     }
-    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setIndiceSeleccionadoPatentePrincipal((prev: number) => 
-        prev < sugerenciasPatentePrincipal.length - 1 ? prev + 1 : 0
-      );
+      setIndiceSeleccionadoPatentePrincipal((prev: number) => prev < sugerenciasPatentePrincipal.length - 1 ? prev + 1 : 0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setIndiceSeleccionadoPatentePrincipal((prev: number) => 
-        prev > 0 ? prev - 1 : sugerenciasPatentePrincipal.length - 1
-      );
+      setIndiceSeleccionadoPatentePrincipal((prev: number) => prev > 0 ? prev - 1 : sugerenciasPatentePrincipal.length - 1);
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       if (indiceSeleccionadoPatentePrincipal >= 0 && indiceSeleccionadoPatentePrincipal < sugerenciasPatentePrincipal.length) {
@@ -306,20 +284,17 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const handleBuscarPatenteAdicional = (valor: string) => {
     setPatenteAdicionalTexto(valor.toUpperCase());
     setPatenteAdicionalId('');
-    
     if (valor.trim() === '') {
       setSugerenciasPatenteAdicional([]);
       setMostrarSugerenciasPatenteAdicional(false);
       setIndiceSeleccionadoPatenteAdicional(-1);
       return;
     }
-    
     const busqueda = valor.toUpperCase();
     const sugerencias = patentes.filter((p: any) => {
       const numeroPatente = String(p.numero_patente || '').toUpperCase();
       return numeroPatente.startsWith(busqueda) && p.id !== patentePrincipalId;
     });
-    
     setSugerenciasPatenteAdicional(sugerencias);
     setMostrarSugerenciasPatenteAdicional(sugerencias.length > 0);
     setIndiceSeleccionadoPatenteAdicional(-1);
@@ -331,30 +306,20 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setMostrarSugerenciasPatenteAdicional(false);
     setSugerenciasPatenteAdicional([]);
     setIndiceSeleccionadoPatenteAdicional(-1);
-    if (inputPatenteAdicionalRef.current) {
-      inputPatenteAdicionalRef.current.focus();
-    }
+    if (inputPatenteAdicionalRef.current) inputPatenteAdicionalRef.current.focus();
   };
 
   const handleKeyDownPatenteAdicional = (e: any) => {
     if (!mostrarSugerenciasPatenteAdicional || sugerenciasPatenteAdicional.length === 0) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        return;
-      }
+      if (e.key === 'Enter') { e.preventDefault(); return; }
       return;
     }
-    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setIndiceSeleccionadoPatenteAdicional((prev: number) => 
-        prev < sugerenciasPatenteAdicional.length - 1 ? prev + 1 : 0
-      );
+      setIndiceSeleccionadoPatenteAdicional((prev: number) => prev < sugerenciasPatenteAdicional.length - 1 ? prev + 1 : 0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setIndiceSeleccionadoPatenteAdicional((prev: number) => 
-        prev > 0 ? prev - 1 : sugerenciasPatenteAdicional.length - 1
-      );
+      setIndiceSeleccionadoPatenteAdicional((prev: number) => prev > 0 ? prev - 1 : sugerenciasPatenteAdicional.length - 1);
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       if (indiceSeleccionadoPatenteAdicional >= 0 && indiceSeleccionadoPatenteAdicional < sugerenciasPatenteAdicional.length) {
@@ -367,17 +332,16 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
+  // Funciones de locales (iguales)
   const handleCodigoLocalChange = (index: number, valor: string) => {
     const nuevosLocales = [...locales];
     nuevosLocales[index].codigo_local = valor.toUpperCase();
-    
     const localEncontrado = todosLocales.find((l: any) => l.codigo_local.toUpperCase() === valor.toUpperCase());
     if (localEncontrado) {
       nuevosLocales[index].nombre_local = localEncontrado.nombre_local;
     } else {
       nuevosLocales[index].nombre_local = '';
     }
-    
     setLocales(nuevosLocales);
   };
 
@@ -388,7 +352,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   };
 
   const agregarLocal = () => {
-    setLocales([...locales, { codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
+    setLocales([...locales, { id: null, codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
   };
 
   const eliminarLocal = (index: number) => {
@@ -435,8 +399,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
     setGuardando(true);
     try {
-      // En edición, el ID no cambia (se usa el existente)
       if (esEdicion) {
+        // Actualizar datos del transporte (conductor, patentes, fecha)
         await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -450,27 +414,60 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           })
         });
 
-        await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + transporteEditar.id_documento, {
-          method: 'DELETE',
-          headers: HEADERS
-        });
+        // Obtener locales existentes de la base de datos
+        const resp = await fetch(API_URL + '/sd01_documento_locales?select=id,codigo_local&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
+        const existentes = await resp.json(); // array con {id, codigo_local}
 
+        // Mapa de locales existentes por codigo_local
+        const existentesMap = new Map(existentes.map((e: any) => [e.codigo_local, e.id]));
+
+        // Obtener los códigos actuales del estado
+        const codigosActuales = locales.map((l: any) => l.codigo_local);
+
+        // 1. Eliminar los locales que ya no están en el estado
+        for (const existente of existentes) {
+          if (!codigosActuales.includes(existente.codigo_local)) {
+            // Eliminar locales que se quitaron (y sus bultos asociados en cascada si la FK lo permite)
+            await fetch(API_URL + '/sd01_documento_locales?id=eq.' + existente.id, {
+              method: 'DELETE',
+              headers: HEADERS
+            });
+          }
+        }
+
+        // 2. Actualizar o insertar locales
         for (const local of locales) {
-          await fetch(API_URL + '/sd01_documento_locales', {
-            method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              documento_id: transporteEditar.id_documento,
-              codigo_local: local.codigo_local,
-              nombre_local: local.nombre_local,
-              fecha_entrega: local.fecha_entrega || null,
-              hora_entrega: local.hora_entrega || null,
-              cantidad_solicitada: local.cantidad_solicitada ? parseInt(local.cantidad_solicitada) : 0
-            })
-          });
+          if (local.id) {
+            // Ya existe (tiene id), actualizarlo
+            await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
+              method: 'PATCH',
+              headers: { ...HEADERS, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                codigo_local: local.codigo_local,
+                nombre_local: local.nombre_local,
+                fecha_entrega: local.fecha_entrega || null,
+                hora_entrega: local.hora_entrega || null,
+                cantidad_solicitada: local.cantidad_solicitada ? parseInt(local.cantidad_solicitada) : 0
+              })
+            });
+          } else {
+            // No existe (es nuevo), insertarlo
+            await fetch(API_URL + '/sd01_documento_locales', {
+              method: 'POST',
+              headers: { ...HEADERS, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                documento_id: transporteEditar.id_documento,
+                codigo_local: local.codigo_local,
+                nombre_local: local.nombre_local,
+                fecha_entrega: local.fecha_entrega || null,
+                hora_entrega: local.hora_entrega || null,
+                cantidad_solicitada: local.cantidad_solicitada ? parseInt(local.cantidad_solicitada) : 0
+              })
+            });
+          }
         }
       } else {
-        // Generar ID correlativo con la fecha de programación (YYYY-MM-DD)
+        // Crear transporte (nuevo)
         const idDocumento = await generarIdTransporte(fechaProgramacion);
         
         const transporteData = {
@@ -523,6 +520,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   };
 
   return (
+    // El JSX se mantiene igual, solo cambió la lógica de guardado
     <div className="sd01-modal-overlay" onClick={onClose}>
       <div className="sd01-modal" onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
@@ -539,51 +537,20 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
             <div className="sd01-form-group">
               <label className="sd01-form-label">Fecha Programación *</label>
-              <input
-                type="date"
-                className="sd01-form-input"
-                value={fechaProgramacion}
-                onChange={(e: any) => setFechaProgramacion(e.target.value)}
-              />
+              <input type="date" className="sd01-form-input" value={fechaProgramacion} onChange={(e: any) => setFechaProgramacion(e.target.value)} />
             </div>
 
             <div className="sd01-form-group">
               <label className="sd01-form-label">Conductor *</label>
               <div className="sd01-autocomplete-wrapper">
-                <input
-                  ref={inputConductorRef}
-                  type="text"
-                  className="sd01-autocomplete-input"
-                  value={conductorTexto}
-                  onChange={(e: any) => handleBuscarConductor(e.target.value)}
-                  onKeyDown={handleKeyDownConductor}
-                  onFocus={() => {
-                    if (conductorTexto.trim() && sugerenciasConductor.length > 0) {
-                      setMostrarSugerenciasConductor(true);
-                    }
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setMostrarSugerenciasConductor(false), 200);
-                  }}
-                  placeholder="Buscar por nombre o apellido..."
-                  autoComplete="off"
-                />
+                <input ref={inputConductorRef} type="text" className="sd01-autocomplete-input" value={conductorTexto} onChange={(e: any) => handleBuscarConductor(e.target.value)} onKeyDown={handleKeyDownConductor} onFocus={() => { if (conductorTexto.trim() && sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true); }} onBlur={() => setTimeout(() => setMostrarSugerenciasConductor(false), 200)} placeholder="Buscar por nombre o apellido..." autoComplete="off" />
                 {conductorId && <span className="sd01-autocomplete-check">✓</span>}
                 {mostrarSugerenciasConductor && sugerenciasConductor.length > 0 && (
                   <div className="sd01-autocomplete-dropdown" ref={sugerenciasConductorRef}>
                     {sugerenciasConductor.map((conductor: any, index: number) => (
-                      <div
-                        key={conductor.id}
-                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoConductor ? 'sd01-autocomplete-item-highlighted' : '')}
-                        onClick={() => handleSeleccionarConductor(conductor)}
-                        onMouseEnter={() => setIndiceSeleccionadoConductor(index)}
-                      >
+                      <div key={conductor.id} className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoConductor ? 'sd01-autocomplete-item-highlighted' : '')} onClick={() => handleSeleccionarConductor(conductor)} onMouseEnter={() => setIndiceSeleccionadoConductor(index)}>
                         <strong>{conductor.nombre} {conductor.apellido}</strong>
-                        {conductor.empresa && (
-                          <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
-                            - {conductor.empresa}
-                          </span>
-                        )}
+                        {conductor.empresa && <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {conductor.empresa}</span>}
                       </div>
                     ))}
                   </div>
@@ -594,39 +561,14 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             <div className="sd01-form-group">
               <label className="sd01-form-label">Patente Principal *</label>
               <div className="sd01-autocomplete-wrapper">
-                <input
-                  ref={inputPatentePrincipalRef}
-                  type="text"
-                  className="sd01-autocomplete-input"
-                  value={patentePrincipalTexto}
-                  onChange={(e: any) => handleBuscarPatentePrincipal(e.target.value)}
-                  onKeyDown={handleKeyDownPatentePrincipal}
-                  onFocus={() => {
-                    if (patentePrincipalTexto.trim() && sugerenciasPatentePrincipal.length > 0) {
-                      setMostrarSugerenciasPatentePrincipal(true);
-                    }
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setMostrarSugerenciasPatentePrincipal(false), 200);
-                  }}
-                  placeholder="Buscar patente principal..."
-                  autoComplete="off"
-                  style={{ textTransform: 'uppercase' }}
-                />
+                <input ref={inputPatentePrincipalRef} type="text" className="sd01-autocomplete-input" value={patentePrincipalTexto} onChange={(e: any) => handleBuscarPatentePrincipal(e.target.value)} onKeyDown={handleKeyDownPatentePrincipal} onFocus={() => { if (patentePrincipalTexto.trim() && sugerenciasPatentePrincipal.length > 0) setMostrarSugerenciasPatentePrincipal(true); }} onBlur={() => setTimeout(() => setMostrarSugerenciasPatentePrincipal(false), 200)} placeholder="Buscar patente principal..." autoComplete="off" style={{ textTransform: 'uppercase' }} />
                 {patentePrincipalId && <span className="sd01-autocomplete-check">✓</span>}
                 {mostrarSugerenciasPatentePrincipal && sugerenciasPatentePrincipal.length > 0 && (
                   <div className="sd01-autocomplete-dropdown">
                     {sugerenciasPatentePrincipal.map((patente: any, index: number) => (
-                      <div
-                        key={patente.id}
-                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatentePrincipal ? 'sd01-autocomplete-item-highlighted' : '')}
-                        onClick={() => handleSeleccionarPatentePrincipal(patente)}
-                        onMouseEnter={() => setIndiceSeleccionadoPatentePrincipal(index)}
-                      >
+                      <div key={patente.id} className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatentePrincipal ? 'sd01-autocomplete-item-highlighted' : '')} onClick={() => handleSeleccionarPatentePrincipal(patente)} onMouseEnter={() => setIndiceSeleccionadoPatentePrincipal(index)}>
                         <strong>{patente.numero_patente}</strong>
-                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
-                          - {patente.tipo_vehiculo || 'Otro'}
-                        </span>
+                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {patente.tipo_vehiculo || 'Otro'}</span>
                       </div>
                     ))}
                   </div>
@@ -637,39 +579,14 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             <div className="sd01-form-group">
               <label className="sd01-form-label">Patente Adicional (opcional)</label>
               <div className="sd01-autocomplete-wrapper">
-                <input
-                  ref={inputPatenteAdicionalRef}
-                  type="text"
-                  className="sd01-autocomplete-input"
-                  value={patenteAdicionalTexto}
-                  onChange={(e: any) => handleBuscarPatenteAdicional(e.target.value)}
-                  onKeyDown={handleKeyDownPatenteAdicional}
-                  onFocus={() => {
-                    if (patenteAdicionalTexto.trim() && sugerenciasPatenteAdicional.length > 0) {
-                      setMostrarSugerenciasPatenteAdicional(true);
-                    }
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => setMostrarSugerenciasPatenteAdicional(false), 200);
-                  }}
-                  placeholder="Buscar patente adicional..."
-                  autoComplete="off"
-                  style={{ textTransform: 'uppercase' }}
-                />
+                <input ref={inputPatenteAdicionalRef} type="text" className="sd01-autocomplete-input" value={patenteAdicionalTexto} onChange={(e: any) => handleBuscarPatenteAdicional(e.target.value)} onKeyDown={handleKeyDownPatenteAdicional} onFocus={() => { if (patenteAdicionalTexto.trim() && sugerenciasPatenteAdicional.length > 0) setMostrarSugerenciasPatenteAdicional(true); }} onBlur={() => setTimeout(() => setMostrarSugerenciasPatenteAdicional(false), 200)} placeholder="Buscar patente adicional..." autoComplete="off" style={{ textTransform: 'uppercase' }} />
                 {patenteAdicionalId && <span className="sd01-autocomplete-check">✓</span>}
                 {mostrarSugerenciasPatenteAdicional && sugerenciasPatenteAdicional.length > 0 && (
                   <div className="sd01-autocomplete-dropdown">
                     {sugerenciasPatenteAdicional.map((patente: any, index: number) => (
-                      <div
-                        key={patente.id}
-                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatenteAdicional ? 'sd01-autocomplete-item-highlighted' : '')}
-                        onClick={() => handleSeleccionarPatenteAdicional(patente)}
-                        onMouseEnter={() => setIndiceSeleccionadoPatenteAdicional(index)}
-                      >
+                      <div key={patente.id} className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatenteAdicional ? 'sd01-autocomplete-item-highlighted' : '')} onClick={() => handleSeleccionarPatenteAdicional(patente)} onMouseEnter={() => setIndiceSeleccionadoPatenteAdicional(index)}>
                         <strong>{patente.numero_patente}</strong>
-                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}>
-                          - {patente.tipo_vehiculo || 'Otro'}
-                        </span>
+                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {patente.tipo_vehiculo || 'Otro'}</span>
                       </div>
                     ))}
                   </div>
@@ -691,60 +608,25 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                 <div key={index} className="sd01-local-card">
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>Código Local *</label>
-                    <input
-                      type="text"
-                      className="sd01-form-input"
-                      value={local.codigo_local}
-                      onChange={(e: any) => handleCodigoLocalChange(index, e.target.value)}
-                      placeholder="Ej: D001"
-                      style={{ textTransform: 'uppercase' }}
-                    />
+                    <input type="text" className="sd01-form-input" value={local.codigo_local} onChange={(e: any) => handleCodigoLocalChange(index, e.target.value)} placeholder="Ej: D001" style={{ textTransform: 'uppercase' }} />
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>Nombre Local</label>
-                    <input
-                      type="text"
-                      className="sd01-form-input"
-                      value={local.nombre_local}
-                      readOnly
-                    />
+                    <input type="text" className="sd01-form-input" value={local.nombre_local} readOnly />
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>Fecha Entrega *</label>
-                    <input
-                      type="date"
-                      className="sd01-form-input"
-                      value={local.fecha_entrega}
-                      onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
-                    />
+                    <input type="date" className="sd01-form-input" value={local.fecha_entrega} onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)} />
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>Hora Entrega</label>
-                    <input
-                      type="time"
-                      className="sd01-form-input"
-                      value={local.hora_entrega}
-                      onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
-                    />
+                    <input type="time" className="sd01-form-input" value={local.hora_entrega} onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)} />
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>Cantidad Solicitada</label>
-                    <input
-                      type="number"
-                      className="sd01-form-input"
-                      value={local.cantidad_solicitada}
-                      onChange={(e: any) => handleLocalChange(index, 'cantidad_solicitada', e.target.value)}
-                      placeholder="0"
-                      min="0"
-                    />
+                    <input type="number" className="sd01-form-input" value={local.cantidad_solicitada} onChange={(e: any) => handleLocalChange(index, 'cantidad_solicitada', e.target.value)} placeholder="0" min="0" />
                   </div>
-                  <button
-                    className="sd01-btn-delete-local"
-                    onClick={() => eliminarLocal(index)}
-                    title="Eliminar local"
-                  >
-                    ×
-                  </button>
+                  <button className="sd01-btn-delete-local" onClick={() => eliminarLocal(index)} title="Eliminar local">×</button>
                 </div>
               ))}
             </div>
