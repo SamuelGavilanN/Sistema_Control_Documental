@@ -78,7 +78,6 @@ function esNoAplica(valor: string): boolean {
 function esCentroDistribucion(origen: string): boolean {
   const o = origen.toUpperCase().trim();
   if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV')) return true;
-  // Reconocer orígenes tipo C144, C12, etc.
   if (/^C\d+/.test(o)) return true;
   return false;
 }
@@ -119,27 +118,27 @@ export function generarCuadroHTML(datos: TransporteData): string {
     // Encabezado de pallets por local (solo si es mayor a 0)
     if (cantidadPallet > 0) {
       htmlLocales += `
-        <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#dc2626 !important; white-space:nowrap !important;">
+        <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#ff0000 !important; white-space:nowrap !important;">
           ${cantidadPallet} PALLET${cantidadPallet !== 1 ? 'S' : ''}
         </p>
       `;
     }
 
-    // ===== TABLA ÚNICA DEL LOCAL (table-layout: auto, sin word-break) =====
+    // ===== TABLA ÚNICA DEL LOCAL (table-layout: auto) =====
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
 
         <!-- Campos largos -->
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;"><strong>${codigo}-${nombre}</strong></td>
         </tr>
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Actas Entrega</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Actas Entrega</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${actas}</td>
         </tr>
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
         </tr>
 
@@ -148,33 +147,33 @@ export function generarCuadroHTML(datos: TransporteData): string {
 
         <!-- Campos en pares -->
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLarga}</td>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${horaConHrs}</td>
         </tr>
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${chofer}</td>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Patente</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Patente</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${patente}</td>
         </tr>
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Rut</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Rut</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${rut}</td>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloTrasero}</td>
         </tr>
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Empresa</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Empresa</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${transportista}</td>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Lateral</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Lateral</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloLateral}</td>
         </tr>
         <tr>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Teléfono</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Teléfono</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${celular}</td>
-          <td bgcolor="#F8CBAD" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
+          <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
 
@@ -186,9 +185,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
           centros.length > 0
             ? `
               <tr>
-                <td colspan="6" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
+                <td colspan="6" bgcolor="#8ab3ff" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
               </tr>
-              <tr bgcolor="#B4C6E7">
+              <tr bgcolor="#8ab3ff">
                 <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Centro de Distribución</td>
                 <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
                 <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
@@ -208,7 +207,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
                   </tr>`;
                 })
                 .join('')}
-              <tr bgcolor="#FFFF00" style="font-weight:bold;">
+              <tr bgcolor="#fff665" style="font-weight:bold;">
                 <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de Bultos Origen Centro de Distribución</td>
                 <td style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">${totalCentros}</td>
                 <td colspan="2" style="border:1px solid #000; padding:4px;"></td>
@@ -225,9 +224,9 @@ export function generarCuadroHTML(datos: TransporteData): string {
           segmentos.length > 0
             ? `
               <tr>
-                <td colspan="6" bgcolor="#B4C6E7" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Segmentos Adicionales</td>
+                <td colspan="6" bgcolor="#8ab3ff" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Segmentos Adicionales</td>
               </tr>
-              <tr bgcolor="#B4C6E7">
+              <tr bgcolor="#8ab3ff">
                 <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Segmento</td>
                 <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">Tipo Doc</td>
                 <td style="border:1px solid #000; padding:4px; font-weight:bold; white-space:nowrap;">N° Doc</td>
@@ -247,7 +246,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
                   </tr>`;
                 })
                 .join('')}
-              <tr bgcolor="#FFFF00" style="font-weight:bold;">
+              <tr bgcolor="#fff665" style="font-weight:bold;">
                 <td colspan="3" style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">Total de bultos Segmentos Adicionales</td>
                 <td style="border:1px solid #000; padding:4px; text-align:center; white-space:nowrap;">${totalSegmentos}</td>
                 <td colspan="2" style="border:1px solid #000; padding:4px;"></td>
@@ -257,7 +256,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         }
 
         <!-- TOTAL GENERAL -->
-        <tr bgcolor="#FFFF00" style="font-weight:bold;">
+        <tr bgcolor="#fff665" style="font-weight:bold;">
           <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
           <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">${totalGeneral}</td>
           <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
