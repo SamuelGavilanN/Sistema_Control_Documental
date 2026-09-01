@@ -35,6 +35,7 @@ const menuSections: MenuSection[] = [
     items: [
       { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
       { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.', type: 'subitem' },
+      { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp', type: 'subitem' },
     ]
   },
   {
