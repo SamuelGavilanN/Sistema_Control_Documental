@@ -64,9 +64,10 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
     setCargando(false);
   };
 
+  // CORRECCIÓN: usar timeZone UTC para evitar desfase de un día
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL');
+    return new Date(fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' });
   };
 
   const formatearRut = (rut: string) => {
