@@ -14,6 +14,7 @@ import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
 // Módulos SD
 import SD01View from './components/Transactions/SD/SD01View';
 import SD02AsignadorMovil from './components/Transactions/SD/SD02AsignadorMovil';
+import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos'; // NUEVO
 
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
@@ -100,6 +101,7 @@ const App: React.FC = () => {
           {/* SD */}
           {tabsMontadas.has('sd') && <div style={{ display: activeTab === 'sd' ? 'block' : 'none' }}><SD01View key="sd01" /></div>}
           {tabsMontadas.has('sd-asignador') && <div style={{ display: activeTab === 'sd-asignador' ? 'block' : 'none' }}><SD02AsignadorMovil key="sd02" /></div>}
+          {tabsMontadas.has('sd-informe-bultos') && <div style={{ display: activeTab === 'sd-informe-bultos' ? 'block' : 'none' }}><SD02InformeBultos key="sd-informe-bultos" /></div>} {/* NUEVO */}
 
           {/* UT */}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
@@ -109,7 +111,8 @@ const App: React.FC = () => {
           {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
 
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-asignador', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
+          {/* Módulo no encontrado */}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-asignador', 'sd-informe-bultos', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
             <div className="module-container"><h3>Módulo en desarrollo</h3></div>
           )}
         </div>
