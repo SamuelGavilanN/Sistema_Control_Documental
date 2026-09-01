@@ -84,8 +84,6 @@ function esCentroDistribucion(origen: string): boolean {
 
 export function generarCuadroHTML(datos: TransporteData): string {
   const saludo = obtenerSaludo();
-  const fechaLarga = formatearFechaLarga(datos.fechaEntrega);
-  const horaConHrs = formatearHora(datos.horaEntrega);
   const chofer = escaparHTML(datos.chofer);
   const rut = escaparHTML(datos.rutChofer);
   const celular = escaparHTML(datos.celularChofer);
@@ -93,20 +91,20 @@ export function generarCuadroHTML(datos: TransporteData): string {
     datos.patentePrincipal + (datos.patenteAdicional ? ' / ' + datos.patenteAdicional : '')
   );
   const transportista = escaparHTML(datos.transportista);
-  const selloTraseroGlobal = escaparHTML(datos.selloTrasero);
   const selloLateral = escaparHTML(datos.selloLateral);
   const selloAdicional = escaparHTML(datos.selloAdicional);
-  const actas = escaparHTML(datos.actasInformadas);
   const administrativo = escaparHTML(datos.administrativo);
-  const totalPallets = datos.totalPallets || 0;
 
   let htmlLocales = '';
 
   for (const local of datos.locales) {
+    // Ahora cada local usa SUS PROPIOS datos
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
-    const selloTrasero = escaparHTML(local.selloTrasero || selloTraseroGlobal);
+    const selloTraseroLocal = escaparHTML(local.selloTrasero || '');
     const cantidadPallet = local.cantidadPallet || 0;
+    const fechaLocal = formatearFechaLarga(local.fechaEntrega || '');
+    const horaLocal = formatearHora(local.horaEntrega || '');
 
     const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
     const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
@@ -124,7 +122,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
       `;
     }
 
-    // ===== TABLA ÚNICA DEL LOCAL (table-layout: auto) =====
+    // ===== TABLA ÚNICA DEL LOCAL (con sus propios datos) =====
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
 
@@ -135,7 +133,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         </tr>
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Actas Entrega</td>
-          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${actas}</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${local.actas}</td>
         </tr>
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
@@ -145,12 +143,12 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
 
-        <!-- Campos en pares -->
+        <!-- Campos en pares (usando datos DEL LOCAL, no globales) -->
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
-          <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLarga}</td>
+          <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLocal}</td>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Hora Entrega</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${horaConHrs}</td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${horaLocal}</td>
         </tr>
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Conductor</td>
@@ -162,7 +160,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Rut</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${rut}</td>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Trasero</td>
-          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloTrasero}</td>
+          <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloTraseroLocal}</td>
         </tr>
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Empresa</td>
@@ -265,7 +263,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
     `;
   }
 
-  // Contenedor principal como tabla para compatibilidad con Outlook
+  // Contenedor principal
   const html = `
     <html>
       <head>
