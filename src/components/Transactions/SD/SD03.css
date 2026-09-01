@@ -17,21 +17,21 @@
   margin: 0 0 4px 0;
 }
 
-.sd03-subtitle {
+.sd03-header p {
   font-size: 13px;
   color: var(--text-muted);
   margin: 0;
 }
 
 .sd03-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
   box-shadow: var(--shadow-sm);
 }
@@ -98,6 +98,7 @@
 
 .sd03-btn-primary:hover {
   background: var(--btn-primary-hover);
+  opacity: 0.9;
 }
 
 .sd03-btn-success {
@@ -108,22 +109,28 @@
 
 .sd03-btn-success:hover {
   background: var(--btn-success-hover);
+  opacity: 0.9;
+}
+
+.sd03-mensaje {
+  font-size: 13px;
+  color: var(--warning-text);
+  font-weight: 500;
 }
 
 .sd03-table-wrapper {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  overflow: auto;
   max-height: calc(100vh - 220px);
-  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
 }
 
 .sd03-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px;
+  min-width: 1200px;
 }
 
 .sd03-table thead tr {
@@ -134,8 +141,8 @@
 }
 
 .sd03-table th {
-  padding: 12px 14px;
-  text-align: left;
+  padding: 12px 10px;
+  text-align: center;
   font-size: 12px;
   font-weight: 600;
   color: var(--table-header-text);
@@ -144,7 +151,7 @@
 }
 
 .sd03-table td {
-  padding: 10px 14px;
+  padding: 10px;
   font-size: 13px;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-cell);
@@ -161,24 +168,24 @@
   color: var(--text-primary);
 }
 
-.sd03-unidades {
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.sd03-empty {
+.sd03-empty,
+.sd03-loading {
   text-align: center;
   padding: 40px;
   color: var(--text-placeholder);
   font-size: 14px;
 }
 
-.sd03-mensaje {
-  background: var(--error-bg);
-  color: var(--error-text);
-  border: 1px solid var(--error-border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-size: 13px;
+@media (max-width: 768px) {
+  .sd03-container {
+    padding: 12px;
+  }
+  .sd03-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sd03-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
