@@ -14,6 +14,7 @@ import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
 // Módulos SD
 import SD01View from './components/Transactions/SD/SD01View';
 import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos'; // ÚNICO SD02
+import SD03InformeUnDesp from './components/Transactions/SD/SD03InformeUnDesp';
 
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
@@ -100,6 +101,7 @@ const App: React.FC = () => {
           {/* SD */}
           {tabsMontadas.has('sd') && <div style={{ display: activeTab === 'sd' ? 'block' : 'none' }}><SD01View key="sd01" /></div>}
           {tabsMontadas.has('sd-informe-bultos') && <div style={{ display: activeTab === 'sd-informe-bultos' ? 'block' : 'none' }}><SD02InformeBultos key="sd-informe-bultos" /></div>}
+          {tabsMontadas.has('sd-informe-unidades') && <div style={{ display: activeTab === 'sd-informe-unidades' ? 'block' : 'none' }}><SD03InformeUnDesp key="sd-informe-unidades" /></div>}
 
           {/* UT */}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
