@@ -31,7 +31,6 @@ const SD01View: React.FC = () => {
   const [mostrarAsignarModal, setMostrarAsignarModal] = useState(false);
   const [usuarioAsignar, setUsuarioAsignar] = useState('');
 
-  // Paginación
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(0);
@@ -42,7 +41,6 @@ const SD01View: React.FC = () => {
     setCargando(true);
     try {
       const offset = (paginaActual - 1) * PAGE_SIZE;
-
       const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}`;
 
       const cacheKey = `sd01_transportes_p${paginaActual}`;
@@ -77,13 +75,11 @@ const SD01View: React.FC = () => {
     }
   }, []);
 
-  // Cargar al montar (sin polling)
   useEffect(() => {
     cargarTransportes(1);
     cargarUsuariosAdmin();
   }, []);
 
-  // Recargar al cambiar de página (manual, no polling)
   useEffect(() => {
     cargarTransportes(pagina);
   }, [pagina]);
@@ -101,7 +97,6 @@ const SD01View: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Selección única
   const seleccionarTransporte = (transporte: any) => {
     setTransporteSeleccionado(transporte);
   };
@@ -111,15 +106,12 @@ const SD01View: React.FC = () => {
       mostrarMensaje('warning', 'Seleccione un transporte para eliminar');
       return;
     }
-
     const t = transporteSeleccionado;
     if (t.estado !== 'Pendiente') {
       mostrarMensaje('error', 'Solo se pueden eliminar transportes en estado Pendiente');
       return;
     }
-
     if (!window.confirm('¿Eliminar el transporte ' + t.id_documento + '?')) return;
-
     try {
       await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
       const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
@@ -145,16 +137,12 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'Solo se pueden cancelar transportes en Pendiente o En Proceso');
       return;
     }
-
-    const motivo = window.prompt(
-      '¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\nIngrese el motivo:'
-    );
+    const motivo = window.prompt('¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\nIngrese el motivo:');
     if (motivo === null) return;
     if (!motivo.trim()) {
       mostrarMensaje('warning', 'Debe ingresar un motivo');
       return;
     }
-
     try {
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
         method: 'PATCH',
@@ -185,7 +173,6 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'Solo se pueden iniciar o continuar transportes en Pendiente o En Proceso');
       return;
     }
-
     try {
       let actualizado = { ...transporteSeleccionado };
       if (transporteSeleccionado.estado === 'Pendiente') {
@@ -282,21 +269,35 @@ const SD01View: React.FC = () => {
     setMostrarVerTransporte(true);
   };
 
-  // Paginación
   const cambiarPagina = (nuevaPagina: number) => {
     if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
     setPagina(nuevaPagina);
     setTransporteSeleccionado(null);
   };
 
+  // Funciones de formato de fecha mejoradas para evitar desfase
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    const fechaStr = fecha.includes('T') ? fecha : fecha + 'T12:00:00';
-    return new Date(fechaStr).toLocaleDateString('es-CL');
+    // Si viene con T, cortar y usar solo la primera parte
+    const soloFecha = fecha.includes('T') ? fecha.split('T')[0] : fecha;
+    const partes = soloFecha.split('-');
+    if (partes.length === 3) {
+      return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+    return soloFecha;
   };
+
   const formatearFechaHora = (fecha: string) => {
     if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL') + ' ' + new Date(fecha).toLocaleTimeString('es-CL');
+    try {
+      const d = new Date(fecha);
+      if (isNaN(d.getTime())) return fecha;
+      const fechaParte = d.toLocaleDateString('es-CL');
+      const horaParte = d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      return `${fechaParte} ${horaParte}`;
+    } catch (e) {
+      return fecha;
+    }
   };
 
   const getConductorNombre = (t: any) => t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '-';
@@ -352,7 +353,8 @@ const SD01View: React.FC = () => {
         </div>
       )}
 
-      <div className="sd01-toolbar">
+      {/* Barra de opciones sticky */}
+      <div className="sd01-toolbar" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)', padding: '10px 16px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
         <button className="sd01-btn sd01-btn-primary" onClick={handleCrearTransporte}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -440,7 +442,7 @@ const SD01View: React.FC = () => {
         </div>
       </div>
 
-      <div className="sd01-table-wrapper" style={{ minHeight: '500px' }}>
+      <div className="sd01-table-wrapper" style={{ minHeight: '500px', overflowY: 'auto', maxHeight: 'calc(100vh - 250px)' }}>
         <div className="sd01-table-scroll">
           <table className="sd01-table" style={{ minWidth: '1500px' }}>
             <thead>
