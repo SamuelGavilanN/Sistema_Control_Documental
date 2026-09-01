@@ -11,26 +11,14 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
-const EMPRESAS_CONDUCTOR = [
-  "FASHIONSPARK",
-  "COTELEY",
-  "VERONICA FERNANDEZ",
-  "FEDEX",
-  "HUARA"
-];
-
-const TIPOS_VEHICULO = [
-  "CAMION",
-  "FURGON",
-  "RAMPLA",
-  "TRACTO"
-];
-
 interface SD01CrearTransporteProps {
   onClose: () => void;
   onTransporteCreado: () => void;
   transporteEditar?: any;
 }
+
+const EMPRESAS_VALIDAS = ['FASHIONSPARK', 'COTELEY', 'VERONICA FERNANDEZ', 'FEDEX', 'HUARA'];
+const TIPOS_VEHICULO_VALIDOS = ['CAMION', 'FURGON', 'RAMPLA', 'TRACTO'];
 
 const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTransporteCreado, transporteEditar }) => {
   const usuario: any = auth.getUsuario();
@@ -51,6 +39,16 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [patentes, setPatentes]: any = useState([]);
   const [todosLocales, setTodosLocales]: any = useState([]);
 
+  // Nuevo conductor
+  const [mostrarModalNuevoConductor, setMostrarModalNuevoConductor] = useState(false);
+  const [nuevoConductor, setNuevoConductor] = useState({ nombre: '', apellido: '', numero_documento: '', telefono: '', empresa: 'FASHIONSPARK' });
+  const [creandoConductor, setCreandoConductor] = useState(false);
+
+  // Nueva patente
+  const [mostrarModalNuevaPatente, setMostrarModalNuevaPatente] = useState(false);
+  const [nuevaPatente, setNuevaPatente] = useState({ numero_patente: '', tipo_vehiculo: 'CAMION', cantidad_sellos: '' });
+  const [creandoPatente, setCreandoPatente] = useState(false);
+
   const [mostrarSugerenciasConductor, setMostrarSugerenciasConductor]: any = useState(false);
   const [sugerenciasConductor, setSugerenciasConductor]: any = useState([]);
   const [indiceSeleccionadoConductor, setIndiceSeleccionadoConductor]: any = useState(-1);
@@ -68,24 +66,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const inputPatenteAdicionalRef: any = useRef(null);
   const sugerenciasConductorRef: any = useRef(null);
 
-  // Estados para agregar nuevo conductor
-  const [mostrarFormConductor, setMostrarFormConductor] = useState(false);
-  const [nuevoConductor, setNuevoConductor] = useState({
-    nombre: '',
-    apellido: '',
-    numero_documento: '',
-    telefono: '',
-    empresa: 'FASHIONSPARK',
-  });
-
-  // Estados para agregar nueva patente
-  const [mostrarFormPatente, setMostrarFormPatente] = useState(false);
-  const [nuevaPatente, setNuevaPatente] = useState({
-    numero_patente: '',
-    tipo_vehiculo: 'CAMION',
-    cantidad_sellos: 0,
-  });
-
   useEffect(() => {
     cargarConductores();
     cargarPatentes();
@@ -99,11 +79,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const cargarDatosEdicion = async () => {
     if (transporteEditar.fecha_programacion) {
       const fecha = transporteEditar.fecha_programacion;
-      if (fecha.includes('T')) {
-        setFechaProgramacion(fecha.split('T')[0]);
-      } else {
-        setFechaProgramacion(fecha);
-      }
+      if (fecha.includes('T')) setFechaProgramacion(fecha.split('T')[0]);
+      else setFechaProgramacion(fecha);
     }
     
     if (transporteEditar.conductor_id) {
@@ -186,97 +163,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  // ---- Funciones para agregar conductor ----
-  const handleAgregarConductor = async () => {
-    if (!nuevoConductor.nombre || !nuevoConductor.apellido) {
-      setMensaje({ tipo: 'error', texto: 'Nombre y apellido son obligatorios' });
-      return;
-    }
-    if (!nuevoConductor.numero_documento) {
-      setMensaje({ tipo: 'error', texto: 'RUT es obligatorio' });
-      return;
-    }
-    if (!EMPRESAS_CONDUCTOR.includes(nuevoConductor.empresa)) {
-      setMensaje({ tipo: 'error', texto: 'Empresa no válida. Seleccione una de la lista.' });
-      return;
-    }
-
-    try {
-      const resp = await fetch(API_URL + '/conductores', {
-        method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          nombre: nuevoConductor.nombre,
-          apellido: nuevoConductor.apellido,
-          numero_documento: nuevoConductor.numero_documento,
-          telefono: nuevoConductor.telefono || null,
-          empresa: nuevoConductor.empresa,
-          activo: true
-        })
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.message || 'Error al crear conductor');
-      }
-      const data = await resp.json();
-      const nuevo = Array.isArray(data) ? data[0] : data;
-      
-      // Seleccionar automáticamente el nuevo conductor
-      setConductorId(nuevo.id);
-      setConductorTexto(nuevo.nombre + ' ' + nuevo.apellido);
-      setMostrarFormConductor(false);
-      setNuevoConductor({ nombre: '', apellido: '', numero_documento: '', telefono: '', empresa: 'FASHIONSPARK' });
-      setMensaje({ tipo: 'success', texto: 'Conductor creado exitosamente' });
-      setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
-      cargarConductores();
-    } catch (e: any) {
-      setMensaje({ tipo: 'error', texto: 'Error al crear conductor: ' + e.message });
-    }
-  };
-
-  // ---- Funciones para agregar patente ----
-  const handleAgregarPatente = async () => {
-    if (!nuevaPatente.numero_patente) {
-      setMensaje({ tipo: 'error', texto: 'Número de patente es obligatorio' });
-      return;
-    }
-    if (!TIPOS_VEHICULO.includes(nuevaPatente.tipo_vehiculo)) {
-      setMensaje({ tipo: 'error', texto: 'Tipo de vehículo no válido. Seleccione uno de la lista.' });
-      return;
-    }
-
-    try {
-      const resp = await fetch(API_URL + '/patentes', {
-        method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          numero_patente: nuevaPatente.numero_patente.toUpperCase(),
-          tipo_vehiculo: nuevaPatente.tipo_vehiculo,
-          cantidad_sellos: parseInt(nuevaPatente.cantidad_sellos) || 0,
-          activo: true
-        })
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        throw new Error(errorData.message || 'Error al crear patente');
-      }
-      const data = await resp.json();
-      const nueva = Array.isArray(data) ? data[0] : data;
-      
-      // Seleccionar automáticamente la nueva patente principal
-      setPatentePrincipalId(nueva.id);
-      setPatentePrincipalTexto(nueva.numero_patente);
-      setMostrarFormPatente(false);
-      setNuevaPatente({ numero_patente: '', tipo_vehiculo: 'CAMION', cantidad_sellos: 0 });
-      setMensaje({ tipo: 'success', texto: 'Patente creada exitosamente' });
-      setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
-      cargarPatentes();
-    } catch (e: any) {
-      setMensaje({ tipo: 'error', texto: 'Error al crear patente: ' + e.message });
-    }
-  };
-
-  // ---- Funciones autocompletado conductor ----
+  // === Autocomplete conductor ===
   const handleBuscarConductor = (valor: string) => {
     setConductorTexto(valor);
     setConductorId('');
@@ -349,21 +236,24 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  // ---- Funciones autocompletado patente principal ----
+  // === Autocomplete patente principal ===
   const handleBuscarPatentePrincipal = (valor: string) => {
     setPatentePrincipalTexto(valor.toUpperCase());
     setPatentePrincipalId('');
+    
     if (valor.trim() === '') {
       setSugerenciasPatentePrincipal([]);
       setMostrarSugerenciasPatentePrincipal(false);
       setIndiceSeleccionadoPatentePrincipal(-1);
       return;
     }
+    
     const busqueda = valor.toUpperCase();
     const sugerencias = patentes.filter((p: any) => {
       const numeroPatente = String(p.numero_patente || '').toUpperCase();
       return numeroPatente.startsWith(busqueda);
     });
+    
     setSugerenciasPatentePrincipal(sugerencias);
     setMostrarSugerenciasPatentePrincipal(sugerencias.length > 0);
     setIndiceSeleccionadoPatentePrincipal(-1);
@@ -401,21 +291,24 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  // ---- Funciones autocompletado patente adicional ----
+  // === Autocomplete patente adicional ===
   const handleBuscarPatenteAdicional = (valor: string) => {
     setPatenteAdicionalTexto(valor.toUpperCase());
     setPatenteAdicionalId('');
+    
     if (valor.trim() === '') {
       setSugerenciasPatenteAdicional([]);
       setMostrarSugerenciasPatenteAdicional(false);
       setIndiceSeleccionadoPatenteAdicional(-1);
       return;
     }
+    
     const busqueda = valor.toUpperCase();
     const sugerencias = patentes.filter((p: any) => {
       const numeroPatente = String(p.numero_patente || '').toUpperCase();
       return numeroPatente.startsWith(busqueda) && p.id !== patentePrincipalId;
     });
+    
     setSugerenciasPatenteAdicional(sugerencias);
     setMostrarSugerenciasPatenteAdicional(sugerencias.length > 0);
     setIndiceSeleccionadoPatenteAdicional(-1);
@@ -453,16 +346,18 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
   };
 
-  // ---- Funciones locales ----
+  // === Locales ===
   const handleCodigoLocalChange = (index: number, valor: string) => {
     const nuevosLocales = [...locales];
     nuevosLocales[index].codigo_local = valor.toUpperCase();
+    
     const localEncontrado = todosLocales.find((l: any) => l.codigo_local.toUpperCase() === valor.toUpperCase());
     if (localEncontrado) {
       nuevosLocales[index].nombre_local = localEncontrado.nombre_local;
     } else {
       nuevosLocales[index].nombre_local = '';
     }
+    
     setLocales(nuevosLocales);
   };
 
@@ -484,6 +379,109 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
     const nuevosLocales = locales.filter((_: any, i: number) => i !== index);
     setLocales(nuevosLocales);
+  };
+
+  // === Crear conductor ===
+  const handleCrearConductor = async () => {
+    if (!nuevoConductor.nombre.trim() || !nuevoConductor.apellido.trim()) {
+      setMensaje({ tipo: 'error', texto: 'Nombre y apellido son obligatorios' });
+      return;
+    }
+    if (!nuevoConductor.numero_documento.trim()) {
+      setMensaje({ tipo: 'error', texto: 'RUT es obligatorio' });
+      return;
+    }
+    if (!EMPRESAS_VALIDAS.includes(nuevoConductor.empresa)) {
+      setMensaje({ tipo: 'error', texto: 'Empresa no válida' });
+      return;
+    }
+
+    setCreandoConductor(true);
+    try {
+      const resp = await fetch(API_URL + '/conductores', {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          nombre: nuevoConductor.nombre.trim(),
+          apellido: nuevoConductor.apellido.trim(),
+          numero_documento: nuevoConductor.numero_documento.trim(),
+          telefono: nuevoConductor.telefono.trim() || null,
+          empresa: nuevoConductor.empresa,
+          activo: true
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.message || 'Error al crear conductor');
+      }
+
+      const data = await resp.json();
+      const nuevo = Array.isArray(data) ? data[0] : data;
+      
+      // Actualizar listas
+      setConductores([...conductores, nuevo]);
+      setConductorId(nuevo.id);
+      setConductorTexto(nuevo.nombre + ' ' + nuevo.apellido);
+      setMostrarModalNuevoConductor(false);
+      setNuevoConductor({ nombre: '', apellido: '', numero_documento: '', telefono: '', empresa: 'FASHIONSPARK' });
+      setMensaje({ tipo: 'success', texto: 'Conductor creado exitosamente' });
+      setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
+    } catch (e: any) {
+      console.error('Error creando conductor:', e);
+      setMensaje({ tipo: 'error', texto: e.message || 'Error al crear conductor' });
+    }
+    setCreandoConductor(false);
+  };
+
+  // === Crear patente ===
+  const handleCrearPatente = async () => {
+    if (!nuevaPatente.numero_patente.trim()) {
+      setMensaje({ tipo: 'error', texto: 'Número de patente es obligatorio' });
+      return;
+    }
+    if (!TIPOS_VEHICULO_VALIDOS.includes(nuevaPatente.tipo_vehiculo)) {
+      setMensaje({ tipo: 'error', texto: 'Tipo de vehículo no válido' });
+      return;
+    }
+
+    setCreandoPatente(true);
+    try {
+      // CORRECCIÓN TS2345: parsear correctamente y mantener tipo
+      const cantidadSellos = parseInt(nuevaPatente.cantidad_sellos as unknown as string, 10) || 0;
+      
+      const resp = await fetch(API_URL + '/patentes', {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          numero_patente: nuevaPatente.numero_patente.toUpperCase(),
+          tipo_vehiculo: nuevaPatente.tipo_vehiculo,
+          cantidad_sellos: cantidadSellos,
+          activo: true
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.message || 'Error al crear patente');
+      }
+
+      const data = await resp.json();
+      const nuevo = Array.isArray(data) ? data[0] : data;
+      
+      // Actualizar listas
+      setPatentes([...patentes, nuevo]);
+      setPatentePrincipalId(nuevo.id);
+      setPatentePrincipalTexto(nuevo.numero_patente);
+      setMostrarModalNuevaPatente(false);
+      setNuevaPatente({ numero_patente: '', tipo_vehiculo: 'CAMION', cantidad_sellos: '' });
+      setMensaje({ tipo: 'success', texto: 'Patente creada exitosamente' });
+      setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
+    } catch (e: any) {
+      console.error('Error creando patente:', e);
+      setMensaje({ tipo: 'error', texto: e.message || 'Error al crear patente' });
+    }
+    setCreandoPatente(false);
   };
 
   const validarFormulario = () => {
@@ -534,17 +532,21 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           })
         });
 
+        // Obtener locales existentes en BD
         const resp = await fetch(API_URL + '/sd01_documento_locales?select=id,codigo_local&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
         const existentes = await resp.json();
+
         const existentesMap = new Map(existentes.map((e: any) => [e.codigo_local, e.id]));
         const codigosActuales = locales.map((l: any) => l.codigo_local);
 
+        // Eliminar los que ya no están
         for (const existente of existentes) {
           if (!codigosActuales.includes(existente.codigo_local)) {
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + existente.id, { method: 'DELETE', headers: HEADERS });
           }
         }
 
+        // Actualizar o insertar
         for (const local of locales) {
           if (local.id) {
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
@@ -647,107 +649,53 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
             <div className="sd01-form-group">
               <label className="sd01-form-label">Conductor *</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <div className="sd01-autocomplete-wrapper" style={{ flex: 1 }}>
-                  <input
-                    ref={inputConductorRef}
-                    type="text"
-                    className="sd01-autocomplete-input"
-                    value={conductorTexto}
-                    onChange={(e: any) => handleBuscarConductor(e.target.value)}
-                    onKeyDown={handleKeyDownConductor}
-                    onFocus={() => { if (conductorTexto.trim() && sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true); }}
-                    onBlur={() => setTimeout(() => setMostrarSugerenciasConductor(false), 200)}
-                    placeholder="Buscar por nombre o apellido..."
-                    autoComplete="off"
-                  />
-                  {conductorId && <span className="sd01-autocomplete-check">✓</span>}
-                  {mostrarSugerenciasConductor && sugerenciasConductor.length > 0 && (
-                    <div className="sd01-autocomplete-dropdown" ref={sugerenciasConductorRef}>
-                      {sugerenciasConductor.map((conductor: any, index: number) => (
-                        <div
-                          key={conductor.id}
-                          className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoConductor ? 'sd01-autocomplete-item-highlighted' : '')}
-                          onClick={() => handleSeleccionarConductor(conductor)}
-                          onMouseEnter={() => setIndiceSeleccionadoConductor(index)}
-                        >
-                          <strong>{conductor.nombre} {conductor.apellido}</strong>
-                          {conductor.empresa && <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {conductor.empresa}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button className="sd01-btn" onClick={() => setMostrarFormConductor(true)} title="Agregar nuevo conductor">+</button>
+              <div className="sd01-autocomplete-wrapper">
+                <input ref={inputConductorRef} type="text" className="sd01-autocomplete-input" value={conductorTexto} onChange={(e: any) => handleBuscarConductor(e.target.value)} onKeyDown={handleKeyDownConductor} onFocus={() => { if (conductorTexto.trim() && sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true); }} onBlur={() => setTimeout(() => setMostrarSugerenciasConductor(false), 200)} placeholder="Buscar por nombre o apellido..." autoComplete="off" />
+                {conductorId && <span className="sd01-autocomplete-check">✓</span>}
+                <button type="button" className="sd01-btn-add-small" onClick={() => setMostrarModalNuevoConductor(true)} title="Agregar nuevo conductor">+ Nuevo</button>
+                {mostrarSugerenciasConductor && sugerenciasConductor.length > 0 && (
+                  <div className="sd01-autocomplete-dropdown" ref={sugerenciasConductorRef}>
+                    {sugerenciasConductor.map((conductor: any, index: number) => (
+                      <div key={conductor.id} className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoConductor ? 'sd01-autocomplete-item-highlighted' : '')} onClick={() => handleSeleccionarConductor(conductor)} onMouseEnter={() => setIndiceSeleccionadoConductor(index)}>
+                        <strong>{conductor.nombre} {conductor.apellido}</strong>
+                        {conductor.empresa && <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {conductor.empresa}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="sd01-form-group">
               <label className="sd01-form-label">Patente Principal *</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <div className="sd01-autocomplete-wrapper" style={{ flex: 1 }}>
-                  <input
-                    ref={inputPatentePrincipalRef}
-                    type="text"
-                    className="sd01-autocomplete-input"
-                    value={patentePrincipalTexto}
-                    onChange={(e: any) => handleBuscarPatentePrincipal(e.target.value)}
-                    onKeyDown={handleKeyDownPatentePrincipal}
-                    onFocus={() => { if (patentePrincipalTexto.trim() && sugerenciasPatentePrincipal.length > 0) setMostrarSugerenciasPatentePrincipal(true); }}
-                    onBlur={() => setTimeout(() => setMostrarSugerenciasPatentePrincipal(false), 200)}
-                    placeholder="Buscar patente principal..."
-                    autoComplete="off"
-                    style={{ textTransform: 'uppercase' }}
-                  />
-                  {patentePrincipalId && <span className="sd01-autocomplete-check">✓</span>}
-                  {mostrarSugerenciasPatentePrincipal && sugerenciasPatentePrincipal.length > 0 && (
-                    <div className="sd01-autocomplete-dropdown">
-                      {sugerenciasPatentePrincipal.map((patente: any, index: number) => (
-                        <div
-                          key={patente.id}
-                          className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatentePrincipal ? 'sd01-autocomplete-item-highlighted' : '')}
-                          onClick={() => handleSeleccionarPatentePrincipal(patente)}
-                          onMouseEnter={() => setIndiceSeleccionadoPatentePrincipal(index)}
-                        >
-                          <strong>{patente.numero_patente}</strong>
-                          <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {patente.tipo_vehiculo || 'Otro'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button className="sd01-btn" onClick={() => setMostrarFormPatente(true)} title="Agregar nueva patente">+</button>
+              <div className="sd01-autocomplete-wrapper">
+                <input ref={inputPatentePrincipalRef} type="text" className="sd01-autocomplete-input" value={patentePrincipalTexto} onChange={(e: any) => handleBuscarPatentePrincipal(e.target.value)} onKeyDown={handleKeyDownPatentePrincipal} onFocus={() => { if (patentePrincipalTexto.trim() && sugerenciasPatentePrincipal.length > 0) setMostrarSugerenciasPatentePrincipal(true); }} onBlur={() => setTimeout(() => setMostrarSugerenciasPatentePrincipal(false), 200)} placeholder="Buscar patente principal..." autoComplete="off" style={{ textTransform: 'uppercase' }} />
+                {patentePrincipalId && <span className="sd01-autocomplete-check">✓</span>}
+                <button type="button" className="sd01-btn-add-small" onClick={() => setMostrarModalNuevaPatente(true)} title="Agregar nueva patente">+ Nueva</button>
+                {mostrarSugerenciasPatentePrincipal && sugerenciasPatentePrincipal.length > 0 && (
+                  <div className="sd01-autocomplete-dropdown">
+                    {sugerenciasPatentePrincipal.map((patente: any, index: number) => (
+                      <div key={patente.id} className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatentePrincipal ? 'sd01-autocomplete-item-highlighted' : '')} onClick={() => handleSeleccionarPatentePrincipal(patente)} onMouseEnter={() => setIndiceSeleccionadoPatentePrincipal(index)}>
+                        <strong>{patente.numero_patente}</strong>
+                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {patente.tipo_vehiculo || 'Otro'} ({patente.cantidad_sellos || 0} sellos)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="sd01-form-group">
               <label className="sd01-form-label">Patente Adicional (opcional)</label>
               <div className="sd01-autocomplete-wrapper">
-                <input
-                  ref={inputPatenteAdicionalRef}
-                  type="text"
-                  className="sd01-autocomplete-input"
-                  value={patenteAdicionalTexto}
-                  onChange={(e: any) => handleBuscarPatenteAdicional(e.target.value)}
-                  onKeyDown={handleKeyDownPatenteAdicional}
-                  onFocus={() => { if (patenteAdicionalTexto.trim() && sugerenciasPatenteAdicional.length > 0) setMostrarSugerenciasPatenteAdicional(true); }}
-                  onBlur={() => setTimeout(() => setMostrarSugerenciasPatenteAdicional(false), 200)}
-                  placeholder="Buscar patente adicional..."
-                  autoComplete="off"
-                  style={{ textTransform: 'uppercase' }}
-                />
+                <input ref={inputPatenteAdicionalRef} type="text" className="sd01-autocomplete-input" value={patenteAdicionalTexto} onChange={(e: any) => handleBuscarPatenteAdicional(e.target.value)} onKeyDown={handleKeyDownPatenteAdicional} onFocus={() => { if (patenteAdicionalTexto.trim() && sugerenciasPatenteAdicional.length > 0) setMostrarSugerenciasPatenteAdicional(true); }} onBlur={() => setTimeout(() => setMostrarSugerenciasPatenteAdicional(false), 200)} placeholder="Buscar patente adicional..." autoComplete="off" style={{ textTransform: 'uppercase' }} />
                 {patenteAdicionalId && <span className="sd01-autocomplete-check">✓</span>}
                 {mostrarSugerenciasPatenteAdicional && sugerenciasPatenteAdicional.length > 0 && (
                   <div className="sd01-autocomplete-dropdown">
                     {sugerenciasPatenteAdicional.map((patente: any, index: number) => (
-                      <div
-                        key={patente.id}
-                        className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatenteAdicional ? 'sd01-autocomplete-item-highlighted' : '')}
-                        onClick={() => handleSeleccionarPatenteAdicional(patente)}
-                        onMouseEnter={() => setIndiceSeleccionadoPatenteAdicional(index)}
-                      >
+                      <div key={patente.id} className={'sd01-autocomplete-item ' + (index === indiceSeleccionadoPatenteAdicional ? 'sd01-autocomplete-item-highlighted' : '')} onClick={() => handleSeleccionarPatenteAdicional(patente)} onMouseEnter={() => setIndiceSeleccionadoPatenteAdicional(index)}>
                         <strong>{patente.numero_patente}</strong>
-                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {patente.tipo_vehiculo || 'Otro'}</span>
+                        <span style={{ fontSize: '11px', marginLeft: '8px', opacity: 0.7 }}> - {patente.tipo_vehiculo || 'Otro'} ({patente.cantidad_sellos || 0} sellos)</span>
                       </div>
                     ))}
                   </div>
@@ -755,68 +703,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
               </div>
             </div>
           </div>
-
-          {/* Formulario para agregar nuevo conductor */}
-          {mostrarFormConductor && (
-            <div className="sd01-form-section" style={{ background: 'var(--bg-section)', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 12px 0' }}>Nuevo Conductor</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label className="sd01-form-label">Nombre *</label>
-                  <input type="text" className="sd01-form-input" value={nuevoConductor.nombre} onChange={(e) => setNuevoConductor({ ...nuevoConductor, nombre: e.target.value })} />
-                </div>
-                <div>
-                  <label className="sd01-form-label">Apellido *</label>
-                  <input type="text" className="sd01-form-input" value={nuevoConductor.apellido} onChange={(e) => setNuevoConductor({ ...nuevoConductor, apellido: e.target.value })} />
-                </div>
-                <div>
-                  <label className="sd01-form-label">RUT *</label>
-                  <input type="text" className="sd01-form-input" value={nuevoConductor.numero_documento} onChange={(e) => setNuevoConductor({ ...nuevoConductor, numero_documento: e.target.value })} />
-                </div>
-                <div>
-                  <label className="sd01-form-label">Teléfono</label>
-                  <input type="text" className="sd01-form-input" value={nuevoConductor.telefono} onChange={(e) => setNuevoConductor({ ...nuevoConductor, telefono: e.target.value })} />
-                </div>
-                <div>
-                  <label className="sd01-form-label">Empresa *</label>
-                  <select className="sd01-form-select" value={nuevoConductor.empresa} onChange={(e) => setNuevoConductor({ ...nuevoConductor, empresa: e.target.value })}>
-                    {EMPRESAS_CONDUCTOR.map((emp) => <option key={emp} value={emp}>{emp}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="sd01-btn sd01-btn-primary" onClick={handleAgregarConductor}>Guardar Conductor</button>
-                <button className="sd01-btn" onClick={() => setMostrarFormConductor(false)}>Cancelar</button>
-              </div>
-            </div>
-          )}
-
-          {/* Formulario para agregar nueva patente */}
-          {mostrarFormPatente && (
-            <div className="sd01-form-section" style={{ background: 'var(--bg-section)', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 12px 0' }}>Nueva Patente</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label className="sd01-form-label">N° Patente *</label>
-                  <input type="text" className="sd01-form-input" value={nuevaPatente.numero_patente} onChange={(e) => setNuevaPatente({ ...nuevaPatente, numero_patente: e.target.value })} style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                  <label className="sd01-form-label">Tipo de Vehículo *</label>
-                  <select className="sd01-form-select" value={nuevaPatente.tipo_vehiculo} onChange={(e) => setNuevaPatente({ ...nuevaPatente, tipo_vehiculo: e.target.value })}>
-                    {TIPOS_VEHICULO.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="sd01-form-label">Cantidad de Sellos</label>
-                  <input type="number" className="sd01-form-input" value={nuevaPatente.cantidad_sellos} onChange={(e) => setNuevaPatente({ ...nuevaPatente, cantidad_sellos: e.target.value })} min="0" />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="sd01-btn sd01-btn-primary" onClick={handleAgregarPatente}>Guardar Patente</button>
-                <button className="sd01-btn" onClick={() => setMostrarFormPatente(false)}>Cancelar</button>
-              </div>
-            </div>
-          )}
 
           <div className="sd01-locales-section">
             <div className="sd01-locales-header">
@@ -865,6 +751,86 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           </div>
         </div>
       </div>
+
+      {/* Modal Nuevo Conductor */}
+      {mostrarModalNuevoConductor && (
+        <div className="sd01-modal-overlay" onClick={() => setMostrarModalNuevoConductor(false)}>
+          <div className="sd01-modal" style={{ maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="sd01-modal-header">
+              <h2>Nuevo Conductor</h2>
+              <button className="sd01-modal-close" onClick={() => setMostrarModalNuevoConductor(false)}>×</button>
+            </div>
+            <div className="sd01-modal-body">
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Nombre *</label>
+                <input type="text" className="sd01-form-input" value={nuevoConductor.nombre} onChange={(e) => setNuevoConductor({ ...nuevoConductor, nombre: e.target.value })} />
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Apellido *</label>
+                <input type="text" className="sd01-form-input" value={nuevoConductor.apellido} onChange={(e) => setNuevoConductor({ ...nuevoConductor, apellido: e.target.value })} />
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">RUT *</label>
+                <input type="text" className="sd01-form-input" value={nuevoConductor.numero_documento} onChange={(e) => setNuevoConductor({ ...nuevoConductor, numero_documento: e.target.value })} placeholder="Ej: 12.345.678-9" />
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Teléfono</label>
+                <input type="text" className="sd01-form-input" value={nuevoConductor.telefono} onChange={(e) => setNuevoConductor({ ...nuevoConductor, telefono: e.target.value })} />
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Empresa *</label>
+                <select className="sd01-form-select" value={nuevoConductor.empresa} onChange={(e) => setNuevoConductor({ ...nuevoConductor, empresa: e.target.value })}>
+                  {EMPRESAS_VALIDAS.map(empresa => (
+                    <option key={empresa} value={empresa}>{empresa}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="sd01-modal-footer">
+              <button className="sd01-btn-cancel" onClick={() => setMostrarModalNuevoConductor(false)}>Cancelar</button>
+              <button className="sd01-btn-save" onClick={handleCrearConductor} disabled={creandoConductor}>
+                {creandoConductor ? 'Creando...' : 'Crear Conductor'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nueva Patente */}
+      {mostrarModalNuevaPatente && (
+        <div className="sd01-modal-overlay" onClick={() => setMostrarModalNuevaPatente(false)}>
+          <div className="sd01-modal" style={{ maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="sd01-modal-header">
+              <h2>Nueva Patente</h2>
+              <button className="sd01-modal-close" onClick={() => setMostrarModalNuevaPatente(false)}>×</button>
+            </div>
+            <div className="sd01-modal-body">
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Número Patente *</label>
+                <input type="text" className="sd01-form-input" value={nuevaPatente.numero_patente} onChange={(e) => setNuevaPatente({ ...nuevaPatente, numero_patente: e.target.value.toUpperCase() })} placeholder="Ej: ABC123" />
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Tipo de Vehículo *</label>
+                <select className="sd01-form-select" value={nuevaPatente.tipo_vehiculo} onChange={(e) => setNuevaPatente({ ...nuevaPatente, tipo_vehiculo: e.target.value })}>
+                  {TIPOS_VEHICULO_VALIDOS.map(tipo => (
+                    <option key={tipo} value={tipo}>{tipo}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sd01-form-group">
+                <label className="sd01-form-label">Cantidad de Sellos</label>
+                <input type="number" className="sd01-form-input" value={nuevaPatente.cantidad_sellos} onChange={(e) => setNuevaPatente({ ...nuevaPatente, cantidad_sellos: e.target.value })} placeholder="0" min="0" />
+              </div>
+            </div>
+            <div className="sd01-modal-footer">
+              <button className="sd01-btn-cancel" onClick={() => setMostrarModalNuevaPatente(false)}>Cancelar</button>
+              <button className="sd01-btn-save" onClick={handleCrearPatente} disabled={creandoPatente}>
+                {creandoPatente ? 'Creando...' : 'Crear Patente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
