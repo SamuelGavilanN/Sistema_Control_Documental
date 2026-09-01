@@ -560,11 +560,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   // Función para ordenar locales por fecha y hora de entrega
   const ordenarLocales = (localesArray: any[]) => {
     return [...localesArray].sort((a, b) => {
-      // Primero por fecha
       const fechaA = a.fecha_entrega || '';
       const fechaB = b.fecha_entrega || '';
       if (fechaA !== fechaB) return fechaA.localeCompare(fechaB);
-      // Si misma fecha, por hora
       const horaA = a.hora_entrega || '';
       const horaB = b.hora_entrega || '';
       return horaA.localeCompare(horaB);
@@ -749,6 +747,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     });
   };
 
+  // Corregido: recorre todos los locales y junta actas por local
   const copiarAsuntoDetalle = () => {
     const nombresLocales = locales.map((l: any) => {
       const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
@@ -756,15 +755,14 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }).filter(Boolean);
     const nombresUnicos = [...new Set(nombresLocales)].join(', ');
 
-    const actasSet = new Set<string>();
-    Object.values(bultosPorLocal).forEach((bultos) => {
-      bultos.forEach((b) => {
-        if (b.numeroDocumento) actasSet.add(b.numeroDocumento);
-      });
-    });
-    const actasUnicas = [...actasSet].join(', ');
+    const detallePorLocal = locales.map((local: any) => {
+      const actasLocal = (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean);
+      if (actasLocal.length === 0) return '';
+      const nombreLocal = localesMaestros.find((lm: any) => lm.codigo_local === local.codigo_local)?.nombre_local || local.nombre_local || '';
+      return `${nombreLocal}: ${actasLocal.join(', ')}`;
+    }).filter(Boolean);
 
-    const texto = `DETALLE DE DESPACHO: ${nombresUnicos} /// N° DE ACTA: ${actasUnicas}`;
+    const texto = `DETALLE DE DESPACHO: ${nombresUnicos} /// N° DE ACTA: ${detallePorLocal.join(' | ')}`;
 
     navigator.clipboard.writeText(texto).then(() => {
       mostrarMensaje('success', 'Detalle copiado al portapapeles');
@@ -774,6 +772,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     });
   };
 
+  // Corregido: cada local lleva sus propias actas, fecha, hora y sello
   const copiarCuadro = async () => {
     const destino = [...new Set(
       locales.map((l: any) => {
@@ -782,14 +781,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       }).filter(Boolean)
     )].join(', ');
 
-    const actasSet = new Set<string>();
-    Object.values(bultosPorLocal).forEach((bultos) => {
-      bultos.forEach((b) => {
-        if (b.numeroDocumento) actasSet.add(b.numeroDocumento);
-      });
-    });
-    const actas = [...actasSet].join(' - ');
-
     const localesCuadro = locales.map((local: any) => {
       const bultosLocal = bultosPorLocal[local.id] || [];
       return {
@@ -797,6 +788,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         nombre: local.nombre_local || '',
         selloTrasero: local.sello_trasero || '',
         cantidadPallet: local.cantidad_pallet || 0,
+        fechaEntrega: local.fecha_entrega || '',
+        horaEntrega: local.hora_entrega || '',
+        actas: bultosLocal.map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
         bultos: bultosLocal.map((b: any) => ({
           origenCarga: b.origenCarga,
           tipoDocumento: b.tipoDocumento,
@@ -807,14 +801,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       };
     });
 
-    const horaEntrega = transporte.hora_entrega || locales[0]?.hora_entrega || '';
     const administrativo = transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
 
     const datos = {
       idDocumento: transporte.id_documento,
       destino,
       fechaEntrega: transporte.fecha_programacion || '',
-      horaEntrega,
+      horaEntrega: transporte.hora_entrega || '',
       chofer: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
       rutChofer: detallesConductor?.numero_documento || '',
       celularChofer: detallesConductor?.telefono || '',
@@ -825,7 +818,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       selloLateral: selloLateralGlobal,
       selloAdicional: selloAdicionalGlobal,
       administrativo,
-      actasInformadas: actas,
+      actasInformadas: '',
       locales: localesCuadro,
     };
 
