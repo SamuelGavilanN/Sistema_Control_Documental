@@ -35,6 +35,7 @@ const menuSections: MenuSection[] = [
     items: [
       { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
       { id: 'sd-asignador', label: 'SD02 Asignador Móvil', type: 'subitem' },
+      { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.', type: 'subitem' }, // NUEVO
     ]
   },
   {
@@ -64,7 +65,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permisos }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedSections, setExpandedSections] = useState<string[]>(['ed']);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['ed', 'sd', 'ut', 'bd']);
   const [permisosActuales, setPermisosActuales] = useState<string[]>(permisos || []);
   const [favoritos, setFavoritos] = useState<string[]>([]);
 
@@ -202,18 +203,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
             return (
               <div key={section.id} className="nav-section">
-                <div
-                  className="nav-section-header"
-                  onClick={() => toggleSection(section.id)}
-                >
+                <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
                   <span className="nav-section-title">{section.title}</span>
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    fill="none"
-                    className={`section-arrow ${isExpanded ? 'expanded' : ''}`}
-                  >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`section-arrow ${isExpanded ? 'expanded' : ''}`}>
                     <path d="M3 4.5L6 7.5L9 4.5" stroke="#8a93a5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
