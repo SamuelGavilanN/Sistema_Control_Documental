@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD03InformeUnDesp.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import './SD03.css';
 
@@ -10,170 +10,239 @@ const HEADERS: any = {
   'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
-// Función para identificar centro de distribución
+// Función para determinar si un origen es Centro de Distribución
 const esCentroDistribucion = (origen: string): boolean => {
   const o = origen.toUpperCase().trim();
-  if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV')) return true;
-  if (/^C\d+/.test(o)) return true;
-  return false;
+  return o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV') || /^C\d+/.test(o);
 };
 
+// Extraer código de centro desde el origen (ej: "CD01 Fashions-Park" -> "CD01")
+const getCodigoCentro = (origen: string): string => {
+  const o = origen.toUpperCase().trim();
+  if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('C')) {
+    return o.split(' ')[0];
+  }
+  if (o.startsWith('AGV')) return 'AGV';
+  return o;
+};
+
+// Lista de centros conocidos para tener columnas fijas
+const CENTROS_CONOCIDOS = [
+  'CD01', 'CD12', 'CD16', 'CD30', 'CD31',
+  'C144', 'OUT1', 'OUT2', 'OUT3', 'AGV'
+];
+
 const SD03InformeUnDesp: React.FC = () => {
-  const [fecha, setFecha] = useState('');
+  const [fechaFiltro, setFechaFiltro] = useState<string>('');
   const [datos, setDatos] = useState<any[]>([]);
-  const [centros, setCentros] = useState<string[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [mensaje, setMensaje] = useState('');
+  const [mensaje, setMensaje] = useState<string>('');
 
-  // Cargar informe al montar si hay fecha seleccionada
-  useEffect(() => {
-    if (fecha) cargarInforme();
-  }, [fecha]);
+  const mostrarMensaje = (texto: string) => {
+    setMensaje(texto);
+    setTimeout(() => setMensaje(''), 3000);
+  };
 
-  const cargarInforme = async () => {
-    if (!fecha) return;
+  const cargarInforme = useCallback(async () => {
     setCargando(true);
     setMensaje('');
     try {
-      // Consultar todos los documentos finalizados en esa fecha (00:00 a 23:59)
-      const desde = fecha + 'T00:00:00.000Z';
-      const hasta = fecha + 'T23:59:59.999Z';
+      let query = `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&order=fecha_programacion.asc`;
+      if (fechaFiltro) {
+        const fecha = fechaFiltro; // formato YYYY-MM-DD
+        query += `&fecha_programacion=gte.${fecha}T00:00:00&fecha_programacion=lte.${fecha}T23:59:59`;
+      }
 
-      const resp = await fetch(
-        `${API_URL}/sd01_documentos?select=*,locales:sd01_documento_locales(*,bultos:sd01_bultos(*))&finalizado_en=gte.${desde}&finalizado_en=lte.${hasta}`,
+      const resp = await fetch(query, { headers: HEADERS });
+      if (!resp.ok) throw new Error('Error al consultar transportes');
+      const documentos = await resp.json();
+
+      if (documentos.length === 0) {
+        setDatos([]);
+        setCargando(false);
+        return;
+      }
+
+      const docIds = documentos.map((d: any) => d.id_documento);
+      const docIdsParam = docIds.join(',');
+
+      // Obtener locales de esos documentos
+      const respLocales = await fetch(
+        `${API_URL}/sd01_documento_locales?select=id,documento_id,codigo_local&documento_id=in.(${docIdsParam})`,
         { headers: HEADERS }
       );
-      const data = await resp.json();
-      if (!Array.isArray(data)) throw new Error('Respuesta inválida');
+      const locales = await respLocales.json();
 
-      // Procesar datos
-      const porHora: Record<number, Record<string, number>> = {};
-      const centrosSet = new Set<string>();
+      const localIds = locales.map((l: any) => l.id);
+      const localIdsParam = localIds.join(',');
 
-      data.forEach((doc: any) => {
-        const hora = doc.finalizado_en ? new Date(doc.finalizado_en).getUTCHours() : -1;
-        if (hora < 0) return;
+      let bultos: any[] = [];
+      if (localIdsParam) {
+        const respBultos = await fetch(
+          `${API_URL}/sd01_bultos?select=id,local_id,cantidad,origen_carga&local_id=in.(${localIdsParam})`,
+          { headers: HEADERS }
+        );
+        bultos = await respBultos.json();
+      }
 
-        if (!porHora[hora]) porHora[hora] = {};
+      // Mapa de local -> documento
+      const localDocMap = new Map<string, string>();
+      locales.forEach((l: any) => {
+        localDocMap.set(l.id, l.documento_id);
+      });
 
-        // Sumar bultos por centro
-        (doc.locales || []).forEach((local: any) => {
-          (local.bultos || []).forEach((bulto: any) => {
-            const origen = bulto.origen_carga || '';
-            if (esCentroDistribucion(origen)) {
-              if (!porHora[hora][origen]) porHora[hora][origen] = 0;
-              porHora[hora][origen] += bulto.cantidad || 0;
-              centrosSet.add(origen);
-            }
-          });
+      // Agrupar por documento
+      const porDocumento = new Map<string, any>();
+      documentos.forEach((doc: any) => {
+        porDocumento.set(doc.id_documento, {
+          fecha_programacion: doc.fecha_programacion,
+          centros: new Map<string, number>()
         });
       });
 
-      const centrosList = Array.from(centrosSet).sort();
-      setCentros(centrosList);
+      // Procesar bultos
+      bultos.forEach((bulto: any) => {
+        const documentoId = localDocMap.get(bulto.local_id);
+        if (!documentoId) return;
+        if (!esCentroDistribucion(bulto.origen_carga)) return;
 
-      // Convertir a array para tabla
-      const rows = Object.keys(porHora).map((horaStr) => {
-        const hora = parseInt(horaStr);
-        const centrosData = porHora[hora];
-        let totalBultos = 0;
-        const row: any = {
-          hora: `${hora.toString().padStart(2, '0')}:00`,
-          unidades: 0
+        const doc = porDocumento.get(documentoId);
+        if (!doc) return;
+
+        const codigoCentro = getCodigoCentro(bulto.origen_carga);
+        const actual = doc.centros.get(codigoCentro) || 0;
+        doc.centros.set(codigoCentro, actual + (bulto.cantidad || 0));
+      });
+
+      // Convertir a array para la tabla
+      const filas = Array.from(porDocumento.values()).map((doc: any) => {
+        const fila: any = {
+          fecha_programacion: doc.fecha_programacion,
+          centros: doc.centros
         };
-        centrosList.forEach((centro) => {
-          const cant = centrosData[centro] || 0;
-          row[centro] = cant;
-          totalBultos += cant;
-        });
-        row.unidades = totalBultos * 16;
-        return row;
+        return fila;
       });
 
-      // Ordenar por hora
-      rows.sort((a, b) => a.hora.localeCompare(b.hora));
-      setDatos(rows);
-    } catch (e: any) {
+      // Ordenar por fecha (ya viene ordenado, pero reordenamos por seguridad)
+      filas.sort((a, b) => (a.fecha_programacion || '').localeCompare(b.fecha_programacion || ''));
+
+      setDatos(filas);
+    } catch (e) {
       console.error('Error cargando informe:', e);
-      setMensaje('Error al cargar el informe: ' + (e.message || 'Desconocido'));
+      mostrarMensaje('Error al cargar el informe');
     }
     setCargando(false);
-  };
+  }, [fechaFiltro]);
 
   const exportarExcel = () => {
-    if (datos.length === 0) return;
-    const exportRows = datos.map((row) => {
-      const r: any = { 'Hora Finalización': row.hora };
-      centros.forEach((c) => {
-        r[c] = row[c] || 0;
-      });
-      r['Unidades'] = row.unidades;
-      return r;
+    if (datos.length === 0) {
+      mostrarMensaje('No hay datos para exportar');
+      return;
+    }
+
+    // Construir encabezados
+    const headers = ['Fecha Programación'];
+    CENTROS_CONOCIDOS.forEach((centro) => {
+      headers.push(`${centro} Bultos`, `${centro} Unidades`);
     });
-    const ws = XLSX.utils.json_to_sheet(exportRows);
+    headers.push('Total Bultos', 'Total Unidades');
+
+    const rows = datos.map((fila) => {
+      const row: any[] = [fila.fecha_programacion ? fila.fecha_programacion.slice(0, 10) : ''];
+      let totalBultos = 0;
+      let totalUnidades = 0;
+
+      CENTROS_CONOCIDOS.forEach((centro) => {
+        const bultos = fila.centros.get(centro) || 0;
+        const unidades = bultos * 16;
+        row.push(bultos, unidades);
+        totalBultos += bultos;
+        totalUnidades += unidades;
+      });
+
+      row.push(totalBultos, totalUnidades);
+      return row;
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Informe');
-    XLSX.writeFile(wb, `Informe_Unidades_${fecha}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Informe Despacho');
+    XLSX.writeFile(wb, `Informe_Despacho_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   return (
     <div className="sd03-container">
       <div className="sd03-header">
-        <h2>Informe Unidades Despachadas</h2>
-        <p className="sd03-subtitle">Consolidado por hora de finalización</p>
+        <h2>Informe Un Despacho</h2>
+        <p>Consolidado por fecha de programación - Bultos por centro de distribución</p>
       </div>
 
       <div className="sd03-toolbar">
         <div className="sd03-filter-group">
-          <label className="sd03-filter-label">Fecha:</label>
+          <label className="sd03-filter-label">Fecha Programación:</label>
           <input
             type="date"
             className="sd03-date-input"
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
+            value={fechaFiltro}
+            onChange={(e) => setFechaFiltro(e.target.value)}
           />
         </div>
         <button className="sd03-btn sd03-btn-primary" onClick={cargarInforme} disabled={cargando}>
-          {cargando ? 'Consultando...' : 'Actualizar'}
+          {cargando ? 'Cargando...' : 'Actualizar Informe'}
         </button>
         <button className="sd03-btn sd03-btn-success" onClick={exportarExcel} disabled={datos.length === 0}>
           Exportar Excel
         </button>
+        {mensaje && <span className="sd03-mensaje">{mensaje}</span>}
       </div>
 
-      {mensaje && (
-        <div className="sd03-mensaje">{mensaje}</div>
-      )}
-
       <div className="sd03-table-wrapper">
-        <table className="sd03-table">
-          <thead>
-            <tr>
-              <th>Hora Finalización</th>
-              {centros.map((centro) => (
-                <th key={centro}>{centro}</th>
-              ))}
-              <th>Unidades</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cargando ? (
-              <tr><td colSpan={centros.length + 2} className="sd03-empty">Cargando datos...</td></tr>
-            ) : datos.length === 0 ? (
-              <tr><td colSpan={centros.length + 2} className="sd03-empty">No hay datos para la fecha seleccionada</td></tr>
-            ) : (
-              datos.map((row, idx) => (
-                <tr key={idx}>
-                  <td className="sd03-mono">{row.hora}</td>
-                  {centros.map((centro) => (
-                    <td key={centro} className="sd03-mono">{row[centro] || 0}</td>
-                  ))}
-                  <td className="sd03-unidades">{row.unidades}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        {cargando ? (
+          <div className="sd03-loading">Cargando datos...</div>
+        ) : datos.length === 0 ? (
+          <div className="sd03-empty">No hay datos para mostrar. Ajusta la fecha o pulsa Actualizar.</div>
+        ) : (
+          <table className="sd03-table">
+            <thead>
+              <tr>
+                <th>Fecha Programación</th>
+                {CENTROS_CONOCIDOS.map((centro) => (
+                  <React.Fragment key={centro}>
+                    <th>{centro} Bultos</th>
+                    <th>{centro} Unidades</th>
+                  </React.Fragment>
+                ))}
+                <th>Total Bultos</th>
+                <th>Total Unidades</th>
+              </tr>
+            </thead>
+            <tbody>
+              {datos.map((fila, idx) => {
+                let totalBultos = 0;
+                let totalUnidades = 0;
+                return (
+                  <tr key={idx}>
+                    <td className="sd03-mono">{fila.fecha_programacion ? fila.fecha_programacion.slice(0, 10) : '-'}</td>
+                    {CENTROS_CONOCIDOS.map((centro) => {
+                      const bultos = fila.centros.get(centro) || 0;
+                      const unidades = bultos * 16;
+                      totalBultos += bultos;
+                      totalUnidades += unidades;
+                      return (
+                        <React.Fragment key={centro}>
+                          <td style={{ textAlign: 'center' }}>{bultos}</td>
+                          <td style={{ textAlign: 'center' }}>{unidades}</td>
+                        </React.Fragment>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', fontWeight: 700 }}>{totalBultos}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 700 }}>{totalUnidades}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
