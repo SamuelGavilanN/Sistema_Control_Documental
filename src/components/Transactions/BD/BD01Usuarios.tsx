@@ -36,6 +36,7 @@ const TRANSACCIONES = [
   { id: 'rd-dashboard', label: 'RD04 Dashboard' },
   { id: 'sd', label: 'SD01 Salida Despacho' },
   { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.' }, // NUEVO
+  { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp' },
   { id: 'lp', label: 'LP01 Crear Pedido' },
   { id: 'lp-captura', label: 'LP02 Capturar LPN' },
   { id: 'ut', label: 'UT01 Correlativo QR' },
