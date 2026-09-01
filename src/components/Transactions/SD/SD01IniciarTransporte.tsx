@@ -297,6 +297,22 @@ const BultosModal = ({
   const agregarOActualizarBulto = async () => {
     if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
 
+    // VALIDACIÓN ESTRICTA: el origen debe estar en la lista exacta
+    if (!origenesCarga.includes(nuevoBulto.origenCarga)) {
+      setErrorMsg('El Origen de Carga no es válido. Debe seleccionar uno de la lista.');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+
+    // Validar tipo de documento si aplica
+    if (!tipoNoAplica) {
+      if (!nuevoBulto.tipoDocumento || !tiposDocumentoPorOrigen[nuevoBulto.origenCarga].includes(nuevoBulto.tipoDocumento)) {
+        setErrorMsg('El Tipo de Documento no es válido. Debe seleccionar uno de la lista.');
+        setTimeout(() => setErrorMsg(''), 3000);
+        return;
+      }
+    }
+
     setGuardando(true);
     setErrorMsg('');
     try {
@@ -304,7 +320,7 @@ const BultosModal = ({
         local_id: localActual.id,
         documento_id: documentoId,
         origen_carga: nuevoBulto.origenCarga,
-        tipo_documento: nuevoBulto.tipoDocumento || '',
+        tipo_documento: tipoNoAplica ? '' : nuevoBulto.tipoDocumento,
         numero_documento: nuevoBulto.numeroDocumento || '',
         cantidad: nuevoBulto.cantidad,
         observacion: nuevoBulto.observacion || '',
@@ -480,7 +496,8 @@ const BultosModal = ({
               )}
             </div>
           </div>
-          <div className="dc-table-container" style={{ marginTop: '20px' }}>
+          {/* SCROLL CORREGIDO: contenedor con altura máxima y scroll */}
+          <div className="dc-table-container" style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
             <table className="dc-table">
               <thead>
                 <tr>
@@ -609,7 +626,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       const data = await resp.json();
 
       if (Array.isArray(data)) {
-        // Ordenar por fecha y hora de entrega
         const localesMapeados = ordenarLocales(data.map((local: any) => ({
           ...local,
           sello_trasero: local.sello_trasero || '',
