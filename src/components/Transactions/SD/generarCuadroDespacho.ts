@@ -13,6 +13,9 @@ interface LocalData {
   nombre: string;
   selloTrasero: string;
   cantidadPallet?: number;
+  fechaEntrega?: string; // Agregado
+  horaEntrega?: string;  // Agregado
+  actas?: string;        // Agregado
   bultos: BultoData[];
 }
 
@@ -98,13 +101,14 @@ export function generarCuadroHTML(datos: TransporteData): string {
   let htmlLocales = '';
 
   for (const local of datos.locales) {
-    // Ahora cada local usa SUS PROPIOS datos
+    // Cada local usa SUS PROPIOS datos
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
     const selloTraseroLocal = escaparHTML(local.selloTrasero || '');
     const cantidadPallet = local.cantidadPallet || 0;
     const fechaLocal = formatearFechaLarga(local.fechaEntrega || '');
     const horaLocal = formatearHora(local.horaEntrega || '');
+    const actasLocal = escaparHTML(local.actas || '');
 
     const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
     const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
@@ -133,7 +137,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         </tr>
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Actas Entrega</td>
-          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${local.actas}</td>
+          <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${actasLocal}</td>
         </tr>
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
@@ -143,7 +147,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
 
-        <!-- Campos en pares (usando datos DEL LOCAL, no globales) -->
+        <!-- Campos en pares (usando datos DEL LOCAL) -->
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLocal}</td>
