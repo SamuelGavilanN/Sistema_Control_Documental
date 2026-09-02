@@ -30,7 +30,6 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-{
   id: 'sd',
   title: 'SD · Salida Despacho',
   items: [
