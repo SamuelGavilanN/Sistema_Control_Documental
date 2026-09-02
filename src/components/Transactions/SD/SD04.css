@@ -64,38 +64,35 @@
 .sd04-empty-mini { text-align: center; padding: 20px; color: var(--text-muted); }
 /* Agregar o reemplazar en SD04.css */
 
-.sd04-fila-totales {
-  background: var(--bg-section);
-  font-weight: 700;
-  border-top: 2px solid var(--border);
+/* Separación por día: borde izquierdo grueso en la primera columna de cada día */
+.sd04-table th.sd04-fecha-header {
+  border-left: 3px solid #475569;
 }
 
-.sd04-fila-totales td {
-  border-top: 2px solid var(--border);
-  background: var(--bg-section);
+.sd04-table td:nth-child(4n+4) {  /* Inicio de cada bloque de 4 columnas (a partir de la columna 4) */
+  border-left: 3px solid #475569;
 }
 
-.sd04-dia-par {
-  background: var(--bg-panel);
+/* Fondo alterno para cada día (puedes usar un tono claro) */
+.sd04-table tbody tr td:nth-child(4n+4) {
+  background-color: rgba(241, 245, 249, 0.5);
 }
 
-.sd04-dia-impar {
-  background: #f8fafc; /* un tono más claro para diferenciar */
+.sd04-table tbody tr td:nth-child(4n+5) {
+  background-color: rgba(241, 245, 249, 0.5);
 }
 
-.sd04-dia-par-total {
-  background: #e2e8f0;
+.sd04-table tbody tr td:nth-child(4n+6) {
+  background-color: rgba(241, 245, 249, 0.5);
 }
 
-.sd04-dia-impar-total {
-  background: #cbd5e1;
+.sd04-table tbody tr td:nth-child(4n+7) {
+  background-color: rgba(241, 245, 249, 0.5);
 }
 
-/* Ajuste para sticky en totales */
-.sd04-table tfoot td.sd04-sticky-col {
-  position: sticky;
-  left: 0;
-  background: var(--bg-section);
-  z-index: 1;
-  box-shadow: 1px 0 0 var(--border);
+/* Fila de totales resaltada */
+.sd04-total-row {
+  background: #e2e8f0 !important;
+  font-weight: bold;
+  border-top: 2px solid #475569;
 }
