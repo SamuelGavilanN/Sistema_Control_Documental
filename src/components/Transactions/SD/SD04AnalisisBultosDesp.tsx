@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
+import { cache } from '../../../lib/cache';
 import './SD04.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -26,8 +27,9 @@ interface FilaDato {
   porFecha: Record<string, { programado: number; despachado: number }>;
 }
 
-const formatMiles = (num: number) => {
-  return num.toLocaleString('es-CL');
+// Formatear número con separador de miles
+const formatNumber = (num: number): string => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
 const SD04AnalisisBultosDesp: React.FC = () => {
@@ -100,9 +102,9 @@ const SD04AnalisisBultosDesp: React.FC = () => {
       const desde = fechaDesde;
       const hasta = fechaHasta;
 
-      // 1. Obtener todos los documentos en el rango y SOLO con estado Finalizado
+      // 1. Obtener SOLO documentos en estado Finalizado
       const respDocs = await fetch(
-        `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&fecha_programacion=gte.${desde}&fecha_programacion=lte.${hasta}T23:59:59&estado=eq.Finalizado`,
+        `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&estado=eq.Finalizado&fecha_programacion=gte.${desde}&fecha_programacion=lte.${hasta}T23:59:59`,
         { headers: HEADERS }
       );
       const docs = await respDocs.json();
@@ -173,7 +175,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         };
 
         fechasArr.forEach((fecha) => {
-          // Programado: sumar cantidad_solicitada de locales que coincidan con codigo_local y fecha
           let programado = 0;
           let despachado = 0;
 
@@ -186,17 +187,24 @@ const SD04AnalisisBultosDesp: React.FC = () => {
             }
           });
 
+          // Ajuste: si despachado > 0 y programado = 0, igualar programado a despachado
+          if (programado === 0 && despachado > 0) {
+            programado = despachado;
+          }
+
           fila.porFecha[fecha] = { programado, despachado };
         });
 
-        // Solo incluir filas que tengan al menos un día con programado > 0
-        const tieneProgramado = Object.values(fila.porFecha).some(val => val.programado > 0);
-        if (tieneProgramado) {
+        // Filtrar locales que no tienen actividad (programado=0 y despachado=0 en todas las fechas)
+        const tieneActividad = Object.values(fila.porFecha).some(
+          (val) => val.programado > 0 || val.despachado > 0
+        );
+        if (tieneActividad) {
           filas.push(fila);
         }
       });
 
-      // Calcular totales globales (solo con locales que tengan programado > 0)
+      // Calcular totales globales (usando los valores ajustados)
       let totalSolicitado = 0;
       let totalDespachado = 0;
       let localesDeficit = 0;
@@ -398,25 +406,25 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         <div className="sd04-totales">
           <div className="sd04-total-card">
             <span>Total Solicitado</span>
-            <strong>{formatMiles(totales.totalSolicitado)}</strong>
+            <strong>{formatNumber(totales.totalSolicitado)}</strong>
           </div>
           <div className="sd04-total-card">
             <span>Total Despachado</span>
-            <strong>{formatMiles(totales.totalDespachado)}</strong>
+            <strong>{formatNumber(totales.totalDespachado)}</strong>
           </div>
           <div className="sd04-total-card">
             <span>% Total Cumplimiento</span>
             <strong style={{ color: totales.pctCumplimiento >= 100 ? '#16a34a' : totales.pctCumplimiento >= 80 ? '#d97706' : '#dc2626' }}>
-              {formatMiles(totales.pctCumplimiento)}%
+              {totales.pctCumplimiento}%
             </strong>
           </div>
           <div className="sd04-total-card">
             <span>Locales en Déficit</span>
-            <strong style={{ color: '#dc2626' }}>{formatMiles(totales.localesDeficit)}</strong>
+            <strong style={{ color: '#dc2626' }}>{formatNumber(totales.localesDeficit)}</strong>
           </div>
           <div className="sd04-total-card">
             <span>Locales en Cumplimiento</span>
-            <strong style={{ color: '#16a34a' }}>{formatMiles(totales.localesCumplimiento)}</strong>
+            <strong style={{ color: '#16a34a' }}>{formatNumber(totales.localesCumplimiento)}</strong>
           </div>
         </div>
       )}
@@ -462,27 +470,28 @@ const SD04AnalisisBultosDesp: React.FC = () => {
                   <td className="sd04-sticky-col">{fila.drop_local}</td>
                   <td className="sd04-sticky-col">{fila.codigo_local}</td>
                   <td className="sd04-sticky-col">{fila.nombre_local}</td>
-                  {fechas.map((fecha, idxFecha) => {
+                  {fechas.map((fecha) => {
                     const val = fila.porFecha[fecha] || { programado: 0, despachado: 0 };
                     const dif = val.despachado - val.programado;
                     const pct = val.programado > 0 ? Math.round((val.despachado / val.programado) * 100) : 0;
                     const color = pct >= 100 ? '#16a34a' : pct >= 80 ? '#d97706' : '#dc2626';
                     return (
                       <React.Fragment key={fecha}>
-                        <td className={idxFecha % 2 === 0 ? 'sd04-dia-par' : 'sd04-dia-impar'}>{formatMiles(val.programado)}</td>
-                        <td className={idxFecha % 2 === 0 ? 'sd04-dia-par' : 'sd04-dia-impar'}>{formatMiles(val.despachado)}</td>
-                        <td className={idxFecha % 2 === 0 ? 'sd04-dia-par' : 'sd04-dia-impar'} style={{ color: dif < 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{formatMiles(dif)}</td>
-                        <td className={idxFecha % 2 === 0 ? 'sd04-dia-par' : 'sd04-dia-impar'} style={{ color, fontWeight: 600 }}>{formatMiles(pct)}%</td>
+                        <td>{formatNumber(val.programado)}</td>
+                        <td>{formatNumber(val.despachado)}</td>
+                        <td style={{ color: dif < 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{formatNumber(dif)}</td>
+                        <td style={{ color, fontWeight: 600 }}>{pct}%</td>
                       </React.Fragment>
                     );
                   })}
                 </tr>
               ))}
-            </tbody>
-            <tfoot>
-              <tr className="sd04-fila-totales">
-                <td className="sd04-sticky-col" colSpan={3}>TOTAL</td>
-                {fechas.map((fecha, idxFecha) => {
+              {/* Fila de totales por día */}
+              <tr className="sd04-total-row">
+                <td className="sd04-sticky-col"><strong>TOTAL</strong></td>
+                <td className="sd04-sticky-col"></td>
+                <td className="sd04-sticky-col"></td>
+                {fechas.map((fecha) => {
                   let sol = 0, desp = 0;
                   datos.forEach((fila) => {
                     const val = fila.porFecha[fecha] || { programado: 0, despachado: 0 };
@@ -491,18 +500,17 @@ const SD04AnalisisBultosDesp: React.FC = () => {
                   });
                   const dif = desp - sol;
                   const pct = sol > 0 ? Math.round((desp / sol) * 100) : 0;
-                  const color = pct >= 100 ? '#16a34a' : pct >= 80 ? '#d97706' : '#dc2626';
                   return (
                     <React.Fragment key={fecha}>
-                      <td className={idxFecha % 2 === 0 ? 'sd04-dia-par-total' : 'sd04-dia-impar-total'}>{formatMiles(sol)}</td>
-                      <td className={idxFecha % 2 === 0 ? 'sd04-dia-par-total' : 'sd04-dia-impar-total'}>{formatMiles(desp)}</td>
-                      <td className={idxFecha % 2 === 0 ? 'sd04-dia-par-total' : 'sd04-dia-impar-total'} style={{ color: dif < 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>{formatMiles(dif)}</td>
-                      <td className={idxFecha % 2 === 0 ? 'sd04-dia-par-total' : 'sd04-dia-impar-total'} style={{ color, fontWeight: 700 }}>{formatMiles(pct)}%</td>
+                      <td><strong>{formatNumber(sol)}</strong></td>
+                      <td><strong>{formatNumber(desp)}</strong></td>
+                      <td><strong style={{ color: dif < 0 ? '#dc2626' : '#16a34a' }}>{formatNumber(dif)}</strong></td>
+                      <td><strong>{pct}%</strong></td>
                     </React.Fragment>
                   );
                 })}
               </tr>
-            </tfoot>
+            </tbody>
           </table>
         )}
       </div>
