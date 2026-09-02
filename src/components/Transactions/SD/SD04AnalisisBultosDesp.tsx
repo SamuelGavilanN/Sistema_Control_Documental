@@ -1,9 +1,7 @@
 // src/components/Transactions/SD/SD04AnalisisBultosDesp.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
-import { cache } from '../../../lib/cache';
 import './SD04.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -24,12 +22,11 @@ interface FilaDato {
   codigo_local: string;
   nombre_local: string;
   drop_local: string;
-  porFecha: Record<string, { programado: number; despachado: number }>;
+  porFecha: Record<string, { programado: number; despachado: number; sinFrecuencia: boolean }>;
 }
 
-// Formatear número con separador de miles
 const formatNumber = (num: number): string => {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return num.toLocaleString('es-CL');
 };
 
 const SD04AnalisisBultosDesp: React.FC = () => {
@@ -58,36 +55,22 @@ const SD04AnalisisBultosDesp: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Cargar locales de análisis y todos los locales
   const cargarLocales = useCallback(async () => {
     try {
-      // Locales de análisis
-      const respAnalisis = await fetch(`${API_URL}/sd04_locales_analisis?select=*&activo=eq.true&order=codigo_local.asc`, {
-        headers: HEADERS
-      });
+      const respAnalisis = await fetch(`${API_URL}/sd04_locales_analisis?select=*&activo=eq.true&order=codigo_local.asc`, { headers: HEADERS });
       const dataAnalisis = await respAnalisis.json();
-      if (Array.isArray(dataAnalisis)) {
-        setLocalesAnalisis(dataAnalisis);
-      }
+      if (Array.isArray(dataAnalisis)) setLocalesAnalisis(dataAnalisis);
 
-      // Todos los locales activos (para el modal)
-      const respLocales = await fetch(`${API_URL}/locales?select=id,codigo_local,nombre_local,drop_local,zona&activo=eq.true&order=codigo_local.asc`, {
-        headers: HEADERS
-      });
+      const respLocales = await fetch(`${API_URL}/locales?select=id,codigo_local,nombre_local,drop_local,zona&activo=eq.true&order=codigo_local.asc`, { headers: HEADERS });
       const dataLocales = await respLocales.json();
-      if (Array.isArray(dataLocales)) {
-        setLocalesDisponibles(dataLocales);
-      }
+      if (Array.isArray(dataLocales)) setLocalesDisponibles(dataLocales);
     } catch (e) {
       console.error('Error cargando locales:', e);
     }
   }, []);
 
-  useEffect(() => {
-    cargarLocales();
-  }, [cargarLocales]);
+  useEffect(() => { cargarLocales(); }, [cargarLocales]);
 
-  // Cargar datos del informe
   const cargarDatos = useCallback(async () => {
     if (!fechaDesde || !fechaHasta) {
       mostrarMensaje('warning', 'Seleccione un rango de fechas');
@@ -102,7 +85,7 @@ const SD04AnalisisBultosDesp: React.FC = () => {
       const desde = fechaDesde;
       const hasta = fechaHasta;
 
-      // 1. Obtener SOLO documentos en estado Finalizado
+      // Solo transportes finalizados
       const respDocs = await fetch(
         `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&estado=eq.Finalizado&fecha_programacion=gte.${desde}&fecha_programacion=lte.${hasta}T23:59:59`,
         { headers: HEADERS }
@@ -114,12 +97,10 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         return;
       }
 
-      // Extraer fechas únicas de programación (solo la parte YYYY-MM-DD)
       const fechasSet = new Set(docs.map((d: any) => d.fecha_programacion.slice(0, 10)).sort());
       const fechasArr = Array.from(fechasSet);
       setFechas(fechasArr);
 
-      // 2. Obtener locales de los documentos
       const docIds = docs.map((d: any) => d.id_documento);
       const docIdsParam = docIds.join(',');
 
@@ -128,11 +109,8 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         { headers: HEADERS }
       );
       const localesDocs = await respLocales.json();
-      if (!Array.isArray(localesDocs)) {
-        throw new Error('Error obteniendo locales de documentos');
-      }
+      if (!Array.isArray(localesDocs)) throw new Error('Error obteniendo locales de documentos');
 
-      // 3. Obtener todos los bultos de esos locales
       const localIds = localesDocs.map((l: any) => l.id);
       let bultos: any[] = [];
       if (localIds.length > 0) {
@@ -144,7 +122,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         bultos = await respBultos.json();
       }
 
-      // Construir un mapa: localId -> { documentoId, codigo_local, cantidad_solicitada, fecha }
       const localDocMap = new Map<string, any>();
       localesDocs.forEach((l: any) => {
         const doc = docs.find((d: any) => d.id_documento === l.documento_id);
@@ -157,14 +134,12 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         }
       });
 
-      // Sumar bultos despachados por local
       const despachoPorLocal = new Map<string, number>();
       bultos.forEach((b: any) => {
         const actual = despachoPorLocal.get(b.local_id) || 0;
         despachoPorLocal.set(b.local_id, actual + (b.cantidad || 0));
       });
 
-      // Ahora armar las filas por cada local de análisis
       const filas: FilaDato[] = [];
       localesAnalisis.forEach((la) => {
         const fila: FilaDato = {
@@ -177,6 +152,7 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         fechasArr.forEach((fecha) => {
           let programado = 0;
           let despachado = 0;
+          let hayRegistro = false;
 
           localesDocs.forEach((l: any) => {
             const info = localDocMap.get(l.id);
@@ -184,27 +160,29 @@ const SD04AnalisisBultosDesp: React.FC = () => {
             if (info.codigo_local === la.codigo_local && info.fecha === fecha) {
               programado += info.cantidad_solicitada;
               despachado += despachoPorLocal.get(l.id) || 0;
+              hayRegistro = true;
             }
           });
 
-          // Ajuste: si despachado > 0 y programado = 0, igualar programado a despachado
+          // Si no hay registro o ambos son 0 -> sin frecuencia
+          const sinFrecuencia = !hayRegistro || (programado === 0 && despachado === 0);
+
+          // Si hay despacho pero no programado, igualamos programado a despachado
           if (programado === 0 && despachado > 0) {
             programado = despachado;
           }
 
-          fila.porFecha[fecha] = { programado, despachado };
+          fila.porFecha[fecha] = { programado, despachado, sinFrecuencia };
         });
 
-        // Filtrar locales que no tienen actividad (programado=0 y despachado=0 en todas las fechas)
+        // Excluir locales que no tienen actividad en ninguna fecha
         const tieneActividad = Object.values(fila.porFecha).some(
-          (val) => val.programado > 0 || val.despachado > 0
+          (val) => !val.sinFrecuencia
         );
-        if (tieneActividad) {
-          filas.push(fila);
-        }
+        if (tieneActividad) filas.push(fila);
       });
 
-      // Calcular totales globales (usando los valores ajustados)
+      // Calcular totales globales
       let totalSolicitado = 0;
       let totalDespachado = 0;
       let localesDeficit = 0;
@@ -214,17 +192,16 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         let solLocal = 0;
         let despLocal = 0;
         Object.values(fila.porFecha).forEach((val) => {
-          solLocal += val.programado;
-          despLocal += val.despachado;
+          if (!val.sinFrecuencia) {
+            solLocal += val.programado;
+            despLocal += val.despachado;
+          }
         });
         totalSolicitado += solLocal;
         totalDespachado += despLocal;
         if (solLocal > 0) {
-          if (despLocal < solLocal) {
-            localesDeficit++;
-          } else {
-            localesCumplimiento++;
-          }
+          if (despLocal < solLocal) localesDeficit++;
+          else localesCumplimiento++;
         }
       });
 
@@ -245,7 +222,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
     }
   }, [fechaDesde, fechaHasta, localesAnalisis]);
 
-  // Agregar local al análisis
   const agregarLocalAnalisis = async () => {
     if (!nuevoLocal) {
       mostrarMensaje('warning', 'Seleccione un local');
@@ -253,14 +229,12 @@ const SD04AnalisisBultosDesp: React.FC = () => {
     }
     const local = localesDisponibles.find((l) => l.codigo_local === nuevoLocal);
     if (!local) return;
-
     try {
       const existe = localesAnalisis.find((l) => l.codigo_local === nuevoLocal);
       if (existe) {
         mostrarMensaje('warning', 'El local ya está en la lista');
         return;
       }
-
       const resp = await fetch(`${API_URL}/sd04_locales_analisis`, {
         method: 'POST',
         headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -297,49 +271,76 @@ const SD04AnalisisBultosDesp: React.FC = () => {
     }
   };
 
-  // Exportar a Excel
-  const exportarExcel = () => {
-    if (datos.length === 0) {
-      mostrarMensaje('warning', 'No hay datos para exportar');
-      return;
-    }
-
-    // Encabezados
+  // Generar HTML con estilos para exportar a Excel (formato .xls)
+  const generarHTMLExcel = (): string => {
     const headers = ['DROP', 'Código', 'Tienda'];
     fechas.forEach((fecha) => {
       headers.push(`Bultos Prog ${fecha}`, `Bultos Desp ${fecha}`, `Dif ${fecha}`, `% Cumpl ${fecha}`);
     });
 
-    const rows = datos.map((fila) => {
-      const row: any[] = [fila.drop_local, fila.codigo_local, fila.nombre_local];
+    let html = `<html><head><meta charset="utf-8"></head><body><table border="1" cellpadding="5" style="border-collapse:collapse; font-family:Arial; font-size:12px;">`;
+    html += `<thead><tr>${headers.map(h => `<th style="background:#e2e8f0; font-weight:bold;">${h}</th>`).join('')}</tr></thead><tbody>`;
+
+    datos.forEach((fila) => {
+      html += `<tr>`;
+      html += `<td>${fila.drop_local}</td><td>${fila.codigo_local}</td><td>${fila.nombre_local}</td>`;
       fechas.forEach((fecha) => {
-        const val = fila.porFecha[fecha] || { programado: 0, despachado: 0 };
-        const dif = val.despachado - val.programado;
-        const pct = val.programado > 0 ? Math.round((val.despachado / val.programado) * 100) : 0;
-        row.push(val.programado, val.despachado, dif, pct);
+        const val = fila.porFecha[fecha] || { programado: 0, despachado: 0, sinFrecuencia: true };
+        if (val.sinFrecuencia) {
+          html += `<td>-</td><td>-</td><td>-</td><td>-</td>`;
+        } else {
+          const dif = val.despachado - val.programado;
+          const pct = val.programado > 0 ? Math.round((val.despachado / val.programado) * 100) : 0;
+          const colorDif = dif < 0 ? 'red' : 'green';
+          const colorPct = pct >= 100 ? 'green' : pct >= 80 ? 'orange' : 'red';
+          html += `<td>${formatNumber(val.programado)}</td><td>${formatNumber(val.despachado)}</td>`;
+          html += `<td style="color:${colorDif}; font-weight:bold;">${formatNumber(dif)}</td>`;
+          html += `<td style="color:${colorPct}; font-weight:bold;">${pct}%</td>`;
+        }
       });
-      return row;
+      html += `</tr>`;
     });
 
     // Fila de totales
-    const totalRow: any[] = ['TOTAL', '', ''];
+    html += `<tr style="background:#f1f5f9; font-weight:bold;">`;
+    html += `<td colspan="3">TOTAL</td>`;
     fechas.forEach((fecha) => {
       let sol = 0, desp = 0;
       datos.forEach((fila) => {
-        const val = fila.porFecha[fecha] || { programado: 0, despachado: 0 };
-        sol += val.programado;
-        desp += val.despachado;
+        const val = fila.porFecha[fecha];
+        if (val && !val.sinFrecuencia) {
+          sol += val.programado;
+          desp += val.despachado;
+        }
       });
       const dif = desp - sol;
       const pct = sol > 0 ? Math.round((desp / sol) * 100) : 0;
-      totalRow.push(sol, desp, dif, pct);
+      const colorDif = dif < 0 ? 'red' : 'green';
+      const colorPct = pct >= 100 ? 'green' : pct >= 80 ? 'orange' : 'red';
+      html += `<td>${formatNumber(sol)}</td><td>${formatNumber(desp)}</td>`;
+      html += `<td style="color:${colorDif};">${formatNumber(dif)}</td>`;
+      html += `<td style="color:${colorPct};">${pct}%</td>`;
     });
-    rows.push(totalRow);
+    html += `</tr></tbody></table></body></html>`;
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Análisis Bultos');
-    XLSX.writeFile(wb, `Analisis_Bultos_${fechaDesde}_${fechaHasta}.xlsx`);
+    return html;
+  };
+
+  const exportarExcel = () => {
+    if (datos.length === 0) {
+      mostrarMensaje('warning', 'No hay datos para exportar');
+      return;
+    }
+    const html = generarHTMLExcel();
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Analisis_Bultos_${fechaDesde}_${fechaHasta}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const limpiarFiltros = () => {
@@ -353,94 +354,50 @@ const SD04AnalisisBultosDesp: React.FC = () => {
     <div className="sd04-container">
       <div className="sd04-header">
         <h2>SD04 – Análisis Bultos Despachados</h2>
-        <p className="sd04-subtitle">Comparativo entre bultos programados y despachados por local y fecha de programación (solo transportes finalizados)</p>
+        <p className="sd04-subtitle">Solo transportes finalizados · Los locales sin frecuencia se muestran como "-"</p>
       </div>
 
-      {/* Barra de herramientas */}
       <div className="sd04-toolbar">
         <div className="sd04-filter-group">
           <label className="sd04-filter-label">Desde:</label>
-          <input
-            type="date"
-            className="sd04-date-input"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-          />
+          <input type="date" className="sd04-date-input" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
         </div>
         <div className="sd04-filter-group">
           <label className="sd04-filter-label">Hasta:</label>
-          <input
-            type="date"
-            className="sd04-date-input"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-          />
+          <input type="date" className="sd04-date-input" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
         </div>
-
         <button className="sd04-btn sd04-btn-primary" onClick={cargarDatos} disabled={cargando}>
           {cargando ? 'Cargando...' : 'Actualizar'}
         </button>
-
-        <button className="sd04-btn" onClick={limpiarFiltros}>
-          Limpiar
-        </button>
-
+        <button className="sd04-btn" onClick={limpiarFiltros}>Limpiar</button>
         <div className="sd04-separator"></div>
-
-        <button className="sd04-btn" onClick={() => setMostrarModalLocales(true)}>
-          Configurar Locales
-        </button>
-
-        <button className="sd04-btn sd04-btn-success" onClick={exportarExcel} disabled={datos.length === 0}>
-          Exportar Excel
-        </button>
+        <button className="sd04-btn" onClick={() => setMostrarModalLocales(true)}>Configurar Locales</button>
+        <button className="sd04-btn sd04-btn-success" onClick={exportarExcel} disabled={datos.length === 0}>Exportar Excel</button>
       </div>
 
-      {/* Mensajes */}
       {mensaje.visible && (
         <div className={`sd04-toast sd04-toast-${mensaje.tipo}`}>{mensaje.texto}</div>
       )}
 
-      {/* Totales en la parte superior */}
       {datos.length > 0 && (
         <div className="sd04-totales">
-          <div className="sd04-total-card">
-            <span>Total Solicitado</span>
-            <strong>{formatNumber(totales.totalSolicitado)}</strong>
-          </div>
-          <div className="sd04-total-card">
-            <span>Total Despachado</span>
-            <strong>{formatNumber(totales.totalDespachado)}</strong>
-          </div>
-          <div className="sd04-total-card">
-            <span>% Total Cumplimiento</span>
-            <strong style={{ color: totales.pctCumplimiento >= 100 ? '#16a34a' : totales.pctCumplimiento >= 80 ? '#d97706' : '#dc2626' }}>
-              {totales.pctCumplimiento}%
-            </strong>
-          </div>
-          <div className="sd04-total-card">
-            <span>Locales en Déficit</span>
-            <strong style={{ color: '#dc2626' }}>{formatNumber(totales.localesDeficit)}</strong>
-          </div>
-          <div className="sd04-total-card">
-            <span>Locales en Cumplimiento</span>
-            <strong style={{ color: '#16a34a' }}>{formatNumber(totales.localesCumplimiento)}</strong>
-          </div>
+          <div className="sd04-total-card"><span>Total Solicitado</span><strong>{formatNumber(totales.totalSolicitado)}</strong></div>
+          <div className="sd04-total-card"><span>Total Despachado</span><strong>{formatNumber(totales.totalDespachado)}</strong></div>
+          <div className="sd04-total-card"><span>% Total Cumplimiento</span><strong style={{ color: totales.pctCumplimiento >= 100 ? '#16a34a' : totales.pctCumplimiento >= 80 ? '#d97706' : '#dc2626' }}>{totales.pctCumplimiento}%</strong></div>
+          <div className="sd04-total-card"><span>Locales en Déficit</span><strong style={{ color: '#dc2626' }}>{formatNumber(totales.localesDeficit)}</strong></div>
+          <div className="sd04-total-card"><span>Locales en Cumplimiento</span><strong style={{ color: '#16a34a' }}>{formatNumber(totales.localesCumplimiento)}</strong></div>
         </div>
       )}
 
-      {/* Tabla dinámica */}
       <div className="sd04-table-wrapper">
         {cargando ? (
           <div className="sd04-loading">Cargando datos...</div>
         ) : datos.length === 0 ? (
-          <div className="sd04-empty">
-            {fechaDesde && fechaHasta ? 'No hay datos para el rango seleccionado. Presione Actualizar.' : 'Seleccione un rango de fechas y presione Actualizar.'}
-          </div>
+          <div className="sd04-empty">{fechaDesde && fechaHasta ? 'No hay datos para el rango seleccionado. Presione Actualizar.' : 'Seleccione un rango de fechas y presione Actualizar.'}</div>
         ) : (
           <table className="sd04-table">
             <thead>
-              <tr>
+              <tr className="sd04-header-principal">
                 <th className="sd04-sticky-col">DROP</th>
                 <th className="sd04-sticky-col">Código</th>
                 <th className="sd04-sticky-col">Tienda</th>
@@ -450,7 +407,7 @@ const SD04AnalisisBultosDesp: React.FC = () => {
                   </React.Fragment>
                 ))}
               </tr>
-              <tr>
+              <tr className="sd04-header-secundario">
                 <th className="sd04-sticky-col"></th>
                 <th className="sd04-sticky-col"></th>
                 <th className="sd04-sticky-col"></th>
@@ -465,13 +422,20 @@ const SD04AnalisisBultosDesp: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {datos.map((fila, idx) => (
+              {datos.map((fila) => (
                 <tr key={fila.codigo_local}>
                   <td className="sd04-sticky-col">{fila.drop_local}</td>
                   <td className="sd04-sticky-col">{fila.codigo_local}</td>
                   <td className="sd04-sticky-col">{fila.nombre_local}</td>
                   {fechas.map((fecha) => {
-                    const val = fila.porFecha[fecha] || { programado: 0, despachado: 0 };
+                    const val = fila.porFecha[fecha] || { programado: 0, despachado: 0, sinFrecuencia: true };
+                    if (val.sinFrecuencia) {
+                      return (
+                        <React.Fragment key={fecha}>
+                          <td>-</td><td>-</td><td>-</td><td>-</td>
+                        </React.Fragment>
+                      );
+                    }
                     const dif = val.despachado - val.programado;
                     const pct = val.programado > 0 ? Math.round((val.despachado / val.programado) * 100) : 0;
                     const color = pct >= 100 ? '#16a34a' : pct >= 80 ? '#d97706' : '#dc2626';
@@ -486,7 +450,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
                   })}
                 </tr>
               ))}
-              {/* Fila de totales por día */}
               <tr className="sd04-total-row">
                 <td className="sd04-sticky-col"><strong>TOTAL</strong></td>
                 <td className="sd04-sticky-col"></td>
@@ -494,18 +457,21 @@ const SD04AnalisisBultosDesp: React.FC = () => {
                 {fechas.map((fecha) => {
                   let sol = 0, desp = 0;
                   datos.forEach((fila) => {
-                    const val = fila.porFecha[fecha] || { programado: 0, despachado: 0 };
-                    sol += val.programado;
-                    desp += val.despachado;
+                    const val = fila.porFecha[fecha];
+                    if (val && !val.sinFrecuencia) {
+                      sol += val.programado;
+                      desp += val.despachado;
+                    }
                   });
                   const dif = desp - sol;
                   const pct = sol > 0 ? Math.round((desp / sol) * 100) : 0;
+                  const color = pct >= 100 ? '#16a34a' : pct >= 80 ? '#d97706' : '#dc2626';
                   return (
                     <React.Fragment key={fecha}>
                       <td><strong>{formatNumber(sol)}</strong></td>
                       <td><strong>{formatNumber(desp)}</strong></td>
                       <td><strong style={{ color: dif < 0 ? '#dc2626' : '#16a34a' }}>{formatNumber(dif)}</strong></td>
-                      <td><strong>{pct}%</strong></td>
+                      <td><strong style={{ color }}>{pct}%</strong></td>
                     </React.Fragment>
                   );
                 })}
@@ -515,7 +481,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         )}
       </div>
 
-      {/* Modal para configurar locales de análisis */}
       {mostrarModalLocales && (
         <div className="sd04-modal-overlay" onClick={() => setMostrarModalLocales(false)}>
           <div className="sd04-modal" onClick={(e) => e.stopPropagation()}>
@@ -525,50 +490,25 @@ const SD04AnalisisBultosDesp: React.FC = () => {
             </div>
             <div className="sd04-modal-body">
               <div className="sd04-agregar-local">
-                <select
-                  className="sd04-select"
-                  value={nuevoLocal}
-                  onChange={(e) => setNuevoLocal(e.target.value)}
-                >
+                <select className="sd04-select" value={nuevoLocal} onChange={(e) => setNuevoLocal(e.target.value)}>
                   <option value="">Seleccione un local...</option>
-                  {localesDisponibles
-                    .filter((l) => !localesAnalisis.find((la) => la.codigo_local === l.codigo_local))
-                    .map((l) => (
-                      <option key={l.id} value={l.codigo_local}>
-                        {l.codigo_local} - {l.nombre_local} ({l.drop_local})
-                      </option>
-                    ))}
+                  {localesDisponibles.filter((l) => !localesAnalisis.find((la) => la.codigo_local === l.codigo_local)).map((l) => (
+                    <option key={l.id} value={l.codigo_local}>{l.codigo_local} - {l.nombre_local} ({l.drop_local})</option>
+                  ))}
                 </select>
                 <button className="sd04-btn sd04-btn-primary" onClick={agregarLocalAnalisis}>Agregar</button>
               </div>
-
               <div className="sd04-lista-locales">
                 <table className="sd04-table-mini">
-                  <thead>
-                    <tr>
-                      <th>DROP</th>
-                      <th>Código</th>
-                      <th>Tienda</th>
-                      <th style={{ width: '40px' }}></th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>DROP</th><th>Código</th><th>Tienda</th><th style={{ width: '40px' }}></th></tr></thead>
                   <tbody>
                     {localesAnalisis.map((la) => (
                       <tr key={la.id}>
-                        <td>{la.drop_local}</td>
-                        <td>{la.codigo_local}</td>
-                        <td>{la.nombre_local}</td>
-                        <td>
-                          <button
-                            className="sd04-btn-delete"
-                            onClick={() => eliminarLocalAnalisis(la.id)}
-                          >×</button>
-                        </td>
+                        <td>{la.drop_local}</td><td>{la.codigo_local}</td><td>{la.nombre_local}</td>
+                        <td><button className="sd04-btn-delete" onClick={() => eliminarLocalAnalisis(la.id)}>×</button></td>
                       </tr>
                     ))}
-                    {localesAnalisis.length === 0 && (
-                      <tr><td colSpan={4} className="sd04-empty-mini">No hay locales configurados</td></tr>
-                    )}
+                    {localesAnalisis.length === 0 && <tr><td colSpan={4} className="sd04-empty-mini">No hay locales configurados</td></tr>}
                   </tbody>
                 </table>
               </div>
