@@ -34,14 +34,198 @@
 .sd04-total-card span { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
 .sd04-total-card strong { font-size: 24px; font-weight: 700; color: var(--text-primary); }
 
-.sd04-table-wrapper { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; max-height: 70vh; overflow-y: auto; box-shadow: var(--shadow-sm); }
-.sd04-table { width: 100%; border-collapse: collapse; min-width: 800px; }
-.sd04-table thead tr:first-child th { background: var(--table-header-bg); position: sticky; top: 0; z-index: 2; border-bottom: 2px solid var(--border); }
-.sd04-table thead tr:last-child th { background: var(--table-header-bg); position: sticky; top: 36px; z-index: 2; border-bottom: 1px solid var(--border); }
-.sd04-table th, .sd04-table td { padding: 8px; text-align: center; font-size: 12px; border-bottom: 1px solid var(--border-cell); white-space: nowrap; }
-.sd04-table td { color: var(--text-secondary); }
-.sd04-sticky-col { position: sticky; left: 0; background: var(--bg-panel); z-index: 1; box-shadow: 1px 0 0 var(--border); }
-.sd04-fecha-header { background: var(--bg-section) !important; font-weight: 700; }
+/* Contenedor de tabla con scroll */
+.sd04-table-wrapper {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.sd04-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+  border-spacing: 0;
+}
+
+/* Encabezado sticky - asegurar fondo sólido */
+.sd04-table thead tr:first-child th {
+  background: var(--table-header-bg);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.sd04-table thead tr:last-child th {
+  background: var(--table-header-bg);
+  position: sticky;
+  top: 32px; /* ajustar según altura de la primera fila del encabezado */
+  z-index: 3;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Asegurar que las celdas del encabezado tengan fondo sólido en modo oscuro */
+.sd04-table thead th {
+  background-color: var(--table-header-bg) !important;
+  color: var(--table-header-text);
+}
+
+/* Celdas de datos */
+.sd04-table th, .sd04-table td {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-cell);
+  white-space: nowrap;
+}
+
+.sd04-table td {
+  color: var(--text-secondary);
+}
+
+/* Columnas fijas a la izquierda */
+.sd04-sticky-col {
+  position: sticky;
+  left: 0;
+  background: var(--bg-panel) !important;
+  z-index: 2;
+  box-shadow: 1px 0 0 var(--border);
+}
+
+/* Encabezado de cada día: fondo más oscuro y borde izquierdo grueso */
+.sd04-fecha-header {
+  background: var(--bg-section) !important;
+  font-weight: 700;
+  border-left: 3px solid #475569 !important;
+  border-right: 3px solid #475569 !important;
+}
+
+/* Bloque de columnas por día: aplicar bordes y fondo alternado */
+.sd04-table tbody tr td:nth-child(4n+4),
+.sd04-table tbody tr td:nth-child(4n+5),
+.sd04-table tbody tr td:nth-child(4n+6),
+.sd04-table tbody tr td:nth-child(4n+7) {
+  border-left: 3px solid #475569;
+  border-right: 3px solid #475569;
+}
+
+/* Fondo alternado para cada bloque (mismo color para las 4 columnas del bloque) */
+.sd04-table tbody tr td:nth-child(4n+4),
+.sd04-table tbody tr td:nth-child(4n+5),
+.sd04-table tbody tr td:nth-child(4n+6),
+.sd04-table tbody tr td:nth-child(4n+7) {
+  background-color: rgba(241, 245, 249, 0.4);
+}
+
+/* Para que los bloques se alternen: cada 8 columnas (cada 2 días) cambia de tono */
+.sd04-table tbody tr td:nth-child(8n+4),
+.sd04-table tbody tr td:nth-child(8n+5),
+.sd04-table tbody tr td:nth-child(8n+6),
+.sd04-table tbody tr td:nth-child(8n+7) {
+  background-color: rgba(226, 232, 240, 0.4);
+}
+
+/* Fila de totales: fondo destacado y bordes más fuertes */
+.sd04-total-row {
+  background: var(--bg-section) !important;
+  border-top: 2px solid #475569;
+  font-weight: bold;
+}
+
+.sd04-total-row td {
+  background: var(--bg-section) !important;
+  border-top: 2px solid #475569;
+  border-bottom: 2px solid #475569;
+}
+
+/* Ajustar el fondo de las columnas sticky en la fila de totales para que no se vea transparente */
+.sd04-total-row td.sd04-sticky-col {
+  background: var(--bg-section) !important;
+}
+
+/* En modo oscuro, los bordes se ven blancos para contrastar */
+[data-theme="dark"] .sd04-table th,
+[data-theme="dark"] .sd04-table td {
+  border-color: #475569 !important; /* borde gris claro */
+}
+
+[data-theme="dark"] .sd04-table thead th {
+  background-color: #1e293b !important;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .sd04-sticky-col {
+  background: #1e293b !important;
+  box-shadow: 1px 0 0 #475569 !important;
+}
+
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(4n+4),
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(4n+5),
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(4n+6),
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(4n+7) {
+  background-color: #334155 !important; /* fondo de bloque en oscuro */
+}
+
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(8n+4),
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(8n+5),
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(8n+6),
+[data-theme="dark"] .sd04-table tbody tr td:nth-child(8n+7) {
+  background-color: #1e293b !important; /* fondo alterno en oscuro */
+}
+
+[data-theme="dark"] .sd04-total-row {
+  background: #334155 !important;
+}
+
+[data-theme="dark"] .sd04-total-row td {
+  background: #334155 !important;
+  border-top: 2px solid #f1f5f9 !important;
+  border-bottom: 2px solid #f1f5f9 !important;
+}
+
+[data-theme="dark"] .sd04-total-row td.sd04-sticky-col {
+  background: #334155 !important;
+}
+
+/* Ajustes para que el encabezado sticky no se transparente al hacer scroll */
+.sd04-table thead th {
+  background-color: var(--table-header-bg) !important;
+  background-image: none !important;
+}
+
+/* Pequeño ajuste de z-index para que el encabezado sticky esté por encima de las celdas sticky */
+.sd04-table thead tr th.sd04-sticky-col {
+  z-index: 4;
+}
+
+/* Ajuste del ancho de columnas sticky para que no se muevan */
+.sd04-table th:nth-child(1),
+.sd04-table td:nth-child(1) {
+  min-width: 100px;
+}
+
+.sd04-table th:nth-child(2),
+.sd04-table td:nth-child(2) {
+  min-width: 90px;
+}
+
+.sd04-table th:nth-child(3),
+.sd04-table td:nth-child(3) {
+  min-width: 200px;
+}
+
+/* Evitar que el contenido de las celdas sticky se superponga */
+.sd04-table td.sd04-sticky-col {
+  background-color: var(--bg-panel) !important;
+  position: sticky;
+  left: 0;
+}
 
 .sd04-loading, .sd04-empty { text-align: center; padding: 60px; color: var(--text-muted); font-size: 16px; }
 
@@ -62,37 +246,3 @@
 .sd04-table-mini td { padding: 8px; font-size: 13px; border-bottom: 1px solid var(--border-cell); }
 .sd04-btn-delete { background: none; border: none; color: #dc2626; font-size: 18px; cursor: pointer; }
 .sd04-empty-mini { text-align: center; padding: 20px; color: var(--text-muted); }
-/* Agregar o reemplazar en SD04.css */
-
-/* Separación por día: borde izquierdo grueso en la primera columna de cada día */
-.sd04-table th.sd04-fecha-header {
-  border-left: 3px solid #475569;
-}
-
-.sd04-table td:nth-child(4n+4) {  /* Inicio de cada bloque de 4 columnas (a partir de la columna 4) */
-  border-left: 3px solid #475569;
-}
-
-/* Fondo alterno para cada día (puedes usar un tono claro) */
-.sd04-table tbody tr td:nth-child(4n+4) {
-  background-color: rgba(241, 245, 249, 0.5);
-}
-
-.sd04-table tbody tr td:nth-child(4n+5) {
-  background-color: rgba(241, 245, 249, 0.5);
-}
-
-.sd04-table tbody tr td:nth-child(4n+6) {
-  background-color: rgba(241, 245, 249, 0.5);
-}
-
-.sd04-table tbody tr td:nth-child(4n+7) {
-  background-color: rgba(241, 245, 249, 0.5);
-}
-
-/* Fila de totales resaltada */
-.sd04-total-row {
-  background: #e2e8f0 !important;
-  font-weight: bold;
-  border-top: 2px solid #475569;
-}
