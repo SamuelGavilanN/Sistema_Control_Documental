@@ -235,3 +235,67 @@
   .sd05-totales { flex-direction: column; }
   .sd05-table { min-width: 600px; }
 }
+/* Estilos para modo oscuro en carrusel */
+[data-theme="dark"] .sd05-carrusel-tarjeta {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .sd05-carrusel-tarjeta strong {
+  color: #f87171;
+}
+
+[data-theme="dark"] .sd05-carrusel-tarjeta span {
+  color: #cbd5e1;
+}
+
+/* Modal de carga */
+.sd05-modal-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.sd05-file-upload {
+  border: 2px dashed var(--border-input);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+
+.sd05-file-upload:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-section);
+}
+
+.sd05-file-label {
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: block;
+  font-weight: 500;
+}
+
+.sd05-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-section);
+  border-radius: 0 0 12px 12px;
+}
+
+/* Ajustar modal para que el footer quede dentro */
+.sd05-modal .sd05-modal-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.sd05-modal .sd05-modal-footer {
+  margin-top: auto;
+}
