@@ -5,18 +5,18 @@ import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Dashboard from './components/Layout/Dashboard';
 
-// Módulos ED
-import ED01View from './components/Transactions/ED/ED01View';
-import ED02Dashboard from './components/Transactions/ED/ED02Dashboard';
-import ED03Tickets from './components/Transactions/ED/ED03Tickets';
-import ED04Lotes from './components/Transactions/ED/ED04Lotes';
+// Módulos ED01 (carpeta correcta)
+import ED01View from './components/Transactions/ED01/ED01View';
+import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
+import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
+import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
 
 // Módulos SD
 import SD01View from './components/Transactions/SD/SD01View';
 import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos';
 import SD03InformeUnDesp from './components/Transactions/SD/SD03InformeUnDesp';
-import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp'; // NUEVO SD04
-import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga'; // NUEVO SD05
+import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp'; // NUEVO
+import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga'; // NUEVO
 
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
@@ -94,7 +94,7 @@ const App: React.FC = () => {
           <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
             <Dashboard onModuleClick={openModule} rol={usuario?.rol} permisos={permisos} />
           </div>
-          {/* ED */}
+          {/* ED01 */}
           {tabsMontadas.has('ed') && <div style={{ display: activeTab === 'ed' ? 'block' : 'none' }}><ED01View key="ed01" /></div>}
           {tabsMontadas.has('ed-history') && <div style={{ display: activeTab === 'ed-history' ? 'block' : 'none' }}><ED02Dashboard key="ed02" /></div>}
           {tabsMontadas.has('ed-tickets') && <div style={{ display: activeTab === 'ed-tickets' ? 'block' : 'none' }}><ED03Tickets key="ed03" /></div>}
