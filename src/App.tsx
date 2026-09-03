@@ -6,14 +6,14 @@ import Header from './components/Layout/Header';
 import Dashboard from './components/Layout/Dashboard';
 
 // Módulos ED
-import ED01View from './components/Transactions/ED01/ED01View';
-import ED02Dashboard from './components/Transactions/ED01/ED02Dashboard';
-import ED03Tickets from './components/Transactions/ED01/ED03Tickets';
-import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
+import ED01View from './components/Transactions/ED/ED01View';
+import ED02Dashboard from './components/Transactions/ED/ED02Dashboard';
+import ED03Tickets from './components/Transactions/ED/ED03Tickets';
+import ED04Lotes from './components/Transactions/ED/ED04Lotes';
 
 // Módulos SD
 import SD01View from './components/Transactions/SD/SD01View';
-import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos'; // ÚNICO SD02
+import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos';
 import SD03InformeUnDesp from './components/Transactions/SD/SD03InformeUnDesp';
 import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp';
 import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga';
@@ -116,9 +116,8 @@ const App: React.FC = () => {
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
 
           {/* Módulo no encontrado */}
-            {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-informe-bultos', 'sd-informe-unidades', 'sd-analisis-bultos', 'sd-estado-carga', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
-              <div className="module-container"><h3>Módulo en desarrollo</h3></div>
-            )}
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-informe-bultos', 'sd-informe-unidades', 'sd-analisis-bultos', 'sd-estado-carga', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
+            <div className="module-container"><h3>Módulo en desarrollo</h3></div>
           )}
         </div>
       </div>
