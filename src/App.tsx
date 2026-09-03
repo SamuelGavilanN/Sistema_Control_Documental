@@ -15,8 +15,8 @@ import ED04Lotes from './components/Transactions/ED/ED04Lotes';
 import SD01View from './components/Transactions/SD/SD01View';
 import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos';
 import SD03InformeUnDesp from './components/Transactions/SD/SD03InformeUnDesp';
-import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp';
-import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga';
+import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp'; // NUEVO SD04
+import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga'; // NUEVO SD05
 
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
