@@ -20,9 +20,8 @@ interface Frecuencia {
   cantidad_estimada_despacho: number;
 }
 
-interface WmsCarga {
-  id: string;
-  numero_ubicacion: string;
+interface WmsConsolidado {
+  drop_local: string;
   cantidad: number;
 }
 
@@ -38,11 +37,18 @@ interface FilaDashboard {
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-const formatNumber = (num: number): string => num.toLocaleString('es-CL');
+const formatNumber = (num: number): string => {
+  return num.toLocaleString('es-CL');
+};
+
+// Normaliza texto para comparar sin acentos
+const normalizarTexto = (texto: string): string => {
+  return texto.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
 
 const SD05EstadoCarga: React.FC = () => {
   const [frecuencias, setFrecuencias] = useState<Frecuencia[]>([]);
-  const [wmsData, setWmsData] = useState<WmsCarga[]>([]);
+  const [wmsConsolidado, setWmsConsolidado] = useState<WmsConsolidado[]>([]);
   const [filtroDia, setFiltroDia] = useState<string>('');
   const [datos, setDatos] = useState<FilaDashboard[]>([]);
   const [orden, setOrden] = useState<{ columna: string; direccion: 'asc' | 'desc' }>({ columna: 'codigo', direccion: 'asc' });
@@ -51,6 +57,7 @@ const SD05EstadoCarga: React.FC = () => {
   const [vistaCompleta, setVistaCompleta] = useState(false);
   const [mostrarSubirModal, setMostrarSubirModal] = useState(false);
   const [archivo, setArchivo] = useState<File | null>(null);
+  const [procesando, setProcesando] = useState(false);
   const [indiceCarrusel, setIndiceCarrusel] = useState(0);
   const [localesDeficit, setLocalesDeficit] = useState<FilaDashboard[]>([]);
 
@@ -61,13 +68,12 @@ const SD05EstadoCarga: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  // Calcular el día de carga actual (considerando hora >= 4 AM)
   const obtenerDiaActual = useCallback(() => {
     const ahora = new Date();
     const hora = ahora.getHours();
-    let diaIndex = ahora.getDay();
-    if (hora < 4) {
-      diaIndex = (diaIndex + 6) % 7;
-    }
+    let diaIndex = ahora.getDay(); // 0=domingo, 1=lunes, ...
+    if (hora < 4) diaIndex = (diaIndex + 6) % 7;
     return DIAS[diaIndex];
   }, []);
 
@@ -75,49 +81,45 @@ const SD05EstadoCarga: React.FC = () => {
     const dia = obtenerDiaActual();
     setFiltroDia(dia);
     cargarDatos();
-  }, [obtenerDiaActual]);
+  }, []);
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setCargando(true);
     try {
       const [respFrec, respWms] = await Promise.all([
         fetch(`${API_URL}/frecuencias?select=*&activo=eq.true`, { headers: HEADERS }),
-        fetch(`${API_URL}/wms_carga?select=numero_ubicacion,cantidad&order=creado_en.desc`, { headers: HEADERS })
+        fetch(`${API_URL}/wms_carga_consolidada?select=*`, { headers: HEADERS })
       ]);
-      
+
       const frecData = await respFrec.json();
-      const wmsDataRaw = await respWms.json();
-      
+      const wmsData = await respWms.json();
+
       if (Array.isArray(frecData)) setFrecuencias(frecData);
-      if (Array.isArray(wmsDataRaw)) {
-        const mapWms = new Map<string, number>();
-        wmsDataRaw.forEach((item: any) => {
-          const ubicacion = item.numero_ubicacion;
-          const cantidad = item.cantidad || 0;
-          const actual = mapWms.get(ubicacion) || 0;
-          mapWms.set(ubicacion, actual + cantidad);
-        });
-        const wmsArray: WmsCarga[] = Array.from(mapWms.entries()).map(([ubicacion, cantidad]) => ({
-          id: ubicacion,
-          numero_ubicacion: ubicacion,
-          cantidad
+      if (Array.isArray(wmsData)) {
+        // Convertir a estructura simple
+        const consolidado: WmsConsolidado[] = wmsData.map((item: any) => ({
+          drop_local: item.drop_local,
+          cantidad: item.cantidad || 0
         }));
-        setWmsData(wmsArray);
+        setWmsConsolidado(consolidado);
       }
     } catch (e) {
       console.error('Error cargando datos:', e);
       mostrarMensaje('error', 'Error al cargar datos');
     }
     setCargando(false);
-  };
+  }, []);
 
+  // Filtrar y combinar datos
   useEffect(() => {
     const datosFiltrados = frecuencias
       .filter((f) => !filtroDia || f.dia_carga === filtroDia)
       .map((f) => {
-        const wms = wmsData.find((w) => w.numero_ubicacion === f.codigo_local);
+        // Buscar en wmsConsolidado por drop_local
+        const wms = wmsConsolidado.find((w) => w.drop_local === f.drop_local);
         const cantidad_actual = wms ? wms.cantidad : 0;
         const cantidad_estimada = f.cantidad_estimada_despacho || 0;
+        // Regla: si estimado es 0 pero actual > 0, igualamos estimado a actual
         let estimado = cantidad_estimada;
         if (estimado === 0 && cantidad_actual > 0) estimado = cantidad_actual;
         const diferencia = cantidad_actual - estimado;
@@ -140,12 +142,13 @@ const SD05EstadoCarga: React.FC = () => {
         if (typeof valA === 'string') return direccion === 'asc' ? valA.localeCompare(valB as string) : (valB as string).localeCompare(valA);
         return direccion === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
       });
-    
+
     setDatos(datosFiltrados);
     const deficit = datosFiltrados.filter((d) => d.diferencia < 0);
     setLocalesDeficit(deficit);
-  }, [frecuencias, wmsData, filtroDia, orden]);
+  }, [frecuencias, wmsConsolidado, filtroDia, orden]);
 
+  // Carrusel automático cada 30 segundos
   useEffect(() => {
     if (localesDeficit.length === 0) return;
     const interval = setInterval(() => {
@@ -161,6 +164,7 @@ const SD05EstadoCarga: React.FC = () => {
     }));
   };
 
+  // Exportar a Excel
   const exportarExcel = () => {
     if (datos.length === 0) {
       mostrarMensaje('warning', 'No hay datos para exportar');
@@ -176,75 +180,95 @@ const SD05EstadoCarga: React.FC = () => {
     XLSX.writeFile(wb, `Estado_Carga_${filtroDia}_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
+  // Procesar archivo WMS y consolidar
   const procesarArchivo = async () => {
     if (!archivo) {
       mostrarMensaje('warning', 'Seleccione un archivo Excel');
       return;
     }
+    setProcesando(true);
     try {
       const data = await archivo.arrayBuffer();
       const workbook = XLSX.read(data, { cellDates: false });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      const normalizar = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-      let headerRowIndex = -1;
-      let headers: string[] = [];
+      // Buscar encabezados (normalizados)
+      let headerIndex = -1;
       let idxUbicacion = -1;
       let idxCantidad = -1;
 
-      for (let i = 0; i < Math.min(20, rows.length); i++) {
+      for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !Array.isArray(row)) continue;
-        const normRow = row.map((cell: any) => cell ? normalizar(String(cell)) : '');
-        const ubIndex = normRow.findIndex((h: string) => h.includes('ubicacion') || h.includes('ubicación'));
-        const cantIndex = normRow.findIndex((h: string) => h.includes('cantidad'));
-        if (ubIndex !== -1 && cantIndex !== -1) {
-          headerRowIndex = i;
-          headers = normRow;
-          idxUbicacion = ubIndex;
-          idxCantidad = cantIndex;
+        const headersRow = row.map((cell: any) => normalizarTexto(cell || ''));
+
+        const ubicacionIndex = headersRow.findIndex((h: string) => h.includes('ubicacion') || h.includes('num ubicacion') || h.includes('numero ubicacion'));
+        const cantidadIndex = headersRow.findIndex((h: string) => h.includes('cantidad') && !h.includes('revision'));
+
+        if (ubicacionIndex !== -1 && cantidadIndex !== -1) {
+          headerIndex = i;
+          idxUbicacion = ubicacionIndex;
+          idxCantidad = cantidadIndex;
           break;
         }
       }
 
-      if (headerRowIndex === -1) {
-        mostrarMensaje('error', 'No se encontró la columna "Número de Ubicación" en el archivo');
+      if (headerIndex === -1) {
+        mostrarMensaje('error', 'No se encontró la columna "Número de Ubicación" o "Cantidad"');
+        setProcesando(false);
         return;
       }
 
-      const filasData = rows.slice(headerRowIndex + 1).filter((r: any) => r && r[idxUbicacion] && String(r[idxUbicacion]).trim() !== '');
-      const items = filasData.map((r: any) => ({
-        numero_ubicacion: String(r[idxUbicacion]).trim(),
-        cantidad: parseInt(r[idxCantidad]) || 0,
-        estado: (() => {
-          const idxEstado = headers.findIndex((h: string) => h.includes('estado'));
-          return idxEstado !== -1 ? String(r[idxEstado]).trim() : '';
-        })(),
-        raw_data: r
+      // Recoger filas de datos (ignorar encabezados)
+      const filasData = rows.slice(headerIndex + 1).filter((r: any) => r && r[idxUbicacion]);
+
+      // Consolidar por drop (numero_ubicacion)
+      const mapa = new Map<string, number>();
+      filasData.forEach((r: any) => {
+        const ubicacion = String(r[idxUbicacion]).trim();
+        const cantidad = parseInt(r[idxCantidad]) || 0;
+        if (ubicacion) {
+          const actual = mapa.get(ubicacion) || 0;
+          mapa.set(ubicacion, actual + cantidad);
+        }
+      });
+
+      // Convertir a array
+      const consolidado = Array.from(mapa.entries()).map(([drop, cantidad]) => ({
+        drop_local: drop,
+        cantidad
       }));
 
-      await fetch(`${API_URL}/wms_carga`, { method: 'DELETE', headers: HEADERS });
+      if (consolidado.length === 0) {
+        mostrarMensaje('error', 'No se encontraron datos para consolidar');
+        setProcesando(false);
+        return;
+      }
 
+      // Limpiar tabla anterior
+      await fetch(`${API_URL}/wms_carga_consolidada`, { method: 'DELETE', headers: HEADERS });
+
+      // Insertar nuevos datos en lotes
       const BATCH = 100;
-      for (let i = 0; i < items.length; i += BATCH) {
-        const batch = items.slice(i, i + BATCH);
-        await fetch(`${API_URL}/wms_carga`, {
+      for (let i = 0; i < consolidado.length; i += BATCH) {
+        const batch = consolidado.slice(i, i + BATCH);
+        await fetch(`${API_URL}/wms_carga_consolidada`, {
           method: 'POST',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(batch)
         });
       }
 
-      mostrarMensaje('success', `Informe WMS cargado correctamente (${items.length} registros)`);
+      mostrarMensaje('success', `Informe WMS cargado y consolidado (${consolidado.length} DROPs)`);
       setMostrarSubirModal(false);
       setArchivo(null);
-      cargarDatos();
+      await cargarDatos();
     } catch (e) {
       console.error('Error subiendo archivo:', e);
       mostrarMensaje('error', 'Error al procesar el archivo');
     }
+    setProcesando(false);
   };
 
   const renderCarrusel = () => {
@@ -265,7 +289,7 @@ const SD05EstadoCarga: React.FC = () => {
               <span>{t.tienda}</span>
               <span>Estimado: {formatNumber(t.cantidad_estimada)}</span>
               <span>Actual: {formatNumber(t.cantidad_actual)}</span>
-              <span style={{ color: '#f87171', fontWeight: 'bold' }}>Déficit: {formatNumber(Math.abs(t.diferencia))}</span>
+              <span style={{ color: '#dc2626', fontWeight: 'bold' }}>Déficit: {formatNumber(Math.abs(t.diferencia))}</span>
             </div>
           ))}
         </div>
@@ -360,8 +384,8 @@ const SD05EstadoCarga: React.FC = () => {
                   <td>{d.tienda}</td>
                   <td>{formatNumber(d.cantidad_estimada)}</td>
                   <td>{formatNumber(d.cantidad_actual)}</td>
-                  <td style={{ color: d.diferencia < 0 ? '#f87171' : '#4ade80', fontWeight: 600 }}>{formatNumber(d.diferencia)}</td>
-                  <td style={{ color: d.pct_cumplimiento >= 100 ? '#4ade80' : d.pct_cumplimiento >= 80 ? '#fbbf24' : '#f87171', fontWeight: 600 }}>{d.pct_cumplimiento}%</td>
+                  <td style={{ color: d.diferencia < 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{formatNumber(d.diferencia)}</td>
+                  <td style={{ color: d.pct_cumplimiento >= 100 ? '#16a34a' : d.pct_cumplimiento >= 80 ? '#d97706' : '#dc2626', fontWeight: 600 }}>{d.pct_cumplimiento}%</td>
                 </tr>
               ))}
             </tbody>
@@ -369,34 +393,34 @@ const SD05EstadoCarga: React.FC = () => {
         )}
       </div>
 
+      {/* Modal Subir Informe WMS - rediseñado */}
       {mostrarSubirModal && (
         <div className="sd05-modal-overlay" onClick={() => setMostrarSubirModal(false)}>
           <div className="sd05-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sd05-modal-header">
-              <h2>Subir Informe WMS</h2>
+              <h2>📤 Subir Informe WMS</h2>
               <button className="sd05-modal-close" onClick={() => setMostrarSubirModal(false)}>×</button>
             </div>
             <div className="sd05-modal-body">
               <p className="sd05-modal-desc">
-                Selecciona el archivo Excel del WMS. Debe contener al menos las columnas 
-                <strong> "Número de Ubicación"</strong> y <strong>"Cantidad"</strong>.
+                Selecciona el archivo Excel del WMS. El sistema buscará automáticamente las columnas <strong>"Número de Ubicación"</strong> y <strong>"Cantidad"</strong>, y consolidará las cantidades por DROP.
               </p>
               <div className="sd05-file-upload">
                 <input
                   type="file"
                   accept=".xlsx,.xls"
-                  id="sd05-file-input"
                   onChange={(e) => setArchivo(e.target.files?.[0] || null)}
-                  style={{ display: 'none' }}
+                  id="wms-file"
                 />
-                <label htmlFor="sd05-file-input" className="sd05-file-label">
+                <label htmlFor="wms-file" className="sd05-file-label">
+                  <span>📁</span>
                   {archivo ? archivo.name : 'Haz clic para seleccionar archivo'}
                 </label>
               </div>
-              <div className="sd05-modal-footer">
+              <div className="sd05-modal-actions">
                 <button className="sd05-btn" onClick={() => setMostrarSubirModal(false)}>Cancelar</button>
-                <button className="sd05-btn sd05-btn-primary" onClick={procesarArchivo} disabled={!archivo}>
-                  {archivo ? 'Procesar y Cargar' : 'Seleccione un archivo'}
+                <button className="sd05-btn sd05-btn-primary" onClick={procesarArchivo} disabled={!archivo || procesando}>
+                  {procesando ? 'Procesando...' : 'Cargar y Consolidar'}
                 </button>
               </div>
             </div>
