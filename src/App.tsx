@@ -16,6 +16,7 @@ import SD01View from './components/Transactions/SD/SD01View';
 import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos'; // ÚNICO SD02
 import SD03InformeUnDesp from './components/Transactions/SD/SD03InformeUnDesp';
 import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp';
+import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga';
 
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
@@ -104,6 +105,7 @@ const App: React.FC = () => {
           {tabsMontadas.has('sd-informe-bultos') && <div style={{ display: activeTab === 'sd-informe-bultos' ? 'block' : 'none' }}><SD02InformeBultos key="sd-informe-bultos" /></div>}
           {tabsMontadas.has('sd-informe-unidades') && <div style={{ display: activeTab === 'sd-informe-unidades' ? 'block' : 'none' }}><SD03InformeUnDesp key="sd-informe-unidades" /></div>}
           {tabsMontadas.has('sd-analisis-bultos') && <div style={{ display: activeTab === 'sd-analisis-bultos' ? 'block' : 'none' }}><SD04AnalisisBultosDesp key="sd-analisis-bultos" /></div>}
+          {tabsMontadas.has('sd-estado-carga') && <div style={{ display: activeTab === 'sd-estado-carga' ? 'block' : 'none' }}><SD05EstadoCarga key="sd-estado-carga" /></div>}
 
           {/* UT */}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
@@ -114,8 +116,9 @@ const App: React.FC = () => {
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
 
           {/* Módulo no encontrado */}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-informe-bultos', 'sd-informe-unidades', 'sd-analisis-bultos', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
-            <div className="module-container"><h3>Módulo en desarrollo</h3></div>
+            {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-informe-bultos', 'sd-informe-unidades', 'sd-analisis-bultos', 'sd-estado-carga', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
+              <div className="module-container"><h3>Módulo en desarrollo</h3></div>
+            )}
           )}
         </div>
       </div>
