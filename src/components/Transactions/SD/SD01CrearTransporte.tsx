@@ -48,9 +48,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
 
-  const [conductores, setConductores] = useState([]);
-  const [patentes, setPatentes] = useState([]);
-  const [todosLocales, setTodosLocales] = useState([]);
+  const [conductores, setConductores] = useState<any[]>([]);
+  const [patentes, setPatentes] = useState<any[]>([]);
+  const [todosLocales, setTodosLocales] = useState<any[]>([]);
 
   // Autocompletado
   const [mostrarSugerenciasConductor, setMostrarSugerenciasConductor] = useState(false);
@@ -65,10 +65,10 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const [sugerenciasPatenteAdicional, setSugerenciasPatenteAdicional] = useState<any[]>([]);
   const [indiceSeleccionadoPatenteAdicional, setIndiceSeleccionadoPatenteAdicional] = useState(-1);
 
-  const inputConductorRef = useRef(null);
-  const inputPatentePrincipalRef = useRef(null);
-  const inputPatenteAdicionalRef = useRef(null);
-  const sugerenciasConductorRef = useRef(null);
+  const inputConductorRef = useRef<HTMLInputElement>(null);
+  const inputPatentePrincipalRef = useRef<HTMLInputElement>(null);
+  const inputPatenteAdicionalRef = useRef<HTMLInputElement>(null);
+  const sugerenciasConductorRef = useRef<HTMLDivElement>(null);
 
   // Modales para agregar conductor y patente
   const [showModalConductor, setShowModalConductor] = useState(false);
@@ -391,7 +391,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
       return;
     }
-    // Si el local tiene id (existe en BD), se marcará para eliminación al guardar.
     const nuevosLocales = locales.filter((_, i) => i !== index);
     setLocales(nuevosLocales);
   };
@@ -439,24 +438,19 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     try {
       if (esEdicion) {
         // --- Lógica de guardado para edición ---
-        // 1. Obtener locales existentes en BD (solo id y codigo_local)
         const resp = await fetch(API_URL + '/sd01_documento_locales?select=id,codigo_local&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
         const existentes = await resp.json();
 
-        // 2. IDs de locales actuales en el estado (los que tienen id)
         const idsActuales = new Set(locales.filter(l => l.id).map(l => l.id));
 
-        // 3. Eliminar locales que ya no están en el estado (comparando por id)
         for (const existente of existentes) {
           if (!idsActuales.has(existente.id)) {
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + existente.id, { method: 'DELETE', headers: HEADERS });
           }
         }
 
-        // 4. Actualizar o insertar locales actuales
         for (const local of locales) {
           if (local.id) {
-            // Existe → actualizar
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
               method: 'PATCH',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -469,7 +463,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
               })
             });
           } else {
-            // No existe → insertar
             await fetch(API_URL + '/sd01_documento_locales', {
               method: 'POST',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -485,7 +478,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
           }
         }
 
-        // 5. Actualizar datos del transporte (conductor, patentes, fecha)
         await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
