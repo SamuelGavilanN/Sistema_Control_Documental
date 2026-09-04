@@ -20,6 +20,17 @@ interface PedidoEspecial {
 type OrdenColumna = 'numero_tarea' | 'tipo_pedido' | 'codigo_local' | 'nombre_local' | 'fecha_pedido' | 'estado' | 'etiqueta_generada' | 'creado_en';
 type OrdenDireccion = 'asc' | 'desc';
 
+interface Consolidado {
+  codigo_local: string;
+  nombre_local: string;
+  tipo_pedido: string;
+  total: number;
+  listas: number;
+  pendientes: number;
+  faltantes: number;
+  completo: boolean;
+}
+
 const SD06PedidosEspeciales: React.FC = () => {
   const [pedidos, setPedidos] = useState<PedidoEspecial[]>([]);
   const [filtroEstado, setFiltroEstado] = useState('Todos');
@@ -32,6 +43,7 @@ const SD06PedidosEspeciales: React.FC = () => {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [ordenColumna, setOrdenColumna] = useState<OrdenColumna>('creado_en');
   const [ordenDireccion, setOrdenDireccion] = useState<OrdenDireccion>('desc');
+  const [vistaTabla, setVistaTabla] = useState<'detalle' | 'consolidado'>('detalle');
 
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
@@ -68,17 +80,17 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
-  // Carrusel automático cada 5 segundos (solo listos para cargar)
+  // Carrusel: solo pendientes
   useEffect(() => {
-    const listos = pedidos.filter(p => p.estado === 'Listo para cargar');
-    if (listos.length === 0) return;
+    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
+    if (pendientes.length === 0) return;
     const interval = setInterval(() => {
-      setIndiceCarrusel((prev) => (prev + 1) % Math.ceil(listos.length / 4));
+      setIndiceCarrusel((prev) => (prev + 1) % Math.ceil(pendientes.length / 4));
     }, 5000);
     return () => clearInterval(interval);
   }, [pedidos]);
 
-  // Ordenamiento de la tabla
+  // Ordenamiento de la tabla de detalle
   const pedidosOrdenados = useMemo(() => {
     const copia = [...pedidos];
     copia.sort((a, b) => {
@@ -94,6 +106,36 @@ const SD06PedidosEspeciales: React.FC = () => {
     });
     return copia;
   }, [pedidos, ordenColumna, ordenDireccion]);
+
+  // Consolidado por local y tipo
+  const consolidado = useMemo(() => {
+    const mapa = new Map<string, Consolidado>();
+    pedidos.forEach((p) => {
+      const key = `${p.codigo_local}||${p.tipo_pedido}`;
+      if (!mapa.has(key)) {
+        mapa.set(key, {
+          codigo_local: p.codigo_local,
+          nombre_local: p.nombre_local,
+          tipo_pedido: p.tipo_pedido,
+          total: 0,
+          listas: 0,
+          pendientes: 0,
+          faltantes: 0,
+          completo: false
+        });
+      }
+      const item = mapa.get(key)!;
+      item.total++;
+      if (p.estado === 'Listo para cargar') item.listas++;
+      else item.pendientes++;
+      item.faltantes = item.total - item.listas;
+      item.completo = item.pendientes === 0;
+    });
+    return Array.from(mapa.values()).sort((a, b) => {
+      if (a.completo !== b.completo) return a.completo ? 1 : -1;
+      return a.codigo_local.localeCompare(b.codigo_local);
+    });
+  }, [pedidos]);
 
   const cambiarOrden = (columna: OrdenColumna) => {
     if (ordenColumna === columna) {
@@ -177,19 +219,19 @@ const SD06PedidosEspeciales: React.FC = () => {
     }
   };
 
-  // Carrusel: solo listos para cargar
+  // Carrusel: solo pendientes
   const renderCarrusel = () => {
-    const listos = pedidos.filter(p => p.estado === 'Listo para cargar');
-    if (listos.length === 0) return null;
+    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
+    if (pendientes.length === 0) return null;
     const totalPorPagina = 4;
-    const totalPaginas = Math.ceil(listos.length / totalPorPagina);
+    const totalPaginas = Math.ceil(pendientes.length / totalPorPagina);
     const paginaActual = Math.min(indiceCarrusel % totalPaginas, totalPaginas - 1);
     const inicio = paginaActual * totalPorPagina;
-    const tarjetas = listos.slice(inicio, inicio + totalPorPagina);
+    const tarjetas = pendientes.slice(inicio, inicio + totalPorPagina);
 
     return (
       <div className="sd06-carrusel">
-        <h3>✅ Pedidos Especiales Listos para Cargar ({listos.length})</h3>
+        <h3>🚨 Pedidos Especiales Pendientes ({pendientes.length})</h3>
         <div className="sd06-carrusel-tarjetas">
           {tarjetas.map((p) => (
             <div key={p.id} className="sd06-carrusel-tarjeta">
@@ -197,12 +239,51 @@ const SD06PedidosEspeciales: React.FC = () => {
               <span>{p.tipo_pedido}</span>
               <span>{p.codigo_local} - {p.nombre_local}</span>
               <span>Fecha: {p.fecha_pedido}</span>
-              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Listo para cargar</span>
+              <span style={{ color: '#d97706', fontWeight: 'bold' }}>Pendiente</span>
             </div>
           ))}
         </div>
       </div>
     );
+  };
+
+  const exportarExcel = () => {
+    if (pedidos.length === 0) {
+      mostrarMensaje('warning', 'No hay datos para exportar');
+      return;
+    }
+
+    if (vistaTabla === 'consolidado') {
+      const headers = ['Local', 'Tipo', 'Total', 'Listas', 'Pendientes', 'Faltantes', 'Estado'];
+      const rows = consolidado.map((c) => [
+        `${c.codigo_local} - ${c.nombre_local}`,
+        c.tipo_pedido,
+        c.total,
+        c.listas,
+        c.pendientes,
+        c.faltantes,
+        c.completo ? 'Completo' : 'Incompleto'
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Resumen Cargas');
+      XLSX.writeFile(wb, `Resumen_Cargas_${new Date().toISOString().slice(0,10)}.xlsx`);
+    } else {
+      const headers = ['N° Tarea', 'Tipo', 'Local', 'Fecha', 'Estado', 'Etiqueta', 'Creado En'];
+      const rows = pedidosOrdenados.map((p) => [
+        p.numero_tarea,
+        p.tipo_pedido,
+        `${p.codigo_local} - ${p.nombre_local}`,
+        p.fecha_pedido,
+        p.estado,
+        p.etiqueta_generada ? 'Sí' : 'No',
+        p.creado_en
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Detalle Pedidos');
+      XLSX.writeFile(wb, `Detalle_Pedidos_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
   };
 
   return (
@@ -226,60 +307,109 @@ const SD06PedidosEspeciales: React.FC = () => {
         <button className="sd06-btn" onClick={() => { setFiltroEstado('Todos'); setFiltroFecha(''); }}>Limpiar</button>
         <button className="sd06-btn sd06-btn-success" onClick={() => setShowImportModal(true)}>📤 Importar Pedidos</button>
         <button className="sd06-btn" onClick={() => setVistaCompleta(!vistaCompleta)}>{vistaCompleta ? 'Salir' : 'Vista Completa'}</button>
+        <button className="sd06-btn" onClick={() => setVistaTabla(vistaTabla === 'detalle' ? 'consolidado' : 'detalle')}>
+          {vistaTabla === 'detalle' ? 'Ver Consolidado' : 'Ver Detalle'}
+        </button>
       </div>
 
       {renderCarrusel()}
 
-      <div className="sd06-table-wrapper">
-        <table className="sd06-table">
-          <thead>
-            <tr>
-              <th onClick={() => cambiarOrden('numero_tarea')}>
-                N° Tarea {ordenColumna === 'numero_tarea' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => cambiarOrden('tipo_pedido')}>
-                Tipo {ordenColumna === 'tipo_pedido' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => cambiarOrden('codigo_local')}>
-                Local {ordenColumna === 'codigo_local' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => cambiarOrden('fecha_pedido')}>
-                Fecha {ordenColumna === 'fecha_pedido' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => cambiarOrden('estado')}>
-                Estado {ordenColumna === 'estado' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => cambiarOrden('etiqueta_generada')}>
-                Etiqueta {ordenColumna === 'etiqueta_generada' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pedidos.length === 0 ? (
-              <tr><td colSpan={7} className="sd06-empty">No hay pedidos registrados</td></tr>
-            ) : (
-              pedidosOrdenados.map((p) => (
-                <tr key={p.id}>
-                  <td><strong>{p.numero_tarea}</strong></td>
-                  <td>{p.tipo_pedido}</td>
-                  <td>{p.codigo_local} - {p.nombre_local}</td>
-                  <td>{p.fecha_pedido}</td>
-                  <td>{p.estado}</td>
-                  <td>{p.etiqueta_generada ? '✅' : '❌'}</td>
-                  <td>
-                    {p.estado === 'Pendiente' ? (
-                      <button className="sd06-btn sd06-btn-success" onClick={() => marcarListo(p.id)}>Marcar Listo</button>
-                    ) : (
-                      <button className="sd06-btn sd06-btn-warning" onClick={() => marcarPendiente(p.id)}>Reabrir</button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* ====== TABLA CONSOLIDADA (vista consolidado) ====== */}
+      {vistaTabla === 'consolidado' && (
+        <div className="sd06-table-wrapper">
+          <h3 className="sd06-subtitulo-tabla">Resumen de Cargas por Local y Tipo</h3>
+          <table className="sd06-table">
+            <thead>
+              <tr>
+                <th>Local</th>
+                <th>Tipo</th>
+                <th>Total</th>
+                <th>Listas</th>
+                <th>Pendientes</th>
+                <th>Faltantes</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {consolidado.length === 0 ? (
+                <tr><td colSpan={7} className="sd06-empty">No hay datos consolidados</td></tr>
+              ) : (
+                consolidado.map((c) => (
+                  <tr key={`${c.codigo_local}-${c.tipo_pedido}`}>
+                    <td><strong>{c.codigo_local} - {c.nombre_local}</strong></td>
+                    <td>{c.tipo_pedido}</td>
+                    <td>{c.total}</td>
+                    <td style={{ color: '#16a34a' }}>{c.listas}</td>
+                    <td style={{ color: '#d97706' }}>{c.pendientes}</td>
+                    <td style={{ color: c.faltantes > 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>{c.faltantes}</td>
+                    <td>
+                      {c.completo ? (
+                        <span className="sd06-estado-badge sd06-estado-listo">Completo</span>
+                      ) : (
+                        <span className="sd06-estado-badge sd06-estado-pendiente">Faltan {c.faltantes}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ====== TABLA DE DETALLE (vista detalle) ====== */}
+      {vistaTabla === 'detalle' && (
+        <div className="sd06-table-wrapper">
+          <table className="sd06-table">
+            <thead>
+              <tr>
+                <th onClick={() => cambiarOrden('numero_tarea')}>
+                  N° Tarea {ordenColumna === 'numero_tarea' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('tipo_pedido')}>
+                  Tipo {ordenColumna === 'tipo_pedido' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('codigo_local')}>
+                  Local {ordenColumna === 'codigo_local' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('fecha_pedido')}>
+                  Fecha {ordenColumna === 'fecha_pedido' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('estado')}>
+                  Estado {ordenColumna === 'estado' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('etiqueta_generada')}>
+                  Etiqueta {ordenColumna === 'etiqueta_generada' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pedidos.length === 0 ? (
+                <tr><td colSpan={7} className="sd06-empty">No hay pedidos registrados</td></tr>
+              ) : (
+                pedidosOrdenados.map((p) => (
+                  <tr key={p.id}>
+                    <td><strong>{p.numero_tarea}</strong></td>
+                    <td>{p.tipo_pedido}</td>
+                    <td>{p.codigo_local} - {p.nombre_local}</td>
+                    <td>{p.fecha_pedido}</td>
+                    <td>{p.estado}</td>
+                    <td>{p.etiqueta_generada ? '✅' : '❌'}</td>
+                    <td>
+                      {p.estado === 'Pendiente' ? (
+                        <button className="sd06-btn sd06-btn-success" onClick={() => marcarListo(p.id)}>Marcar Listo</button>
+                      ) : (
+                        <button className="sd06-btn sd06-btn-warning" onClick={() => marcarPendiente(p.id)}>Reabrir</button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal Importar Excel */}
       {showImportModal && (
