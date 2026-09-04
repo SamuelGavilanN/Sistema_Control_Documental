@@ -38,6 +38,7 @@ const menuSections: MenuSection[] = [
     { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp', type: 'subitem' },
     { id: 'sd-analisis-bultos', label: 'SD04 Análisis Bultos Desp', type: 'subitem' },
     { id: 'sd-estado-carga', label: 'SD05 Estado de Carga', type: 'subitem' },
+    { id: 'sd-pedidos-especiales', label: 'SD06 Pedidos Especiales', type: 'subitem' },
   ]
   },
   {
