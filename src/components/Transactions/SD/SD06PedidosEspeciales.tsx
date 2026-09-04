@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD06PedidosEspeciales.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import * as XLSX from 'xlsx';
 import './SD06.css';
@@ -17,6 +17,9 @@ interface PedidoEspecial {
   creado_en: string;
 }
 
+type OrdenColumna = 'numero_tarea' | 'tipo_pedido' | 'codigo_local' | 'nombre_local' | 'fecha_pedido' | 'estado' | 'etiqueta_generada' | 'creado_en';
+type OrdenDireccion = 'asc' | 'desc';
+
 const SD06PedidosEspeciales: React.FC = () => {
   const [pedidos, setPedidos] = useState<PedidoEspecial[]>([]);
   const [filtroEstado, setFiltroEstado] = useState('Todos');
@@ -27,6 +30,8 @@ const SD06PedidosEspeciales: React.FC = () => {
   const [vistaCompleta, setVistaCompleta] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [archivo, setArchivo] = useState<File | null>(null);
+  const [ordenColumna, setOrdenColumna] = useState<OrdenColumna>('creado_en');
+  const [ordenDireccion, setOrdenDireccion] = useState<OrdenDireccion>('desc');
 
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
@@ -63,6 +68,7 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
+  // Carrusel automático cada 5 segundos
   useEffect(() => {
     if (pedidos.length === 0) return;
     const interval = setInterval(() => {
@@ -70,6 +76,32 @@ const SD06PedidosEspeciales: React.FC = () => {
     }, 5000);
     return () => clearInterval(interval);
   }, [pedidos.length]);
+
+  // Ordenamiento de la tabla
+  const pedidosOrdenados = useMemo(() => {
+    const copia = [...pedidos];
+    copia.sort((a, b) => {
+      let valA = a[ordenColumna];
+      let valB = b[ordenColumna];
+      if (typeof valA === 'boolean') {
+        valA = valA ? 1 : 0;
+        valB = valB ? 1 : 0;
+      }
+      if (valA < valB) return ordenDireccion === 'asc' ? -1 : 1;
+      if (valA > valB) return ordenDireccion === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return copia;
+  }, [pedidos, ordenColumna, ordenDireccion]);
+
+  const cambiarOrden = (columna: OrdenColumna) => {
+    if (ordenColumna === columna) {
+      setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrdenColumna(columna);
+      setOrdenDireccion('asc');
+    }
+  };
 
   const marcarListo = async (id: string) => {
     await supabase.from('pedidos_especiales').update({ estado: 'Listo para cargar', etiqueta_generada: true }).eq('id', id);
@@ -91,7 +123,6 @@ const SD06PedidosEspeciales: React.FC = () => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Buscar encabezados (primera fila con contenido)
       const headerRow = rows.find((r: any[]) => r && r.some((c: any) => c && c.toString().toLowerCase().includes('tarea')));
       const headerIndex = rows.indexOf(headerRow as any[]);
       if (headerIndex === -1 || !headerRow) {
@@ -145,19 +176,18 @@ const SD06PedidosEspeciales: React.FC = () => {
     }
   };
 
+  // Carrusel con los pedidos filtrados (respeta filtro)
   const renderCarrusel = () => {
     if (pedidos.length === 0) return null;
-    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
-    if (pendientes.length === 0) return null;
     const totalPorPagina = 4;
-    const totalPaginas = Math.ceil(pendientes.length / totalPorPagina);
+    const totalPaginas = Math.ceil(pedidos.length / totalPorPagina);
     const paginaActual = Math.min(indiceCarrusel % totalPaginas, totalPaginas - 1);
     const inicio = paginaActual * totalPorPagina;
-    const tarjetas = pendientes.slice(inicio, inicio + totalPorPagina);
+    const tarjetas = pedidos.slice(inicio, inicio + totalPorPagina);
 
     return (
       <div className="sd06-carrusel">
-        <h3>🚨 Pedidos Especiales Pendientes ({pendientes.length})</h3>
+        <h3>🚨 Pedidos Especiales ({pedidos.length})</h3>
         <div className="sd06-carrusel-tarjetas">
           {tarjetas.map((p) => (
             <div key={p.id} className="sd06-carrusel-tarjeta">
@@ -165,7 +195,7 @@ const SD06PedidosEspeciales: React.FC = () => {
               <span>{p.tipo_pedido}</span>
               <span>{p.codigo_local} - {p.nombre_local}</span>
               <span>Fecha: {p.fecha_pedido}</span>
-              <span style={{ color: '#d97706', fontWeight: 'bold' }}>Pendiente</span>
+              <span style={{ color: p.estado === 'Pendiente' ? '#d97706' : '#16a34a', fontWeight: 'bold' }}>{p.estado}</span>
             </div>
           ))}
         </div>
@@ -202,14 +232,32 @@ const SD06PedidosEspeciales: React.FC = () => {
         <table className="sd06-table">
           <thead>
             <tr>
-              <th>N° Tarea</th><th>Tipo</th><th>Local</th><th>Fecha</th><th>Estado</th><th>Etiqueta</th><th>Acciones</th>
+              <th onClick={() => cambiarOrden('numero_tarea')}>
+                N° Tarea {ordenColumna === 'numero_tarea' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => cambiarOrden('tipo_pedido')}>
+                Tipo {ordenColumna === 'tipo_pedido' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => cambiarOrden('codigo_local')}>
+                Local {ordenColumna === 'codigo_local' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => cambiarOrden('fecha_pedido')}>
+                Fecha {ordenColumna === 'fecha_pedido' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => cambiarOrden('estado')}>
+                Estado {ordenColumna === 'estado' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => cambiarOrden('etiqueta_generada')}>
+                Etiqueta {ordenColumna === 'etiqueta_generada' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {pedidos.length === 0 ? (
               <tr><td colSpan={7} className="sd06-empty">No hay pedidos registrados</td></tr>
             ) : (
-              pedidos.map((p) => (
+              pedidosOrdenados.map((p) => (
                 <tr key={p.id}>
                   <td><strong>{p.numero_tarea}</strong></td>
                   <td>{p.tipo_pedido}</td>
