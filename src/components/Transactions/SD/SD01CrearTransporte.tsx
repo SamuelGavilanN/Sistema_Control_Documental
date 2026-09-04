@@ -36,39 +36,39 @@ interface SD01CrearTransporteProps {
 const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTransporteCreado, transporteEditar }) => {
   const usuario: any = auth.getUsuario();
   const esEdicion = !!transporteEditar;
-  
-  const [fechaProgramacion, setFechaProgramacion]: any = useState('');
-  const [conductorId, setConductorId]: any = useState('');
-  const [conductorTexto, setConductorTexto]: any = useState('');
-  const [patentePrincipalId, setPatentePrincipalId]: any = useState('');
-  const [patentePrincipalTexto, setPatentePrincipalTexto]: any = useState('');
-  const [patenteAdicionalId, setPatenteAdicionalId]: any = useState('');
-  const [patenteAdicionalTexto, setPatenteAdicionalTexto]: any = useState('');
-  const [locales, setLocales]: any = useState([{ codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
-  const [guardando, setGuardando]: any = useState(false);
-  const [mensaje, setMensaje]: any = useState({ tipo: '', texto: '' });
 
-  const [conductores, setConductores]: any = useState([]);
-  const [patentes, setPatentes]: any = useState([]);
-  const [todosLocales, setTodosLocales]: any = useState([]);
+  const [fechaProgramacion, setFechaProgramacion] = useState('');
+  const [conductorId, setConductorId] = useState('');
+  const [conductorTexto, setConductorTexto] = useState('');
+  const [patentePrincipalId, setPatentePrincipalId] = useState('');
+  const [patentePrincipalTexto, setPatentePrincipalTexto] = useState('');
+  const [patenteAdicionalId, setPatenteAdicionalId] = useState('');
+  const [patenteAdicionalTexto, setPatenteAdicionalTexto] = useState('');
+  const [locales, setLocales] = useState<any[]>([{ id: null, codigo_local: '', nombre_local: '', fecha_entrega: '', hora_entrega: '', cantidad_solicitada: '' }]);
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+
+  const [conductores, setConductores] = useState([]);
+  const [patentes, setPatentes] = useState([]);
+  const [todosLocales, setTodosLocales] = useState([]);
 
   // Autocompletado
-  const [mostrarSugerenciasConductor, setMostrarSugerenciasConductor]: any = useState(false);
-  const [sugerenciasConductor, setSugerenciasConductor]: any = useState([]);
-  const [indiceSeleccionadoConductor, setIndiceSeleccionadoConductor]: any = useState(-1);
+  const [mostrarSugerenciasConductor, setMostrarSugerenciasConductor] = useState(false);
+  const [sugerenciasConductor, setSugerenciasConductor] = useState([]);
+  const [indiceSeleccionadoConductor, setIndiceSeleccionadoConductor] = useState(-1);
 
-  const [mostrarSugerenciasPatentePrincipal, setMostrarSugerenciasPatentePrincipal]: any = useState(false);
-  const [sugerenciasPatentePrincipal, setSugerenciasPatentePrincipal]: any = useState([]);
-  const [indiceSeleccionadoPatentePrincipal, setIndiceSeleccionadoPatentePrincipal]: any = useState(-1);
+  const [mostrarSugerenciasPatentePrincipal, setMostrarSugerenciasPatentePrincipal] = useState(false);
+  const [sugerenciasPatentePrincipal, setSugerenciasPatentePrincipal] = useState([]);
+  const [indiceSeleccionadoPatentePrincipal, setIndiceSeleccionadoPatentePrincipal] = useState(-1);
 
-  const [mostrarSugerenciasPatenteAdicional, setMostrarSugerenciasPatenteAdicional]: any = useState(false);
-  const [sugerenciasPatenteAdicional, setSugerenciasPatenteAdicional]: any = useState([]);
-  const [indiceSeleccionadoPatenteAdicional, setIndiceSeleccionadoPatenteAdicional]: any = useState(-1);
+  const [mostrarSugerenciasPatenteAdicional, setMostrarSugerenciasPatenteAdicional] = useState(false);
+  const [sugerenciasPatenteAdicional, setSugerenciasPatenteAdicional] = useState([]);
+  const [indiceSeleccionadoPatenteAdicional, setIndiceSeleccionadoPatenteAdicional] = useState(-1);
 
-  const inputConductorRef: any = useRef(null);
-  const inputPatentePrincipalRef: any = useRef(null);
-  const inputPatenteAdicionalRef: any = useRef(null);
-  const sugerenciasConductorRef: any = useRef(null);
+  const inputConductorRef = useRef(null);
+  const inputPatentePrincipalRef = useRef(null);
+  const inputPatenteAdicionalRef = useRef(null);
+  const sugerenciasConductorRef = useRef(null);
 
   // Modales para agregar conductor y patente
   const [showModalConductor, setShowModalConductor] = useState(false);
@@ -94,7 +94,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     cargarConductores();
     cargarPatentes();
     cargarLocales();
-    
+
     if (esEdicion && transporteEditar) {
       cargarDatosEdicion();
     }
@@ -105,7 +105,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       const fecha = transporteEditar.fecha_programacion;
       setFechaProgramacion(fecha.includes('T') ? fecha.split('T')[0] : fecha);
     }
-    
+
     if (transporteEditar.conductor_id) {
       try {
         const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporteEditar.conductor_id, { headers: HEADERS });
@@ -116,7 +116,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
         }
       } catch (e) {}
     }
-    
+
     if (transporteEditar.patente_principal_id) {
       try {
         const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id, { headers: HEADERS });
@@ -138,7 +138,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
         }
       } catch (e) {}
     }
-    
+
     try {
       const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
       const data = await resp.json();
@@ -190,24 +190,24 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
   const handleBuscarConductor = (valor: string) => {
     setConductorTexto(valor);
     setConductorId('');
-    
+
     if (valor.trim() === '') {
       setSugerenciasConductor([]);
       setMostrarSugerenciasConductor(false);
       setIndiceSeleccionadoConductor(-1);
       return;
     }
-    
+
     const palabras = valor.trim().split(/\s+/);
     let sugerencias: any[] = [];
-    
+
     if (palabras.length === 1) {
       const busqueda = palabras[0];
       sugerencias = conductores.filter((c: any) => {
         const nombre = String(c.nombre || '').toLowerCase();
         const apellido = String(c.apellido || '').toLowerCase();
         const empresa = String(c.empresa || '').toLowerCase();
-        return nombre.startsWith(busqueda.toLowerCase()) || 
+        return nombre.startsWith(busqueda.toLowerCase()) ||
                apellido.startsWith(busqueda.toLowerCase()) ||
                empresa.startsWith(busqueda.toLowerCase());
       });
@@ -221,7 +221,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
                (apellido.startsWith(busqueda1) && nombre.startsWith(busqueda2));
       });
     }
-    
+
     setSugerenciasConductor(sugerencias);
     setMostrarSugerenciasConductor(sugerencias.length > 0);
     setIndiceSeleccionadoConductor(-1);
@@ -391,7 +391,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       setTimeout(() => setMensaje({ tipo: '', texto: '' }), 3000);
       return;
     }
-    const nuevosLocales = locales.filter((_: any, i: number) => i !== index);
+    // Si el local tiene id (existe en BD), se marcará para eliminación al guardar.
+    const nuevosLocales = locales.filter((_, i) => i !== index);
     setLocales(nuevosLocales);
   };
 
@@ -408,13 +409,20 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
       setMensaje({ tipo: 'error', texto: 'Debe seleccionar una patente principal' });
       return false;
     }
+    // Validar duplicados de códigos de local
+    const codigos = locales.map(l => l.codigo_local).filter(Boolean);
+    const duplicados = codigos.filter((c, i) => codigos.indexOf(c) !== i);
+    if (duplicados.length > 0) {
+      setMensaje({ tipo: 'error', texto: `El código de local ${duplicados[0]} está repetido en el transporte` });
+      return false;
+    }
     for (let i = 0; i < locales.length; i++) {
       if (!locales[i].codigo_local) {
-        setMensaje({ tipo: 'error', texto: 'El local ' + (i + 1) + ' debe tener un código' });
+        setMensaje({ tipo: 'error', texto: `El local ${i + 1} debe tener un código` });
         return false;
       }
       if (!locales[i].fecha_entrega) {
-        setMensaje({ tipo: 'error', texto: 'El local ' + (i + 1) + ' debe tener fecha de entrega' });
+        setMensaje({ tipo: 'error', texto: `El local ${i + 1} debe tener fecha de entrega` });
         return false;
       }
     }
@@ -430,32 +438,25 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     setGuardando(true);
     try {
       if (esEdicion) {
-        await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
-          method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conductor_id: conductorId,
-            patente_principal_id: patentePrincipalId,
-            patente_adicional_id: patenteAdicionalId || null,
-            fecha_programacion: fechaProgramacion + 'T12:00:00',
-            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-            modificado_en: new Date().toISOString()
-          })
-        });
-
+        // --- Lógica de guardado para edición ---
+        // 1. Obtener locales existentes en BD (solo id y codigo_local)
         const resp = await fetch(API_URL + '/sd01_documento_locales?select=id,codigo_local&documento_id=eq.' + transporteEditar.id_documento, { headers: HEADERS });
         const existentes = await resp.json();
-        const existentesMap = new Map(existentes.map((e: any) => [e.codigo_local, e.id]));
-        const codigosActuales = locales.map((l: any) => l.codigo_local);
 
+        // 2. IDs de locales actuales en el estado (los que tienen id)
+        const idsActuales = new Set(locales.filter(l => l.id).map(l => l.id));
+
+        // 3. Eliminar locales que ya no están en el estado (comparando por id)
         for (const existente of existentes) {
-          if (!codigosActuales.includes(existente.codigo_local)) {
+          if (!idsActuales.has(existente.id)) {
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + existente.id, { method: 'DELETE', headers: HEADERS });
           }
         }
 
+        // 4. Actualizar o insertar locales actuales
         for (const local of locales) {
           if (local.id) {
+            // Existe → actualizar
             await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
               method: 'PATCH',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -468,6 +469,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
               })
             });
           } else {
+            // No existe → insertar
             await fetch(API_URL + '/sd01_documento_locales', {
               method: 'POST',
               headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -482,9 +484,25 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             });
           }
         }
+
+        // 5. Actualizar datos del transporte (conductor, patentes, fecha)
+        await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conductor_id: conductorId,
+            patente_principal_id: patentePrincipalId,
+            patente_adicional_id: patenteAdicionalId || null,
+            fecha_programacion: fechaProgramacion + 'T12:00:00',
+            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+            modificado_en: new Date().toISOString()
+          })
+        });
+
       } else {
+        // --- Lógica de creación (igual que antes) ---
         const idDocumento = await generarIdTransporte(fechaProgramacion);
-        
+
         const transporteData = {
           id_documento: idDocumento,
           conductor_id: conductorId,
@@ -580,7 +598,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
     }
 
     try {
-      // CORRECCIÓN: usar Number() en lugar de parseInt()
       const cantidadSellos = Number(nuevaPatente.cantidad_sellos) || 0;
       const resp = await fetch(API_URL + '/patentes', {
         method: 'POST',
