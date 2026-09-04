@@ -54,15 +54,15 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
 
   // Autocompletado
   const [mostrarSugerenciasConductor, setMostrarSugerenciasConductor] = useState(false);
-  const [sugerenciasConductor, setSugerenciasConductor] = useState([]);
+  const [sugerenciasConductor, setSugerenciasConductor] = useState<any[]>([]);
   const [indiceSeleccionadoConductor, setIndiceSeleccionadoConductor] = useState(-1);
 
   const [mostrarSugerenciasPatentePrincipal, setMostrarSugerenciasPatentePrincipal] = useState(false);
-  const [sugerenciasPatentePrincipal, setSugerenciasPatentePrincipal] = useState([]);
+  const [sugerenciasPatentePrincipal, setSugerenciasPatentePrincipal] = useState<any[]>([]);
   const [indiceSeleccionadoPatentePrincipal, setIndiceSeleccionadoPatentePrincipal] = useState(-1);
 
   const [mostrarSugerenciasPatenteAdicional, setMostrarSugerenciasPatenteAdicional] = useState(false);
-  const [sugerenciasPatenteAdicional, setSugerenciasPatenteAdicional] = useState([]);
+  const [sugerenciasPatenteAdicional, setSugerenciasPatenteAdicional] = useState<any[]>([]);
   const [indiceSeleccionadoPatenteAdicional, setIndiceSeleccionadoPatenteAdicional] = useState(-1);
 
   const inputConductorRef = useRef(null);
