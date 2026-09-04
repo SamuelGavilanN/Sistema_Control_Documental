@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../../lib/auth';
 import { supabase } from '../../../lib/supabase';
+import * as XLSX from 'xlsx';
 import './SD06.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -43,6 +44,11 @@ const SD06PedidosEspeciales: React.FC = () => {
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [indiceCarrusel, setIndiceCarrusel] = useState(0);
   const [vistaCompleta, setVistaCompleta] = useState(false);
+  
+  // Estados para importación
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [archivoImport, setArchivoImport] = useState<File | null>(null);
+  const [procesandoImport, setProcesandoImport] = useState(false);
 
   const usuario = auth.getUsuario();
 
@@ -80,7 +86,6 @@ const SD06PedidosEspeciales: React.FC = () => {
 
   // Suscripción en tiempo real a cambios en la tabla pedidos_especiales
   useEffect(() => {
-    // Cargar al montar
     cargarPedidos();
 
     const channel = supabase
@@ -89,7 +94,6 @@ const SD06PedidosEspeciales: React.FC = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pedidos_especiales' },
         () => {
-          // Recargar datos ante cualquier cambio (INSERT, UPDATE, DELETE)
           cargarPedidos();
         }
       )
@@ -131,6 +135,102 @@ const SD06PedidosEspeciales: React.FC = () => {
       mostrarMensaje('info', 'Pedido marcado como pendiente');
     } catch (e) {
       mostrarMensaje('error', 'Error al actualizar el pedido');
+    }
+  };
+
+  // ====== PROCESAR IMPORTACIÓN DE EXCEL ======
+  const procesarImportacion = async () => {
+    if (!archivoImport) {
+      mostrarMensaje('warning', 'Seleccione un archivo Excel');
+      return;
+    }
+    setProcesandoImport(true);
+    try {
+      const data = await archivoImport.arrayBuffer();
+      const workbook = XLSX.read(data, { cellDates: true });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (rows.length === 0) {
+        mostrarMensaje('error', 'El archivo no contiene datos');
+        setProcesandoImport(false);
+        return;
+      }
+
+      // Buscar encabezados (normalizando)
+      const headers = rows[0];
+      const headersKeys = Object.keys(headers).map(k => k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      
+      const idxTipo = headersKeys.findIndex((h: string) => h.includes('tipo_pedido') || h.includes('tipo pedido') || h.includes('tipo'));
+      const idxTarea = headersKeys.findIndex((h: string) => h.includes('numero_tarea') || h.includes('numero tarea') || h.includes('tarea') || h.includes('numero'));
+      const idxCodigo = headersKeys.findIndex((h: string) => h.includes('codigo_local') || h.includes('codigo local') || h.includes('codigo'));
+      const idxNombre = headersKeys.findIndex((h: string) => h.includes('nombre_local') || h.includes('nombre local') || h.includes('nombre') || h.includes('tienda'));
+      const idxFecha = headersKeys.findIndex((h: string) => h.includes('fecha_pedido') || h.includes('fecha pedido') || h.includes('fecha'));
+      const idxEstado = headersKeys.findIndex((h: string) => h.includes('estado'));
+
+      if (idxTipo === -1 || idxTarea === -1 || idxCodigo === -1) {
+        mostrarMensaje('error', 'El archivo debe contener al menos las columnas: tipo_pedido, numero_tarea y codigo_local');
+        setProcesandoImport(false);
+        return;
+      }
+
+      // Preparar datos para insertar
+      const registros = rows.map((row: any) => {
+        const obj: any = {};
+        const keys = Object.keys(row);
+        const tipo = keys[idxTipo] ? row[keys[idxTipo]] : 'Pedido Especial';
+        const tarea = keys[idxTarea] ? row[keys[idxTarea]] : '';
+        const codigo = keys[idxCodigo] ? row[keys[idxCodigo]] : '';
+        const nombre = idxNombre >= 0 && keys[idxNombre] ? row[keys[idxNombre]] : '';
+        const fecha = idxFecha >= 0 && keys[idxFecha] ? row[keys[idxFecha]] : new Date().toISOString().slice(0, 10);
+        const estado = idxEstado >= 0 && keys[idxEstado] ? row[keys[idxEstado]] : 'Pendiente';
+
+        // Convertir fecha a formato ISO si viene en formato Excel (número) o texto
+        let fechaISO = fecha;
+        if (typeof fecha === 'number') {
+          const d = new Date((fecha - 25569) * 86400 * 1000);
+          fechaISO = d.toISOString().slice(0, 10);
+        } else if (typeof fecha === 'string' && fecha.includes('/')) {
+          const partes = fecha.split('/');
+          if (partes.length === 3) fechaISO = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+        }
+
+        return {
+          tipo_pedido: String(tipo).trim() || 'Pedido Especial',
+          numero_tarea: String(tarea).trim(),
+          codigo_local: String(codigo).trim(),
+          nombre_local: String(nombre).trim(),
+          fecha_pedido: fechaISO,
+          estado: String(estado).trim() || 'Pendiente',
+          etiqueta_generada: String(estado).trim() === 'Listo para cargar',
+          creado_por: usuario?.id || null,
+          creado_en: new Date().toISOString()
+        };
+      }).filter((r: any) => r.numero_tarea && r.codigo_local);
+
+      if (registros.length === 0) {
+        mostrarMensaje('error', 'No se encontraron registros válidos');
+        setProcesandoImport(false);
+        return;
+      }
+
+      // Insertar en Supabase (dividir en lotes)
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+        const batch = registros.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('pedidos_especiales').insert(batch);
+        if (error) throw error;
+      }
+
+      mostrarMensaje('success', `Se importaron ${registros.length} pedidos especiales correctamente`);
+      setShowImportModal(false);
+      setArchivoImport(null);
+      cargarPedidos();
+    } catch (e) {
+      console.error('Error importando pedidos:', e);
+      mostrarMensaje('error', 'Error al importar el archivo');
+    } finally {
+      setProcesandoImport(false);
     }
   };
 
@@ -184,7 +284,6 @@ const SD06PedidosEspeciales: React.FC = () => {
       p.etiqueta_generada ? 'Sí' : 'No',
       formatDate(p.creado_en) + ' ' + formatTime(p.creado_en)
     ]);
-    const XLSX = require('xlsx');
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pedidos Especiales');
@@ -225,6 +324,7 @@ const SD06PedidosEspeciales: React.FC = () => {
 
         <div className="sd06-separator"></div>
 
+        <button className="sd06-btn sd06-btn-import" onClick={() => setShowImportModal(true)}>📤 Subir Excel</button>
         <button className="sd06-btn sd06-btn-success" onClick={exportarExcel}>Exportar Excel</button>
         <button className="sd06-btn" onClick={() => setVistaCompleta(!vistaCompleta)}>
           {vistaCompleta ? 'Salir de Vista Completa' : 'Vista Completa'}
@@ -274,6 +374,41 @@ const SD06PedidosEspeciales: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Modal Importar Excel */}
+      {showImportModal && (
+        <div className="sd06-modal-overlay" onClick={() => setShowImportModal(false)}>
+          <div className="sd06-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sd06-modal-header">
+              <h2>📤 Importar Pedidos Especiales</h2>
+              <button className="sd06-modal-close" onClick={() => setShowImportModal(false)}>×</button>
+            </div>
+            <div className="sd06-modal-body">
+              <p className="sd06-modal-desc">
+                Selecciona un archivo Excel con las columnas: <strong>tipo_pedido</strong>, <strong>numero_tarea</strong>, <strong>codigo_local</strong>, <strong>nombre_local</strong> (opcional), <strong>fecha_pedido</strong> (opcional) y <strong>estado</strong> (opcional).
+              </p>
+              <div className="sd06-file-upload">
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setArchivoImport(e.target.files?.[0] || null)}
+                  id="sd06-excel-import"
+                />
+                <label htmlFor="sd06-excel-import" className="sd06-file-label">
+                  <span>📁</span>
+                  {archivoImport ? archivoImport.name : 'Haz clic para seleccionar archivo'}
+                </label>
+              </div>
+              <div className="sd06-modal-actions">
+                <button className="sd06-btn" onClick={() => setShowImportModal(false)}>Cancelar</button>
+                <button className="sd06-btn sd06-btn-primary" onClick={procesarImportacion} disabled={!archivoImport || procesandoImport}>
+                  {procesandoImport ? 'Procesando...' : 'Importar Pedidos'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
