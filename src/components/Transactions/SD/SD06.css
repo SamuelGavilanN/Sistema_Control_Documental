@@ -50,3 +50,71 @@
 .sd06-estado-listo { background: #dcfce7; color: #15803d; }
 
 .sd06-empty { text-align: center; padding: 40px; color: var(--text-muted); }
+.sd06-btn-import {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.sd06-btn-import:hover {
+  background: #2563eb;
+}
+
+.sd06-modal {
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.sd06-modal-header {
+  background: var(--bg-section);
+  border-bottom: 2px solid var(--border);
+  padding: 20px 24px;
+}
+
+.sd06-modal-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.sd06-file-upload {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.sd06-file-upload input[type="file"] {
+  display: none;
+}
+
+.sd06-file-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border: 2px dashed var(--border-input);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: var(--bg-section);
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.sd06-file-label:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-hover);
+}
+
+.sd06-file-label span {
+  font-size: 24px;
+}
+
+.sd06-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
