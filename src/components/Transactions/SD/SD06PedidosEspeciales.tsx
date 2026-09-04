@@ -63,7 +63,6 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
-  // Carrusel cada 5 segundos
   useEffect(() => {
     if (pedidos.length === 0) return;
     const interval = setInterval(() => {
@@ -90,17 +89,17 @@ const SD06PedidosEspeciales: React.FC = () => {
       const data = await archivo.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
       // Buscar encabezados (primera fila con contenido)
-      const headerRow = rows.find((r: any) => r && r.some((c: any) => c && c.toString().toLowerCase().includes('tarea')));
-      const headerIndex = rows.indexOf(headerRow);
-      if (headerIndex === -1) {
+      const headerRow = rows.find((r: any[]) => r && r.some((c: any) => c && c.toString().toLowerCase().includes('tarea')));
+      const headerIndex = rows.indexOf(headerRow as any[]);
+      if (headerIndex === -1 || !headerRow) {
         mostrarMensaje('error', 'No se encontró la columna "Número Tarea"');
         return;
       }
 
-      const headers = headerRow.map((h: any) => h.toString().toLowerCase());
+      const headers = (headerRow as any[]).map((h: any) => h.toString().toLowerCase());
       const idxTipo = headers.findIndex((h: string) => h.includes('tipo'));
       const idxTarea = headers.findIndex((h: string) => h.includes('tarea'));
       const idxCodigo = headers.findIndex((h: string) => h.includes('código') || h.includes('codigo'));
@@ -113,8 +112,8 @@ const SD06PedidosEspeciales: React.FC = () => {
       }
 
       const pedidos = rows.slice(headerIndex + 1)
-        .filter((r: any) => r && r[idxTarea])
-        .map((r: any) => ({
+        .filter((r: any[]) => r && r[idxTarea])
+        .map((r: any[]) => ({
           tipo_pedido: idxTipo >= 0 ? r[idxTipo]?.toString() || 'Pedido Especial' : 'Pedido Especial',
           numero_tarea: r[idxTarea].toString().trim(),
           codigo_local: idxCodigo >= 0 ? r[idxCodigo]?.toString() || null : null,
@@ -129,7 +128,6 @@ const SD06PedidosEspeciales: React.FC = () => {
         return;
       }
 
-      // Insertar en lotes
       const BATCH = 100;
       for (let i = 0; i < pedidos.length; i += BATCH) {
         const batch = pedidos.slice(i, i + BATCH);
