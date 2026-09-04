@@ -5,7 +5,6 @@ import { auth } from '../../../lib/auth';
 import { getUsuarios, getLoteActivo, invalidarRegistrosED01 } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { locales } from '../../../data/locales';
-import { registrarPedidoEspecial } from '../../../lib/pedidosEspeciales'; // <-- para registrar
 import * as XLSX from 'xlsx';
 import ED01Toolbar from './ED01Toolbar';
 import ED01Tabla from './ED01Tabla';
@@ -30,6 +29,33 @@ export interface ED01Row {
   modificado_por: string | null;
   modificado_en: string | null;
 }
+
+// Función auxiliar: si el numero_tarea existe en pedidos_especiales, actualizar estado a "Listo para cargar"
+const actualizarPedidoEspecialSiExiste = async (numeroTarea: string) => {
+  if (!numeroTarea) return;
+  try {
+    const { data, error } = await supabase
+      .from('pedidos_especiales')
+      .select('id')
+      .eq('numero_tarea', numeroTarea)
+      .limit(1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      await supabase
+        .from('pedidos_especiales')
+        .update({
+          estado: 'Listo para cargar',
+          etiqueta_generada: true,
+          actualizado_en: new Date().toISOString()
+        })
+        .eq('id', data[0].id);
+    }
+  } catch (e) {
+    console.error('Error actualizando pedido especial:', e);
+  }
+};
 
 const ED01View: React.FC = () => {
   const usuario = auth.getUsuario();
@@ -61,16 +87,14 @@ const ED01View: React.FC = () => {
     cargarRegistros(true);
   }, []);
 
-  // ====== SUSCRIPCIÓN REALTIME ======
+  // Realtime para actualizar tabla automáticamente
   useEffect(() => {
     const channel = supabase
       .channel('ed01-empaques-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'ed01_empaques' },
-        () => {
-          cargarRegistros(false); // recarga al recibir cualquier cambio
-        }
+        () => cargarRegistros(false)
       )
       .subscribe();
 
@@ -117,7 +141,6 @@ const ED01View: React.FC = () => {
         .from('ed01_empaques')
         .select('*', { count: 'exact', head: false });
 
-      // Aplicar filtros
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
         const op = filtro.operador;
@@ -128,31 +151,21 @@ const ED01View: React.FC = () => {
         } else if (op === 'no_vacio') {
           query = query.not(col, 'is', null);
         } else if (val !== '') {
-          if (op === 'igual') {
-            query = query.filter(col, 'eq', val);
-          } else if (op === 'mayor') {
-            query = query.filter(col, 'gt', Number(val));
-          } else if (op === 'menor') {
-            query = query.filter(col, 'lt', Number(val));
-          } else if (op === 'mayor_igual') {
-            query = query.filter(col, 'gte', Number(val));
-          } else if (op === 'menor_igual') {
-            query = query.filter(col, 'lte', Number(val));
-          } else if (op === 'contiene') {
-            query = query.filter(col, 'ilike', `%${val}%`);
-          } else if (op === 'no_contiene') {
-            query = query.not(col, 'ilike', `%${val}%`);
-          }
+          if (op === 'igual') query = query.filter(col, 'eq', val);
+          else if (op === 'mayor') query = query.filter(col, 'gt', Number(val));
+          else if (op === 'menor') query = query.filter(col, 'lt', Number(val));
+          else if (op === 'mayor_igual') query = query.filter(col, 'gte', Number(val));
+          else if (op === 'menor_igual') query = query.filter(col, 'lte', Number(val));
+          else if (op === 'contiene') query = query.filter(col, 'ilike', `%${val}%`);
+          else if (op === 'no_contiene') query = query.not(col, 'ilike', `%${val}%`);
         }
       });
 
       query = query.order(ordenColumna, { ascending: ordenDireccion === 'asc' });
-
       const desde = (paginaActual - 1) * limitePorPagina;
       query = query.range(desde, desde + limitePorPagina - 1);
 
       const { data, error, count } = await query;
-
       if (error) throw error;
 
       setRegistros(data || []);
@@ -164,16 +177,10 @@ const ED01View: React.FC = () => {
     }
   };
 
-  // --- Manejadores de eventos ---
+  // --- Manejadores ---
   const handleNuevo = () => {
-    if (!loteActivo) {
-      alert('No hay un lote activo. Cargue un lote en ED04 primero.');
-      return;
-    }
-    if (empaquesDisponibles <= 0) {
-      alert('El lote activo está agotado. Cargue un nuevo lote en ED04.');
-      return;
-    }
+    if (!loteActivo) { alert('No hay un lote activo. Cargue un lote en ED04 primero.'); return; }
+    if (empaquesDisponibles <= 0) { alert('El lote activo está agotado.'); return; }
     setModoModal('nuevo');
     setRegistroSeleccionado(null);
     setShowModal(true);
@@ -220,14 +227,6 @@ const ED01View: React.FC = () => {
     XLSX.writeFile(wb, 'Registro_Empaques_' + new Date().toLocaleDateString('es-CL').replace(/\//g, '-') + '.xlsx');
   };
 
-  // ====== DETECCIÓN AUTOMÁTICA DE PEDIDO ESPECIAL ======
-  // Si el modal envía un campo `tipo_pedido` distinto de vacío, se considera pedido especial.
-  // Puedes ajustar esta condición según tu lógica (por ejemplo, si numero_tarea empieza con "TAREA-").
-  const esPedidoEspecial = (datos: any) => {
-    return (datos.tipo_pedido && datos.tipo_pedido !== '') || 
-           (datos.numero_tarea && datos.numero_tarea.startsWith('TAREA-'));
-  };
-
   const handleGuardar = async (datos: any) => {
     try {
       const user = auth.getUsuario();
@@ -252,19 +251,8 @@ const ED01View: React.FC = () => {
         }]);
         if (insertError) throw insertError;
 
-        // ====== Registrar pedido especial si aplica ======
-        if (esPedidoEspecial(datos)) {
-          const numeroTarea = datos.numero_tarea || `TAREA-${Date.now()}`;
-          await registrarPedidoEspecial({
-            tipo_pedido: datos.tipo_pedido || 'Pedido Especial',
-            numero_tarea: numeroTarea,
-            codigo_local: datos.codigo_local,
-            nombre_local: localData?.nombre_local || '',
-            fecha_pedido: new Date().toISOString().slice(0, 10),
-            creado_por: user?.id
-          });
-        }
-        // ================================================
+        // ACTUALIZAR PEDIDO ESPECIAL SI EL NÚMERO DE TAREA COINCIDE
+        await actualizarPedidoEspecialSiExiste(datos.numero_tarea);
 
         invalidarRegistrosED01();
         setShowModal(false);
