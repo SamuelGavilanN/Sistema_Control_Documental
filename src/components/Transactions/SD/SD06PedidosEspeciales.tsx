@@ -68,12 +68,12 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
-  // Carrusel automático cada 5 segundos (solo pendientes)
+  // Carrusel automático cada 5 segundos (solo listos para cargar)
   useEffect(() => {
-    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
-    if (pendientes.length === 0) return;
+    const listos = pedidos.filter(p => p.estado === 'Listo para cargar');
+    if (listos.length === 0) return;
     const interval = setInterval(() => {
-      setIndiceCarrusel((prev) => (prev + 1) % Math.ceil(pendientes.length / 4));
+      setIndiceCarrusel((prev) => (prev + 1) % Math.ceil(listos.length / 4));
     }, 5000);
     return () => clearInterval(interval);
   }, [pedidos]);
@@ -177,19 +177,19 @@ const SD06PedidosEspeciales: React.FC = () => {
     }
   };
 
-  // Carrusel: solo pendientes
+  // Carrusel: solo listos para cargar
   const renderCarrusel = () => {
-    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
-    if (pendientes.length === 0) return null;
+    const listos = pedidos.filter(p => p.estado === 'Listo para cargar');
+    if (listos.length === 0) return null;
     const totalPorPagina = 4;
-    const totalPaginas = Math.ceil(pendientes.length / totalPorPagina);
+    const totalPaginas = Math.ceil(listos.length / totalPorPagina);
     const paginaActual = Math.min(indiceCarrusel % totalPaginas, totalPaginas - 1);
     const inicio = paginaActual * totalPorPagina;
-    const tarjetas = pendientes.slice(inicio, inicio + totalPorPagina);
+    const tarjetas = listos.slice(inicio, inicio + totalPorPagina);
 
     return (
       <div className="sd06-carrusel">
-        <h3>🚨 Pedidos Especiales Pendientes ({pendientes.length})</h3>
+        <h3>✅ Pedidos Especiales Listos para Cargar ({listos.length})</h3>
         <div className="sd06-carrusel-tarjetas">
           {tarjetas.map((p) => (
             <div key={p.id} className="sd06-carrusel-tarjeta">
@@ -197,7 +197,7 @@ const SD06PedidosEspeciales: React.FC = () => {
               <span>{p.tipo_pedido}</span>
               <span>{p.codigo_local} - {p.nombre_local}</span>
               <span>Fecha: {p.fecha_pedido}</span>
-              <span style={{ color: '#d97706', fontWeight: 'bold' }}>Pendiente</span>
+              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Listo para cargar</span>
             </div>
           ))}
         </div>
