@@ -125,34 +125,35 @@ const SD06PedidosEspeciales: React.FC = () => {
   }, [pedidosDetalle, ordenColumna, ordenDireccion]);
 
   // Consolidado: SIEMPRE usa todos los pedidos (ignora filtroEstado)
-  const consolidado = useMemo(() => {
-    const mapa = new Map<string, Consolidado>();
-    pedidos.forEach((p) => {
-      const key = `${p.codigo_local}||${p.tipo_pedido}`;
-      if (!mapa.has(key)) {
-        mapa.set(key, {
-          codigo_local: p.codigo_local,
-          nombre_local: p.nombre_local,
-          tipo_pedido: p.tipo_pedido,
-          total: 0,
-          listas: 0,
-          pendientes: 0,
-          faltantes: 0,
-          completo: false
+      const consolidado = useMemo(() => {
+        const mapa = new Map<string, Consolidado>();
+        pedidos.forEach((p) => {
+          const key = `${p.codigo_local}||${p.tipo_pedido}`;
+          if (!mapa.has(key)) {
+            mapa.set(key, {
+              codigo_local: p.codigo_local,
+              nombre_local: p.nombre_local,
+              tipo_pedido: p.tipo_pedido,
+              total: 0,
+              listas: 0,
+              pendientes: 0,
+              faltantes: 0,
+              completo: false
+            });
+          }
+          const item = mapa.get(key)!;
+          item.total++;
+          if (p.estado === 'Listo para cargar') item.listas++;
+          else item.pendientes++;
+          item.faltantes = item.total - item.listas;
+          item.completo = item.pendientes === 0;
         });
-      }
-      const item = mapa.get(key)!;
-      item.total++;
-      if (p.estado === 'Listo para cargar') item.listas++;
-      else item.pendientes++;
-      item.faltantes = item.total - item.listas;
-      item.completo = item.pendientes === 0;
-    });
-    return Array.from(mapa.values()).sort((a, b) => {
-      if (a.completo !== b.completo) return a.completo ? 1 : -1;
-      return a.codigo_local.localeCompare(b.codigo_local);
-    });
-  }, [pedidos]);
+        // Completos primero, luego por código local
+        return Array.from(mapa.values()).sort((a, b) => {
+          if (a.completo !== b.completo) return a.completo ? -1 : 1;
+          return a.codigo_local.localeCompare(b.codigo_local);
+        });
+      }, [pedidos]);
 
   const cambiarOrden = (columna: OrdenColumna) => {
     if (ordenColumna === columna) {
