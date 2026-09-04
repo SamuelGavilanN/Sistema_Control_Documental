@@ -38,6 +38,7 @@ const SD06PedidosEspeciales: React.FC = () => {
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [indiceCarrusel, setIndiceCarrusel] = useState(0);
+  const [indiceCarruselListos, setIndiceCarruselListos] = useState(0);
   const [vistaCompleta, setVistaCompleta] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -50,6 +51,7 @@ const SD06PedidosEspeciales: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  // Cargar todos los pedidos (solo filtro por fecha, NO por estado)
   const cargarPedidos = useCallback(async () => {
     try {
       setCargando(true);
@@ -58,7 +60,6 @@ const SD06PedidosEspeciales: React.FC = () => {
         .select('*')
         .order('creado_en', { ascending: false });
 
-      if (filtroEstado !== 'Todos') query = query.eq('estado', filtroEstado);
       if (filtroFecha) query = query.eq('fecha_pedido', filtroFecha);
 
       const { data, error } = await query;
@@ -69,7 +70,7 @@ const SD06PedidosEspeciales: React.FC = () => {
     } finally {
       setCargando(false);
     }
-  }, [filtroEstado, filtroFecha]);
+  }, [filtroFecha]);
 
   useEffect(() => {
     cargarPedidos();
@@ -80,7 +81,13 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
-  // Carrusel: solo pendientes
+  // Pedidos filtrados para la tabla de detalle (según filtroEstado)
+  const pedidosDetalle = useMemo(() => {
+    if (filtroEstado === 'Todos') return pedidos;
+    return pedidos.filter(p => p.estado === filtroEstado);
+  }, [pedidos, filtroEstado]);
+
+  // Carrusel de pendientes (cada 5 segundos)
   useEffect(() => {
     const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
     if (pendientes.length === 0) return;
@@ -90,9 +97,19 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => clearInterval(interval);
   }, [pedidos]);
 
+  // Carrusel de listos (cada 5 segundos)
+  useEffect(() => {
+    const listos = pedidos.filter(p => p.estado === 'Listo para cargar');
+    if (listos.length === 0) return;
+    const interval = setInterval(() => {
+      setIndiceCarruselListos((prev) => (prev + 1) % Math.ceil(listos.length / 4));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [pedidos]);
+
   // Ordenamiento de la tabla de detalle
   const pedidosOrdenados = useMemo(() => {
-    const copia = [...pedidos];
+    const copia = [...pedidosDetalle];
     copia.sort((a, b) => {
       let valA: any = a[ordenColumna];
       let valB: any = b[ordenColumna];
@@ -105,9 +122,9 @@ const SD06PedidosEspeciales: React.FC = () => {
       return 0;
     });
     return copia;
-  }, [pedidos, ordenColumna, ordenDireccion]);
+  }, [pedidosDetalle, ordenColumna, ordenDireccion]);
 
-  // Consolidado por local y tipo
+  // Consolidado: SIEMPRE usa todos los pedidos (ignora filtroEstado)
   const consolidado = useMemo(() => {
     const mapa = new Map<string, Consolidado>();
     pedidos.forEach((p) => {
@@ -219,8 +236,8 @@ const SD06PedidosEspeciales: React.FC = () => {
     }
   };
 
-  // Carrusel: solo pendientes
-  const renderCarrusel = () => {
+  // Render carrusel de pendientes
+  const renderCarruselPendientes = () => {
     const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
     if (pendientes.length === 0) return null;
     const totalPorPagina = 4;
@@ -231,15 +248,43 @@ const SD06PedidosEspeciales: React.FC = () => {
 
     return (
       <div className="sd06-carrusel">
-        <h3>🚨 Pedidos Especiales Pendientes ({pendientes.length})</h3>
+        <h3>🚨 Pendientes ({pendientes.length})</h3>
         <div className="sd06-carrusel-tarjetas">
           {tarjetas.map((p) => (
-            <div key={p.id} className="sd06-carrusel-tarjeta">
+            <div key={p.id} className="sd06-carrusel-tarjeta sd06-tarjeta-pendiente">
               <strong>{p.numero_tarea}</strong>
               <span>{p.tipo_pedido}</span>
               <span>{p.codigo_local} - {p.nombre_local}</span>
               <span>Fecha: {p.fecha_pedido}</span>
               <span style={{ color: '#d97706', fontWeight: 'bold' }}>Pendiente</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Render carrusel de listos
+  const renderCarruselListos = () => {
+    const listos = pedidos.filter(p => p.estado === 'Listo para cargar');
+    if (listos.length === 0) return null;
+    const totalPorPagina = 4;
+    const totalPaginas = Math.ceil(listos.length / totalPorPagina);
+    const paginaActual = Math.min(indiceCarruselListos % totalPaginas, totalPaginas - 1);
+    const inicio = paginaActual * totalPorPagina;
+    const tarjetas = listos.slice(inicio, inicio + totalPorPagina);
+
+    return (
+      <div className="sd06-carrusel">
+        <h3>✅ Listos para cargar ({listos.length})</h3>
+        <div className="sd06-carrusel-tarjetas">
+          {tarjetas.map((p) => (
+            <div key={p.id} className="sd06-carrusel-tarjeta sd06-tarjeta-listo">
+              <strong>{p.numero_tarea}</strong>
+              <span>{p.tipo_pedido}</span>
+              <span>{p.codigo_local} - {p.nombre_local}</span>
+              <span>Fecha: {p.fecha_pedido}</span>
+              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Listo</span>
             </div>
           ))}
         </div>
@@ -312,12 +357,13 @@ const SD06PedidosEspeciales: React.FC = () => {
         </button>
       </div>
 
-      {renderCarrusel()}
+      {renderCarruselPendientes()}
+      {renderCarruselListos()}
 
       {/* ====== TABLA CONSOLIDADA (vista consolidado) ====== */}
       {vistaTabla === 'consolidado' && (
         <div className="sd06-table-wrapper">
-          <h3 className="sd06-subtitulo-tabla">Resumen de Cargas por Local y Tipo</h3>
+          <h3 className="sd06-subtitulo-tabla">Resumen de Cargas por Local y Tipo (Todos los estados)</h3>
           <table className="sd06-table">
             <thead>
               <tr>
@@ -385,8 +431,8 @@ const SD06PedidosEspeciales: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {pedidos.length === 0 ? (
-                <tr><td colSpan={7} className="sd06-empty">No hay pedidos registrados</td></tr>
+              {pedidosDetalle.length === 0 ? (
+                <tr><td colSpan={7} className="sd06-empty">No hay pedidos para el filtro seleccionado</td></tr>
               ) : (
                 pedidosOrdenados.map((p) => (
                   <tr key={p.id}>
