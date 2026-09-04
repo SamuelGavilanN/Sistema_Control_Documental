@@ -212,25 +212,25 @@ body{background:#e5e7eb;padding:20px}
 .paper{width:21.59cm;min-height:27.94cm;background:white;box-shadow:0 10px 25px rgba(0,0,0,0.1);padding:1cm 0.5cm 0.2cm 0.5cm;position:relative;margin:0 auto 20px;page-break-after:always;page-break-inside:avoid}
 .paper:last-child{page-break-after:auto}
 .logo-header{position:absolute;top:0.15cm;left:0.5cm;height:0.9cm;width:auto;z-index:10}
-.local-text-header{position:absolute;top:calc(0.2cm + 2px);right:0.5cm;font-family:'Comic Sans MS',cursive;font-size:26px;color:#000;text-align:right;z-index:10}
+.local-text-header{position:absolute;top:calc(0.2cm + 2px);right:0.5cm;font-family:'Comic Sans MS',cursive;font-size:28px;color:#000;text-align:right;z-index:10}
 .main-container{width:100%;min-height:calc(27.94cm - 1cm - 0.2cm - 1.35cm);border:2px solid #000;background:#fff;padding:0.8rem;margin-top:0.15cm;display:flex;flex-direction:column}
 .date-table-container{margin-left:0.03cm;margin-top:0.03cm;width:100%}
 .date-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.date-table td{border:3px double #000;padding:2px 4px;font-size:16px;font-weight:bold;text-align:center}
+.date-table td{border:3px double #000;padding:2px 4px;font-size:18px;font-weight:bold;text-align:center}
 .date-table td:nth-child(1){width:4cm;background:rgb(217,217,217)}
 .date-table td:nth-child(2){width:auto;background:transparent}
 .date-table td:nth-child(3){width:4cm;background:rgb(217,217,217)}
 .date-table td:nth-child(4){width:auto;background:transparent}
 .local-table-container{margin-left:0.03cm;margin-top:0.2cm;width:100%}
 .local-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.local-table td{border:3px double #000;padding:2px 8px;font-size:22px;font-weight:bold;text-align:center}
+.local-table td{border:3px double #000;padding:2px 8px;font-size:24px;font-weight:bold;text-align:center}
 .local-table td:nth-child(1){width:4cm;background:rgb(217,217,217)}
 .local-table td:nth-child(2){width:auto;background:transparent}
 .centros-table-container{margin-left:0.03cm;margin-top:0.2cm;width:100%}
 .centros-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
 .centros-table td,.centros-table th{border:2px double #000;padding:2px 6px;text-align:center}
-.centros-table th{font-size:13px;font-weight:bold;background:rgb(217,217,217)}
-.centros-table td{font-size:13px}
+.centros-table th{font-size:15px;font-weight:bold;background:rgb(217,217,217)}
+.centros-table td{font-size:15px}
 .centros-table th:nth-child(1),.centros-table td:nth-child(1){width:6cm}
 .centros-table th:nth-child(2),.centros-table td:nth-child(2){width:2.5cm}
 .centros-table th:nth-child(3),.centros-table td:nth-child(3){width:2.5cm}
@@ -239,14 +239,14 @@ body{background:#e5e7eb;padding:20px}
 .celda-vacia{background:rgb(217,217,217)}
 .total-centros-container{margin-left:0.03cm;margin-top:0.1cm;width:13.5cm}
 .total-centros-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.total-centros-table td{border:2px double #000;padding:2px 6px;font-size:13px;font-weight:bold;background:rgb(217,217,217);text-align:center}
+.total-centros-table td{border:2px double #000;padding:2px 6px;font-size:15px;font-weight:bold;background:rgb(217,217,217);text-align:center}
 .total-centros-table td:nth-child(1){width:11cm}
 .total-centros-table td:nth-child(2){width:2.5cm}
 .otros-segmentos-table-container{margin-left:0.03cm;margin-top:1.5cm;width:100%}
 .otros-segmentos-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
 .otros-segmentos-table td,.otros-segmentos-table th{border:2px double #000;padding:2px 6px;text-align:center}
-.otros-segmentos-table th{font-size:13px;font-weight:bold;background:rgb(217,217,217)}
-.otros-segmentos-table td{font-size:13px}
+.otros-segmentos-table th{font-size:15px;font-weight:bold;background:rgb(217,217,217)}
+.otros-segmentos-table td{font-size:15px}
 .otros-segmentos-table th:nth-child(1),.otros-segmentos-table td:nth-child(1){width:6cm}
 .otros-segmentos-table th:nth-child(2),.otros-segmentos-table td:nth-child(2){width:2.5cm}
 .otros-segmentos-table th:nth-child(3),.otros-segmentos-table td:nth-child(3){width:2.5cm}
@@ -254,22 +254,22 @@ body{background:#e5e7eb;padding:20px}
 .otros-segmentos-table th:nth-child(5),.otros-segmentos-table td:nth-child(5){width:auto}
 .total-otros-segmentos-container{margin-left:0.03cm;margin-top:0.1cm;width:13.5cm}
 .total-otros-segmentos-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.total-otros-segmentos-table td{border:2px double #000;padding:2px 6px;font-size:13px;font-weight:bold;background:rgb(217,217,217);text-align:center}
+.total-otros-segmentos-table td{border:2px double #000;padding:2px 6px;font-size:15px;font-weight:bold;background:rgb(217,217,217);text-align:center}
 .total-otros-segmentos-table td:nth-child(1){width:11cm}
 .total-otros-segmentos-table td:nth-child(2){width:2.5cm}
 .total-carga-container{margin-left:0.03cm;margin-top:0.1cm;width:13.5cm}
 .total-carga-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.total-carga-table td{border:2px double #000;padding:2px 6px;font-size:14px;font-weight:bold;background:rgb(217,217,217);text-align:center}
+.total-carga-table td{border:2px double #000;padding:2px 6px;font-size:16px;font-weight:bold;background:rgb(217,217,217);text-align:center}
 .total-carga-table td:nth-child(1){width:11cm}
 .total-carga-table td:nth-child(2){width:2.5cm}
 .tablas-inferiores-container{display:flex;justify-content:space-between;margin-top:auto;padding-top:0.2cm;width:100%}
 .columna-izquierda,.columna-derecha{width:8.5cm;display:flex;flex-direction:column}
 .firma-tienda-container,.firma-conductor-container{width:8.5cm;margin-bottom:1cm}
 .firma-tienda-table,.firma-conductor-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.firma-tienda-table td,.firma-conductor-table td{border-top:2px double #000;border-left:none;border-right:none;border-bottom:none;padding:4px;font-size:12px;text-align:center}
+.firma-tienda-table td,.firma-conductor-table td{border-top:2px double #000;border-left:none;border-right:none;border-bottom:none;padding:4px;font-size:14px;text-align:center}
 .tabla-transporte-container,.tabla-sellos-container{width:8.5cm}
 .tabla-transporte-table,.tabla-sellos-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace}
-.tabla-transporte-table td,.tabla-sellos-table td{border:2px double #000;padding:2px 4px;font-size:12px;text-align:center}
+.tabla-transporte-table td,.tabla-sellos-table td{border:2px double #000;padding:2px 4px;font-size:14px;text-align:center}
 .tabla-transporte-table td:nth-child(1),.tabla-sellos-table td:nth-child(1){width:4cm;font-weight:bold;background:rgb(217,217,217)}
 .tabla-transporte-table td:nth-child(2),.tabla-sellos-table td:nth-child(2){width:4.5cm;background:transparent}
 @media print{html,body{width:100%;height:100%;margin:0;padding:0;background:white;-webkit-print-color-adjust:exact;print-color-adjust:exact}.paper{box-shadow:none;margin:0;width:21.59cm;min-height:27.94cm;padding:1cm 0.5cm 0.2cm 0.5cm;page-break-after:always;page-break-inside:avoid;overflow:hidden}.paper:last-child{page-break-after:auto}.main-container{border:2px solid black;min-height:calc(27.94cm - 1cm - 0.2cm - 1.35cm);overflow:hidden}.logo-header{position:absolute;top:0.15cm;left:0.5cm;height:0.9cm;width:auto}}
