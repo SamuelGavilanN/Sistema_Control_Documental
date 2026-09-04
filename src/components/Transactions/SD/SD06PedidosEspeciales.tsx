@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../../lib/auth';
+import { supabase } from '../../../lib/supabase';
 import './SD06.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
@@ -50,35 +51,56 @@ const SD06PedidosEspeciales: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Cargar pedidos (con polling cada 10 segundos para actualización automática)
+  // Cargar pedidos con filtros
   const cargarPedidos = useCallback(async () => {
     try {
-      let query = `${API_URL}/pedidos_especiales?select=*&order=creado_en.desc`;
+      setCargando(true);
+      let query = supabase
+        .from('pedidos_especiales')
+        .select('*')
+        .order('creado_en', { ascending: false });
 
       if (filtroEstado !== 'Todos') {
-        query += `&estado=eq.${encodeURIComponent(filtroEstado)}`;
+        query = query.eq('estado', filtroEstado);
       }
       if (filtroFecha) {
-        query += `&fecha_pedido=eq.${filtroFecha}`;
+        query = query.eq('fecha_pedido', filtroFecha);
       }
 
-      const resp = await fetch(query, { headers: HEADERS });
-      const data = await resp.json();
-      if (Array.isArray(data)) {
-        setPedidos(data);
-      }
+      const { data, error } = await query;
+      if (error) throw error;
+      if (data) setPedidos(data);
     } catch (e) {
       console.error('Error cargando pedidos:', e);
+      mostrarMensaje('error', 'Error al cargar pedidos');
+    } finally {
+      setCargando(false);
     }
   }, [filtroEstado, filtroFecha]);
 
+  // Suscripción en tiempo real a cambios en la tabla pedidos_especiales
   useEffect(() => {
+    // Cargar al montar
     cargarPedidos();
-    const interval = setInterval(cargarPedidos, 10000); // Actualiza cada 10 segundos
-    return () => clearInterval(interval);
+
+    const channel = supabase
+      .channel('pedidos-especiales-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos_especiales' },
+        () => {
+          // Recargar datos ante cualquier cambio (INSERT, UPDATE, DELETE)
+          cargarPedidos();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [cargarPedidos]);
 
-  // Carrusel automático cada 5 segundos (para que se mueva rápido)
+  // Carrusel automático cada 5 segundos (solo rota visualmente)
   useEffect(() => {
     if (pedidos.length === 0) return;
     const interval = setInterval(() => {
@@ -87,39 +109,26 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => clearInterval(interval);
   }, [pedidos.length]);
 
-  // Actualizar estado a "Listo para cargar"
+  // Cambiar estado
   const marcarListo = async (id: string) => {
     try {
-      await fetch(`${API_URL}/pedidos_especiales?id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Listo para cargar',
-          etiqueta_generada: true,
-          actualizado_en: new Date().toISOString()
-        })
-      });
+      await supabase
+        .from('pedidos_especiales')
+        .update({ estado: 'Listo para cargar', etiqueta_generada: true, actualizado_en: new Date().toISOString() })
+        .eq('id', id);
       mostrarMensaje('success', 'Pedido marcado como listo para cargar');
-      cargarPedidos();
     } catch (e) {
       mostrarMensaje('error', 'Error al actualizar el pedido');
     }
   };
 
-  // Revertir a pendiente
   const marcarPendiente = async (id: string) => {
     try {
-      await fetch(`${API_URL}/pedidos_especiales?id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Pendiente',
-          etiqueta_generada: false,
-          actualizado_en: new Date().toISOString()
-        })
-      });
+      await supabase
+        .from('pedidos_especiales')
+        .update({ estado: 'Pendiente', etiqueta_generada: false, actualizado_en: new Date().toISOString() })
+        .eq('id', id);
       mostrarMensaje('info', 'Pedido marcado como pendiente');
-      cargarPedidos();
     } catch (e) {
       mostrarMensaje('error', 'Error al actualizar el pedido');
     }
@@ -175,7 +184,6 @@ const SD06PedidosEspeciales: React.FC = () => {
       p.etiqueta_generada ? 'Sí' : 'No',
       formatDate(p.creado_en) + ' ' + formatTime(p.creado_en)
     ]);
-    // Usar XLSX (ya está en el proyecto)
     const XLSX = require('xlsx');
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
