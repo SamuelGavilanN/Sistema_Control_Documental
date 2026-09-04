@@ -5,6 +5,7 @@ import { auth } from '../../../lib/auth';
 import { getUsuarios, getLoteActivo, invalidarRegistrosED01 } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { locales } from '../../../data/locales';
+import { registrarPedidoEspecial } from '../../../lib/pedidosEspeciales'; // <-- NUEVO IMPORT
 import * as XLSX from 'xlsx';
 import ED01Toolbar from './ED01Toolbar';
 import ED01Tabla from './ED01Tabla';
@@ -61,6 +62,8 @@ const ED01View: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Nota: Si deseas actualización automática, puedes usar Supabase Realtime.
+    // Aquí se mantiene el polling cada 10 segundos como en tu código original.
     const intervalo = setInterval(() => {
       cargarRegistros(false);
     }, 10000);
@@ -154,7 +157,7 @@ const ED01View: React.FC = () => {
     }
   };
 
-  // --- Manejadores de eventos (sin cambios) ---
+  // --- Manejadores de eventos ---
   const handleNuevo = () => {
     if (!loteActivo) {
       alert('No hay un lote activo. Cargue un lote en ED04 primero.');
@@ -233,6 +236,21 @@ const ED01View: React.FC = () => {
           creado_en: new Date().toISOString()
         }]);
         if (insertError) throw insertError;
+
+        // ========== NUEVO: Registrar pedido especial si corresponde ==========
+        if (datos.es_pedido_especial) {
+          const numeroTarea = datos.numero_tarea || `TAREA-${Date.now()}`;
+          await registrarPedidoEspecial({
+            tipo_pedido: datos.tipo_pedido || 'Pedido Especial',
+            numero_tarea: numeroTarea,
+            codigo_local: datos.codigo_local,
+            nombre_local: localData?.nombre_local || '',
+            fecha_pedido: new Date().toISOString().slice(0, 10),
+            creado_por: user?.id
+          });
+        }
+        // =====================================================================
+
         invalidarRegistrosED01();
         setShowModal(false);
         verificarLoteActivo();
