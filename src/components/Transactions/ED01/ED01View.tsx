@@ -5,7 +5,7 @@ import { auth } from '../../../lib/auth';
 import { getUsuarios, getLoteActivo, invalidarRegistrosED01 } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { locales } from '../../../data/locales';
-import { registrarPedidoEspecial } from '../../../lib/pedidosEspeciales'; // <-- NUEVO IMPORT
+import { registrarPedidoEspecial } from '../../../lib/pedidosEspeciales'; // <-- para registrar
 import * as XLSX from 'xlsx';
 import ED01Toolbar from './ED01Toolbar';
 import ED01Tabla from './ED01Tabla';
@@ -61,13 +61,22 @@ const ED01View: React.FC = () => {
     cargarRegistros(true);
   }, []);
 
+  // ====== SUSCRIPCIÓN REALTIME ======
   useEffect(() => {
-    // Nota: Si deseas actualización automática, puedes usar Supabase Realtime.
-    // Aquí se mantiene el polling cada 10 segundos como en tu código original.
-    const intervalo = setInterval(() => {
-      cargarRegistros(false);
-    }, 10000);
-    return () => clearInterval(intervalo);
+    const channel = supabase
+      .channel('ed01-empaques-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ed01_empaques' },
+        () => {
+          cargarRegistros(false); // recarga al recibir cualquier cambio
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [filtros, ordenColumna, ordenDireccion, paginaActual, limitePorPagina]);
 
   const cargarUsuarios = async () => {
@@ -108,7 +117,7 @@ const ED01View: React.FC = () => {
         .from('ed01_empaques')
         .select('*', { count: 'exact', head: false });
 
-      // Aplicar filtros usando .filter() para evitar problemas de tipos
+      // Aplicar filtros
       filtros.forEach((filtro: any) => {
         const col = filtro.columna;
         const op = filtro.operador;
@@ -137,10 +146,8 @@ const ED01View: React.FC = () => {
         }
       });
 
-      // Ordenamiento
       query = query.order(ordenColumna, { ascending: ordenDireccion === 'asc' });
 
-      // Paginación
       const desde = (paginaActual - 1) * limitePorPagina;
       query = query.range(desde, desde + limitePorPagina - 1);
 
@@ -213,6 +220,14 @@ const ED01View: React.FC = () => {
     XLSX.writeFile(wb, 'Registro_Empaques_' + new Date().toLocaleDateString('es-CL').replace(/\//g, '-') + '.xlsx');
   };
 
+  // ====== DETECCIÓN AUTOMÁTICA DE PEDIDO ESPECIAL ======
+  // Si el modal envía un campo `tipo_pedido` distinto de vacío, se considera pedido especial.
+  // Puedes ajustar esta condición según tu lógica (por ejemplo, si numero_tarea empieza con "TAREA-").
+  const esPedidoEspecial = (datos: any) => {
+    return (datos.tipo_pedido && datos.tipo_pedido !== '') || 
+           (datos.numero_tarea && datos.numero_tarea.startsWith('TAREA-'));
+  };
+
   const handleGuardar = async (datos: any) => {
     try {
       const user = auth.getUsuario();
@@ -237,8 +252,8 @@ const ED01View: React.FC = () => {
         }]);
         if (insertError) throw insertError;
 
-        // ========== NUEVO: Registrar pedido especial si corresponde ==========
-        if (datos.es_pedido_especial) {
+        // ====== Registrar pedido especial si aplica ======
+        if (esPedidoEspecial(datos)) {
           const numeroTarea = datos.numero_tarea || `TAREA-${Date.now()}`;
           await registrarPedidoEspecial({
             tipo_pedido: datos.tipo_pedido || 'Pedido Especial',
@@ -249,7 +264,7 @@ const ED01View: React.FC = () => {
             creado_por: user?.id
           });
         }
-        // =====================================================================
+        // ================================================
 
         invalidarRegistrosED01();
         setShowModal(false);
