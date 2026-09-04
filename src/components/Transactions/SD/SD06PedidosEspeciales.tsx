@@ -68,21 +68,22 @@ const SD06PedidosEspeciales: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [cargarPedidos]);
 
-  // Carrusel automático cada 5 segundos
+  // Carrusel automático cada 5 segundos (solo pendientes)
   useEffect(() => {
-    if (pedidos.length === 0) return;
+    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
+    if (pendientes.length === 0) return;
     const interval = setInterval(() => {
-      setIndiceCarrusel((prev) => (prev + 1) % Math.ceil(pedidos.length / 4));
+      setIndiceCarrusel((prev) => (prev + 1) % Math.ceil(pendientes.length / 4));
     }, 5000);
     return () => clearInterval(interval);
-  }, [pedidos.length]);
+  }, [pedidos]);
 
   // Ordenamiento de la tabla
   const pedidosOrdenados = useMemo(() => {
     const copia = [...pedidos];
     copia.sort((a, b) => {
-      let valA = a[ordenColumna];
-      let valB = b[ordenColumna];
+      let valA: any = a[ordenColumna];
+      let valB: any = b[ordenColumna];
       if (typeof valA === 'boolean') {
         valA = valA ? 1 : 0;
         valB = valB ? 1 : 0;
@@ -176,18 +177,19 @@ const SD06PedidosEspeciales: React.FC = () => {
     }
   };
 
-  // Carrusel con los pedidos filtrados (respeta filtro)
+  // Carrusel: solo pendientes
   const renderCarrusel = () => {
-    if (pedidos.length === 0) return null;
+    const pendientes = pedidos.filter(p => p.estado === 'Pendiente');
+    if (pendientes.length === 0) return null;
     const totalPorPagina = 4;
-    const totalPaginas = Math.ceil(pedidos.length / totalPorPagina);
+    const totalPaginas = Math.ceil(pendientes.length / totalPorPagina);
     const paginaActual = Math.min(indiceCarrusel % totalPaginas, totalPaginas - 1);
     const inicio = paginaActual * totalPorPagina;
-    const tarjetas = pedidos.slice(inicio, inicio + totalPorPagina);
+    const tarjetas = pendientes.slice(inicio, inicio + totalPorPagina);
 
     return (
       <div className="sd06-carrusel">
-        <h3>🚨 Pedidos Especiales ({pedidos.length})</h3>
+        <h3>🚨 Pedidos Especiales Pendientes ({pendientes.length})</h3>
         <div className="sd06-carrusel-tarjetas">
           {tarjetas.map((p) => (
             <div key={p.id} className="sd06-carrusel-tarjeta">
@@ -195,7 +197,7 @@ const SD06PedidosEspeciales: React.FC = () => {
               <span>{p.tipo_pedido}</span>
               <span>{p.codigo_local} - {p.nombre_local}</span>
               <span>Fecha: {p.fecha_pedido}</span>
-              <span style={{ color: p.estado === 'Pendiente' ? '#d97706' : '#16a34a', fontWeight: 'bold' }}>{p.estado}</span>
+              <span style={{ color: '#d97706', fontWeight: 'bold' }}>Pendiente</span>
             </div>
           ))}
         </div>
