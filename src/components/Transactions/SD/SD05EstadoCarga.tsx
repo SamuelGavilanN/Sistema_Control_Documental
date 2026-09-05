@@ -2,14 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { auth } from '../../../lib/auth';
+import { supabase } from '../../../lib/supabase';
 import './SD05.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface Frecuencia {
   id: string;
@@ -37,19 +31,17 @@ interface FilaDashboard {
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-const formatNumber = (num: number): string => {
-  return num.toLocaleString('es-CL');
-};
+const formatNumber = (num: number): string => num.toLocaleString('es-CL');
 
-// Normaliza texto para comparar sin acentos
-const normalizarTexto = (texto: string): string => {
-  return texto.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Normaliza texto: elimina acentos, convierte a mayúsculas y recorta espacios
+const normalizar = (texto: string): string => {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 };
 
 const SD05EstadoCarga: React.FC = () => {
   const [frecuencias, setFrecuencias] = useState<Frecuencia[]>([]);
   const [wmsConsolidado, setWmsConsolidado] = useState<WmsConsolidado[]>([]);
-  const [filtroDia, setFiltroDia] = useState<string>('');
+  const [filtroDia, setFiltroDia] = useState('');
   const [datos, setDatos] = useState<FilaDashboard[]>([]);
   const [orden, setOrden] = useState<{ columna: string; direccion: 'asc' | 'desc' }>({ columna: 'codigo', direccion: 'asc' });
   const [cargando, setCargando] = useState(false);
@@ -68,46 +60,45 @@ const SD05EstadoCarga: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Calcular el día de carga actual (considerando hora >= 4 AM)
+  // Calcular día actual (después de las 4 AM)
   const obtenerDiaActual = useCallback(() => {
     const ahora = new Date();
     const hora = ahora.getHours();
-    let diaIndex = ahora.getDay(); // 0=domingo, 1=lunes, ...
+    let diaIndex = ahora.getDay(); // 0=domingo
     if (hora < 4) diaIndex = (diaIndex + 6) % 7;
     return DIAS[diaIndex];
   }, []);
 
   useEffect(() => {
-    const dia = obtenerDiaActual();
-    setFiltroDia(dia);
+    setFiltroDia(obtenerDiaActual());
     cargarDatos();
   }, []);
 
   const cargarDatos = useCallback(async () => {
     setCargando(true);
     try {
-      const [respFrec, respWms] = await Promise.all([
-        fetch(`${API_URL}/frecuencias?select=*&activo=eq.true`, { headers: HEADERS }),
-        fetch(`${API_URL}/wms_carga_consolidada?select=*`, { headers: HEADERS })
+      // Cargar frecuencias y wms consolidado en paralelo
+      const [frecResp, wmsResp] = await Promise.all([
+        supabase.from('frecuencias').select('*').eq('activo', true),
+        supabase.from('wms_carga_consolidada').select('*')
       ]);
 
-      const frecData = await respFrec.json();
-      const wmsData = await respWms.json();
+      if (frecResp.error) throw frecResp.error;
+      if (wmsResp.error) throw wmsResp.error;
 
-      if (Array.isArray(frecData)) setFrecuencias(frecData);
-      if (Array.isArray(wmsData)) {
-        // Convertir a estructura simple
-        const consolidado: WmsConsolidado[] = wmsData.map((item: any) => ({
-          drop_local: item.drop_local,
+      setFrecuencias(frecResp.data || []);
+      setWmsConsolidado(
+        (wmsResp.data || []).map((item: any) => ({
+          drop_local: normalizar(item.drop_local),
           cantidad: item.cantidad || 0
-        }));
-        setWmsConsolidado(consolidado);
-      }
+        }))
+      );
     } catch (e) {
       console.error('Error cargando datos:', e);
       mostrarMensaje('error', 'Error al cargar datos');
+    } finally {
+      setCargando(false);
     }
-    setCargando(false);
   }, []);
 
   // Filtrar y combinar datos
@@ -115,11 +106,10 @@ const SD05EstadoCarga: React.FC = () => {
     const datosFiltrados = frecuencias
       .filter((f) => !filtroDia || f.dia_carga === filtroDia)
       .map((f) => {
-        // Buscar en wmsConsolidado por drop_local
-        const wms = wmsConsolidado.find((w) => w.drop_local === f.drop_local);
+        const wms = wmsConsolidado.find((w) => w.drop_local === normalizar(f.drop_local));
         const cantidad_actual = wms ? wms.cantidad : 0;
         const cantidad_estimada = f.cantidad_estimada_despacho || 0;
-        // Regla: si estimado es 0 pero actual > 0, igualamos estimado a actual
+        // Si estimado es 0 pero actual > 0, igualamos estimado a actual
         let estimado = cantidad_estimada;
         if (estimado === 0 && cantidad_actual > 0) estimado = cantidad_actual;
         const diferencia = cantidad_actual - estimado;
@@ -144,11 +134,10 @@ const SD05EstadoCarga: React.FC = () => {
       });
 
     setDatos(datosFiltrados);
-    const deficit = datosFiltrados.filter((d) => d.diferencia < 0);
-    setLocalesDeficit(deficit);
+    setLocalesDeficit(datosFiltrados.filter((d) => d.diferencia < 0));
   }, [frecuencias, wmsConsolidado, filtroDia, orden]);
 
-  // Carrusel automático cada 30 segundos
+  // Carrusel automático (cada 30 segundos)
   useEffect(() => {
     if (localesDeficit.length === 0) return;
     const interval = setInterval(() => {
@@ -191,7 +180,7 @@ const SD05EstadoCarga: React.FC = () => {
       const data = await archivo.arrayBuffer();
       const workbook = XLSX.read(data, { cellDates: false });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
       // Buscar encabezados (normalizados)
       let headerIndex = -1;
@@ -201,10 +190,10 @@ const SD05EstadoCarga: React.FC = () => {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !Array.isArray(row)) continue;
-        const headersRow = row.map((cell: any) => normalizarTexto(cell || ''));
+        const headersRow = row.map((cell: any) => normalizar(cell?.toString() || ''));
 
-        const ubicacionIndex = headersRow.findIndex((h: string) => h.includes('ubicacion') || h.includes('num ubicacion') || h.includes('numero ubicacion'));
-        const cantidadIndex = headersRow.findIndex((h: string) => h.includes('cantidad') && !h.includes('revision'));
+        const ubicacionIndex = headersRow.findIndex((h: string) => h.includes('UBICACION'));
+        const cantidadIndex = headersRow.findIndex((h: string) => h.includes('CANTIDAD') && !h.includes('REVISION'));
 
         if (ubicacionIndex !== -1 && cantidadIndex !== -1) {
           headerIndex = i;
@@ -220,13 +209,13 @@ const SD05EstadoCarga: React.FC = () => {
         return;
       }
 
-      // Recoger filas de datos (ignorar encabezados)
+      // Recoger filas de datos
       const filasData = rows.slice(headerIndex + 1).filter((r: any) => r && r[idxUbicacion]);
 
-      // Consolidar por drop (numero_ubicacion)
+      // Consolidar por ubicación normalizada (mayúsculas y sin espacios)
       const mapa = new Map<string, number>();
       filasData.forEach((r: any) => {
-        const ubicacion = String(r[idxUbicacion]).trim();
+        const ubicacion = normalizar(String(r[idxUbicacion]).trim());
         const cantidad = parseInt(r[idxCantidad]) || 0;
         if (ubicacion) {
           const actual = mapa.get(ubicacion) || 0;
@@ -234,7 +223,6 @@ const SD05EstadoCarga: React.FC = () => {
         }
       });
 
-      // Convertir a array
       const consolidado = Array.from(mapa.entries()).map(([drop, cantidad]) => ({
         drop_local: drop,
         cantidad
@@ -246,18 +234,16 @@ const SD05EstadoCarga: React.FC = () => {
         return;
       }
 
-      // Limpiar tabla anterior
-      await fetch(`${API_URL}/wms_carga_consolidada`, { method: 'DELETE', headers: HEADERS });
+      // 1. Eliminar todos los registros de wms_carga_consolidada
+      const { error: deleteError } = await supabase.from('wms_carga_consolidada').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (deleteError) throw deleteError;
 
-      // Insertar nuevos datos en lotes
+      // 2. Insertar nuevos datos en lotes
       const BATCH = 100;
       for (let i = 0; i < consolidado.length; i += BATCH) {
         const batch = consolidado.slice(i, i + BATCH);
-        await fetch(`${API_URL}/wms_carga_consolidada`, {
-          method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify(batch)
-        });
+        const { error: insertError } = await supabase.from('wms_carga_consolidada').insert(batch);
+        if (insertError) throw insertError;
       }
 
       mostrarMensaje('success', `Informe WMS cargado y consolidado (${consolidado.length} DROPs)`);
@@ -266,9 +252,10 @@ const SD05EstadoCarga: React.FC = () => {
       await cargarDatos();
     } catch (e) {
       console.error('Error subiendo archivo:', e);
-      mostrarMensaje('error', 'Error al procesar el archivo');
+      mostrarMensaje('error', 'Error al procesar el archivo: ' + (e as Error).message);
+    } finally {
+      setProcesando(false);
     }
-    setProcesando(false);
   };
 
   const renderCarrusel = () => {
@@ -393,7 +380,7 @@ const SD05EstadoCarga: React.FC = () => {
         )}
       </div>
 
-      {/* Modal Subir Informe WMS - rediseñado */}
+      {/* Modal Subir Informe WMS */}
       {mostrarSubirModal && (
         <div className="sd05-modal-overlay" onClick={() => setMostrarSubirModal(false)}>
           <div className="sd05-modal" onClick={(e) => e.stopPropagation()}>
