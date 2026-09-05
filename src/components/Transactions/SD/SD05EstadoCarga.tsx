@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
+import { auth } from '../../../lib/auth'; // <-- IMPORTACIÓN AGREGADA
 import './SD05.css';
 
 interface Frecuencia {
@@ -33,7 +34,6 @@ const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
 
 const formatNumber = (num: number): string => num.toLocaleString('es-CL');
 
-// Normaliza texto: elimina acentos, convierte a mayúsculas y recorta espacios
 const normalizar = (texto: string): string => {
   return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 };
@@ -77,7 +77,6 @@ const SD05EstadoCarga: React.FC = () => {
   const cargarDatos = useCallback(async () => {
     setCargando(true);
     try {
-      // Cargar frecuencias y wms consolidado en paralelo
       const [frecResp, wmsResp] = await Promise.all([
         supabase.from('frecuencias').select('*').eq('activo', true),
         supabase.from('wms_carga_consolidada').select('*')
