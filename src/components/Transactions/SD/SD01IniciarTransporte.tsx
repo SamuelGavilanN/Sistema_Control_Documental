@@ -34,7 +34,7 @@ const origenesCarga = [
   "CD30 Bodega HC",        // NUEVO
   "CD31 Bodega AGV",
   "C144 Tiendas sin Bodega",
-  "DV01 Devoluciones"// CAMBIADO (antes "C144 Bodega Holly Concept")
+  "DV01 Devoluciones",// CAMBIADO (antes "C144 Bodega Holly Concept")
   "SG01 Internet",
   "SG02 Insumos",
   "SG03 Traspasos",
