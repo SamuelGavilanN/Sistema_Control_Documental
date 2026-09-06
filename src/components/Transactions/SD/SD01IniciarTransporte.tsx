@@ -33,7 +33,8 @@ const origenesCarga = [
   "CD12 Bodega Lampa",
   "CD30 Bodega HC",        // NUEVO
   "CD31 Bodega AGV",
-  "C144 Tiendas sin Bodega", // CAMBIADO (antes "C144 Bodega Holly Concept")
+  "C144 Tiendas sin Bodega",
+  "DV01 Devoluciones"// CAMBIADO (antes "C144 Bodega Holly Concept")
   "SG01 Internet",
   "SG02 Insumos",
   "SG03 Traspasos",
@@ -51,7 +52,8 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   "CD12 Bodega Lampa": ["Sap", "Vtradex", "Guia"],
   "CD30 Bodega HC": ["Sap", "Vtradex", "Guia"],        // NUEVO
   "CD31 Bodega AGV": ["Sap", "Vtradex", "Guia"],
-  "C144 Tiendas sin Bodega": ["Sap", "Vtradex", "Guia"], // CAMBIADO
+  "C144 Tiendas sin Bodega": ["Sap", "Vtradex", "Guia"],
+  "DV01 Devoluciones": ["Guia"],// CAMBIADO
   "SG01 Internet": [],
   "SG02 Insumos": [],
   "SG03 Traspasos": ["Guia"],
