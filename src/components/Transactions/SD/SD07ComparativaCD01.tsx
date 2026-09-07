@@ -68,8 +68,8 @@ const SD07ComparativaCD01: React.FC = () => {
       if (errorBultos) throw errorBultos;
 
       // Obtener IDs únicos de locales y documentos
-      const localIds = Array.from(new Set((bultos || []).map((b: any) => b.local_id).filter(Boolean)));
-      const documentoIds = Array.from(new Set((bultos || []).map((b: any) => b.documento_id).filter(Boolean)));
+      const localIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.local_id).filter(Boolean)));
+      const documentoIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.documento_id).filter(Boolean)));
 
       // Obtener locales
       let localesData: any[] = [];
