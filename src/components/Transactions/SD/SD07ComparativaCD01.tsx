@@ -46,61 +46,69 @@ const SD07ComparativaCD01: React.FC = () => {
     if (!fechaProgramacion) { mostrar('warning', 'Selecciona una fecha de programación'); return; }
     setCargando(true);
     try {
-      console.log('Fecha seleccionada:', fechaProgramacion);
-
-      // 1. Obtener bultos de CD01 (sin relaciones)
+      // 1. Obtener bultos de CD01
       const respBultos = await fetch(`${API_URL}/sd01_bultos?select=*&origen_carga=eq.CD01 Fashions-Park`, { headers: HEADERS });
       if (!respBultos.ok) throw new Error('Error al obtener bultos');
       const bultos: any[] = await respBultos.json();
       console.log('Bultos CD01 encontrados:', bultos.length);
 
-      // Verificar si hay bultos
       if (bultos.length === 0) {
         mostrar('info', 'No hay bultos registrados para CD01 en el sistema. Verifica el origen_carga.');
-        setRowsDocxentra([]);
-        setRowsWms([]);
-        setComparacion([]);
+        setRowsDocxentra([]); setRowsWms([]); setComparacion([]);
         setCargando(false);
         return;
       }
 
-      // Extraer IDs únicos de locales y documentos
-      const localIds: string[] = Array.from(new Set(bultos.map(b => b.local_id).filter(Boolean)));
-      const documentoIds: string[] = Array.from(new Set(bultos.map(b => b.documento_id).filter(Boolean)));
-      console.log('Locales encontrados:', localIds.length, 'Documentos:', documentoIds.length);
+      // 2. Extraer IDs de sd01_documento_locales (local_id en bultos)
+      const localIds: string[] = Array.from(new Set(bultos.map((b: any) => b.local_id).filter(Boolean)));
+      console.log('Local IDs (sd01_documento_locales):', localIds.length);
 
-      // 2. Obtener locales
-      let localesMap = new Map<string, string>();
+      // 3. Obtener codigo_local desde sd01_documento_locales
+      let localMap = new Map<string, { codigo_local: string; nombre_local: string }>();
       if (localIds.length > 0) {
-        const inParams = localIds.join(',');
-        const respLocales = await fetch(`${API_URL}/locales?select=id,codigo_local&id=in.(${inParams})`, { headers: HEADERS });
-        if (!respLocales.ok) throw new Error('Error al obtener locales');
-        const locales: any[] = await respLocales.json();
-        locales.forEach(l => localesMap.set(l.id, l.codigo_local));
-        console.log('Locales cargados:', locales.length);
+        // Dividir en bloques para no exceder URL
+        const chunkSize = 50;
+        for (let i = 0; i < localIds.length; i += chunkSize) {
+          const chunk = localIds.slice(i, i + chunkSize);
+          const inParams = chunk.join(',');
+          const respLocales = await fetch(`${API_URL}/sd01_documento_locales?select=id,codigo_local,nombre_local&id=in.(${inParams})`, { headers: HEADERS });
+          if (!respLocales.ok) throw new Error('Error al obtener documento_locales');
+          const localesData: any[] = await respLocales.json();
+          localesData.forEach((l: any) => localMap.set(l.id, { codigo_local: l.codigo_local, nombre_local: l.nombre_local }));
+        }
       }
+      console.log('Locales mapeados:', localMap.size);
 
-      // 3. Obtener documentos
+      // 4. Extraer documento_ids (son id_documento string)
+      const documentoIds: string[] = Array.from(new Set(bultos.map((b: any) => b.documento_id).filter(Boolean)));
+      console.log('Documento IDs (id_documento):', documentoIds.length);
+
+      // 5. Obtener fecha_programacion desde sd01_documentos usando id_documento
       let docMap = new Map<string, string>();
       if (documentoIds.length > 0) {
-        const inParams = documentoIds.join(',');
-        const respDocs = await fetch(`${API_URL}/sd01_documentos?select=id,fecha_programacion&id=in.(${inParams})`, { headers: HEADERS });
-        if (!respDocs.ok) throw new Error('Error al obtener documentos');
-        const docs: any[] = await respDocs.json();
-        docs.forEach(d => docMap.set(d.id, d.fecha_programacion));
-        console.log('Documentos cargados:', docs.length);
+        const chunkSize = 50;
+        for (let i = 0; i < documentoIds.length; i += chunkSize) {
+          const chunk = documentoIds.slice(i, i + chunkSize);
+          const inParams = chunk.join(',');
+          const respDocs = await fetch(`${API_URL}/sd01_documentos?select=id_documento,fecha_programacion&id_documento=in.(${inParams})`, { headers: HEADERS });
+          if (!respDocs.ok) throw new Error('Error al obtener documentos');
+          const docsData: any[] = await respDocs.json();
+          docsData.forEach((d: any) => docMap.set(d.id_documento, d.fecha_programacion));
+        }
       }
+      console.log('Documentos mapeados:', docMap.size);
 
-      // 4. Filtrar por fecha y agrupar por acta + local
+      // 6. Filtrar por fecha y agrupar por acta + codigo_local
       const mapaDocx = new Map<string, number>();
-      bultos.forEach(b => {
+      bultos.forEach((b: any) => {
         const fecha = docMap.get(b.documento_id);
-        if (!fecha) return; // no tiene documento o no se encontró
+        if (!fecha) return;
         // Normalizar fecha: si viene "2026-09-07T12:00:00", startsWith("2026-09-07") funciona
         if (fecha.startsWith(fechaProgramacion)) {
           const acta = b.numero_documento || '';
-          const codLocal = localesMap.get(b.local_id) || '';
-          if (!acta) return;
+          const localInfo = localMap.get(b.local_id);
+          const codLocal = localInfo?.codigo_local || '';
+          if (!acta || !codLocal) return;
           const key = `${normalizar(acta)}||${normalizar(codLocal)}`;
           mapaDocx.set(key, (mapaDocx.get(key) || 0) + (b.cantidad || 0));
         }
@@ -114,10 +122,10 @@ const SD07ComparativaCD01: React.FC = () => {
       console.log('Filas Docxentra después de filtro:', docxRows.length);
 
       if (docxRows.length === 0) {
-        mostrar('info', `No hay bultos de CD01 para la fecha ${fechaProgramacion}. Puede que la fecha esté mal o el origen no coincida.`);
+        mostrar('info', `No hay bultos de CD01 para la fecha ${fechaProgramacion}. Revisa la fecha o los datos.`);
       }
 
-      // 5. Obtener datos WMS
+      // 7. Obtener datos WMS
       const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
       if (!respWms.ok) throw new Error('Error al obtener WMS');
       const wmsData: any[] = await respWms.json();
@@ -128,7 +136,7 @@ const SD07ComparativaCD01: React.FC = () => {
       }
 
       const mapaWms = new Map<string, number>();
-      wmsData.forEach(w => {
+      wmsData.forEach((w: any) => {
         const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
         mapaWms.set(key, (mapaWms.get(key) || 0) + (w.cantidad || 0));
       });
