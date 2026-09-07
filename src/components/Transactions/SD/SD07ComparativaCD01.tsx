@@ -2,37 +2,27 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { supabase } from '../../../lib/supabase';
-import { auth } from '../../../lib/auth';
 import './SD07.css';
 
-interface FilaDocxentra {
-  acta: string;
-  cod_local: string;
-  cantidad: number;
-}
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS = {
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Content-Type': 'application/json'
+};
 
-interface FilaWms {
-  acta: string;
-  cod_local: string;
-  cantidad: number;
-}
-
+interface FilaDocxentra { acta: string; cod_local: string; cantidad: number; }
+interface FilaWms { acta: string; cod_local: string; cantidad: number; }
 interface FilaComparacion {
-  acta: string;
-  cod_local: string;
-  cantidad_docxentra: number;
-  cantidad_wms: number;
-  diferencia: number;
-  estado: 'Coincide' | 'Diferencia' | 'Solo Docxentra' | 'Solo WMS';
+  acta: string; cod_local: string; cantidad_docxentra: number; cantidad_wms: number;
+  diferencia: number; estado: 'Coincide' | 'Diferencia' | 'Solo Docxentra' | 'Solo WMS';
 }
 
 type OrdenColumna = 'acta' | 'cod_local' | 'cantidad_docxentra' | 'cantidad_wms' | 'diferencia' | 'estado';
 type OrdenDireccion = 'asc' | 'desc';
 
-const formatNumber = (num: number): string => num.toLocaleString('es-CL');
-
-const normalizar = (texto: string): string => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+const formatNumber = (num: number) => num.toLocaleString('es-CL');
+const normalizar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 
 const SD07ComparativaCD01: React.FC = () => {
   const [fechaProgramacion, setFechaProgramacion] = useState('');
@@ -47,103 +37,79 @@ const SD07ComparativaCD01: React.FC = () => {
   const [ordenColumna, setOrdenColumna] = useState<OrdenColumna>('acta');
   const [ordenDireccion, setOrdenDireccion] = useState<OrdenDireccion>('asc');
 
-  const mostrarMensaje = (tipo: string, texto: string) => {
+  const mostrar = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
   const cargarDatos = useCallback(async () => {
-    if (!fechaProgramacion) {
-      mostrarMensaje('warning', 'Selecciona una fecha de programación');
-      return;
-    }
+    if (!fechaProgramacion) { mostrar('warning', 'Selecciona una fecha'); return; }
     setCargando(true);
     try {
-      // 1. Obtener bultos de CD01 (consulta simple, sin relaciones)
-      const { data: bultos, error: errorBultos } = await supabase
-        .from('sd01_bultos')
-        .select('*')
-        .eq('origen_carga', 'CD01 Fashions-Park');
+      // Obtener todos los bultos de CD01 (sin relaciones)
+      const respBultos = await fetch(`${API_URL}/sd01_bultos?select=*&origen_carga=eq.CD01 Fashions-Park`, { headers: HEADERS });
+      if (!respBultos.ok) throw new Error('Error al obtener bultos');
+      const bultos: any[] = await respBultos.json();
 
-      if (errorBultos) throw errorBultos;
-
-      // Obtener IDs únicos de locales y documentos
+      // Extraer IDs únicos de locales y documentos
       const localIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.local_id).filter(Boolean)));
       const documentoIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.documento_id).filter(Boolean)));
 
       // Obtener locales
-      let localesData: any[] = [];
+      let localesMap = new Map<string, string>();
       if (localIds.length > 0) {
-        const { data: locales, error: errorLocales } = await supabase
-          .from('locales')
-          .select('id, codigo_local')
-          .in('id', localIds);
-        if (errorLocales) throw errorLocales;
-        localesData = locales || [];
+        const inParams = localIds.join(',');
+        const respLocales = await fetch(`${API_URL}/locales?select=id,codigo_local&id=in.(${inParams})`, { headers: HEADERS });
+        if (!respLocales.ok) throw new Error('Error al obtener locales');
+        const locales: any[] = await respLocales.json();
+        locales.forEach((l: any) => localesMap.set(l.id, l.codigo_local));
       }
 
       // Obtener documentos
-      let documentosData: any[] = [];
+      let docMap = new Map<string, string>();
       if (documentoIds.length > 0) {
-        const { data: documentos, error: errorDocumentos } = await supabase
-          .from('sd01_documentos')
-          .select('id, fecha_programacion')
-          .in('id', documentoIds);
-        if (errorDocumentos) throw errorDocumentos;
-        documentosData = documentos || [];
+        const inParams = documentoIds.join(',');
+        const respDocs = await fetch(`${API_URL}/sd01_documentos?select=id,fecha_programacion&id=in.(${inParams})`, { headers: HEADERS });
+        if (!respDocs.ok) throw new Error('Error al obtener documentos');
+        const docs: any[] = await respDocs.json();
+        docs.forEach((d: any) => docMap.set(d.id, d.fecha_programacion));
       }
 
-      // Mapa local_id -> codigo_local
-      const localMap = new Map<string, string>();
-      localesData.forEach((l: any) => localMap.set(l.id, l.codigo_local));
-
-      // Mapa documento_id -> fecha_programacion
-      const docMap = new Map<string, string>();
-      documentosData.forEach((d: any) => docMap.set(d.id, d.fecha_programacion));
-
-      // Filtrar por fecha y agrupar por acta + cod_local
-      const mapaDocxentra = new Map<string, number>();
+      // Agrupar por acta + local
+      const mapaDocx = new Map<string, number>();
       (bultos || []).forEach((b: any) => {
         const fecha = docMap.get(b.documento_id);
         if (!fecha || !fecha.startsWith(fechaProgramacion)) return;
-
         const acta = b.numero_documento || '';
-        const codLocal = localMap.get(b.local_id) || '';
+        const codLocal = localesMap.get(b.local_id) || '';
         if (!acta) return;
-
         const key = `${normalizar(acta)}||${normalizar(codLocal)}`;
-        mapaDocxentra.set(key, (mapaDocxentra.get(key) || 0) + (b.cantidad || 0));
+        mapaDocx.set(key, (mapaDocx.get(key) || 0) + (b.cantidad || 0));
       });
 
-      const docxentraRows: FilaDocxentra[] = Array.from(mapaDocxentra.entries()).map(([key, cantidad]) => {
-        const [acta, codLocal] = key.split('||');
-        return { acta, cod_local: codLocal, cantidad };
+      const docxRows: FilaDocxentra[] = Array.from(mapaDocx.entries()).map(([key, cant]) => {
+        const [acta, cod] = key.split('||');
+        return { acta, cod_local: cod, cantidad: cant };
       });
-      setRowsDocxentra(docxentraRows);
+      setRowsDocxentra(docxRows);
 
-      // 2. Obtener datos WMS desde Supabase
-      const { data: wmsData, error: errorWms } = await supabase
-        .from('wms_actas_cd01')
-        .select('*');
-
-      if (errorWms) throw errorWms;
-
+      // Obtener datos WMS
+      const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
+      if (!respWms.ok) throw new Error('Error al obtener WMS');
+      const wmsData: any[] = await respWms.json();
       const mapaWms = new Map<string, number>();
       (wmsData || []).forEach((w: any) => {
-        const acta = normalizar(w.acta);
-        const codLocal = normalizar(w.cod_local);
-        const key = `${acta}||${codLocal}`;
+        const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
         mapaWms.set(key, (mapaWms.get(key) || 0) + (w.cantidad || 0));
       });
-
-      const wmsRows: FilaWms[] = Array.from(mapaWms.entries()).map(([key, cantidad]) => {
-        const [acta, codLocal] = key.split('||');
-        return { acta, cod_local: codLocal, cantidad };
+      const wmsRows: FilaWms[] = Array.from(mapaWms.entries()).map(([key, cant]) => {
+        const [acta, cod] = key.split('||');
+        return { acta, cod_local: cod, cantidad: cant };
       });
       setRowsWms(wmsRows);
     } catch (e) {
-      console.error('Error cargando datos:', e);
-      mostrarMensaje('error', 'Error al cargar datos');
+      console.error(e);
+      mostrar('error', 'Error al cargar datos');
     } finally {
       setCargando(false);
     }
@@ -153,164 +119,107 @@ const SD07ComparativaCD01: React.FC = () => {
     if (fechaProgramacion) cargarDatos();
   }, [fechaProgramacion, cargarDatos]);
 
-  // Comparar Docxentra vs WMS
+  // Comparación
   useEffect(() => {
     const claves = new Set<string>();
-    rowsDocxentra.forEach((r) => claves.add(`${r.acta}||${r.cod_local}`));
-    rowsWms.forEach((r) => claves.add(`${r.acta}||${r.cod_local}`));
-
-    const filas: FilaComparacion[] = Array.from(claves).map((key) => {
+    rowsDocxentra.forEach(r => claves.add(`${r.acta}||${r.cod_local}`));
+    rowsWms.forEach(r => claves.add(`${r.acta}||${r.cod_local}`));
+    const filas: FilaComparacion[] = Array.from(claves).map(key => {
       const [acta, codLocal] = key.split('||');
-      const docx = rowsDocxentra.find((r) => r.acta === acta && r.cod_local === codLocal);
-      const wms = rowsWms.find((r) => r.acta === acta && r.cod_local === codLocal);
+      const docx = rowsDocxentra.find(r => r.acta === acta && r.cod_local === codLocal);
+      const wms = rowsWms.find(r => r.acta === acta && r.cod_local === codLocal);
       const cantDocx = docx?.cantidad || 0;
       const cantWms = wms?.cantidad || 0;
       const diferencia = cantDocx - cantWms;
-
       let estado: FilaComparacion['estado'];
       if (cantDocx > 0 && cantWms > 0 && cantDocx === cantWms) estado = 'Coincide';
       else if (cantDocx > 0 && cantWms > 0 && cantDocx !== cantWms) estado = 'Diferencia';
       else if (cantDocx > 0 && cantWms === 0) estado = 'Solo Docxentra';
       else estado = 'Solo WMS';
-
       return { acta, cod_local: codLocal, cantidad_docxentra: cantDocx, cantidad_wms: cantWms, diferencia, estado };
     });
-
     setComparacion(filas);
   }, [rowsDocxentra, rowsWms]);
 
-  // Ordenamiento
   const filasOrdenadas = useMemo(() => {
     const copia = [...comparacion];
     copia.sort((a, b) => {
-      let valA: any = a[ordenColumna];
-      let valB: any = b[ordenColumna];
-      if (typeof valA === 'number') {
-        return ordenDireccion === 'asc' ? valA - valB : valB - valA;
-      }
+      const valA: any = a[ordenColumna];
+      const valB: any = b[ordenColumna];
+      if (typeof valA === 'number') return ordenDireccion === 'asc' ? valA - valB : valB - valA;
       return ordenDireccion === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
     return copia;
   }, [comparacion, ordenColumna, ordenDireccion]);
 
   const cambiarOrden = (columna: OrdenColumna) => {
-    if (ordenColumna === columna) {
-      setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
-    } else {
-      setOrdenColumna(columna);
-      setOrdenDireccion('asc');
-    }
+    if (ordenColumna === columna) setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
+    else { setOrdenColumna(columna); setOrdenDireccion('asc'); }
   };
 
-  // Procesar archivo Excel WMS y guardar en Supabase
   const procesarArchivo = async () => {
-    if (!archivo) {
-      mostrarMensaje('warning', 'Selecciona un archivo Excel');
-      return;
-    }
+    if (!archivo) { mostrar('warning', 'Selecciona archivo'); return; }
     setProcesando(true);
     try {
       const data = await archivo.arrayBuffer();
-      const workbook = XLSX.read(data, { cellDates: false });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const wb = XLSX.read(data, { cellDates: false });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      // Buscar encabezados (Acta, Cod Local, Suma de Cantidad)
-      let headerIndex = -1;
-      let idxActa = -1;
-      let idxCodLocal = -1;
-      let idxCantidad = -1;
-
+      // Buscar encabezados
+      let headerIndex = -1, idxActa = -1, idxCod = -1, idxCant = -1;
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !Array.isArray(row)) continue;
-        const headers = row.map((cell: any) => normalizar(cell?.toString() || ''));
-
-        const actaIndex = headers.findIndex((h: string) => h.includes('ACTA'));
-        const codLocalIndex = headers.findIndex((h: string) => h.includes('COD') && h.includes('LOCAL'));
-        const cantidadIndex = headers.findIndex((h: string) => h.includes('CANTIDAD') || h.includes('SUMA'));
-
-        if (actaIndex !== -1 && codLocalIndex !== -1 && cantidadIndex !== -1) {
-          headerIndex = i;
-          idxActa = actaIndex;
-          idxCodLocal = codLocalIndex;
-          idxCantidad = cantidadIndex;
-          break;
-        }
+        const headers = row.map((cell: any) => normalizar(String(cell || '')));
+        const a = headers.findIndex(h => h.includes('ACTA'));
+        const c = headers.findIndex(h => h.includes('COD') && h.includes('LOCAL'));
+        const q = headers.findIndex(h => h.includes('CANTIDAD') || h.includes('SUMA'));
+        if (a !== -1 && c !== -1 && q !== -1) { headerIndex = i; idxActa = a; idxCod = c; idxCant = q; break; }
       }
-
-      if (headerIndex === -1) {
-        mostrarMensaje('error', 'No se encontraron las columnas "Acta", "Cod Local" y "Suma de Cantidad"');
-        setProcesando(false);
-        return;
-      }
-
-      // Recoger filas de datos
-      const filasData = rows.slice(headerIndex + 1).filter((r: any) => r && r[idxActa]);
-
-      const registrosWms = filasData.map((r: any) => ({
+      if (headerIndex === -1) { mostrar('error', 'Columnas no encontradas'); setProcesando(false); return; }
+      const filas = rows.slice(headerIndex + 1).filter(r => r && r[idxActa]);
+      const registros = filas.map(r => ({
         acta: String(r[idxActa]).trim(),
-        cod_local: String(r[idxCodLocal]).trim(),
-        cantidad: parseInt(r[idxCantidad]) || 0
+        cod_local: String(r[idxCod]).trim(),
+        cantidad: parseInt(r[idxCant]) || 0
       }));
+      if (registros.length === 0) { mostrar('warning', 'Sin datos'); setProcesando(false); return; }
 
-      if (registrosWms.length === 0) {
-        mostrarMensaje('warning', 'No hay datos en el archivo');
-        setProcesando(false);
-        return;
-      }
-
-      // 1. Eliminar datos anteriores
-      const { error: deleteError } = await supabase.from('wms_actas_cd01').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (deleteError) throw deleteError;
-
-      // 2. Insertar nuevos en lotes
+      // Eliminar anterior y guardar nuevo
+      await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
+        method: 'DELETE', headers: HEADERS
+      });
       const BATCH = 100;
-      for (let i = 0; i < registrosWms.length; i += BATCH) {
-        const batch = registrosWms.slice(i, i + BATCH);
-        const { error: insertError } = await supabase.from('wms_actas_cd01').insert(batch);
-        if (insertError) throw insertError;
+      for (let i = 0; i < registros.length; i += BATCH) {
+        const batch = registros.slice(i, i + BATCH);
+        await fetch(`${API_URL}/wms_actas_cd01`, {
+          method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=representation' }, body: JSON.stringify(batch)
+        });
       }
-
-      mostrarMensaje('success', `Informe WMS cargado correctamente (${registrosWms.length} registros)`);
+      mostrar('success', `${registros.length} registros cargados`);
       setMostrarSubirModal(false);
       setArchivo(null);
       cargarDatos();
     } catch (e) {
-      console.error('Error subiendo archivo:', e);
-      mostrarMensaje('error', 'Error al procesar el archivo: ' + (e as Error).message);
-    } finally {
-      setProcesando(false);
-    }
+      console.error(e);
+      mostrar('error', 'Error al procesar archivo');
+    } finally { setProcesando(false); }
   };
 
-  // Exportar a Excel
   const exportarExcel = () => {
-    if (filasOrdenadas.length === 0) {
-      mostrarMensaje('warning', 'No hay datos para exportar');
-      return;
-    }
+    if (filasOrdenadas.length === 0) return;
     const headers = ['Acta', 'Cod Local', 'Bultos Docxentra', 'Bultos WMS', 'Diferencia', 'Estado'];
-    const rows = filasOrdenadas.map((f) => [
-      f.acta,
-      f.cod_local,
-      f.cantidad_docxentra,
-      f.cantidad_wms,
-      f.diferencia,
-      f.estado
-    ]);
+    const rows = filasOrdenadas.map(f => [f.acta, f.cod_local, f.cantidad_docxentra, f.cantidad_wms, f.diferencia, f.estado]);
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Comparativa');
     XLSX.writeFile(wb, `Comparativa_CD01_${fechaProgramacion}.xlsx`);
   };
 
-  // Resumen del dashboard
   const resumen = useMemo(() => {
     const total = filasOrdenadas.length;
-    const sinDif = filasOrdenadas.filter((f) => f.estado === 'Coincide').length;
-    const conDif = total - sinDif;
-    return { total, sinDif, conDif };
+    const sinDif = filasOrdenadas.filter(f => f.estado === 'Coincide').length;
+    return { total, sinDif, conDif: total - sinDif };
   }, [filasOrdenadas]);
 
   return (
@@ -319,87 +228,50 @@ const SD07ComparativaCD01: React.FC = () => {
         <h2>SD07 – Comparativa CD01 vs WMS</h2>
         <p>Compara actas y bultos registrados en Docxentra (CD01) contra el informe del WMS</p>
       </div>
-
       <div className="sd07-toolbar">
         <div className="sd07-filter-group">
           <label>Fecha Programación:</label>
-          <input
-            type="date"
-            value={fechaProgramacion}
-            onChange={(e) => setFechaProgramacion(e.target.value)}
-            className="sd07-date-input"
-          />
+          <input type="date" value={fechaProgramacion} onChange={(e) => setFechaProgramacion(e.target.value)} className="sd07-date-input" />
         </div>
-
-        <button className="sd07-btn sd07-btn-primary" onClick={cargarDatos} disabled={cargando}>
-          {cargando ? 'Cargando...' : 'Actualizar'}
-        </button>
-
-        <button className="sd07-btn" onClick={() => setMostrarSubirModal(true)}>
-          📤 Subir Informe WMS
-        </button>
-
-        <button className="sd07-btn sd07-btn-success" onClick={exportarExcel} disabled={filasOrdenadas.length === 0}>
-          📊 Exportar Excel
-        </button>
+        <button className="sd07-btn sd07-btn-primary" onClick={cargarDatos} disabled={cargando}>{cargando ? 'Cargando...' : 'Actualizar'}</button>
+        <button className="sd07-btn" onClick={() => setMostrarSubirModal(true)}>📤 Subir Informe WMS</button>
+        <button className="sd07-btn sd07-btn-success" onClick={exportarExcel} disabled={filasOrdenadas.length === 0}>📊 Exportar Excel</button>
       </div>
-
       {filasOrdenadas.length > 0 && (
         <div className="sd07-resumen">
-          <div className="sd07-total-card">
-            <span>Total Actas</span>
-            <strong>{resumen.total}</strong>
-          </div>
-          <div className="sd07-total-card">
-            <span>Sin Diferencias</span>
-            <strong style={{ color: '#16a34a' }}>{resumen.sinDif}</strong>
-          </div>
-          <div className="sd07-total-card">
-            <span>Con Diferencias</span>
-            <strong style={{ color: '#dc2626' }}>{resumen.conDif}</strong>
-          </div>
+          <div className="sd07-total-card"><span>Total Actas</span><strong>{resumen.total}</strong></div>
+          <div className="sd07-total-card"><span>Sin Diferencias</span><strong style={{ color: '#16a34a' }}>{resumen.sinDif}</strong></div>
+          <div className="sd07-total-card"><span>Con Diferencias</span><strong style={{ color: '#dc2626' }}>{resumen.conDif}</strong></div>
         </div>
       )}
-
       <div className="sd07-table-wrapper">
-        {cargando ? (
-          <div className="sd07-loading">Cargando...</div>
-        ) : filasOrdenadas.length === 0 ? (
-          <div className="sd07-empty">No hay datos para la fecha seleccionada. Sube un informe WMS o cambia la fecha.</div>
-        ) : (
-          <table className="sd07-table">
-            <thead>
-              <tr>
-                <th onClick={() => cambiarOrden('acta')}>Acta {ordenColumna === 'acta' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('cod_local')}>Cod Local {ordenColumna === 'cod_local' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('cantidad_docxentra')}>Bultos Docxentra {ordenColumna === 'cantidad_docxentra' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('cantidad_wms')}>Bultos WMS {ordenColumna === 'cantidad_wms' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('diferencia')}>Diferencia {ordenColumna === 'diferencia' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('estado')}>Estado {ordenColumna === 'estado' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filasOrdenadas.map((f, idx) => (
-                <tr key={`${f.acta}-${f.cod_local}-${idx}`}>
-                  <td>{f.acta}</td>
-                  <td>{f.cod_local}</td>
-                  <td>{formatNumber(f.cantidad_docxentra)}</td>
-                  <td>{formatNumber(f.cantidad_wms)}</td>
-                  <td style={{ color: f.diferencia !== 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
-                    {formatNumber(f.diferencia)}
-                  </td>
-                  <td>
-                    <span className={`sd07-badge sd07-badge-${f.estado.toLowerCase().replace(/ /g, '-')}`}>
-                      {f.estado}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {cargando ? <div className="sd07-loading">Cargando...</div> :
+         filasOrdenadas.length === 0 ? <div className="sd07-empty">No hay datos para la fecha</div> :
+         <table className="sd07-table">
+           <thead>
+             <tr>
+               <th onClick={() => cambiarOrden('acta')}>Acta {ordenColumna === 'acta' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
+               <th onClick={() => cambiarOrden('cod_local')}>Cod Local {ordenColumna === 'cod_local' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
+               <th onClick={() => cambiarOrden('cantidad_docxentra')}>Bultos Docxentra {ordenColumna === 'cantidad_docxentra' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
+               <th onClick={() => cambiarOrden('cantidad_wms')}>Bultos WMS {ordenColumna === 'cantidad_wms' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
+               <th onClick={() => cambiarOrden('diferencia')}>Diferencia {ordenColumna === 'diferencia' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
+               <th onClick={() => cambiarOrden('estado')}>Estado {ordenColumna === 'estado' ? (ordenDireccion === 'asc' ? '▲' : '▼') : ''}</th>
+             </tr>
+           </thead>
+           <tbody>
+             {filasOrdenadas.map((f, idx) => (
+               <tr key={`${f.acta}-${f.cod_local}-${idx}`}>
+                 <td>{f.acta}</td>
+                 <td>{f.cod_local}</td>
+                 <td>{formatNumber(f.cantidad_docxentra)}</td>
+                 <td>{formatNumber(f.cantidad_wms)}</td>
+                 <td style={{ color: f.diferencia !== 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{formatNumber(f.diferencia)}</td>
+                 <td><span className={`sd07-badge sd07-badge-${f.estado.toLowerCase().replace(/ /g, '-')}`}>{f.estado}</span></td>
+               </tr>
+             ))}
+           </tbody>
+         </table>}
       </div>
-
       {mostrarSubirModal && (
         <div className="sd07-modal-overlay" onClick={() => setMostrarSubirModal(false)}>
           <div className="sd07-modal" onClick={(e) => e.stopPropagation()}>
@@ -408,19 +280,11 @@ const SD07ComparativaCD01: React.FC = () => {
               <button className="sd07-modal-close" onClick={() => setMostrarSubirModal(false)}>×</button>
             </div>
             <div className="sd07-modal-body">
-              <p style={{ fontSize: '13px', marginBottom: '16px' }}>
-                El archivo debe contener las columnas: <strong>Acta</strong>, <strong>Cod Local</strong> y <strong>Suma de Cantidad</strong>.
-              </p>
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={(e) => setArchivo(e.target.files?.[0] || null)}
-              />
+              <p style={{ fontSize: '13px', marginBottom: '16px' }}>El archivo debe contener las columnas: <strong>Acta</strong>, <strong>Cod Local</strong> y <strong>Suma de Cantidad</strong>.</p>
+              <input type="file" accept=".xlsx,.xls" onChange={(e) => setArchivo(e.target.files?.[0] || null)} />
               <div className="sd07-modal-actions">
                 <button className="sd07-btn" onClick={() => setMostrarSubirModal(false)}>Cancelar</button>
-                <button className="sd07-btn sd07-btn-primary" onClick={procesarArchivo} disabled={!archivo || procesando}>
-                  {procesando ? 'Procesando...' : 'Cargar y Guardar'}
-                </button>
+                <button className="sd07-btn sd07-btn-primary" onClick={procesarArchivo} disabled={!archivo || procesando}>{procesando ? 'Procesando...' : 'Cargar y Guardar'}</button>
               </div>
             </div>
           </div>
