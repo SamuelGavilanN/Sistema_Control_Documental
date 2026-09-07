@@ -52,7 +52,6 @@ const SD07ComparativaCD01: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Cargar datos de Docxentra y WMS desde Supabase
   const cargarDatos = useCallback(async () => {
     if (!fechaProgramacion) {
       mostrarMensaje('warning', 'Selecciona una fecha de programación');
@@ -60,7 +59,7 @@ const SD07ComparativaCD01: React.FC = () => {
     }
     setCargando(true);
     try {
-      // 1. Obtener bultos de CD01 desde Docxentra (consulta simple sin relaciones)
+      // 1. Obtener bultos de CD01 (consulta simple, sin relaciones)
       const { data: bultos, error: errorBultos } = await supabase
         .from('sd01_bultos')
         .select('*')
@@ -68,11 +67,11 @@ const SD07ComparativaCD01: React.FC = () => {
 
       if (errorBultos) throw errorBultos;
 
-      // Obtener los local_ids únicos de los bultos
+      // Obtener IDs únicos de locales y documentos
       const localIds = Array.from(new Set((bultos || []).map((b: any) => b.local_id).filter(Boolean)));
       const documentoIds = Array.from(new Set((bultos || []).map((b: any) => b.documento_id).filter(Boolean)));
 
-      // Obtener los locales
+      // Obtener locales
       let localesData: any[] = [];
       if (localIds.length > 0) {
         const { data: locales, error: errorLocales } = await supabase
@@ -83,7 +82,7 @@ const SD07ComparativaCD01: React.FC = () => {
         localesData = locales || [];
       }
 
-      // Obtener los documentos
+      // Obtener documentos
       let documentosData: any[] = [];
       if (documentoIds.length > 0) {
         const { data: documentos, error: errorDocumentos } = await supabase
@@ -94,15 +93,15 @@ const SD07ComparativaCD01: React.FC = () => {
         documentosData = documentos || [];
       }
 
-      // Mapa de local_id -> codigo_local
+      // Mapa local_id -> codigo_local
       const localMap = new Map<string, string>();
       localesData.forEach((l: any) => localMap.set(l.id, l.codigo_local));
 
-      // Mapa de documento_id -> fecha_programacion
+      // Mapa documento_id -> fecha_programacion
       const docMap = new Map<string, string>();
       documentosData.forEach((d: any) => docMap.set(d.id, d.fecha_programacion));
 
-      // Filtrar por fecha de programación y agrupar por acta + cod_local
+      // Filtrar por fecha y agrupar por acta + cod_local
       const mapaDocxentra = new Map<string, number>();
       (bultos || []).forEach((b: any) => {
         const fecha = docMap.get(b.documento_id);
@@ -321,7 +320,6 @@ const SD07ComparativaCD01: React.FC = () => {
         <p>Compara actas y bultos registrados en Docxentra (CD01) contra el informe del WMS</p>
       </div>
 
-      {/* Barra de herramientas */}
       <div className="sd07-toolbar">
         <div className="sd07-filter-group">
           <label>Fecha Programación:</label>
@@ -346,7 +344,6 @@ const SD07ComparativaCD01: React.FC = () => {
         </button>
       </div>
 
-      {/* Dashboard resumen */}
       {filasOrdenadas.length > 0 && (
         <div className="sd07-resumen">
           <div className="sd07-total-card">
@@ -364,7 +361,6 @@ const SD07ComparativaCD01: React.FC = () => {
         </div>
       )}
 
-      {/* Tabla comparativa */}
       <div className="sd07-table-wrapper">
         {cargando ? (
           <div className="sd07-loading">Cargando...</div>
@@ -404,7 +400,6 @@ const SD07ComparativaCD01: React.FC = () => {
         )}
       </div>
 
-      {/* Modal Subir Informe WMS */}
       {mostrarSubirModal && (
         <div className="sd07-modal-overlay" onClick={() => setMostrarSubirModal(false)}>
           <div className="sd07-modal" onClick={(e) => e.stopPropagation()}>
