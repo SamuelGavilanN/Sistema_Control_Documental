@@ -25,20 +25,16 @@ const formatNumber = (num: number) => num.toLocaleString('es-CL');
 const normalizar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 const convertirFecha = (valor: any): string => {
   if (!valor) return '';
-  // Si es Date
   if (valor instanceof Date && !isNaN(valor.getTime())) {
     return valor.toISOString().split('T')[0];
   }
   const str = String(valor).trim();
   if (!str) return '';
-  // Formato YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  // Formato DD/MM/YYYY
   const partes = str.split('/');
   if (partes.length === 3) {
     return `${partes[2]}-${partes[1]}-${partes[0]}`;
   }
-  // Intentar con Date
   const d = new Date(str);
   if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
   return '';
@@ -66,12 +62,13 @@ const SD07ComparativaCD01: React.FC = () => {
     if (!fechaProgramacion) { mostrar('warning', 'Selecciona una fecha de programación'); return; }
     setCargando(true);
     try {
-      // 1. Obtener bultos de Docxentra (CD01) para la fecha
+      // === OBTENER DATOS DE DOCXENTRA (CD01) ===
       const respBultos = await fetch(`${API_URL}/sd01_bultos?select=*&origen_carga=eq.CD01 Fashions-Park`, { headers: HEADERS });
       if (!respBultos.ok) throw new Error('Error al obtener bultos');
       const bultos: any[] = await respBultos.json();
+      console.log('Bultos CD01 encontrados:', bultos.length);
 
-      // 2. Obtener código de local desde sd01_documento_locales
+      // Obtener códigos de local desde sd01_documento_locales
       const localIds: string[] = Array.from(new Set(bultos.map((b: any) => b.local_id).filter(Boolean)));
       let localMap = new Map<string, string>();
       if (localIds.length > 0) {
@@ -86,7 +83,7 @@ const SD07ComparativaCD01: React.FC = () => {
         }
       }
 
-      // 3. Obtener fecha de programación desde sd01_documentos
+      // Obtener fechas de programación desde sd01_documentos
       const docIds: string[] = Array.from(new Set(bultos.map((b: any) => b.documento_id).filter(Boolean)));
       let docMap = new Map<string, string>();
       if (docIds.length > 0) {
@@ -101,7 +98,7 @@ const SD07ComparativaCD01: React.FC = () => {
         }
       }
 
-      // 4. Agrupar bultos de Docxentra solo para la fecha seleccionada
+      // Agrupar bultos de Docxentra solo para la fecha seleccionada
       const mapaDocx = new Map<string, number>();
       bultos.forEach((b: any) => {
         const fechaDoc = docMap.get(b.documento_id);
@@ -117,39 +114,36 @@ const SD07ComparativaCD01: React.FC = () => {
         return { acta, cod_local: cod, cantidad: cant };
       });
       setRowsDocxentra(docxRows);
+      console.log('Filas Docxentra para la fecha:', docxRows.length);
 
-      // 5. Obtener registros WMS filtrando por fecha_programacion = fecha seleccionada
-      const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*&fecha_programacion=eq.${fechaProgramacion}`, { headers: HEADERS });
-      if (respWms.status === 400) {
-        // Si la columna no existe, caemos en modo sin filtro (fallback)
-        console.warn('Columna fecha_programacion no existe o error 400, usando fallback');
-        const respWmsFallback = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
-        const wmsDataFallback: any[] = await respWmsFallback.json();
-        const mapaWmsFallback = new Map<string, number>();
-        wmsDataFallback.forEach((w: any) => {
-          const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
-          mapaWmsFallback.set(key, (mapaWmsFallback.get(key) || 0) + (w.cantidad || 0));
-        });
-        const wmsRowsFallback: FilaWms[] = Array.from(mapaWmsFallback.entries()).map(([key, cant]) => {
-          const [acta, cod] = key.split('||');
-          return { acta, cod_local: cod, cantidad: cant, fecha: '' };
-        });
-        setRowsWms(wmsRowsFallback);
-      } else if (!respWms.ok) {
-        throw new Error('Error al obtener WMS');
-      } else {
-        const wmsData: any[] = await respWms.json();
-        const mapaWms = new Map<string, number>();
-        wmsData.forEach((w: any) => {
-          const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
-          mapaWms.set(key, (mapaWms.get(key) || 0) + (w.cantidad || 0));
-        });
-        const wmsRows: FilaWms[] = Array.from(mapaWms.entries()).map(([key, cant]) => {
-          const [acta, cod] = key.split('||');
-          return { acta, cod_local: cod, cantidad: cant, fecha: wmsData[0]?.fecha_programacion || fechaProgramacion };
-        });
-        setRowsWms(wmsRows);
-      }
+      // === OBTENER DATOS WMS ===
+      // Traemos todos y luego filtramos por fecha en memoria (más robusto)
+      const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
+      if (!respWms.ok) throw new Error('Error al obtener WMS: ' + respWms.status);
+      const wmsData: any[] = await respWms.json();
+      console.log('Datos WMS totales:', wmsData.length);
+
+      // Filtrar por fecha_programacion si está guardada, si no, asumimos que todos pertenecen a la fecha seleccionada
+      const wmsFiltrados = wmsData.filter((w: any) => {
+        if (w.fecha_programacion) {
+          return w.fecha_programacion === fechaProgramacion;
+        }
+        // Si no tiene fecha, la incluimos (por compatibilidad con datos antiguos)
+        return true;
+      });
+      console.log('Datos WMS para la fecha:', wmsFiltrados.length);
+
+      const mapaWms = new Map<string, number>();
+      wmsFiltrados.forEach((w: any) => {
+        const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
+        mapaWms.set(key, (mapaWms.get(key) || 0) + (w.cantidad || 0));
+      });
+      const wmsRows: FilaWms[] = Array.from(mapaWms.entries()).map(([key, cant]) => {
+        const [acta, cod] = key.split('||');
+        return { acta, cod_local: cod, cantidad: cant, fecha: fechaProgramacion };
+      });
+      setRowsWms(wmsRows);
+      console.log('Filas WMS después de consolidar:', wmsRows.length);
     } catch (e) {
       console.error('Error cargando datos:', e);
       mostrar('error', 'Error al cargar datos: ' + (e as Error).message);
@@ -205,9 +199,9 @@ const SD07ComparativaCD01: React.FC = () => {
     setProcesando(true);
     try {
       const data = await archivo.arrayBuffer();
-      const wb = XLSX.read(data, { cellDates: true }); // cellDates true para interpretar fechas
+      const wb = XLSX.read(data, { cellDates: true });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }); // raw false para obtener fechas como texto
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
       // Buscar encabezados (Acta, Cod Local, Suma de Cantidad, Fecha Programación)
       let headerIndex = -1, idxActa = -1, idxCod = -1, idxCant = -1, idxFecha = -1;
@@ -231,7 +225,6 @@ const SD07ComparativaCD01: React.FC = () => {
 
       const filas = rows.slice(headerIndex + 1).filter(r => r && r[idxActa]);
       const registros = filas.map(r => {
-        // Fecha: si existe columna, usar la de la fila; si no, usar fechaProgramacion
         let fecha = fechaProgramacion;
         if (idxFecha !== -1) {
           const fechaCelda = convertirFecha(r[idxFecha]);
@@ -245,6 +238,7 @@ const SD07ComparativaCD01: React.FC = () => {
         };
       });
 
+      console.log('Registros a guardar:', registros);
       if (registros.length === 0) {
         mostrar('warning', 'El archivo no contiene datos válidos.');
         setProcesando(false);
@@ -252,18 +246,28 @@ const SD07ComparativaCD01: React.FC = () => {
       }
 
       // 1. Eliminar todos los registros anteriores
-      await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
+      const respDelete = await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
         method: 'DELETE', headers: HEADERS
       });
+      if (!respDelete.ok) {
+        const errText = await respDelete.text();
+        throw new Error('Error al eliminar datos anteriores: ' + errText);
+      }
 
       // 2. Insertar nuevos en lotes
       const BATCH = 100;
       for (let i = 0; i < registros.length; i += BATCH) {
         const batch = registros.slice(i, i + BATCH);
-        await fetch(`${API_URL}/wms_actas_cd01`, {
+        const respInsert = await fetch(`${API_URL}/wms_actas_cd01`, {
           method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=representation' }, body: JSON.stringify(batch)
         });
+        if (!respInsert.ok) {
+          const errText = await respInsert.text();
+          throw new Error('Error al insertar datos: ' + errText);
+        }
+        console.log(`Insertados ${batch.length} registros`);
       }
+
       mostrar('success', `Informe WMS cargado correctamente (${registros.length} registros)`);
       setMostrarSubirModal(false);
       setArchivo(null);
@@ -271,7 +275,9 @@ const SD07ComparativaCD01: React.FC = () => {
     } catch (e) {
       console.error('Error subiendo archivo:', e);
       mostrar('error', 'Error al procesar archivo: ' + (e as Error).message);
-    } finally { setProcesando(false); }
+    } finally {
+      setProcesando(false);
+    }
   };
 
   const exportarExcel = () => {
