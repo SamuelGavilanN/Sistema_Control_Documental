@@ -98,18 +98,17 @@ const SD07ComparativaCD01: React.FC = () => {
       });
       setRowsDocxentra(docxRows);
 
-      // === OBTENER DATOS WMS (filtrados por fecha, si es que existe) ===
+      // === OBTENER DATOS WMS (SOLO DE LA FECHA SELECCIONADA) ===
       const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
       if (!respWms.ok) throw new Error('Error al obtener WMS: ' + respWms.status);
       const wmsData: any[] = await respWms.json();
       console.log('Datos WMS totales:', wmsData.length);
 
-      // Si existe fecha_programacion, filtrar; si no, incluir todos (por compatibilidad)
+      // Filtrar estrictamente por la fecha seleccionada (excluir null y otras fechas)
       const wmsFiltrados = wmsData.filter((w: any) => {
-        if (w.fecha_programacion) return w.fecha_programacion === fechaProgramacion;
-        // Si no tiene fecha, lo incluimos (para no perder datos antiguos)
-        return true;
+        return w.fecha_programacion === fechaProgramacion;
       });
+      console.log('Datos WMS para la fecha:', wmsFiltrados.length);
 
       const mapaWms = new Map<string, number>();
       wmsFiltrados.forEach((w: any) => {
@@ -205,17 +204,16 @@ const SD07ComparativaCD01: React.FC = () => {
         acta: String(r[idxActa]).trim(),
         cod_local: String(r[idxCod]).trim(),
         cantidad: parseInt(r[idxCant]) || 0,
-        fecha_programacion: fechaProgramacion // Se usa la fecha del dashboard
+        fecha_programacion: fechaProgramacion // Se asigna la fecha seleccionada
       }));
 
-      console.log('Registros a guardar:', registros.length);
       if (registros.length === 0) {
         mostrar('warning', 'El archivo no contiene datos válidos.');
         setProcesando(false);
         return;
       }
 
-      // 1. Eliminar todos los registros anteriores (para evitar duplicados y mezclas)
+      // 1. Eliminar todos los registros anteriores (para evitar mezclas)
       const respDelete = await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
         method: 'DELETE', headers: HEADERS
       });
@@ -224,10 +222,10 @@ const SD07ComparativaCD01: React.FC = () => {
         throw new Error('Error al eliminar datos anteriores: ' + errText);
       }
 
-      // 2. Insertar nuevos en lotes (sin columna fecha_programacion para evitar errores de tipos)
+      // 2. Insertar nuevos en lotes (INCLUYENDO fecha_programacion)
       const BATCH = 100;
       for (let i = 0; i < registros.length; i += BATCH) {
-        const batch = registros.slice(i, i + BATCH).map(({ fecha_programacion, ...rest }) => rest);
+        const batch = registros.slice(i, i + BATCH); // Ya incluye fecha_programacion
         const respInsert = await fetch(`${API_URL}/wms_actas_cd01`, {
           method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=representation' }, body: JSON.stringify(batch)
         });
