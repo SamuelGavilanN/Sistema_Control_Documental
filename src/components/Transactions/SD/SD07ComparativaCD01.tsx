@@ -58,12 +58,11 @@ const SD07ComparativaCD01: React.FC = () => {
         return;
       }
 
-      // 2. Obtener local_ids y documento_ids
       const localIds: string[] = Array.from(new Set(bultos.map((b: any) => b.local_id).filter(Boolean)));
       const documentoIds: string[] = Array.from(new Set(bultos.map((b: any) => b.documento_id).filter(Boolean)));
 
-      // 3. Obtener codigo_local desde sd01_documento_locales
-      let localMap = new Map<string, { codigo_local: string }>();
+      // Obtener codigo_local desde sd01_documento_locales
+      let localMap = new Map<string, string>();
       if (localIds.length > 0) {
         const chunkSize = 50;
         for (let i = 0; i < localIds.length; i += chunkSize) {
@@ -72,11 +71,11 @@ const SD07ComparativaCD01: React.FC = () => {
           const respLocales = await fetch(`${API_URL}/sd01_documento_locales?select=id,codigo_local&id=in.(${inParams})`, { headers: HEADERS });
           if (!respLocales.ok) throw new Error('Error al obtener documento_locales');
           const localesData: any[] = await respLocales.json();
-          localesData.forEach((l: any) => localMap.set(l.id, { codigo_local: l.codigo_local }));
+          localesData.forEach((l: any) => localMap.set(l.id, l.codigo_local));
         }
       }
 
-      // 4. Obtener fecha_programacion desde sd01_documentos usando id_documento
+      // Obtener fecha_programacion desde sd01_documentos
       let docMap = new Map<string, string>();
       if (documentoIds.length > 0) {
         const chunkSize = 50;
@@ -90,14 +89,13 @@ const SD07ComparativaCD01: React.FC = () => {
         }
       }
 
-      // 5. Agrupar por acta + codigo_local (solo fecha seleccionada)
+      // Agrupar por acta + codigo_local (solo fecha seleccionada)
       const mapaDocx = new Map<string, number>();
       bultos.forEach((b: any) => {
         const fecha = docMap.get(b.documento_id);
         if (!fecha || !fecha.startsWith(fechaProgramacion)) return;
         const acta = b.numero_documento || '';
-        const localInfo = localMap.get(b.local_id);
-        const codLocal = localInfo?.codigo_local || '';
+        const codLocal = localMap.get(b.local_id) || '';
         if (!acta || !codLocal) return;
         const key = `${normalizar(acta)}||${normalizar(codLocal)}`;
         mapaDocx.set(key, (mapaDocx.get(key) || 0) + (b.cantidad || 0));
@@ -109,22 +107,13 @@ const SD07ComparativaCD01: React.FC = () => {
       });
       setRowsDocxentra(docxRows);
 
-      // 6. Obtener datos WMS (todos, sin filtro de fecha en la consulta para no depender de la columna)
+      // 2. Obtener datos WMS (TODOS, sin filtro de fecha)
       const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
       if (!respWms.ok) throw new Error('Error al obtener WMS');
       const wmsData: any[] = await respWms.json();
 
-      // Filtrar por fecha si el registro tiene fecha_programacion y coincide con la seleccionada
-      const wmsFiltrados = wmsData.filter((w: any) => {
-        if (w.fecha_programacion) {
-          return w.fecha_programacion.startsWith(fechaProgramacion);
-        }
-        // Si no tiene fecha, se asume que pertenece a la fecha actual (comportamiento anterior)
-        return true;
-      });
-
       const mapaWms = new Map<string, number>();
-      wmsFiltrados.forEach((w: any) => {
+      wmsData.forEach((w: any) => {
         const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
         mapaWms.set(key, (mapaWms.get(key) || 0) + (w.cantidad || 0));
       });
@@ -193,8 +182,8 @@ const SD07ComparativaCD01: React.FC = () => {
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Buscar encabezados (Acta, Cod Local, Suma de Cantidad [y Fecha opcional])
-      let headerIndex = -1, idxActa = -1, idxCod = -1, idxCant = -1, idxFecha = -1;
+      // Buscar encabezados (Acta, Cod Local, Suma de Cantidad)
+      let headerIndex = -1, idxActa = -1, idxCod = -1, idxCant = -1;
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !Array.isArray(row)) continue;
@@ -202,41 +191,22 @@ const SD07ComparativaCD01: React.FC = () => {
         const a = headers.findIndex(h => h.includes('ACTA'));
         const c = headers.findIndex(h => h.includes('COD') && h.includes('LOCAL'));
         const q = headers.findIndex(h => h.includes('CANTIDAD') || h.includes('SUMA'));
-        const f = headers.findIndex(h => h.includes('FECHA') || h.includes('PROGRAMACION'));
         if (a !== -1 && c !== -1 && q !== -1) {
-          headerIndex = i; idxActa = a; idxCod = c; idxCant = q; idxFecha = f; break;
+          headerIndex = i; idxActa = a; idxCod = c; idxCant = q; break;
         }
       }
       if (headerIndex === -1) {
-        mostrar('error', 'No se encontraron las columnas "Acta", "Cod Local" y "Suma de Cantidad". Verifica el archivo.');
+        mostrar('error', 'No se encontraron las columnas "Acta", "Cod Local" y "Suma de Cantidad".');
         setProcesando(false);
         return;
       }
 
       const filas = rows.slice(headerIndex + 1).filter(r => r && r[idxActa]);
-      const registros = filas.map(r => {
-        let fecha = fechaProgramacion; // Por defecto, la fecha seleccionada en el dashboard
-        if (idxFecha !== -1) {
-          const fechaCelda = String(r[idxFecha] || '').trim();
-          if (fechaCelda) {
-            const d = new Date(fechaCelda);
-            if (!isNaN(d.getTime())) {
-              fecha = d.toISOString().split('T')[0];
-            } else {
-              const partes = fechaCelda.split('/');
-              if (partes.length === 3) {
-                fecha = `${partes[2]}-${partes[1]}-${partes[0]}`;
-              }
-            }
-          }
-        }
-        return {
-          acta: String(r[idxActa]).trim(),
-          cod_local: String(r[idxCod]).trim(),
-          cantidad: parseInt(r[idxCant]) || 0,
-          fecha_programacion: fecha
-        };
-      });
+      const registros = filas.map(r => ({
+        acta: String(r[idxActa]).trim(),
+        cod_local: String(r[idxCod]).trim(),
+        cantidad: parseInt(r[idxCant]) || 0
+      }));
 
       if (registros.length === 0) {
         mostrar('warning', 'El archivo no contiene datos válidos.');
@@ -244,7 +214,7 @@ const SD07ComparativaCD01: React.FC = () => {
         return;
       }
 
-      // 1. Eliminar todos los registros anteriores (o solo los de la fecha si quieres)
+      // 1. Eliminar todos los registros anteriores
       await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
         method: 'DELETE', headers: HEADERS
       });
@@ -260,7 +230,6 @@ const SD07ComparativaCD01: React.FC = () => {
       mostrar('success', `Informe WMS cargado correctamente (${registros.length} registros)`);
       setMostrarSubirModal(false);
       setArchivo(null);
-      // Recargar datos para la fecha actual
       if (fechaProgramacion) cargarDatos();
     } catch (e) {
       console.error('Error subiendo archivo:', e);
@@ -343,7 +312,6 @@ const SD07ComparativaCD01: React.FC = () => {
             </div>
             <div className="sd07-modal-body">
               <p style={{ fontSize: '13px', marginBottom: '16px' }}>El archivo debe contener las columnas: <strong>Acta</strong>, <strong>Cod Local</strong> y <strong>Suma de Cantidad</strong>.</p>
-              <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px' }}>Si incluyes una columna "Fecha Programación", se usará esa fecha; si no, se usará la fecha seleccionada en el dashboard.</p>
               <input type="file" accept=".xlsx,.xls" onChange={(e) => setArchivo(e.target.files?.[0] || null)} />
               <div className="sd07-modal-actions">
                 <button className="sd07-btn" onClick={() => setMostrarSubirModal(false)}>Cancelar</button>
