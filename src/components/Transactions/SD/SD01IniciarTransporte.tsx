@@ -55,8 +55,8 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   "C144 Tiendas sin Bodega": ["Sap", "Vtradex", "Guia"],
   "DV01 Devoluciones": ["Guia"],// CAMBIADO
   "SG01 Internet": [],
-  "SG02 Insumos": ["Guia",],
-  "SG03 Traspasos": ["Guia"],
+  "SG02 Insumos": ["Guia", "No Aplica",],
+  "SG03 Traspasos": ["Guia", "No Aplica",],
   "SG04 Valija": [],
   "SG05 Bultos Regularizar Stock": ["Sap", "Vtradex", "Guia"],
   "SG06 Bultos Quedados en Camion": ["Sap", "Vtradex", "Guia"],
