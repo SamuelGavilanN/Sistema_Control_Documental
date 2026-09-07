@@ -1,0 +1,46 @@
+/* src/components/Transactions/SD/SD07.css */
+
+.sd07-container { padding: 24px; background: var(--bg-app); min-height: 100vh; }
+.sd07-header { margin-bottom: 20px; }
+.sd07-header h2 { font-size: 22px; font-weight: 700; color: var(--text-primary); margin: 0 0 4px 0; }
+.sd07-header p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+.sd07-toolbar { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: var(--shadow-sm); }
+.sd07-filter-group { display: flex; align-items: center; gap: 8px; }
+.sd07-filter-group label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.sd07-date-input { padding: 8px 12px; border: 1px solid var(--border-input); border-radius: 8px; font-size: 13px; background: var(--bg-input); color: var(--text-primary); }
+
+.sd07-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--btn-text); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.sd07-btn:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+.sd07-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sd07-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-bg); }
+.sd07-btn-success { background: #16a34a; color: white; border-color: #16a34a; }
+
+.sd07-resumen { display: flex; gap: 16px; margin-bottom: 20px; }
+.sd07-total-card { flex: 1; min-width: 140px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; box-shadow: var(--shadow-sm); }
+.sd07-total-card span { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sd07-total-card strong { font-size: 24px; color: var(--text-primary); }
+
+.sd07-table-wrapper { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; max-height: 70vh; overflow-y: auto; box-shadow: var(--shadow-sm); }
+.sd07-table { width: 100%; border-collapse: collapse; min-width: 800px; }
+.sd07-table thead tr { background: var(--table-header-bg); position: sticky; top: 0; z-index: 3; }
+.sd07-table th, .sd07-table td { padding: 10px 12px; text-align: center; font-size: 13px; border-bottom: 1px solid var(--border-cell); white-space: nowrap; }
+.sd07-table th { cursor: pointer; font-weight: 600; color: var(--table-header-text); user-select: none; }
+.sd07-table th:hover { background: var(--table-row-hover); }
+.sd07-table tbody tr:hover { background: var(--table-row-hover); }
+
+.sd07-badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.sd07-badge-coincide { background: #dcfce7; color: #15803d; }
+.sd07-badge-diferencia { background: #fef3c7; color: #b45309; }
+.sd07-badge-solo-docxentra { background: #fef2f2; color: #dc2626; }
+.sd07-badge-solo-wms { background: #f1f5f9; color: #64748b; }
+
+.sd07-loading, .sd07-empty { text-align: center; padding: 40px; color: var(--text-muted); }
+
+.sd07-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-overlay); z-index: 1500; display: flex; align-items: center; justify-content: center; }
+.sd07-modal { background: var(--bg-panel); border-radius: 12px; width: 90%; max-width: 500px; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+.sd07-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.sd07-modal-header h2 { margin: 0; font-size: 18px; color: var(--text-primary); }
+.sd07-modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); }
+.sd07-modal-body { padding: 20px; }
+.sd07-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
