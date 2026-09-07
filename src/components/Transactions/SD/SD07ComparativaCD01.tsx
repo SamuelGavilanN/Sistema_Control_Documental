@@ -39,52 +39,71 @@ const SD07ComparativaCD01: React.FC = () => {
 
   const mostrar = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
-    setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
+    setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 6000);
   };
 
   const cargarDatos = useCallback(async () => {
-    if (!fechaProgramacion) { mostrar('warning', 'Selecciona una fecha'); return; }
+    if (!fechaProgramacion) { mostrar('warning', 'Selecciona una fecha de programación'); return; }
     setCargando(true);
     try {
-      // Obtener todos los bultos de CD01 (sin relaciones)
+      console.log('Fecha seleccionada:', fechaProgramacion);
+
+      // 1. Obtener bultos de CD01 (sin relaciones)
       const respBultos = await fetch(`${API_URL}/sd01_bultos?select=*&origen_carga=eq.CD01 Fashions-Park`, { headers: HEADERS });
       if (!respBultos.ok) throw new Error('Error al obtener bultos');
       const bultos: any[] = await respBultos.json();
+      console.log('Bultos CD01 encontrados:', bultos.length);
+
+      // Verificar si hay bultos
+      if (bultos.length === 0) {
+        mostrar('info', 'No hay bultos registrados para CD01 en el sistema. Verifica el origen_carga.');
+        setRowsDocxentra([]);
+        setRowsWms([]);
+        setComparacion([]);
+        setCargando(false);
+        return;
+      }
 
       // Extraer IDs únicos de locales y documentos
-      const localIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.local_id).filter(Boolean)));
-      const documentoIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.documento_id).filter(Boolean)));
+      const localIds: string[] = Array.from(new Set(bultos.map(b => b.local_id).filter(Boolean)));
+      const documentoIds: string[] = Array.from(new Set(bultos.map(b => b.documento_id).filter(Boolean)));
+      console.log('Locales encontrados:', localIds.length, 'Documentos:', documentoIds.length);
 
-      // Obtener locales
+      // 2. Obtener locales
       let localesMap = new Map<string, string>();
       if (localIds.length > 0) {
         const inParams = localIds.join(',');
         const respLocales = await fetch(`${API_URL}/locales?select=id,codigo_local&id=in.(${inParams})`, { headers: HEADERS });
         if (!respLocales.ok) throw new Error('Error al obtener locales');
         const locales: any[] = await respLocales.json();
-        locales.forEach((l: any) => localesMap.set(l.id, l.codigo_local));
+        locales.forEach(l => localesMap.set(l.id, l.codigo_local));
+        console.log('Locales cargados:', locales.length);
       }
 
-      // Obtener documentos
+      // 3. Obtener documentos
       let docMap = new Map<string, string>();
       if (documentoIds.length > 0) {
         const inParams = documentoIds.join(',');
         const respDocs = await fetch(`${API_URL}/sd01_documentos?select=id,fecha_programacion&id=in.(${inParams})`, { headers: HEADERS });
         if (!respDocs.ok) throw new Error('Error al obtener documentos');
         const docs: any[] = await respDocs.json();
-        docs.forEach((d: any) => docMap.set(d.id, d.fecha_programacion));
+        docs.forEach(d => docMap.set(d.id, d.fecha_programacion));
+        console.log('Documentos cargados:', docs.length);
       }
 
-      // Agrupar por acta + local
+      // 4. Filtrar por fecha y agrupar por acta + local
       const mapaDocx = new Map<string, number>();
-      (bultos || []).forEach((b: any) => {
+      bultos.forEach(b => {
         const fecha = docMap.get(b.documento_id);
-        if (!fecha || !fecha.startsWith(fechaProgramacion)) return;
-        const acta = b.numero_documento || '';
-        const codLocal = localesMap.get(b.local_id) || '';
-        if (!acta) return;
-        const key = `${normalizar(acta)}||${normalizar(codLocal)}`;
-        mapaDocx.set(key, (mapaDocx.get(key) || 0) + (b.cantidad || 0));
+        if (!fecha) return; // no tiene documento o no se encontró
+        // Normalizar fecha: si viene "2026-09-07T12:00:00", startsWith("2026-09-07") funciona
+        if (fecha.startsWith(fechaProgramacion)) {
+          const acta = b.numero_documento || '';
+          const codLocal = localesMap.get(b.local_id) || '';
+          if (!acta) return;
+          const key = `${normalizar(acta)}||${normalizar(codLocal)}`;
+          mapaDocx.set(key, (mapaDocx.get(key) || 0) + (b.cantidad || 0));
+        }
       });
 
       const docxRows: FilaDocxentra[] = Array.from(mapaDocx.entries()).map(([key, cant]) => {
@@ -92,13 +111,24 @@ const SD07ComparativaCD01: React.FC = () => {
         return { acta, cod_local: cod, cantidad: cant };
       });
       setRowsDocxentra(docxRows);
+      console.log('Filas Docxentra después de filtro:', docxRows.length);
 
-      // Obtener datos WMS
+      if (docxRows.length === 0) {
+        mostrar('info', `No hay bultos de CD01 para la fecha ${fechaProgramacion}. Puede que la fecha esté mal o el origen no coincida.`);
+      }
+
+      // 5. Obtener datos WMS
       const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
       if (!respWms.ok) throw new Error('Error al obtener WMS');
       const wmsData: any[] = await respWms.json();
+      console.log('Datos WMS encontrados:', wmsData.length);
+
+      if (wmsData.length === 0) {
+        mostrar('warning', 'No hay datos en WMS. Sube un informe actualizado.');
+      }
+
       const mapaWms = new Map<string, number>();
-      (wmsData || []).forEach((w: any) => {
+      wmsData.forEach(w => {
         const key = `${normalizar(w.acta)}||${normalizar(w.cod_local)}`;
         mapaWms.set(key, (mapaWms.get(key) || 0) + (w.cantidad || 0));
       });
@@ -108,8 +138,8 @@ const SD07ComparativaCD01: React.FC = () => {
       });
       setRowsWms(wmsRows);
     } catch (e) {
-      console.error(e);
-      mostrar('error', 'Error al cargar datos');
+      console.error('Error cargando datos:', e);
+      mostrar('error', 'Error al cargar datos: ' + (e as Error).message);
     } finally {
       setCargando(false);
     }
@@ -165,7 +195,7 @@ const SD07ComparativaCD01: React.FC = () => {
       const wb = XLSX.read(data, { cellDates: false });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      // Buscar encabezados
+
       let headerIndex = -1, idxActa = -1, idxCod = -1, idxCant = -1;
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -176,19 +206,22 @@ const SD07ComparativaCD01: React.FC = () => {
         const q = headers.findIndex(h => h.includes('CANTIDAD') || h.includes('SUMA'));
         if (a !== -1 && c !== -1 && q !== -1) { headerIndex = i; idxActa = a; idxCod = c; idxCant = q; break; }
       }
-      if (headerIndex === -1) { mostrar('error', 'Columnas no encontradas'); setProcesando(false); return; }
+      if (headerIndex === -1) { mostrar('error', 'No se encontraron las columnas "Acta", "Cod Local" y "Suma de Cantidad"'); setProcesando(false); return; }
+
       const filas = rows.slice(headerIndex + 1).filter(r => r && r[idxActa]);
       const registros = filas.map(r => ({
         acta: String(r[idxActa]).trim(),
         cod_local: String(r[idxCod]).trim(),
         cantidad: parseInt(r[idxCant]) || 0
       }));
-      if (registros.length === 0) { mostrar('warning', 'Sin datos'); setProcesando(false); return; }
+      if (registros.length === 0) { mostrar('warning', 'El archivo no contiene datos'); setProcesando(false); return; }
 
-      // Eliminar anterior y guardar nuevo
+      // Eliminar datos anteriores
       await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
         method: 'DELETE', headers: HEADERS
       });
+
+      // Insertar nuevos en lotes
       const BATCH = 100;
       for (let i = 0; i < registros.length; i += BATCH) {
         const batch = registros.slice(i, i + BATCH);
@@ -196,13 +229,13 @@ const SD07ComparativaCD01: React.FC = () => {
           method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=representation' }, body: JSON.stringify(batch)
         });
       }
-      mostrar('success', `${registros.length} registros cargados`);
+      mostrar('success', `Informe WMS cargado correctamente (${registros.length} registros)`);
       setMostrarSubirModal(false);
       setArchivo(null);
       cargarDatos();
     } catch (e) {
-      console.error(e);
-      mostrar('error', 'Error al procesar archivo');
+      console.error('Error subiendo archivo:', e);
+      mostrar('error', 'Error al procesar archivo: ' + (e as Error).message);
     } finally { setProcesando(false); }
   };
 
@@ -246,7 +279,7 @@ const SD07ComparativaCD01: React.FC = () => {
       )}
       <div className="sd07-table-wrapper">
         {cargando ? <div className="sd07-loading">Cargando...</div> :
-         filasOrdenadas.length === 0 ? <div className="sd07-empty">No hay datos para la fecha</div> :
+         filasOrdenadas.length === 0 ? <div className="sd07-empty">No hay datos para la fecha. Revisa los mensajes arriba.</div> :
          <table className="sd07-table">
            <thead>
              <tr>
