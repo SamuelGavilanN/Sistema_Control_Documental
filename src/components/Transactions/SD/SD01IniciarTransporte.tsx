@@ -31,16 +31,18 @@ const origenesCarga = [
   "OUT2 Outlet Lampa",
   "OUT3 Redestinacion",
   "CD12 Bodega Lampa",
-  "CD30 Bodega HC",        // NUEVO
+  "CD30 Bodega HC",  
   "CD31 Bodega AGV",
   "C144 Tiendas sin Bodega",
-  "DV01 Devoluciones",// CAMBIADO (antes "C144 Bodega Holly Concept")
+  "DV01 Devoluciones",
+  "MR01 Mermas",
   "SG01 Internet",
   "SG02 Insumos",
   "SG03 Traspasos",
   "SG04 Valija",
   "SG05 Bultos Regularizar Stock",
   "SG06 Bultos Quedados en Camion",
+  "SG07 Insumos Con Guia",
 ];
 
 const tiposDocumentoPorOrigen: Record<string, string[]> = {
@@ -50,16 +52,18 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   "OUT2 Outlet Lampa": ["Sap", "Vtradex", "Guia"],
   "OUT3 Redestinacion": ["Sap", "Vtradex", "Guia"],
   "CD12 Bodega Lampa": ["Sap", "Vtradex", "Guia"],
-  "CD30 Bodega HC": ["Sap", "Vtradex", "Guia"],        // NUEVO
+  "CD30 Bodega HC": ["Sap", "Vtradex", "Guia"],   
   "CD31 Bodega AGV": ["Sap", "Vtradex", "Guia"],
   "C144 Tiendas sin Bodega": ["Sap", "Vtradex", "Guia"],
-  "DV01 Devoluciones": ["Guia"],// CAMBIADO
+  "DV01 Devoluciones": ["Guia"],
+  "MR01 Mermas": ["Guia"],
   "SG01 Internet": [],
-  "SG02 Insumos": ["Guia", "No Aplica",],
+  "SG02 Insumos": [],
   "SG03 Traspasos": ["Guia", "No Aplica",],
   "SG04 Valija": [],
   "SG05 Bultos Regularizar Stock": ["Sap", "Vtradex", "Guia"],
   "SG06 Bultos Quedados en Camion": ["Sap", "Vtradex", "Guia"],
+  "SG07 Insumos Con Guia": ["Guia"],
 };
 
 interface Bulto {
