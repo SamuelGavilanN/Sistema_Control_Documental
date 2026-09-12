@@ -81,3 +81,17 @@ Thumbs.db
 .eslintcache
 .cache
 *.tsbuildinfo
+# ============================================
+# Supabase CLI
+# ============================================
+# Archivos temporales de CLI (no se versionan)
+supabase/.temp
+supabase/.branches
+
+# Schema completo de prod (solo referencia, tiene tablas legacy)
+supabase/migrations/0001_schema_prod_completo.sql
+
+# NOTA: sí se versionan:
+# - supabase/migrations/0002_schema_activo.sql (schema canonical de 25 tablas)
+# - supabase/seeds/0003_maestras_data.sql (datos maestros)
+# - supabase/seeds/0004_usuarios_demo.sql (usuarios demo)
