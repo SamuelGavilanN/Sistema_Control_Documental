@@ -95,3 +95,12 @@ supabase/migrations/0001_schema_prod_completo.sql
 # - supabase/migrations/0002_schema_activo.sql (schema canonical de 25 tablas)
 # - supabase/seeds/0003_maestras_data.sql (datos maestros)
 # - supabase/seeds/0004_usuarios_demo.sql (usuarios demo)
+
+# ============================================
+# Vercel - archivos temporales (no versionar)
+# ============================================
+# OJO: NO usar `.env*` porque bloquearía .env.example
+.env.local
+.env.vercel.check
+.env.vercel
+.env.vercel.*
