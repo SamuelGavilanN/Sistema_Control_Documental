@@ -120,7 +120,7 @@ const App: React.FC = () => {
           {tabsMontadas.has('bd-locales') && <div style={{ display: activeTab === 'bd-locales' ? 'block' : 'none' }}><BD02Locales key="bd02" /></div>}
 
           {/* Módulo no encontrado */}
-          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-informe-bultos', 'sd-informe-unidades', 'sd-analisis-bultos', 'sd-estado-carga', 'sd-pedidos-especiales', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
+          {!['dashboard', 'ed', 'ed-history', 'ed-tickets', 'ed-lotes', 'sd', 'sd-informe-bultos', 'sd-informe-unidades', 'sd-analisis-bultos', 'sd-estado-carga', 'sd-pedidos-especiales', 'sd-comparativa-cd01', 'ut', 'ut-revision', 'bd-usuarios', 'bd-locales'].includes(activeTab) && (
             <div className="module-container"><h3>Módulo en desarrollo</h3></div>
           )}
         </div>
