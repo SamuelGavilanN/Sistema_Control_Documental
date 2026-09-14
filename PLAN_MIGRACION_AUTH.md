@@ -110,3 +110,13 @@ CREATE INDEX idx_usuarios_auth_user_id ON public.usuarios(auth_user_id);
 -- Se mantiene `id uuid PK` para compatibilidad con FKs existentes.
 -- La columna `password` se elimina después del cutover.
 -- Se mantienen `nombre`, `apellido`, `usuario`, `rol`, `activo`.
+
+### 🟦 Fase 1 — Preparar dev ✅ COMPLETADA
+- [x] Crear script `scripts/migrate-auth.js` (Node, usa `service_role`).
+- [x] Eliminar todos los usuarios de `usuarios` en dev.
+- [x] Crear 4 usuarios de prueba en Auth (`owner`, `admin`, `lider`, `portico`) con `rol` en metadata.
+- [x] Insertar los 4 en `usuarios` con `auth_user_id`.
+- [x] Verificar login manual vía SDK de Supabase.
+- [x] Agregar columna `auth_user_id` con FK a `auth.users`.
+
+**Usuarios demo:** `owner`, `admin`, `lider`, `portico` — Password: `Demo1234!`
