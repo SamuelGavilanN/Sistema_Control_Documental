@@ -338,7 +338,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
         </div>
         {showUserMenu && (
           <div className="user-menu" onClick={e => e.stopPropagation()}>
-            <div className="user-menu-item" onClick={() => { onLogout(); setShowUserMenu(false); }}>
+            <div className="user-menu-item" onClick={async () => { await onLogout(); setShowUserMenu(false); }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M6 13V11H3V3H6V1H2V13H6Z" fill="currentColor"/>
                 <path d="M10 4L14 8L10 12V9H6V7H10V4Z" fill="currentColor"/>

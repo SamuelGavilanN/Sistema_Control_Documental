@@ -36,11 +36,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(''); setCargando(true);
-    try { const userData = await auth.login(usuario, password); onLogin(userData); }
-    catch (err: any) { setError(err.message); }
-    finally { setCargando(false); }
-  };
+  e.preventDefault();
+  setError('');
+  setCargando(true);
+  try {
+    const userData = await auth.login(usuario, password);
+    onLogin(userData);
+  } catch (err: any) {
+    setError(err.message || 'Error al iniciar sesión');
+  } finally {
+    setCargando(false);
+  }
+};
 
   return (
     <div className="login-page">

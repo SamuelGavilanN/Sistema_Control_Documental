@@ -44,8 +44,35 @@ const App: React.FC = () => {
   const [permisos, setPermisos] = useState<string[]>([]);
 
   useEffect(() => {
-    const usuarioGuardado = auth.getUsuario();
-    if (usuarioGuardado) { setUsuario(usuarioGuardado); } else { setCargando(false); }
+    // Verificación inicial de sesión
+    const checkSession = async () => {
+      const session = await auth.getSession();
+      const usuarioGuardado = auth.getUsuario();
+      if (session && usuarioGuardado) {
+        setUsuario(usuarioGuardado);
+      } else {
+        // Si hay inconsistencia, limpiar
+        if (!session) {
+          localStorage.removeItem('usuario');
+        }
+        setCargando(false);
+      }
+    };
+    checkSession();
+
+    // Escuchar cambios de auth (logout desde otra tab, expiración, etc.)
+    const { data: { subscription } } = auth.onAuthStateChange((event: string) => {
+      if (event === 'SIGNED_OUT') {
+        setUsuario(null);
+        localStorage.removeItem('usuario');
+        setActiveTab('dashboard');
+        setOpenTabs(['dashboard']);
+        setTabsMontadas(new Set(['dashboard']));
+        setPermisos([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -67,8 +94,14 @@ const App: React.FC = () => {
   };
 
   const handleLogin = (userData: any) => setUsuario(userData);
-  const handleLogout = () => {
-    auth.logout(); setUsuario(null); setActiveTab('dashboard'); setOpenTabs(['dashboard']); setTabsMontadas(new Set(['dashboard'])); setCargando(true); setPermisos([]);
+  const handleLogout = async () => {
+    await auth.logout();
+    setUsuario(null);
+    setActiveTab('dashboard');
+    setOpenTabs(['dashboard']);
+    setTabsMontadas(new Set(['dashboard']));
+    setCargando(false);
+    setPermisos([]);
   };
 
   if (!usuario) return <Login onLogin={handleLogin} />;
