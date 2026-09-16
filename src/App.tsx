@@ -15,8 +15,8 @@ import ED04Lotes from './components/Transactions/ED01/ED04Lotes';
 import SD01View from './components/Transactions/SD/SD01View';
 import SD02InformeBultos from './components/Transactions/SD/SD02InformeBultos';
 import SD03InformeUnDesp from './components/Transactions/SD/SD03InformeUnDesp';
-import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp'; // NUEVO
-import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga'; // NUEVO
+import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBultosDesp';
+import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga';
 import SD06PedidosEspeciales from './components/Transactions/SD/SD06PedidosEspeciales';
 import SD07ComparativaCD01 from './components/Transactions/SD/SD07ComparativaCD01';
 
@@ -31,6 +31,7 @@ import BD02Locales from './components/Transactions/BD/BD02Locales';
 import Login from './components/Login/Login';
 import { auth } from './lib/auth';
 import { cargarLocales } from './data/locales';
+import { apiFetch } from './lib/apiClient';
 import './App.css';
 
 export type TabId = string;
@@ -84,16 +85,17 @@ const App: React.FC = () => {
 
   const cargarPermisos = async (userId: string) => {
     try {
-      const resp = await fetch(
-        'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_permisos?select=transaccion_id&usuario_id=eq.' + userId + '&activo=eq.true',
-        { headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
+      const data = await apiFetch<any[]>(
+        '/usuario_permisos?select=transaccion_id&usuario_id=eq.' + userId + '&activo=eq.true'
       );
-      const data = await resp.json();
       if (data && data.length > 0) setPermisos(data.map((p: any) => p.transaccion_id));
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando permisos:', e);
+    }
   };
 
   const handleLogin = (userData: any) => setUsuario(userData);
+
   const handleLogout = async () => {
     await auth.logout();
     setUsuario(null);
