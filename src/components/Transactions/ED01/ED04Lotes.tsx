@@ -1,15 +1,12 @@
 // src/components/Transactions/ED/ED04Lotes.tsx
 
+// src/components/Transactions/ED01/ED04Lotes.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
+import { apiFetch } from '../../../lib/apiClient';
 import './ED04.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 const ED04Lotes: React.FC = () => {
   const [lotes, setLotes]: any = useState([]);
@@ -30,11 +27,9 @@ const ED04Lotes: React.FC = () => {
 
   const cargarLotes = async () => {
     try {
-      const resp = await fetch(API_URL + '/ed04_lotes?select=*&order=creado_en.desc', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/ed04_lotes?select=*&order=creado_en.desc');
       if (data) {
         setLotes(data);
-        // Actualizar lote seleccionado si aún existe
         if (loteSeleccionado) {
           const actualizado = data.find((l: any) => l.id === loteSeleccionado.id);
           if (actualizado) {
@@ -90,15 +85,16 @@ const ED04Lotes: React.FC = () => {
         return;
       }
 
-      // Verificar que no haya empaques duplicados con lotes existentes
+      // Verificar duplicados con lotes existentes
       const todosLosEmpaquesExistentes: string[] = [];
       try {
-        const respExistente = await fetch(API_URL + '/ed04_lote_empaques?select=numero_empaque&limit=10000', { headers: HEADERS });
-        const existentes = await respExistente.json();
+        const existentes = await apiFetch<any[]>('/ed04_lote_empaques?select=numero_empaque&limit=10000');
         if (existentes) {
           existentes.forEach((e: any) => todosLosEmpaquesExistentes.push(e.numero_empaque));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('Error verificando duplicados:', e);
+      }
 
       const duplicados = empaques.filter((e: string) => todosLosEmpaquesExistentes.includes(e));
       if (duplicados.length > 0) {
@@ -111,9 +107,9 @@ const ED04Lotes: React.FC = () => {
       const idLote = generarIdLote();
 
       // Crear el lote
-      const respLote = await fetch(API_URL + '/ed04_lotes', {
+      const loteData = await apiFetch<any[]>('/ed04_lotes', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify({
           id_lote: idLote,
           fecha_registro: new Date().toISOString().split('T')[0],
@@ -124,14 +120,6 @@ const ED04Lotes: React.FC = () => {
         })
       });
 
-      if (!respLote.ok) {
-        const err = await respLote.json();
-        mostrarMensaje('error', 'Error al crear lote: ' + (err.message || 'Error desconocido'));
-        setSubiendo(false);
-        return;
-      }
-
-      const loteData = await respLote.json();
       const lote = Array.isArray(loteData) ? loteData[0] : loteData;
 
       // Insertar empaques en lotes de 100
@@ -142,14 +130,14 @@ const ED04Lotes: React.FC = () => {
           numero_empaque: emp
         }));
 
-        const respBatch = await fetch(API_URL + '/ed04_lote_empaques', {
-          method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify(batch)
-        });
-
-        if (respBatch.ok) {
+        try {
+          await apiFetch('/ed04_lote_empaques', {
+            method: 'POST',
+            body: JSON.stringify(batch)
+          });
           insertados += batch.length;
+        } catch (e) {
+          console.error('Error insertando batch:', e);
         }
       }
 
@@ -170,32 +158,24 @@ const ED04Lotes: React.FC = () => {
       return;
     }
     if (!window.confirm('¿Está seguro de eliminar el lote ' + loteSeleccionado.id_lote + '?\n\nSe eliminarán todos los empaques asociados.')) return;
-    
+
     try {
-      // Eliminar empaques primero (por cascada debería ser automático, pero por si acaso)
-      await fetch(API_URL + '/ed04_lote_empaques?lote_id=eq.' + loteSeleccionado.id, {
-        method: 'DELETE',
-        headers: HEADERS
-      });
-      
-      // Eliminar lote
-      const resp = await fetch(API_URL + '/ed04_lotes?id=eq.' + loteSeleccionado.id, {
-        method: 'DELETE',
-        headers: HEADERS
+      // Eliminar empaques primero
+      await apiFetch('/ed04_lote_empaques?lote_id=eq.' + loteSeleccionado.id, {
+        method: 'DELETE'
       });
 
-      if (!resp.ok) {
-        const err = await resp.json();
-        mostrarMensaje('error', 'Error al eliminar: ' + (err.message || 'Error desconocido'));
-        return;
-      }
+      // Eliminar lote
+      await apiFetch('/ed04_lotes?id=eq.' + loteSeleccionado.id, {
+        method: 'DELETE'
+      });
 
       mostrarMensaje('success', 'Lote ' + loteSeleccionado.id_lote + ' eliminado correctamente');
       setLoteSeleccionado(null);
       cargarLotes();
     } catch (e: any) {
       console.error('Error eliminando lote:', e);
-      mostrarMensaje('error', 'Error al eliminar lote');
+      mostrarMensaje('error', 'Error al eliminar lote: ' + (e.message || ''));
     }
   };
 
@@ -211,22 +191,15 @@ const ED04Lotes: React.FC = () => {
     if (!window.confirm('¿' + (nuevoEstado ? 'Activar' : 'Desactivar') + ' el lote ' + loteSeleccionado.id_lote + '?')) return;
 
     try {
-      const resp = await fetch(API_URL + '/ed04_lotes?id=eq.' + loteSeleccionado.id, {
+      await apiFetch('/ed04_lotes?id=eq.' + loteSeleccionado.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ activo: nuevoEstado })
       });
-
-      if (!resp.ok) {
-        const err = await resp.json();
-        mostrarMensaje('error', 'Error al ' + accion + ': ' + (err.message || 'Error desconocido'));
-        return;
-      }
 
       mostrarMensaje('success', 'Lote ' + accion + ' correctamente');
       cargarLotes();
     } catch (e: any) {
-      mostrarMensaje('error', 'Error al ' + accion + ' lote');
+      mostrarMensaje('error', 'Error al ' + accion + ' lote: ' + (e.message || ''));
     }
   };
 
