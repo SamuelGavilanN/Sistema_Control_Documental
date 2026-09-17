@@ -7,13 +7,8 @@ import SD01VerTransporte from './SD01VerTransporte';
 import SD01CargaExcel from './SD01CargaExcel';
 import SD01IniciarTransporte from './SD01IniciarTransporte';
 import { cache } from '../../../lib/cache';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD01.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 const PAGE_SIZE = 20;
 
@@ -28,8 +23,6 @@ const SD01View: React.FC = () => {
   const [mostrarCargaExcel, setMostrarCargaExcel] = useState(false);
   const [mostrarDetalle, setMostrarDetalle] = useState<any>(null);
   const [usuariosAdmin, setUsuariosAdmin] = useState<any[]>([]);
-  const [mostrarAsignarModal, setMostrarAsignarModal] = useState(false);
-  const [usuarioAsignar, setUsuarioAsignar] = useState('');
 
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
@@ -41,7 +34,7 @@ const SD01View: React.FC = () => {
     setCargando(true);
     try {
       const offset = (paginaActual - 1) * PAGE_SIZE;
-      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}`;
+      const path = `/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}`;
 
       const cacheKey = `sd01_transportes_p${paginaActual}`;
       const cacheTTL = 10000;
@@ -49,9 +42,7 @@ const SD01View: React.FC = () => {
       if (cached) {
         setTransportes(cached);
       } else {
-        const resp = await fetch(query, { headers: HEADERS });
-        if (!resp.ok) throw new Error('Error al cargar transportes');
-        const data = await resp.json();
+        const data = await apiFetch<any[]>(path);
         cache.set(cacheKey, data, cacheTTL);
         setTransportes(data);
       }
@@ -60,8 +51,7 @@ const SD01View: React.FC = () => {
       const cachedTotal = cache.get<number>(countCacheKey);
       let totalCount: number = cachedTotal || 0;
       if (totalCount === 0) {
-        const countResp = await fetch(`${API_URL}/sd01_documentos?select=id`, { headers: { ...HEADERS, 'Prefer': 'count=exact' } });
-        const countData = await countResp.json();
+        const countData = await apiFetch<any[]>('/sd01_documentos?select=id');
         totalCount = Array.isArray(countData) ? countData.length : 0;
         cache.set(countCacheKey, totalCount, cacheTTL);
       }
@@ -86,10 +76,11 @@ const SD01View: React.FC = () => {
 
   const cargarUsuariosAdmin = async () => {
     try {
-      const resp = await fetch(API_URL + '/usuarios?select=id,nombre,apellido,rol&or=(rol.eq.Administrativo,rol.eq.Lider)&activo=eq.true', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/usuarios?select=id,nombre,apellido,rol&or=(rol.eq.Administrativo,rol.eq.Lider,rol.eq.Admin,rol.eq.Owner)&activo=eq.true');
       if (data) setUsuariosAdmin(data);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando usuarios admin:', e);
+    }
   };
 
   const mostrarMensaje = (tipo: string, texto: string) => {
@@ -113,18 +104,14 @@ const SD01View: React.FC = () => {
     }
     if (!window.confirm('¿Eliminar el transporte ' + t.id_documento + '?')) return;
     try {
-      await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
-      const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
-      if (resp.ok) {
-        mostrarMensaje('success', 'Transporte eliminado correctamente');
-        setTransporteSeleccionado(null);
-        cache.invalidatePrefix('sd01_transportes_');
-        cargarTransportes(pagina);
-      } else {
-        mostrarMensaje('error', 'Error al eliminar transporte');
-      }
+      await apiFetch('/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE' });
+      await apiFetch('/sd01_documentos?id=eq.' + t.id, { method: 'DELETE' });
+      mostrarMensaje('success', 'Transporte eliminado correctamente');
+      setTransporteSeleccionado(null);
+      cache.invalidatePrefix('sd01_transportes_');
+      cargarTransportes(pagina);
     } catch (e) {
-      mostrarMensaje('error', 'Error de red al eliminar');
+      mostrarMensaje('error', 'Error al eliminar transporte');
     }
   };
 
@@ -144,9 +131,8 @@ const SD01View: React.FC = () => {
       return;
     }
     try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+      await apiFetch('/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           estado: 'Cancelado',
           cancelado_en: new Date().toISOString(),
@@ -177,9 +163,8 @@ const SD01View: React.FC = () => {
       let actualizado = { ...transporteSeleccionado };
       if (transporteSeleccionado.estado === 'Pendiente') {
         const now = new Date().toISOString();
-        await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+        await apiFetch('/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
           method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             estado: 'En Proceso',
             fecha_inicio: now,
@@ -209,9 +194,8 @@ const SD01View: React.FC = () => {
     }
     if (!window.confirm('¿Reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a Pendiente.')) return;
     try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
+      await apiFetch('/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           estado: 'Pendiente',
           finalizado_en: null,
@@ -275,10 +259,8 @@ const SD01View: React.FC = () => {
     setTransporteSeleccionado(null);
   };
 
-  // Funciones de formato de fecha mejoradas para evitar desfase
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    // Si viene con T, cortar y usar solo la primera parte
     const soloFecha = fecha.includes('T') ? fecha.split('T')[0] : fecha;
     const partes = soloFecha.split('-');
     if (partes.length === 3) {
@@ -353,7 +335,6 @@ const SD01View: React.FC = () => {
         </div>
       )}
 
-      {/* Barra de opciones sticky */}
       <div className="sd01-toolbar" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)', padding: '10px 16px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
         <button className="sd01-btn sd01-btn-primary" onClick={handleCrearTransporte}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -380,33 +361,20 @@ const SD01View: React.FC = () => {
         <div className="sd01-separator"></div>
 
         <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M11.3333 2.00004C11.5084 1.82494 11.7163 1.68605 11.9451 1.59129C12.1738 1.49653 12.4187 1.44775 12.6663 1.44775C12.9138 1.44775 13.1587 1.49653 13.3875 1.59129C13.6163 1.68605 13.8242 1.82494 13.9993 2.00004C14.1744 2.17514 14.3133 2.38305 14.408 2.61187C14.5028 2.8407 14.5516 3.08557 14.5516 3.33337C14.5516 3.58118 14.5028 3.82605 14.408 4.05487C14.3133 4.2837 14.1744 4.49161 13.9993 4.66671L5.33333 13.3327L2 13.9994L2.66667 10.666L11.3333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
           Editar
         </button>
 
         <button className="sd01-btn sd01-btn-danger" onClick={handleCancelarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
           Cancelar
         </button>
 
         <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
           Eliminar ({transporteSeleccionado ? 1 : 0})
         </button>
 
         <div className="sd01-separator"></div>
 
         <button className="sd01-btn" onClick={handleVerTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
           Ver
         </button>
 
@@ -420,13 +388,9 @@ const SD01View: React.FC = () => {
         <div className="sd01-separator"></div>
 
         <button className="sd01-btn sd01-btn-warning" onClick={handleReabrirTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
           Reabrir
         </button>
 
-        {/* Paginación */}
         <div className="sd01-separator"></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Mostrar</span>
