@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../lib/auth';
+import { apiFetch } from '../../lib/apiClient';
 
 interface DashboardProps {
   onModuleClick?: (moduleId: string) => void;
@@ -27,12 +28,6 @@ const transacciones = [
   { id: 'bd-locales', label: 'BD02 · Locales', desc: 'Administración de locales', color: '#475569' },
 ];
 
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
-
 const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [favoritos, setFavoritos] = useState<string[]>([]);
@@ -46,18 +41,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onModuleClick, rol, permisos }) =
 
   useEffect(() => {
     if (!usuario?.id) return;
-    
+
     const cargarFavoritos = async () => {
       try {
-        const resp = await fetch(
-          API_URL + '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id,
-          { headers: HEADERS }
+        const data = await apiFetch<any[]>(
+          '/usuario_favoritos?select=transaccion_id&usuario_id=eq.' + usuario.id
         );
-        const data = await resp.json();
         if (data) {
           setFavoritos(data.map((f: any) => f.transaccion_id));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('Error cargando favoritos:', e);
+      }
     };
 
     cargarFavoritos();
