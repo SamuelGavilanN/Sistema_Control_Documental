@@ -2,14 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD07.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Content-Type': 'application/json'
-};
 
 interface FilaDocxentra { acta: string; cod_local: string; cantidad: number; }
 interface FilaWms { acta: string; cod_local: string; cantidad: number; }
@@ -46,44 +40,40 @@ const SD07ComparativaCD01: React.FC = () => {
     if (!fechaProgramacion) { mostrar('warning', 'Selecciona una fecha de programación'); return; }
     setCargando(true);
     try {
-      // === OBTENER DATOS DE DOCXENTRA (CD01) ===
-      const respBultos = await fetch(`${API_URL}/sd01_bultos?select=*&origen_carga=eq.CD01 Fashions-Park`, { headers: HEADERS });
-      if (!respBultos.ok) throw new Error('Error al obtener bultos');
-      const bultos: any[] = await respBultos.json();
+      const bultos = await apiFetch<any[]>(
+        '/sd01_bultos?select=*&origen_carga=eq.CD01 Fashions-Park'
+      );
 
-      // Obtener códigos de local desde sd01_documento_locales
-      const localIds: string[] = Array.from(new Set(bultos.map((b: any) => b.local_id).filter(Boolean)));
-      let localMap = new Map<string, string>();
+      const localIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.local_id).filter(Boolean)));
+      const localMap = new Map<string, string>();
       if (localIds.length > 0) {
         const chunkSize = 50;
         for (let i = 0; i < localIds.length; i += chunkSize) {
           const chunk = localIds.slice(i, i + chunkSize);
           const inParams = chunk.join(',');
-          const respLocales = await fetch(`${API_URL}/sd01_documento_locales?select=id,codigo_local&id=in.(${inParams})`, { headers: HEADERS });
-          if (!respLocales.ok) throw new Error('Error al obtener documento_locales');
-          const localesData: any[] = await respLocales.json();
-          localesData.forEach((l: any) => localMap.set(l.id, l.codigo_local));
+          const localesData = await apiFetch<any[]>(
+            `/sd01_documento_locales?select=id,codigo_local&id=in.(${inParams})`
+          );
+          (localesData || []).forEach((l: any) => localMap.set(l.id, l.codigo_local));
         }
       }
 
-      // Obtener fechas de programación desde sd01_documentos
-      const docIds: string[] = Array.from(new Set(bultos.map((b: any) => b.documento_id).filter(Boolean)));
-      let docMap = new Map<string, string>();
+      const docIds: string[] = Array.from(new Set((bultos || []).map((b: any) => b.documento_id).filter(Boolean)));
+      const docMap = new Map<string, string>();
       if (docIds.length > 0) {
         const chunkSize = 50;
         for (let i = 0; i < docIds.length; i += chunkSize) {
           const chunk = docIds.slice(i, i + chunkSize);
           const inParams = chunk.join(',');
-          const respDocs = await fetch(`${API_URL}/sd01_documentos?select=id_documento,fecha_programacion&id_documento=in.(${inParams})`, { headers: HEADERS });
-          if (!respDocs.ok) throw new Error('Error al obtener documentos');
-          const docsData: any[] = await respDocs.json();
-          docsData.forEach((d: any) => docMap.set(d.id_documento, d.fecha_programacion));
+          const docsData = await apiFetch<any[]>(
+            `/sd01_documentos?select=id_documento,fecha_programacion&id_documento=in.(${inParams})`
+          );
+          (docsData || []).forEach((d: any) => docMap.set(d.id_documento, d.fecha_programacion));
         }
       }
 
-      // Agrupar bultos de Docxentra solo para la fecha seleccionada
       const mapaDocx = new Map<string, number>();
-      bultos.forEach((b: any) => {
+      (bultos || []).forEach((b: any) => {
         const fechaDoc = docMap.get(b.documento_id);
         if (!fechaDoc || !fechaDoc.startsWith(fechaProgramacion)) return;
         const acta = b.numero_documento || '';
@@ -98,17 +88,8 @@ const SD07ComparativaCD01: React.FC = () => {
       });
       setRowsDocxentra(docxRows);
 
-      // === OBTENER DATOS WMS (SOLO DE LA FECHA SELECCIONADA) ===
-      const respWms = await fetch(`${API_URL}/wms_actas_cd01?select=*`, { headers: HEADERS });
-      if (!respWms.ok) throw new Error('Error al obtener WMS: ' + respWms.status);
-      const wmsData: any[] = await respWms.json();
-      console.log('Datos WMS totales:', wmsData.length);
-
-      // Filtrar estrictamente por la fecha seleccionada (excluir null y otras fechas)
-      const wmsFiltrados = wmsData.filter((w: any) => {
-        return w.fecha_programacion === fechaProgramacion;
-      });
-      console.log('Datos WMS para la fecha:', wmsFiltrados.length);
+      const wmsData = await apiFetch<any[]>('/wms_actas_cd01?select=*');
+      const wmsFiltrados = (wmsData || []).filter((w: any) => w.fecha_programacion === fechaProgramacion);
 
       const mapaWms = new Map<string, number>();
       wmsFiltrados.forEach((w: any) => {
@@ -132,7 +113,6 @@ const SD07ComparativaCD01: React.FC = () => {
     if (fechaProgramacion) cargarDatos();
   }, [fechaProgramacion, cargarDatos]);
 
-  // Comparación
   useEffect(() => {
     const claves = new Set<string>();
     rowsDocxentra.forEach(r => claves.add(`${r.acta}||${r.cod_local}`));
@@ -180,7 +160,6 @@ const SD07ComparativaCD01: React.FC = () => {
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
 
-      // Buscar encabezados (Acta, Cod Local, Suma de Cantidad)
       let headerIndex = -1, idxActa = -1, idxCod = -1, idxCant = -1;
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -204,7 +183,7 @@ const SD07ComparativaCD01: React.FC = () => {
         acta: String(r[idxActa]).trim(),
         cod_local: String(r[idxCod]).trim(),
         cantidad: parseInt(r[idxCant]) || 0,
-        fecha_programacion: fechaProgramacion // Se asigna la fecha seleccionada
+        fecha_programacion: fechaProgramacion
       }));
 
       if (registros.length === 0) {
@@ -213,27 +192,17 @@ const SD07ComparativaCD01: React.FC = () => {
         return;
       }
 
-      // 1. Eliminar todos los registros anteriores (para evitar mezclas)
-      const respDelete = await fetch(`${API_URL}/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000`, {
-        method: 'DELETE', headers: HEADERS
+      await apiFetch('/wms_actas_cd01?id=neq.00000000-0000-0000-0000-000000000000', {
+        method: 'DELETE'
       });
-      if (!respDelete.ok) {
-        const errText = await respDelete.text();
-        throw new Error('Error al eliminar datos anteriores: ' + errText);
-      }
 
-      // 2. Insertar nuevos en lotes (INCLUYENDO fecha_programacion)
       const BATCH = 100;
       for (let i = 0; i < registros.length; i += BATCH) {
-        const batch = registros.slice(i, i + BATCH); // Ya incluye fecha_programacion
-        const respInsert = await fetch(`${API_URL}/wms_actas_cd01`, {
-          method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=representation' }, body: JSON.stringify(batch)
+        const batch = registros.slice(i, i + BATCH);
+        await apiFetch('/wms_actas_cd01', {
+          method: 'POST',
+          body: JSON.stringify(batch)
         });
-        if (!respInsert.ok) {
-          const errText = await respInsert.text();
-          throw new Error('Error al insertar datos: ' + errText);
-        }
-        console.log(`Insertados ${batch.length} registros`);
       }
 
       mostrar('success', `Informe WMS cargado correctamente (${registros.length} registros)`);

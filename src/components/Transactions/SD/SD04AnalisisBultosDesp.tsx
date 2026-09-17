@@ -1,14 +1,8 @@
 // src/components/Transactions/SD/SD04AnalisisBultosDesp.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { auth } from '../../../lib/auth';
+import React, { useState, useCallback } from 'react';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD04.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface LocalAnalisis {
   id: string;
@@ -48,8 +42,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
   const [mostrarModalLocales, setMostrarModalLocales] = useState(false);
   const [nuevoLocal, setNuevoLocal] = useState('');
 
-  const usuario = auth.getUsuario();
-
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
@@ -57,19 +49,17 @@ const SD04AnalisisBultosDesp: React.FC = () => {
 
   const cargarLocales = useCallback(async () => {
     try {
-      const respAnalisis = await fetch(`${API_URL}/sd04_locales_analisis?select=*&activo=eq.true&order=codigo_local.asc`, { headers: HEADERS });
-      const dataAnalisis = await respAnalisis.json();
+      const dataAnalisis = await apiFetch<any[]>('/sd04_locales_analisis?select=*&activo=eq.true&order=codigo_local.asc');
       if (Array.isArray(dataAnalisis)) setLocalesAnalisis(dataAnalisis);
 
-      const respLocales = await fetch(`${API_URL}/locales?select=id,codigo_local,nombre_local,drop_local,zona&activo=eq.true&order=codigo_local.asc`, { headers: HEADERS });
-      const dataLocales = await respLocales.json();
+      const dataLocales = await apiFetch<any[]>('/locales?select=id,codigo_local,nombre_local,drop_local,zona&activo=eq.true&order=codigo_local.asc');
       if (Array.isArray(dataLocales)) setLocalesDisponibles(dataLocales);
     } catch (e) {
       console.error('Error cargando locales:', e);
     }
   }, []);
 
-  useEffect(() => { cargarLocales(); }, [cargarLocales]);
+  React.useEffect(() => { cargarLocales(); }, [cargarLocales]);
 
   const cargarDatos = useCallback(async () => {
     if (!fechaDesde || !fechaHasta) {
@@ -85,12 +75,10 @@ const SD04AnalisisBultosDesp: React.FC = () => {
       const desde = fechaDesde;
       const hasta = fechaHasta;
 
-      // Solo transportes finalizados
-      const respDocs = await fetch(
-        `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&estado=eq.Finalizado&fecha_programacion=gte.${desde}&fecha_programacion=lte.${hasta}T23:59:59`,
-        { headers: HEADERS }
+      const docs = await apiFetch<any[]>(
+        `/sd01_documentos?select=id,id_documento,fecha_programacion&estado=eq.Finalizado&fecha_programacion=gte.${desde}&fecha_programacion=lte.${hasta}T23:59:59`
       );
-      const docs = await respDocs.json();
+
       if (!Array.isArray(docs) || docs.length === 0) {
         setCargando(false);
         mostrarMensaje('info', 'No hay transportes finalizados en el rango seleccionado');
@@ -98,28 +86,24 @@ const SD04AnalisisBultosDesp: React.FC = () => {
       }
 
       const fechasSet = new Set(docs.map((d: any) => d.fecha_programacion.slice(0, 10)).sort());
-      const fechasArr = Array.from(fechasSet);
+      const fechasArr = Array.from(fechasSet) as string[];
       setFechas(fechasArr);
 
       const docIds = docs.map((d: any) => d.id_documento);
       const docIdsParam = docIds.join(',');
 
-      const respLocales = await fetch(
-        `${API_URL}/sd01_documento_locales?select=id,documento_id,codigo_local,cantidad_solicitada&documento_id=in.(${docIdsParam})`,
-        { headers: HEADERS }
+      const localesDocs = await apiFetch<any[]>(
+        `/sd01_documento_locales?select=id,documento_id,codigo_local,cantidad_solicitada&documento_id=in.(${docIdsParam})`
       );
-      const localesDocs = await respLocales.json();
       if (!Array.isArray(localesDocs)) throw new Error('Error obteniendo locales de documentos');
 
       const localIds = localesDocs.map((l: any) => l.id);
       let bultos: any[] = [];
       if (localIds.length > 0) {
         const localIdsParam = localIds.join(',');
-        const respBultos = await fetch(
-          `${API_URL}/sd01_bultos?select=id,local_id,cantidad&local_id=in.(${localIdsParam})`,
-          { headers: HEADERS }
+        bultos = await apiFetch<any[]>(
+          `/sd01_bultos?select=id,local_id,cantidad&local_id=in.(${localIdsParam})`
         );
-        bultos = await respBultos.json();
       }
 
       const localDocMap = new Map<string, any>();
@@ -135,7 +119,7 @@ const SD04AnalisisBultosDesp: React.FC = () => {
       });
 
       const despachoPorLocal = new Map<string, number>();
-      bultos.forEach((b: any) => {
+      (bultos || []).forEach((b: any) => {
         const actual = despachoPorLocal.get(b.local_id) || 0;
         despachoPorLocal.set(b.local_id, actual + (b.cantidad || 0));
       });
@@ -164,25 +148,16 @@ const SD04AnalisisBultosDesp: React.FC = () => {
             }
           });
 
-          // Si no hay registro o ambos son 0 -> sin frecuencia
           const sinFrecuencia = !hayRegistro || (programado === 0 && despachado === 0);
-
-          // Si hay despacho pero no programado, igualamos programado a despachado
-          if (programado === 0 && despachado > 0) {
-            programado = despachado;
-          }
+          if (programado === 0 && despachado > 0) programado = despachado;
 
           fila.porFecha[fecha] = { programado, despachado, sinFrecuencia };
         });
 
-        // Excluir locales que no tienen actividad en ninguna fecha
-        const tieneActividad = Object.values(fila.porFecha).some(
-          (val) => !val.sinFrecuencia
-        );
+        const tieneActividad = Object.values(fila.porFecha).some((val) => !val.sinFrecuencia);
         if (tieneActividad) filas.push(fila);
       });
 
-      // Calcular totales globales
       let totalSolicitado = 0;
       let totalDespachado = 0;
       let localesDeficit = 0;
@@ -235,9 +210,9 @@ const SD04AnalisisBultosDesp: React.FC = () => {
         mostrarMensaje('warning', 'El local ya está en la lista');
         return;
       }
-      const resp = await fetch(`${API_URL}/sd04_locales_analisis`, {
+      const data = await apiFetch<any[]>('/sd04_locales_analisis', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify({
           codigo_local: local.codigo_local,
           nombre_local: local.nombre_local,
@@ -246,24 +221,19 @@ const SD04AnalisisBultosDesp: React.FC = () => {
           activo: true
         })
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        const nuevo = Array.isArray(data) ? data[0] : data;
-        setLocalesAnalisis([...localesAnalisis, nuevo]);
-        setNuevoLocal('');
-        mostrarMensaje('success', 'Local agregado al análisis');
-      } else {
-        mostrarMensaje('error', 'Error al agregar local');
-      }
+      const nuevo = Array.isArray(data) ? data[0] : data;
+      setLocalesAnalisis([...localesAnalisis, nuevo]);
+      setNuevoLocal('');
+      mostrarMensaje('success', 'Local agregado al análisis');
     } catch (e) {
-      mostrarMensaje('error', 'Error de red al agregar');
+      mostrarMensaje('error', 'Error al agregar local');
     }
   };
 
   const eliminarLocalAnalisis = async (id: string) => {
     if (!window.confirm('¿Eliminar este local del análisis?')) return;
     try {
-      await fetch(`${API_URL}/sd04_locales_analisis?id=eq.${id}`, { method: 'DELETE', headers: HEADERS });
+      await apiFetch(`/sd04_locales_analisis?id=eq.${id}`, { method: 'DELETE' });
       setLocalesAnalisis(localesAnalisis.filter((l) => l.id !== id));
       mostrarMensaje('success', 'Local eliminado');
     } catch (e) {
@@ -271,7 +241,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
     }
   };
 
-  // Generar HTML con estilos para exportar a Excel (formato .xls)
   const generarHTMLExcel = (): string => {
     const headers = ['DROP', 'Código', 'Tienda'];
     fechas.forEach((fecha) => {
@@ -301,7 +270,6 @@ const SD04AnalisisBultosDesp: React.FC = () => {
       html += `</tr>`;
     });
 
-    // Fila de totales
     html += `<tr style="background:#f1f5f9; font-weight:bold;">`;
     html += `<td colspan="3">TOTAL</td>`;
     fechas.forEach((fecha) => {

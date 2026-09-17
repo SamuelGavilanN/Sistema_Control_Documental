@@ -2,21 +2,14 @@
 
 import React, { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD03.css';
 
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
-
-// Función para determinar si un origen es Centro de Distribución
 const esCentroDistribucion = (origen: string): boolean => {
   const o = origen.toUpperCase().trim();
   return o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV') || /^C\d+/.test(o);
 };
 
-// Extraer código de centro desde el origen (ej: "CD01 Fashions-Park" -> "CD01")
 const getCodigoCentro = (origen: string): string => {
   const o = origen.toUpperCase().trim();
   if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('C')) {
@@ -26,7 +19,6 @@ const getCodigoCentro = (origen: string): string => {
   return o;
 };
 
-// Lista de centros conocidos para tener columnas fijas
 const CENTROS_CONOCIDOS = [
   'CD01', 'CD12', 'CD16', 'CD30', 'CD31',
   'C144', 'OUT1', 'OUT2', 'OUT3', 'AGV'
@@ -47,17 +39,15 @@ const SD03InformeUnDesp: React.FC = () => {
     setCargando(true);
     setMensaje('');
     try {
-      let query = `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&order=fecha_programacion.asc`;
+      let path = '/sd01_documentos?select=id,id_documento,fecha_programacion&order=fecha_programacion.asc';
       if (fechaFiltro) {
-        const fecha = fechaFiltro; // formato YYYY-MM-DD
-        query += `&fecha_programacion=gte.${fecha}T00:00:00&fecha_programacion=lte.${fecha}T23:59:59`;
+        const fecha = fechaFiltro;
+        path += `&fecha_programacion=gte.${fecha}T00:00:00&fecha_programacion=lte.${fecha}T23:59:59`;
       }
 
-      const resp = await fetch(query, { headers: HEADERS });
-      if (!resp.ok) throw new Error('Error al consultar transportes');
-      const documentos = await resp.json();
+      const documentos = await apiFetch<any[]>(path);
 
-      if (documentos.length === 0) {
+      if (!documentos || documentos.length === 0) {
         setDatos([]);
         setCargando(false);
         return;
@@ -66,32 +56,25 @@ const SD03InformeUnDesp: React.FC = () => {
       const docIds = documentos.map((d: any) => d.id_documento);
       const docIdsParam = docIds.join(',');
 
-      // Obtener locales de esos documentos
-      const respLocales = await fetch(
-        `${API_URL}/sd01_documento_locales?select=id,documento_id,codigo_local&documento_id=in.(${docIdsParam})`,
-        { headers: HEADERS }
+      const locales = await apiFetch<any[]>(
+        `/sd01_documento_locales?select=id,documento_id,codigo_local&documento_id=in.(${docIdsParam})`
       );
-      const locales = await respLocales.json();
 
-      const localIds = locales.map((l: any) => l.id);
+      const localIds = (locales || []).map((l: any) => l.id);
       const localIdsParam = localIds.join(',');
 
       let bultos: any[] = [];
       if (localIdsParam) {
-        const respBultos = await fetch(
-          `${API_URL}/sd01_bultos?select=id,local_id,cantidad,origen_carga&local_id=in.(${localIdsParam})`,
-          { headers: HEADERS }
+        bultos = await apiFetch<any[]>(
+          `/sd01_bultos?select=id,local_id,cantidad,origen_carga&local_id=in.(${localIdsParam})`
         );
-        bultos = await respBultos.json();
       }
 
-      // Mapa de local -> documento
       const localDocMap = new Map<string, string>();
-      locales.forEach((l: any) => {
+      (locales || []).forEach((l: any) => {
         localDocMap.set(l.id, l.documento_id);
       });
 
-      // Agrupar por documento
       const porDocumento = new Map<string, any>();
       documentos.forEach((doc: any) => {
         porDocumento.set(doc.id_documento, {
@@ -100,8 +83,7 @@ const SD03InformeUnDesp: React.FC = () => {
         });
       });
 
-      // Procesar bultos
-      bultos.forEach((bulto: any) => {
+      (bultos || []).forEach((bulto: any) => {
         const documentoId = localDocMap.get(bulto.local_id);
         if (!documentoId) return;
         if (!esCentroDistribucion(bulto.origen_carga)) return;
@@ -114,17 +96,12 @@ const SD03InformeUnDesp: React.FC = () => {
         doc.centros.set(codigoCentro, actual + (bulto.cantidad || 0));
       });
 
-      // Convertir a array para la tabla
-      const filas = Array.from(porDocumento.values()).map((doc: any) => {
-        const fila: any = {
-          fecha_programacion: doc.fecha_programacion,
-          centros: doc.centros
-        };
-        return fila;
-      });
+      const filas = Array.from(porDocumento.values()).map((doc: any) => ({
+        fecha_programacion: doc.fecha_programacion,
+        centros: doc.centros
+      }));
 
-      // Ordenar por fecha (ya viene ordenado, pero reordenamos por seguridad)
-      filas.sort((a, b) => (a.fecha_programacion || '').localeCompare(b.fecha_programacion || ''));
+      filas.sort((a: any, b: any) => (a.fecha_programacion || '').localeCompare(b.fecha_programacion || ''));
 
       setDatos(filas);
     } catch (e) {
@@ -140,7 +117,6 @@ const SD03InformeUnDesp: React.FC = () => {
       return;
     }
 
-    // Construir encabezados
     const headers = ['Fecha Programación'];
     CENTROS_CONOCIDOS.forEach((centro) => {
       headers.push(`${centro} Bultos`, `${centro} Unidades`);
