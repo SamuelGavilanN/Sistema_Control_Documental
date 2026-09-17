@@ -1,13 +1,8 @@
 // src/components/Transactions/SD/SD01IngresarBultos.tsx
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD01.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface SD01IngresarBultosProps {
   local: any;
@@ -30,11 +25,9 @@ const SD01IngresarBultos: React.FC<SD01IngresarBultosProps> = ({ local, document
 
   const cargarBultos = async () => {
     try {
-      const resp = await fetch(
-        API_URL + '/sd01_bultos?select=*&local_id=eq.' + local.id + '&order=creado_en.asc',
-        { headers: HEADERS }
+      const data = await apiFetch<any[]>(
+        '/sd01_bultos?select=*&local_id=eq.' + local.id + '&order=creado_en.asc'
       );
-      const data = await resp.json();
       if (data) setBultos(data);
     } catch (e) {
       console.error('Error cargando bultos:', e);
@@ -63,21 +56,16 @@ const SD01IngresarBultos: React.FC<SD01IngresarBultosProps> = ({ local, document
         creado_por: usuario?.id,
         creado_en: new Date().toISOString()
       };
-      const resp = await fetch(API_URL + '/sd01_bultos', {
+      const data = await apiFetch<any[]>('/sd01_bultos', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify(nuevoBulto)
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        setBultos([...bultos, data[0]]);
-        setOrigen('');
-        setCantidad('');
-        // Actualizar contador en el local (opcional, pero lo haremos en el padre)
-        onGuardado();
-      } else {
-        alert('Error al guardar el bulto');
-      }
+      const creado = Array.isArray(data) ? data[0] : data;
+      setBultos([...bultos, creado]);
+      setOrigen('');
+      setCantidad('');
+      onGuardado();
     } catch (e) {
       console.error('Error:', e);
       alert('Error al guardar el bulto');
@@ -88,7 +76,7 @@ const SD01IngresarBultos: React.FC<SD01IngresarBultosProps> = ({ local, document
   const eliminarBulto = async (id: string) => {
     if (!window.confirm('¿Eliminar este bulto?')) return;
     try {
-      await fetch(API_URL + '/sd01_bultos?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
+      await apiFetch('/sd01_bultos?id=eq.' + id, { method: 'DELETE' });
       setBultos(bultos.filter(b => b.id !== id));
       onGuardado();
     } catch (e) {

@@ -1,13 +1,8 @@
 // src/components/Transactions/SD/SD01VerTransporte.tsx
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD01.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface SD01VerTransporteProps {
   onClose: () => void;
@@ -22,49 +17,34 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
   const [cargando, setCargando]: any = useState(true);
 
   useEffect(() => {
-    if (transporte) {
-      cargarDetalles();
-    }
+    if (transporte) cargarDetalles();
   }, [transporte]);
 
   const cargarDetalles = async () => {
     try {
       if (transporte.conductor_id) {
-        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporte.conductor_id, { headers: HEADERS });
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          setDetallesConductor(data[0]);
-        }
+        const data = await apiFetch<any[]>('/conductores?select=*&id=eq.' + transporte.conductor_id);
+        if (data && data.length > 0) setDetallesConductor(data[0]);
       }
 
       if (transporte.patente_principal_id) {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          setDetallesPatentePrincipal(data[0]);
-        }
+        const data = await apiFetch<any[]>('/patentes?select=*&id=eq.' + transporte.patente_principal_id);
+        if (data && data.length > 0) setDetallesPatentePrincipal(data[0]);
       }
 
       if (transporte.patente_adicional_id) {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id, { headers: HEADERS });
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          setDetallesPatenteAdicional(data[0]);
-        }
+        const data = await apiFetch<any[]>('/patentes?select=*&id=eq.' + transporte.patente_adicional_id);
+        if (data && data.length > 0) setDetallesPatenteAdicional(data[0]);
       }
 
-      const resp = await fetch(API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento, { headers: HEADERS });
-      const data = await resp.json();
-      if (data) {
-        setLocales(data);
-      }
+      const data = await apiFetch<any[]>('/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento);
+      if (data) setLocales(data);
     } catch (e) {
       console.error('Error cargando detalles:', e);
     }
     setCargando(false);
   };
 
-  // CORRECCIÓN: usar timeZone UTC para evitar desfase de un día
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
     return new Date(fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' });
@@ -111,11 +91,11 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
             fontSize: '12px',
             fontWeight: 600,
             marginBottom: '20px',
-            color: transporte.estado === 'Pendiente' ? 'var(--estado-pendiente-text)' : 
-                   transporte.estado === 'En Proceso' ? 'var(--estado-proceso-text)' : 
+            color: transporte.estado === 'Pendiente' ? 'var(--estado-pendiente-text)' :
+                   transporte.estado === 'En Proceso' ? 'var(--estado-proceso-text)' :
                    transporte.estado === 'Finalizado' ? 'var(--estado-finalizado-text)' : 'var(--estado-cancelado-text)',
-            background: transporte.estado === 'Pendiente' ? 'var(--estado-pendiente-bg)' : 
-                       transporte.estado === 'En Proceso' ? 'var(--estado-proceso-bg)' : 
+            background: transporte.estado === 'Pendiente' ? 'var(--estado-pendiente-bg)' :
+                       transporte.estado === 'En Proceso' ? 'var(--estado-proceso-bg)' :
                        transporte.estado === 'Finalizado' ? 'var(--estado-finalizado-bg)' : 'var(--estado-cancelado-bg)'
           }}>
             {transporte.estado}
@@ -126,9 +106,7 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
               <div className="sd01-ver-card-title">Programación</div>
               <div className="sd01-ver-field">
                 <span className="sd01-ver-field-label">Fecha Programación</span>
-                <span className="sd01-ver-field-value">
-                  {formatearFecha(transporte.fecha_programacion)}
-                </span>
+                <span className="sd01-ver-field-value">{formatearFecha(transporte.fecha_programacion)}</span>
               </div>
             </div>
 
@@ -144,22 +122,16 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
                 <>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">RUT</span>
-                    <span className="sd01-ver-field-value">
-                      {formatearRut(detallesConductor.numero_documento)}
-                    </span>
+                    <span className="sd01-ver-field-value">{formatearRut(detallesConductor.numero_documento)}</span>
                   </div>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Teléfono</span>
-                    <span className="sd01-ver-field-value">
-                      {detallesConductor.telefono || '-'}
-                    </span>
+                    <span className="sd01-ver-field-value">{detallesConductor.telefono || '-'}</span>
                   </div>
                   {detallesConductor.empresa && (
                     <div className="sd01-ver-field">
                       <span className="sd01-ver-field-label">Transportista</span>
-                      <span className="sd01-ver-field-value">
-                        {detallesConductor.empresa}
-                      </span>
+                      <span className="sd01-ver-field-value">{detallesConductor.empresa}</span>
                     </div>
                   )}
                 </>
@@ -177,9 +149,7 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
               {detallesPatentePrincipal && (
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Tipo de Vehículo</span>
-                  <span className="sd01-ver-field-value">
-                    {detallesPatentePrincipal.tipo_vehiculo || 'Otro'}
-                  </span>
+                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.tipo_vehiculo || 'Otro'}</span>
                 </div>
               )}
             </div>
@@ -190,15 +160,11 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
                 <>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Patente</span>
-                    <span className="sd01-ver-field-value-large">
-                      {detallesPatenteAdicional.numero_patente}
-                    </span>
+                    <span className="sd01-ver-field-value-large">{detallesPatenteAdicional.numero_patente}</span>
                   </div>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Tipo de Vehículo</span>
-                    <span className="sd01-ver-field-value">
-                      {detallesPatenteAdicional.tipo_vehiculo || 'Otro'}
-                    </span>
+                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.tipo_vehiculo || 'Otro'}</span>
                   </div>
                 </>
               ) : (
@@ -213,15 +179,11 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Creado Por</span>
-                  <span className="sd01-ver-field-value">
-                    {transporte.creado_por_nombre || '-'}
-                  </span>
+                  <span className="sd01-ver-field-value">{transporte.creado_por_nombre || '-'}</span>
                 </div>
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Asignado A</span>
-                  <span className="sd01-ver-field-value">
-                    {transporte.administrativo || 'No asignado'}
-                  </span>
+                  <span className="sd01-ver-field-value">{transporte.administrativo || 'No asignado'}</span>
                 </div>
                 {transporte.observaciones && (
                   <div className="sd01-ver-field" style={{ gridColumn: '1 / -1' }}>
@@ -242,7 +204,7 @@ const SD01VerTransporte: React.FC<SD01VerTransporteProps> = ({ onClose, transpor
                 {locales.length} {locales.length === 1 ? 'local' : 'locales'}
               </span>
             </div>
-            
+
             {locales.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-placeholder)', fontSize: '13px', background: 'var(--bg-section)', borderRadius: '8px' }}>
                 No hay locales registrados

@@ -3,13 +3,8 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
+import { apiFetch } from '../../../lib/apiClient';
 import { generarIdTransporte } from '../../../lib/generarIdTransporte';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface SD01CargaExcelProps {
   onClose: () => void;
@@ -72,25 +67,21 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
   const fileInputRef: any = useRef(null);
   const usuario: any = auth.getUsuario();
 
-  // Lista de locales maestros (se carga una vez)
   const [todosLocales, setTodosLocales]: any = useState([]);
 
-  // Cargar locales al montar para obtener los nombres
   React.useEffect(() => {
     cargarLocales();
   }, []);
 
   const cargarLocales = async () => {
     try {
-      const resp = await fetch(API_URL + '/locales?select=codigo_local,nombre_local&activo=eq.true', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/locales?select=codigo_local,nombre_local&activo=eq.true');
       if (data) setTodosLocales(data);
     } catch (e) {
       console.error('Error cargando locales:', e);
     }
   };
 
-  // Obtener nombre local por código
   const obtenerNombreLocal = (codigo: string) => {
     const local = todosLocales.find((l: any) => l.codigo_local.toUpperCase() === codigo.toUpperCase());
     return local ? local.nombre_local : '';
@@ -186,12 +177,7 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
         }
 
         if (!transporteActual) {
-          transporteActual = {
-            conductor,
-            vehiculo,
-            fechaProgramacion,
-            locales: []
-          };
+          transporteActual = { conductor, vehiculo, fechaProgramacion, locales: [] };
         }
 
         transporteActual.locales.push({
@@ -266,28 +252,23 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
 
           if (nombre) {
             try {
-              const respConductor = await fetch(
-                API_URL + '/conductores?select=id&nombre=ilike.' + encodeURIComponent(nombre) + '&apellido=ilike.' + encodeURIComponent(apellido),
-                { headers: HEADERS }
+              const conductorData = await apiFetch<any[]>(
+                '/conductores?select=id&nombre=ilike.' + encodeURIComponent(nombre) + '&apellido=ilike.' + encodeURIComponent(apellido)
               );
-              const conductorData = await respConductor.json();
               if (conductorData && conductorData.length > 0) {
                 conductorId = conductorData[0].id;
               } else {
-                const respNuevo = await fetch(API_URL + '/conductores', {
+                const nuevoData = await apiFetch<any[]>('/conductores', {
                   method: 'POST',
-                  headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                  headers: { 'Prefer': 'return=representation' },
                   body: JSON.stringify({
                     nombre: nombre,
                     apellido: apellido || '.',
                     activo: true
                   })
                 });
-                if (respNuevo.ok) {
-                  const nuevoData = await respNuevo.json();
-                  const nuevo = Array.isArray(nuevoData) ? nuevoData[0] : nuevoData;
-                  conductorId = nuevo.id;
-                }
+                const nuevo = Array.isArray(nuevoData) ? nuevoData[0] : nuevoData;
+                conductorId = nuevo.id;
               }
             } catch (e) {
               console.error('Error buscando/creando conductor:', e);
@@ -300,28 +281,23 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           const patenteLimpia = trans.vehiculo.toUpperCase().replace(/[^A-Z0-9-]/g, '');
           if (patenteLimpia) {
             try {
-              const respPatente = await fetch(
-                API_URL + '/patentes?select=id&numero_patente=ilike.' + encodeURIComponent(patenteLimpia),
-                { headers: HEADERS }
+              const patenteData = await apiFetch<any[]>(
+                '/patentes?select=id&numero_patente=ilike.' + encodeURIComponent(patenteLimpia)
               );
-              const patenteData = await respPatente.json();
               if (patenteData && patenteData.length > 0) {
                 patenteId = patenteData[0].id;
               } else {
-                const respNueva = await fetch(API_URL + '/patentes', {
+                const nuevaData = await apiFetch<any[]>('/patentes', {
                   method: 'POST',
-                  headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                  headers: { 'Prefer': 'return=representation' },
                   body: JSON.stringify({
                     numero_patente: patenteLimpia,
                     tipo_vehiculo: 'Otro',
                     activo: true
                   })
                 });
-                if (respNueva.ok) {
-                  const nuevaData = await respNueva.json();
-                  const nueva = Array.isArray(nuevaData) ? nuevaData[0] : nuevaData;
-                  patenteId = nueva.id;
-                }
+                const nueva = Array.isArray(nuevaData) ? nuevaData[0] : nuevaData;
+                patenteId = nueva.id;
               }
             } catch (e) {
               console.error('Error buscando/creando patente:', e);
@@ -337,40 +313,28 @@ const SD01CargaExcel: React.FC<SD01CargaExcelProps> = ({ onClose, onTransportesC
           modificado_por: usuario?.nombre + ' ' + usuario?.apellido
         };
 
-        if (conductorId) {
-          transporteData.conductor_id = conductorId;
-        }
-        if (patenteId) {
-          transporteData.patente_principal_id = patenteId;
-        }
+        if (conductorId) transporteData.conductor_id = conductorId;
+        if (patenteId) transporteData.patente_principal_id = patenteId;
 
-        const respTransporte = await fetch(API_URL + '/sd01_documentos', {
+        await apiFetch('/sd01_documentos', {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          headers: { 'Prefer': 'return=representation' },
           body: JSON.stringify(transporteData)
         });
-
-        if (!respTransporte.ok) {
-          const errorData = await respTransporte.json();
-          console.error('Error creando transporte:', errorData);
-          errores++;
-          continue;
-        }
 
         for (const local of trans.locales) {
           const nombreLocal = obtenerNombreLocal(local.codigo_local);
           const localData = {
             documento_id: idDocumento,
             codigo_local: local.codigo_local,
-            nombre_local: nombreLocal, // Ahora se obtiene el nombre real
+            nombre_local: nombreLocal,
             fecha_entrega: local.fechaEntrega || null,
             hora_entrega: local.horaEntrega || null,
             cantidad_solicitada: local.bultos || 0
           };
 
-          await fetch(API_URL + '/sd01_documento_locales', {
+          await apiFetch('/sd01_documento_locales', {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
             body: JSON.stringify(localData)
           });
         }
