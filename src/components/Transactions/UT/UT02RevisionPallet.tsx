@@ -3,13 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { auth } from '../../../lib/auth';
+import { apiFetch } from '../../../lib/apiClient';
 import './UT02.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 const UT02RevisionPallet: React.FC = () => {
   const [seccion, setSeccion] = useState('inventario');
@@ -21,7 +16,7 @@ const UT02RevisionPallet: React.FC = () => {
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [empaqueAEliminar, setEmpaqueAEliminar] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [tareas, setTareas] = useState<any[]>([]);
   const [tareasFiltradas, setTareasFiltradas] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
@@ -36,12 +31,10 @@ const UT02RevisionPallet: React.FC = () => {
   const [inputBOM, setInputBOM] = useState('');
   const inputEmpaqueRef = useRef<HTMLInputElement>(null);
   const inputBOMRef = useRef<HTMLInputElement>(null);
-  
-  // Estados para eliminar tarea
+
   const [mostrarConfirmarEliminarTarea, setMostrarConfirmarEliminarTarea] = useState(false);
   const [tareaAEliminar, setTareaAEliminar] = useState<any>(null);
 
-  // Estados para modal de detalle
   const [mostrarDetalleTarea, setMostrarDetalleTarea] = useState(false);
   const [tareaDetalle, setTareaDetalle] = useState<any>(null);
 
@@ -56,9 +49,7 @@ const UT02RevisionPallet: React.FC = () => {
   }, [seccion]);
 
   useEffect(() => {
-    if (seccion === 'revision') {
-      cargarTareas();
-    }
+    if (seccion === 'revision') cargarTareas();
   }, [seccion]);
 
   useEffect(() => {
@@ -80,16 +71,14 @@ const UT02RevisionPallet: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // ============ FUNCIONES DE INVENTARIO ============
-  
+  // ============ INVENTARIO ============
+
   const cargarInventario = async () => {
     try {
-      const resp = await fetch(API_URL + '/ut02_inventario?select=*&order=creado_en.desc', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/ut02_inventario?select=*&order=creado_en.desc');
       if (data && data.length > 0) {
         const empaquesConBoms = await Promise.all(data.map(async (empaque: any) => {
-          const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + empaque.id + '&order=bom_sku.asc', { headers: HEADERS });
-          const boms = await respBoms.json();
+          const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=*&empaque_id=eq.' + empaque.id + '&order=bom_sku.asc');
           const cantidadTotal = boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
           return { ...empaque, boms: boms || [], cantidad_total: cantidadTotal };
         }));
@@ -98,7 +87,10 @@ const UT02RevisionPallet: React.FC = () => {
         setEmpaques([]);
       }
       setCargando(false);
-    } catch (e) { setCargando(false); }
+    } catch (e) {
+      console.error('Error cargando inventario:', e);
+      setCargando(false);
+    }
   };
 
   const procesarArchivo = async (file: File) => {
@@ -109,7 +101,11 @@ const UT02RevisionPallet: React.FC = () => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      if (rows.length < 2) { mostrarMensaje('error', 'El archivo está vacío'); setCargando(false); return; }
+      if (rows.length < 2) {
+        mostrarMensaje('error', 'El archivo está vacío');
+        setCargando(false);
+        return;
+      }
 
       const headers = rows[0];
       const dataRows = rows.slice(1).filter((row: any) => row.length > 0);
@@ -124,7 +120,11 @@ const UT02RevisionPallet: React.FC = () => {
       const colCodDestino = headers.findIndex((h: string) => h && (h.toString().toLowerCase().includes('cod.destino') || h.toString().toLowerCase().includes('cod_destino')));
       const colDestino = headers.findIndex((h: string) => h && h.toString().toLowerCase() === 'destino');
 
-      if (colEmpaque < 0 || colBOM < 0) { mostrarMensaje('error', 'Columnas requeridas no encontradas'); setCargando(false); return; }
+      if (colEmpaque < 0 || colBOM < 0) {
+        mostrarMensaje('error', 'Columnas requeridas no encontradas');
+        setCargando(false);
+        return;
+      }
 
       const grupo1: Record<string, any> = {};
       dataRows.forEach((row: any) => {
@@ -136,40 +136,65 @@ const UT02RevisionPallet: React.FC = () => {
         const destino = colDestino >= 0 ? String(row[colDestino] || '').trim() : '';
         if (!empaque || !bom) return;
         const key = empaque + '|' + bom + '|' + ultimaMod;
-        if (!grupo1[key]) { grupo1[key] = { empaque, bom, codDestino, destino, cantidad }; }
-        else { if (cantidad > grupo1[key].cantidad) grupo1[key].cantidad = cantidad; }
+        if (!grupo1[key]) {
+          grupo1[key] = { empaque, bom, codDestino, destino, cantidad };
+        } else {
+          if (cantidad > grupo1[key].cantidad) grupo1[key].cantidad = cantidad;
+        }
       });
 
       const consolidado: Record<string, any> = {};
       Object.values(grupo1).forEach((item: any) => {
         const key = item.empaque + '|' + item.bom;
-        if (!consolidado[key]) { consolidado[key] = { empaque: item.empaque, codDestino: item.codDestino, destino: item.destino, bom: item.bom, cantidad: 0 }; }
+        if (!consolidado[key]) {
+          consolidado[key] = { empaque: item.empaque, codDestino: item.codDestino, destino: item.destino, bom: item.bom, cantidad: 0 };
+        }
         consolidado[key].cantidad += item.cantidad;
       });
 
       const empaquesMap: Record<string, any> = {};
       Object.values(consolidado).forEach((item: any) => {
-        if (!empaquesMap[item.empaque]) { empaquesMap[item.empaque] = { codDestino: item.codDestino, destino: item.destino, boms: {} }; }
+        if (!empaquesMap[item.empaque]) {
+          empaquesMap[item.empaque] = { codDestino: item.codDestino, destino: item.destino, boms: {} };
+        }
         empaquesMap[item.empaque].boms[item.bom] = item.cantidad;
       });
 
       let creados = 0;
       for (const numEmpaque of Object.keys(empaquesMap)) {
         const emp = empaquesMap[numEmpaque];
-        const respExistente = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(numEmpaque), { headers: HEADERS });
-        const existente = await respExistente.json();
+        const existente = await apiFetch<any[]>('/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(numEmpaque));
         let empaqueId;
         if (existente && existente.length > 0) {
           empaqueId = existente[0].id;
-          await fetch(API_URL + '/ut02_inventario?id=eq.' + empaqueId, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente' }) });
-          await fetch(API_URL + '/ut02_inventario_boms?empaque_id=eq.' + empaqueId, { method: 'DELETE', headers: HEADERS });
+          await apiFetch('/ut02_inventario?id=eq.' + empaqueId, {
+            method: 'PATCH',
+            body: JSON.stringify({ cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente' })
+          });
+          await apiFetch('/ut02_inventario_boms?empaque_id=eq.' + empaqueId, { method: 'DELETE' });
         } else {
-          const respEmpaque = await fetch(API_URL + '/ut02_inventario', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ numero_empaque: numEmpaque, cod_destino: emp.codDestino, destino: emp.destino, estado: 'Pendiente', creado_por: usuario?.id }) });
-          const empaqueData = await respEmpaque.json();
+          const empaqueData = await apiFetch<any[]>('/ut02_inventario', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=representation' },
+            body: JSON.stringify({
+              numero_empaque: numEmpaque,
+              cod_destino: emp.codDestino,
+              destino: emp.destino,
+              estado: 'Pendiente',
+              creado_por: usuario?.id
+            })
+          });
           empaqueId = Array.isArray(empaqueData) ? empaqueData[0].id : empaqueData.id;
         }
         for (const bom of Object.keys(emp.boms)) {
-          await fetch(API_URL + '/ut02_inventario_boms', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ empaque_id: empaqueId, bom_sku: bom, cantidad_maxima: emp.boms[bom] }) });
+          await apiFetch('/ut02_inventario_boms', {
+            method: 'POST',
+            body: JSON.stringify({
+              empaque_id: empaqueId,
+              bom_sku: bom,
+              cantidad_maxima: emp.boms[bom]
+            })
+          });
         }
         creados++;
       }
@@ -178,61 +203,62 @@ const UT02RevisionPallet: React.FC = () => {
       Object.values(consolidado).forEach((item: any) => { totalCajas += item.cantidad; });
       mostrarMensaje('success', creados + ' empaques procesados. Total cajas: ' + totalCajas);
       cargarInventario();
-    } catch (e) { mostrarMensaje('error', 'Error al procesar el archivo'); }
+    } catch (e) {
+      console.error('Error procesando archivo:', e);
+      mostrarMensaje('error', 'Error al procesar el archivo');
+    }
     setCargando(false);
   };
 
-  const handleEliminarEmpaque = (empaque: any) => { setEmpaqueAEliminar(empaque); setMostrarConfirmacion(true); };
+  const handleEliminarEmpaque = (empaque: any) => {
+    setEmpaqueAEliminar(empaque);
+    setMostrarConfirmacion(true);
+  };
 
   const confirmarEliminar = async () => {
     if (!empaqueAEliminar) return;
     try {
-      await fetch(API_URL + '/ut02_inventario?id=eq.' + empaqueAEliminar.id, { method: 'DELETE', headers: HEADERS });
+      await apiFetch('/ut02_inventario?id=eq.' + empaqueAEliminar.id, { method: 'DELETE' });
       mostrarMensaje('success', 'Empaque eliminado');
-      setEmpaqueSeleccionado(null); setEmpaqueExpandido(null); cargarInventario();
-    } catch (e) { mostrarMensaje('error', 'Error al eliminar'); }
-    setMostrarConfirmacion(false); setEmpaqueAEliminar(null);
+      setEmpaqueSeleccionado(null);
+      setEmpaqueExpandido(null);
+      cargarInventario();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al eliminar');
+    }
+    setMostrarConfirmacion(false);
+    setEmpaqueAEliminar(null);
   };
 
   const toggleExpandir = (empaque: any) => {
     setEmpaqueExpandido(empaqueExpandido && empaqueExpandido.id === empaque.id ? null : empaque);
   };
 
-  // ============ FUNCIONES DE REVISIÓN ============
+  // ============ REVISIÓN ============
 
-  // Función mejorada para cargar tareas con detalle por empaque
   const cargarTareas = async () => {
     setCargando(true);
     try {
-      const resp = await fetch(API_URL + '/ut02_tareas?select=*&order=creado_en.desc', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/ut02_tareas?select=*&order=creado_en.desc');
       if (data && data.length > 0) {
         const tareasConDatos = await Promise.all(data.map(async (tarea: any) => {
-          // Obtener empaques de la tarea
-          const respEmpaques = await fetch(API_URL + '/ut02_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id, { headers: HEADERS });
-          const empaques = await respEmpaques.json();
+          const empaques = await apiFetch<any[]>('/ut02_tarea_empaques?select=numero_empaque&tarea_id=eq.' + tarea.id);
           const listaEmpaques = (empaques || []).map((e: any) => e.numero_empaque);
 
-          // Obtener todas las capturas de la tarea
-          const respCapturas = await fetch(API_URL + '/ut02_capturas?select=*&tarea_id=eq.' + tarea.id, { headers: HEADERS });
-          const capturasData = await respCapturas.json() || [];
+          const capturasData = await apiFetch<any[]>('/ut02_capturas?select=*&tarea_id=eq.' + tarea.id) || [];
 
-          // Inicializar variables para totales
           let totalSistema = 0;
           let totalRevisados = 0;
           const detalleEmpaques: any[] = [];
 
-          // Para cada empaque, obtener sus BOMs y calcular cantidades
           for (const numEmp of listaEmpaques) {
-            const respInv = await fetch(API_URL + '/ut02_inventario?select=id,cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(numEmp), { headers: HEADERS });
-            const invData = await respInv.json();
+            const invData = await apiFetch<any[]>('/ut02_inventario?select=id,cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(numEmp));
             let bultosSistemaEmp = 0;
             let bultosRevisadosEmp = 0;
             const bomsEmp: string[] = [];
 
             if (invData && invData.length > 0) {
-              const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-              const boms = await respBoms.json();
+              const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=cantidad_maxima,bom_sku&empaque_id=eq.' + invData[0].id);
               if (boms) {
                 boms.forEach((b: any) => {
                   bultosSistemaEmp += b.cantidad_maxima;
@@ -241,7 +267,6 @@ const UT02RevisionPallet: React.FC = () => {
               }
             }
 
-            // Contar capturas para este empaque
             const capturasEmp = capturasData.filter((c: any) => bomsEmp.includes(c.bom_sku));
             bultosRevisadosEmp = capturasEmp.length;
 
@@ -259,7 +284,6 @@ const UT02RevisionPallet: React.FC = () => {
             });
           }
 
-          // Identificar empaques con problemas (diferencia != 0)
           const empaquesProblema = detalleEmpaques.filter((d: any) => d.diferencia !== 0).length;
 
           return {
@@ -278,7 +302,10 @@ const UT02RevisionPallet: React.FC = () => {
         setTareasFiltradas([]);
       }
       setCargando(false);
-    } catch (e) { setCargando(false); }
+    } catch (e) {
+      console.error('Error cargando tareas:', e);
+      setCargando(false);
+    }
   };
 
   const generarIdTarea = () => {
@@ -293,96 +320,126 @@ const UT02RevisionPallet: React.FC = () => {
   const handleAgregarEmpaque = async () => {
     const valor = inputEmpaque.trim();
     if (!valor) return;
-    if (empaquesTarea.find((e: any) => e === valor)) { mostrarMensaje('warning', 'Empaque ya agregado'); setInputEmpaque(''); return; }
-    const resp = await fetch(API_URL + '/ut02_inventario?select=*&numero_empaque=eq.' + encodeURIComponent(valor), { headers: HEADERS });
-    const data = await resp.json();
-    if (!data || data.length === 0) { mostrarMensaje('error', 'Empaque no encontrado en inventario'); return; }
-    setEmpaquesTarea([...empaquesTarea, valor]); setInputEmpaque('');
+    if (empaquesTarea.find((e: any) => e === valor)) {
+      mostrarMensaje('warning', 'Empaque ya agregado');
+      setInputEmpaque('');
+      return;
+    }
+    const data = await apiFetch<any[]>('/ut02_inventario?select=*&numero_empaque=eq.' + encodeURIComponent(valor));
+    if (!data || data.length === 0) {
+      mostrarMensaje('error', 'Empaque no encontrado en inventario');
+      return;
+    }
+    setEmpaquesTarea([...empaquesTarea, valor]);
+    setInputEmpaque('');
     setTimeout(() => inputEmpaqueRef.current?.focus(), 100);
   };
 
   const handleCrearEIniciarTarea = async () => {
-    if (empaquesTarea.length === 0) { mostrarMensaje('warning', 'Agregue al menos un empaque'); return; }
+    if (empaquesTarea.length === 0) {
+      mostrarMensaje('warning', 'Agregue al menos un empaque');
+      return;
+    }
     const idTarea = generarIdTarea();
-    const resp = await fetch(API_URL + '/ut02_inventario?select=cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(empaquesTarea[0]), { headers: HEADERS });
-    const data = await resp.json();
+    const data = await apiFetch<any[]>('/ut02_inventario?select=cod_destino,destino&numero_empaque=eq.' + encodeURIComponent(empaquesTarea[0]));
     const codLocal = data && data.length > 0 ? data[0].cod_destino : '';
     const local = data && data.length > 0 ? data[0].destino : '';
     let totalSistema = 0;
     for (const emp of empaquesTarea) {
-      const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
-      const invData = await respInv.json();
+      const invData = await apiFetch<any[]>('/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp));
       if (invData && invData.length > 0) {
-        const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=cantidad_maxima&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-        const boms = await respBoms.json();
+        const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=cantidad_maxima&empaque_id=eq.' + invData[0].id);
         totalSistema += boms ? boms.reduce((s: number, b: any) => s + b.cantidad_maxima, 0) : 0;
       }
     }
     try {
-      const respTarea = await fetch(API_URL + '/ut02_tareas', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify({ numero_tarea: idTarea, cod_local: codLocal, local: local, estado: 'En Proceso', total_bultos_sistema: totalSistema, creado_por: usuario?.id, iniciado_en: new Date().toISOString(), auditor: usuario?.id }) });
-      if (respTarea.ok) {
-        const tareaData = await respTarea.json();
-        const tarea = Array.isArray(tareaData) ? tareaData[0] : tareaData;
-        for (const emp of empaquesTarea) { await fetch(API_URL + '/ut02_tarea_empaques', { method: 'POST', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ tarea_id: tarea.id, numero_empaque: emp }) }); }
-        setMostrarCrearTarea(false); setEmpaquesTarea([]);
-        setTareaSeleccionada({ ...tarea, empaques: empaquesTarea, total_bultos_sistema: totalSistema });
-        let bomsTemp: any[] = [];
-        for (const emp of empaquesTarea) {
-          const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
-          const invData = await respInv.json();
-          if (invData && invData.length > 0) {
-            const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-            const boms = await respBoms.json();
-            if (boms) {
-              for (const bom of boms) {
-                const existente = bomsTemp.find((b: any) => b.bom_sku === bom.bom_sku);
-                if (existente) { existente.cantidad_sistema += bom.cantidad_maxima; }
-                else { bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 }); }
-              }
+      const tareaData = await apiFetch<any[]>('/ut02_tareas', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          numero_tarea: idTarea,
+          cod_local: codLocal,
+          local: local,
+          estado: 'En Proceso',
+          total_bultos_sistema: totalSistema,
+          creado_por: usuario?.id,
+          iniciado_en: new Date().toISOString(),
+          auditor: usuario?.id
+        })
+      });
+      const tarea = Array.isArray(tareaData) ? tareaData[0] : tareaData;
+      for (const emp of empaquesTarea) {
+        await apiFetch('/ut02_tarea_empaques', {
+          method: 'POST',
+          body: JSON.stringify({ tarea_id: tarea.id, numero_empaque: emp })
+        });
+      }
+      setMostrarCrearTarea(false);
+      setEmpaquesTarea([]);
+      setTareaSeleccionada({ ...tarea, empaques: empaquesTarea, total_bultos_sistema: totalSistema });
+      let bomsTemp: any[] = [];
+      for (const emp of empaquesTarea) {
+        const invData = await apiFetch<any[]>('/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp));
+        if (invData && invData.length > 0) {
+          const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id);
+          if (boms) {
+            for (const bom of boms) {
+              const existente = bomsTemp.find((b: any) => b.bom_sku === bom.bom_sku);
+              if (existente) existente.cantidad_sistema += bom.cantidad_maxima;
+              else bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 });
             }
           }
         }
-        setBomsConsolidados(bomsTemp); setCapturas([]); setContador(0); setMostrarCaptura(true);
-        setTimeout(() => inputBOMRef.current?.focus(), 300);
       }
-    } catch (e) { mostrarMensaje('error', 'Error al crear tarea'); }
+      setBomsConsolidados(bomsTemp);
+      setCapturas([]);
+      setContador(0);
+      setMostrarCaptura(true);
+      setTimeout(() => inputBOMRef.current?.focus(), 300);
+    } catch (e) {
+      console.error('Error creando tarea:', e);
+      mostrarMensaje('error', 'Error al crear tarea');
+    }
   };
 
   const handleIniciarTarea = async (tarea: any) => {
     setTareaSeleccionada(tarea);
     let bomsTemp: any[] = [];
     for (const emp of tarea.empaques) {
-      const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
-      const invData = await respInv.json();
+      const invData = await apiFetch<any[]>('/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp));
       if (invData && invData.length > 0) {
-        const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-        const boms = await respBoms.json();
+        const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id);
         if (boms) {
           for (const bom of boms) {
             const existente = bomsTemp.find((b: any) => b.bom_sku === bom.bom_sku);
-            if (existente) { existente.cantidad_sistema += bom.cantidad_maxima; }
-            else { bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 }); }
+            if (existente) existente.cantidad_sistema += bom.cantidad_maxima;
+            else bomsTemp.push({ bom_sku: bom.bom_sku, cantidad_sistema: bom.cantidad_maxima, cantidad_revisada: 0 });
           }
         }
       }
     }
-    const respCapturas = await fetch(API_URL + '/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
-    const capturasData = await respCapturas.json() || [];
-    capturasData.forEach((c: any) => { const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku); if (bom) bom.cantidad_revisada++; });
-    setBomsConsolidados(bomsTemp); setCapturas(capturasData); setContador(capturasData.length);
+    const capturasData = await apiFetch<any[]>('/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc') || [];
+    capturasData.forEach((c: any) => {
+      const bom = bomsTemp.find((b: any) => b.bom_sku === c.bom_sku);
+      if (bom) bom.cantidad_revisada++;
+    });
+    setBomsConsolidados(bomsTemp);
+    setCapturas(capturasData);
+    setContador(capturasData.length);
     if (tarea.estado === 'Pendiente') {
-      await fetch(API_URL + '/ut02_tareas?id=eq.' + tarea.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'En Proceso', iniciado_en: new Date().toISOString(), auditor: usuario?.id }) });
+      await apiFetch('/ut02_tareas?id=eq.' + tarea.id, {
+        method: 'PATCH',
+        body: JSON.stringify({ estado: 'En Proceso', iniciado_en: new Date().toISOString(), auditor: usuario?.id })
+      });
     }
     setMostrarCaptura(true);
     setTimeout(() => inputBOMRef.current?.focus(), 300);
   };
 
-  // Función para reabrir tarea
   const handleReabrirTarea = async (tarea: any) => {
     try {
-      await fetch(API_URL + '/ut02_tareas?id=eq.' + tarea.id, {
+      await apiFetch('/ut02_tareas?id=eq.' + tarea.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           estado: 'En Proceso',
           iniciado_en: new Date().toISOString(),
@@ -391,22 +448,18 @@ const UT02RevisionPallet: React.FC = () => {
         })
       });
       mostrarMensaje('success', 'Tarea reabierta correctamente');
-      // Actualizar la lista de tareas
       await cargarTareas();
-      // Opcional: abrir la tarea directamente
       await handleIniciarTarea(tarea);
     } catch (e) {
       mostrarMensaje('error', 'Error al reabrir la tarea');
     }
   };
 
-  // Función para mostrar detalle de tarea
   const handleVerDetalle = (tarea: any) => {
     setTareaDetalle(tarea);
     setMostrarDetalleTarea(true);
   };
 
-  // Funciones de eliminación y exportación (sin cambios, pero se mantienen)
   const handleEliminarTarea = async (tarea: any) => {
     setTareaAEliminar(tarea);
     setMostrarConfirmarEliminarTarea(true);
@@ -415,9 +468,9 @@ const UT02RevisionPallet: React.FC = () => {
   const confirmarEliminarTarea = async () => {
     if (!tareaAEliminar) return;
     try {
-      await fetch(API_URL + '/ut02_capturas?tarea_id=eq.' + tareaAEliminar.id, { method: 'DELETE', headers: HEADERS });
-      await fetch(API_URL + '/ut02_tarea_empaques?tarea_id=eq.' + tareaAEliminar.id, { method: 'DELETE', headers: HEADERS });
-      await fetch(API_URL + '/ut02_tareas?id=eq.' + tareaAEliminar.id, { method: 'DELETE', headers: HEADERS });
+      await apiFetch('/ut02_capturas?tarea_id=eq.' + tareaAEliminar.id, { method: 'DELETE' });
+      await apiFetch('/ut02_tarea_empaques?tarea_id=eq.' + tareaAEliminar.id, { method: 'DELETE' });
+      await apiFetch('/ut02_tareas?id=eq.' + tareaAEliminar.id, { method: 'DELETE' });
       mostrarMensaje('success', 'Tarea eliminada correctamente');
       setTareaAEliminar(null);
       setMostrarConfirmarEliminarTarea(false);
@@ -432,11 +485,9 @@ const UT02RevisionPallet: React.FC = () => {
     try {
       const bomsConEmpaque: any[] = [];
       for (const emp of tarea.empaques) {
-        const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
-        const invData = await respInv.json();
+        const invData = await apiFetch<any[]>('/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp));
         if (invData && invData.length > 0) {
-          const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-          const boms = await respBoms.json();
+          const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id);
           if (boms) {
             for (const bom of boms) {
               bomsConEmpaque.push({
@@ -450,8 +501,7 @@ const UT02RevisionPallet: React.FC = () => {
         }
       }
 
-      const respCapturas = await fetch(API_URL + '/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
-      const capturasData = await respCapturas.json() || [];
+      const capturasData = await apiFetch<any[]>('/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc') || [];
 
       capturasData.forEach((c: any) => {
         const bom = bomsConEmpaque.find((b: any) => b.bom_sku === c.bom_sku);
@@ -546,11 +596,9 @@ const UT02RevisionPallet: React.FC = () => {
       for (const tarea of todasLasTareas) {
         const bomsConEmpaque: any[] = [];
         for (const emp of tarea.empaques) {
-          const respInv = await fetch(API_URL + '/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp), { headers: HEADERS });
-          const invData = await respInv.json();
+          const invData = await apiFetch<any[]>('/ut02_inventario?select=id&numero_empaque=eq.' + encodeURIComponent(emp));
           if (invData && invData.length > 0) {
-            const respBoms = await fetch(API_URL + '/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id, { headers: HEADERS });
-            const boms = await respBoms.json();
+            const boms = await apiFetch<any[]>('/ut02_inventario_boms?select=*&empaque_id=eq.' + invData[0].id);
             if (boms) {
               for (const bom of boms) {
                 bomsConEmpaque.push({
@@ -564,8 +612,7 @@ const UT02RevisionPallet: React.FC = () => {
           }
         }
 
-        const respCapturas = await fetch(API_URL + '/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc', { headers: HEADERS });
-        const capturasData = await respCapturas.json() || [];
+        const capturasData = await apiFetch<any[]>('/ut02_capturas?select=*&tarea_id=eq.' + tarea.id + '&order=creado_en.asc') || [];
 
         capturasData.forEach((c: any) => {
           const bom = bomsConEmpaque.find((b: any) => b.bom_sku === c.bom_sku);
@@ -646,7 +693,7 @@ const UT02RevisionPallet: React.FC = () => {
     setCargando(false);
   };
 
-  // ============ FUNCIONES DE CAPTURA ============
+  // ============ CAPTURA ============
 
   const handleCapturarBOM = async () => {
     const valor = inputBOM.trim();
@@ -666,9 +713,9 @@ const UT02RevisionPallet: React.FC = () => {
     }
 
     try {
-      const resp = await fetch(API_URL + '/ut02_capturas', {
+      const capturaData = await apiFetch<any[]>('/ut02_capturas', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        headers: { 'Prefer': 'return=representation' },
         body: JSON.stringify({
           tarea_id: tareaSeleccionada.id,
           bom_sku: valor,
@@ -676,11 +723,20 @@ const UT02RevisionPallet: React.FC = () => {
           capturado_por: usuario?.id
         })
       });
-      const capturaData = await resp.json();
       const nuevaCaptura = Array.isArray(capturaData) ? capturaData[0] : capturaData;
-      setCapturas([{ id: nuevaCaptura.id, bom_sku: valor, esNoEncontrado: !bomEsperado, creado_en: new Date().toISOString() }, ...capturas]);
+      setCapturas([{
+        id: nuevaCaptura.id,
+        bom_sku: valor,
+        esNoEncontrado: !bomEsperado,
+        creado_en: new Date().toISOString()
+      }, ...capturas]);
     } catch (e) {
-      setCapturas([{ id: Date.now().toString(), bom_sku: valor, esNoEncontrado: !bomEsperado, creado_en: new Date().toISOString() }, ...capturas]);
+      setCapturas([{
+        id: Date.now().toString(),
+        bom_sku: valor,
+        esNoEncontrado: !bomEsperado,
+        creado_en: new Date().toISOString()
+      }, ...capturas]);
     }
     setContador(contador + 1);
     setInputBOM('');
@@ -689,12 +745,20 @@ const UT02RevisionPallet: React.FC = () => {
 
   const handleEliminarCaptura = async (index: number) => {
     const captura = capturas[index];
-    if (captura.id && captura.id.length > 20) { try { await fetch(API_URL + '/ut02_capturas?id=eq.' + captura.id, { method: 'DELETE', headers: HEADERS }); } catch (e) {} }
+    if (captura.id && captura.id.length > 20) {
+      try {
+        await apiFetch('/ut02_capturas?id=eq.' + captura.id, { method: 'DELETE' });
+      } catch (e) {}
+    }
     if (!captura.esNoEncontrado) {
       const bomEsperado = bomsConsolidados.find((b: any) => b.bom_sku === captura.bom_sku);
-      if (bomEsperado && bomEsperado.cantidad_revisada > 0) { bomEsperado.cantidad_revisada--; setBomsConsolidados([...bomsConsolidados]); }
+      if (bomEsperado && bomEsperado.cantidad_revisada > 0) {
+        bomEsperado.cantidad_revisada--;
+        setBomsConsolidados([...bomsConsolidados]);
+      }
     }
-    setCapturas(capturas.filter((_: any, i: number) => i !== index)); setContador(contador - 1);
+    setCapturas(capturas.filter((_: any, i: number) => i !== index));
+    setContador(contador - 1);
     mostrarMensaje('success', 'Captura eliminada');
   };
 
@@ -706,10 +770,21 @@ const UT02RevisionPallet: React.FC = () => {
       const hayFaltantes = bomsConsolidados.some((b: any) => b.cantidad_revisada < b.cantidad_sistema);
       const hayNoEncontrados = capturas.some((c: any) => c.esNoEncontrado || !bomsSistema.includes(c.bom_sku));
       const estadoFinal = (hayFaltantes || hayNoEncontrados) ? 'Con Diferencias' : 'Finalizado';
-      await fetch(API_URL + '/ut02_tareas?id=eq.' + tareaSeleccionada.id, { method: 'PATCH', headers: { ...HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: estadoFinal, total_bultos_revisados: capturasValidas.length, finalizado_en: new Date().toISOString() }) });
+      await apiFetch('/ut02_tareas?id=eq.' + tareaSeleccionada.id, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          estado: estadoFinal,
+          total_bultos_revisados: capturasValidas.length,
+          finalizado_en: new Date().toISOString()
+        })
+      });
       mostrarMensaje('success', estadoFinal === 'Finalizado' ? 'Tarea finalizada correctamente' : 'Tarea finalizada con diferencias');
-      setMostrarCaptura(false); setTareaSeleccionada(null); cargarTareas();
-    } catch (e) { mostrarMensaje('error', 'Error al finalizar'); }
+      setMostrarCaptura(false);
+      setTareaSeleccionada(null);
+      cargarTareas();
+    } catch (e) {
+      mostrarMensaje('error', 'Error al finalizar');
+    }
   };
 
   const getEstadoBadge = (estado: string) => {
@@ -742,7 +817,6 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       </div>
 
-      {/* ============ SECCIÓN INVENTARIO ============ */}
       {seccion === 'inventario' && (
         <>
           <div className="ut02-toolbar">
@@ -753,11 +827,9 @@ const UT02RevisionPallet: React.FC = () => {
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e: any) => { const file = e.target.files?.[0]; if (file) procesarArchivo(file); }} />
             <div className="ut02-separator"></div>
             <button className="ut02-btn" onClick={() => empaqueSeleccionado && toggleExpandir(empaqueSeleccionado)} disabled={!empaqueSeleccionado}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.33325 8.00004C1.33325 8.00004 3.99992 3.33337 7.99992 3.33337C11.9999 3.33337 14.6666 8.00004 14.6666 8.00004C14.6666 8.00004 11.9999 12.6667 7.99992 12.6667C3.99992 12.6667 1.33325 8.00004 1.33325 8.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               Ver Detalle
             </button>
             <button className="ut02-btn ut02-btn-danger" onClick={(e) => { e.stopPropagation(); if (empaqueSeleccionado) handleEliminarEmpaque(empaqueSeleccionado); }} disabled={!empaqueSeleccionado}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               Eliminar
             </button>
             <div className="ut02-separator"></div>
@@ -802,7 +874,6 @@ const UT02RevisionPallet: React.FC = () => {
         </>
       )}
 
-      {/* ============ SECCIÓN REVISIÓN ============ */}
       {seccion === 'revision' && (
         <>
           <div className="ut02-toolbar">
@@ -814,7 +885,6 @@ const UT02RevisionPallet: React.FC = () => {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tareasFiltradas.length} de {tareas.length}</span>
             <div className="ut02-separator"></div>
             <button className="ut02-btn ut02-btn-success" onClick={handleExportarTodas}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               Exportar Todas
             </button>
           </div>
@@ -890,9 +960,6 @@ const UT02RevisionPallet: React.FC = () => {
         </>
       )}
 
-      {/* ============ MODALES ============ */}
-
-      {/* Modal Crear Tarea */}
       {mostrarCrearTarea && (
         <div className="ut02-modal-overlay" onClick={() => setMostrarCrearTarea(false)}>
           <div className="ut02-modal" onClick={(e: any) => e.stopPropagation()}>
@@ -927,7 +994,6 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Captura */}
       {mostrarCaptura && tareaSeleccionada && (
         <div className="ut02-modal-overlay" onClick={() => { setMostrarCaptura(false); setTareaSeleccionada(null); }}>
           <div className="ut02-modal" style={{ maxWidth: '700px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -995,7 +1061,6 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Detalle de Tarea */}
       {mostrarDetalleTarea && tareaDetalle && (
         <div className="ut02-modal-overlay" onClick={() => setMostrarDetalleTarea(false)}>
           <div className="ut02-modal" style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e: any) => e.stopPropagation()}>
@@ -1052,7 +1117,6 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Confirmación Eliminar Empaque */}
       {mostrarConfirmacion && (
         <div className="ut02-modal-overlay" onClick={() => setMostrarConfirmacion(false)}>
           <div className="ut02-modal" style={{ maxWidth: '420px' }} onClick={(e: any) => e.stopPropagation()}>
@@ -1069,7 +1133,6 @@ const UT02RevisionPallet: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Confirmar Eliminar Tarea */}
       {mostrarConfirmarEliminarTarea && tareaAEliminar && (
         <div className="ut02-modal-overlay" onClick={() => setMostrarConfirmarEliminarTarea(false)}>
           <div className="ut02-modal" style={{ maxWidth: '420px' }} onClick={(e: any) => e.stopPropagation()}>
