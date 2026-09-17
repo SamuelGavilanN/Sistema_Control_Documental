@@ -1,12 +1,9 @@
-// src/components/Layout/Header.tsx
+// // src/components/Layout/Header.tsx
 
 import React, { useState, useEffect } from 'react';
 import { getUsuarios, getNotificaciones } from '../../lib/api';
+import { apiFetch } from '../../lib/apiClient';
 import { auth } from '../../lib/auth';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const API_KEY = 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G';
-const HEADERS = { 'apikey': API_KEY, 'Authorization': 'Bearer ' + API_KEY };
 
 interface HeaderProps {
   activeTab: string;
@@ -25,7 +22,12 @@ const moduleTitles: Record<string, string> = {
   'ed-tickets': 'ED03 · BT Portico',
   'ed-lotes': 'ED04 · Almacén Lotes',
   'sd': 'SD01 · Planificación Transporte',
-  'sd-asignador': 'SD02 · Asignador Móvil',
+  'sd-informe-bultos': 'SD02 · Informe Bultos',
+  'sd-informe-unidades': 'SD03 · Informe Un Desp',
+  'sd-analisis-bultos': 'SD04 · Análisis Bultos',
+  'sd-estado-carga': 'SD05 · Estado de Carga',
+  'sd-pedidos-especiales': 'SD06 · Pedidos Especiales',
+  'sd-comparativa-cd01': 'SD07 · Comparativa CD01',
   'ut': 'UT01 · Correlativo QR',
   'ut-revision': 'UT02 · Revisión Pallet',
   'bd-usuarios': 'BD01 · Usuarios',
@@ -74,9 +76,9 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
     cargarNombresUsuarios();
     cargarNotificaciones();
     const intervalo = setInterval(() => {
-      cargarNombresUsuarios(); // se puede optimizar: no es necesario recargar nombres tan seguido
+      cargarNombresUsuarios();
       cargarNotificaciones();
-    }, 15000); // aumentado a 15 segundos
+    }, 15000);
     return () => clearInterval(intervalo);
   }, [usuario]);
 
@@ -121,17 +123,15 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
 
   const abrirModalDesdeToast = async (n: Notificacion) => {
     setToastActual(null);
-    await fetch(API_URL + '/ticket_notificaciones?id=eq.' + n.id, {
+    await apiFetch('/ticket_notificaciones?id=eq.' + n.id, {
       method: 'PATCH',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ visto: true })
     });
-    const resp = await fetch(API_URL + '/tickets?select=*&id=eq.' + n.ticket_id, { headers: HEADERS });
-    const tickets = await resp.json();
+    const tickets = await apiFetch<any[]>('/tickets?select=*&id=eq.' + n.ticket_id);
     const ticket = tickets?.[0];
-    const resp2 = await fetch(API_URL + '/ticket_respuestas?select=*&ticket_id=eq.' + ticket?.id + '&order=creado_en.asc', { headers: HEADERS });
+    const resp2 = await apiFetch<any[]>('/ticket_respuestas?select=*&ticket_id=eq.' + ticket?.id + '&order=creado_en.asc');
     setTicketModalData(ticket);
-    setTicketRespuestas(await resp2.json() || []);
+    setTicketRespuestas(resp2 || []);
     setRespuestaTexto('');
     setShowTicketModal(true);
     cargarNotificaciones();
@@ -166,9 +166,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   };
 
   const marcarVisto = async (notifId: string) => {
-    await fetch(API_URL + '/ticket_notificaciones?id=eq.' + notifId, {
+    await apiFetch('/ticket_notificaciones?id=eq.' + notifId, {
       method: 'PATCH',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ visto: true })
     });
     cargarNotificaciones();
@@ -176,9 +175,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
 
   const marcarTodasVisto = async () => {
     for (const n of notificaciones) {
-      await fetch(API_URL + '/ticket_notificaciones?id=eq.' + n.id, {
+      await apiFetch('/ticket_notificaciones?id=eq.' + n.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ visto: true })
       });
     }
@@ -188,21 +186,19 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
   const handleNotifClick = async (n: Notificacion) => {
     marcarVisto(n.id);
     setShowNotifMenu(false);
-    const resp = await fetch(API_URL + '/tickets?select=*&id=eq.' + n.ticket_id, { headers: HEADERS });
-    const tickets = await resp.json();
+    const tickets = await apiFetch<any[]>('/tickets?select=*&id=eq.' + n.ticket_id);
     const ticket = tickets?.[0];
-    const resp2 = await fetch(API_URL + '/ticket_respuestas?select=*&ticket_id=eq.' + ticket?.id + '&order=creado_en.asc', { headers: HEADERS });
+    const resp2 = await apiFetch<any[]>('/ticket_respuestas?select=*&ticket_id=eq.' + ticket?.id + '&order=creado_en.asc');
     setTicketModalData(ticket);
-    setTicketRespuestas(await resp2.json() || []);
+    setTicketRespuestas(resp2 || []);
     setRespuestaTexto('');
     setShowTicketModal(true);
   };
 
   const handleResponderDesdeModal = async () => {
     if (!respuestaTexto.trim() || !ticketModalData) return;
-    await fetch(API_URL + '/ticket_respuestas', {
+    await apiFetch('/ticket_respuestas', {
       method: 'POST',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ticket_id: ticketModalData.id,
         mensaje: respuestaTexto,
@@ -210,9 +206,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
       })
     });
     if (ticketModalData.creado_por !== usuario?.id) {
-      await fetch(API_URL + '/ticket_notificaciones', {
+      await apiFetch('/ticket_notificaciones', {
         method: 'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticket_id: ticketModalData.id,
           usuario_id: ticketModalData.creado_por
@@ -220,8 +215,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, openTabs, onTabClick, onTabC
       });
     }
     setRespuestaTexto('');
-    const resp = await fetch(API_URL + '/ticket_respuestas?select=*&ticket_id=eq.' + ticketModalData.id + '&order=creado_en.asc', { headers: HEADERS });
-    setTicketRespuestas(await resp.json());
+    const resp = await apiFetch<any[]>('/ticket_respuestas?select=*&ticket_id=eq.' + ticketModalData.id + '&order=creado_en.asc');
+    setTicketRespuestas(resp || []);
   };
 
   const getPrioridadColor = (p: string) => {
