@@ -3,18 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../lib/auth';
 import { locales as localesMaestros } from '../../../data/locales';
+import { apiFetch } from '../../../lib/apiClient';
 import ImprimirModal from './ImprimirModal';
 import ImprimirSeleccionModal from './ImprimirSeleccionModal';
 import { copiarCuadroDespacho } from './generarCuadroDespacho';
 import { generarResumenFinalizarHTML } from './generarResumenFinalizar';
 import logoPath from '../../../assets/fashions-park-logo2.png';
 import './SD01.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface SD01IniciarTransporteProps {
   transporte: any;
@@ -23,7 +18,6 @@ interface SD01IniciarTransporteProps {
   usuario: any;
 }
 
-// Orígenes de carga y tipos de documento
 const origenesCarga = [
   "CD01 Fashions-Park",
   "CD16 Bodegas San Francisco",
@@ -31,7 +25,7 @@ const origenesCarga = [
   "OUT2 Outlet Lampa",
   "OUT3 Redestinacion",
   "CD12 Bodega Lampa",
-  "CD30 Bodega HC",  
+  "CD30 Bodega HC",
   "CD31 Bodega AGV",
   "C144 Tiendas sin Bodega",
   "DV01 Devoluciones",
@@ -52,14 +46,14 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   "OUT2 Outlet Lampa": ["Sap", "Vtradex", "Guia"],
   "OUT3 Redestinacion": ["Sap", "Vtradex", "Guia"],
   "CD12 Bodega Lampa": ["Sap", "Vtradex", "Guia"],
-  "CD30 Bodega HC": ["Sap", "Vtradex", "Guia"],   
+  "CD30 Bodega HC": ["Sap", "Vtradex", "Guia"],
   "CD31 Bodega AGV": ["Sap", "Vtradex", "Guia"],
   "C144 Tiendas sin Bodega": ["Sap", "Vtradex", "Guia"],
   "DV01 Devoluciones": ["Guia"],
   "MR01 Mermas": ["Guia"],
   "SG01 Internet": [],
   "SG02 Insumos": [],
-  "SG03 Traspasos": ["Guia", "No Aplica",],
+  "SG03 Traspasos": ["Guia", "No Aplica"],
   "SG04 Valija": [],
   "SG05 Bultos Regularizar Stock": ["Sap", "Vtradex", "Guia"],
   "SG06 Bultos Quedados en Camion": ["Sap", "Vtradex", "Guia"],
@@ -90,7 +84,6 @@ interface LocalImprimir {
   }>;
 }
 
-// Autocomplete component
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -220,7 +213,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos con guardado inmediato en Supabase
 const BultosModal = ({
   localInicial,
   locales,
@@ -289,13 +281,7 @@ const BultosModal = ({
   };
 
   const handleCancelarEdicion = () => {
-    setNuevoBulto({
-      origenCarga: "",
-      tipoDocumento: "",
-      numeroDocumento: "",
-      cantidad: 0,
-      observacion: ""
-    });
+    setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
     setTiposDisponibles([]);
     setEditandoId(null);
     setErrorMsg('');
@@ -305,14 +291,12 @@ const BultosModal = ({
   const agregarOActualizarBulto = async () => {
     if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
 
-    // VALIDACIÓN ESTRICTA: el origen debe estar en la lista exacta
     if (!origenesCarga.includes(nuevoBulto.origenCarga)) {
       setErrorMsg('El Origen de Carga no es válido. Debe seleccionar uno de la lista.');
       setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
 
-    // Validar tipo de documento si aplica
     if (!tipoNoAplica) {
       if (!nuevoBulto.tipoDocumento || !tiposDocumentoPorOrigen[nuevoBulto.origenCarga].includes(nuevoBulto.tipoDocumento)) {
         setErrorMsg('El Tipo de Documento no es válido. Debe seleccionar uno de la lista.');
@@ -337,12 +321,10 @@ const BultosModal = ({
       };
 
       if (editandoId) {
-        const resp = await fetch(API_URL + '/sd01_bultos?id=eq.' + editandoId, {
+        await apiFetch('/sd01_bultos?id=eq.' + editandoId, {
           method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
-        if (!resp.ok) throw new Error(await resp.text());
         const nuevos = bultos.map((b) =>
           b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
         );
@@ -350,13 +332,11 @@ const BultosModal = ({
         onBultosChange(localActual.id, nuevos);
         setEditandoId(null);
       } else {
-        const resp = await fetch(API_URL + '/sd01_bultos', {
+        const result = await apiFetch<any[]>('/sd01_bultos', {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          headers: { 'Prefer': 'return=representation' },
           body: JSON.stringify(data)
         });
-        if (!resp.ok) throw new Error(await resp.text());
-        const result = await resp.json();
         const creado = result[0];
         const nuevo: Bulto = {
           id: creado.id,
@@ -371,13 +351,7 @@ const BultosModal = ({
         onBultosChange(localActual.id, nuevos);
       }
 
-      setNuevoBulto({
-        origenCarga: "",
-        tipoDocumento: "",
-        numeroDocumento: "",
-        cantidad: 0,
-        observacion: ""
-      });
+      setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
       setTiposDisponibles([]);
       setTimeout(() => origenRef.current?.focus(), 50);
     } catch (e: any) {
@@ -390,7 +364,7 @@ const BultosModal = ({
   const eliminarBulto = async (id: string) => {
     if (!window.confirm('¿Eliminar este bulto?')) return;
     try {
-      await fetch(API_URL + '/sd01_bultos?id=eq.' + id, { method: 'DELETE', headers: HEADERS });
+      await apiFetch('/sd01_bultos?id=eq.' + id, { method: 'DELETE' });
       const nuevos = bultos.filter((b) => b.id !== id);
       setBultos(nuevos);
       onBultosChange(localActual.id, nuevos);
@@ -504,7 +478,6 @@ const BultosModal = ({
               )}
             </div>
           </div>
-          {/* SCROLL CORREGIDO: contenedor con altura máxima y scroll */}
           <div className="dc-table-container" style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
             <table className="dc-table">
               <thead>
@@ -555,7 +528,6 @@ const BultosModal = ({
   );
 };
 
-// Componente principal
 const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transporte, onClose, onActualizar, usuario }) => {
   const [locales, setLocales] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -575,14 +547,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [copiasImprimir, setCopiasImprimir] = useState<string[]>([]);
   const [mostrarSeleccionCopias, setMostrarSeleccionCopias] = useState(false);
 
-  // Sistema de toasts
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Función para ordenar locales por fecha y hora de entrega
   const ordenarLocales = (localesArray: any[]) => {
     return [...localesArray].sort((a, b) => {
       const fechaA = a.fecha_entrega || '';
@@ -606,18 +576,15 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const cargarDetalles = async () => {
     try {
       if (transporte.conductor_id) {
-        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporte.conductor_id, { headers: HEADERS });
-        const data = await resp.json();
+        const data = await apiFetch<any[]>('/conductores?select=*&id=eq.' + transporte.conductor_id);
         if (data && data.length > 0) setDetallesConductor(data[0]);
       }
       if (transporte.patente_principal_id) {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
-        const data = await resp.json();
+        const data = await apiFetch<any[]>('/patentes?select=*&id=eq.' + transporte.patente_principal_id);
         if (data && data.length > 0) setDetallesPatentePrincipal(data[0]);
       }
       if (transporte.patente_adicional_id) {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id, { headers: HEADERS });
-        const data = await resp.json();
+        const data = await apiFetch<any[]>('/patentes?select=*&id=eq.' + transporte.patente_adicional_id);
         if (data && data.length > 0) setDetallesPatenteAdicional(data[0]);
       }
     } catch (e) {
@@ -627,11 +594,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const cargarLocales = async () => {
     try {
-      const resp = await fetch(
-        API_URL + '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento,
-        { headers: HEADERS }
+      const data = await apiFetch<any[]>(
+        '/sd01_documento_locales?select=*&documento_id=eq.' + transporte.id_documento
       );
-      const data = await resp.json();
 
       if (Array.isArray(data)) {
         const localesMapeados = ordenarLocales(data.map((local: any) => ({
@@ -642,11 +607,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         })));
         setLocales(localesMapeados);
 
-        const respBultos = await fetch(
-          API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento,
-          { headers: HEADERS }
+        const bultosData = await apiFetch<any[]>(
+          '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento
         );
-        const bultosData = await respBultos.json();
         if (Array.isArray(bultosData)) {
           const map: Record<string, Bulto[]> = {};
           bultosData.forEach((b: any) => {
@@ -671,9 +634,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const guardarSellosGlobales = async () => {
     try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
+      await apiFetch('/sd01_documentos?id=eq.' + transporte.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sello_lateral: selloLateralGlobal || null,
           sello_adicional: selloAdicionalGlobal || null,
@@ -695,22 +657,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const guardarCambiosLocal = async (index: number) => {
     const local = locales[index];
     try {
-      const resp = await fetch(
-        API_URL + '/sd01_documento_locales?id=eq.' + local.id,
-        {
-          method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sello_trasero: local.sello_trasero || null,
-            cantidad_pallet: local.cantidad_pallet || null,
-          })
-        }
-      );
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        console.error('Error guardando local:', errorText);
-        mostrarMensaje('error', 'Error al guardar local');
-      }
+      await apiFetch('/sd01_documento_locales?id=eq.' + local.id, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          sello_trasero: local.sello_trasero || null,
+          cantidad_pallet: local.cantidad_pallet || null,
+        })
+      });
     } catch (e) {
       console.error('Error guardando local:', e);
       mostrarMensaje('error', 'Error de red al guardar local');
@@ -729,12 +682,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }));
   };
 
-  const handleBultosGuardados = () => {
-    setMostrarModalBultos(false);
-    onActualizar();
-  };
-
-  const totalBultosGlobal = Object.values(bultosPorLocal).reduce((sum, bultos) => 
+  const totalBultosGlobal = Object.values(bultosPorLocal).reduce((sum, bultos) =>
     sum + bultos.reduce((s, b) => s + b.cantidad, 0), 0
   );
 
@@ -753,7 +701,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     return numeroFormateado + '-' + dv;
   };
 
-  // ---------- FUNCIONES DE CORREO ----------
   const copiarCorreos = () => {
     const correos = locales.map((l: any) => {
       const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
@@ -765,13 +712,11 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
     navigator.clipboard.writeText(correos).then(() => {
       mostrarMensaje('success', 'Correos copiados al portapapeles');
-    }).catch((err) => {
-      console.error('Error al copiar correos:', err);
+    }).catch(() => {
       mostrarMensaje('error', 'Error al copiar correos');
     });
   };
 
-  // Corregido: recorre todos los locales y junta actas por local
   const copiarAsuntoDetalle = () => {
     const nombresLocales = locales.map((l: any) => {
       const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
@@ -790,13 +735,11 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
     navigator.clipboard.writeText(texto).then(() => {
       mostrarMensaje('success', 'Detalle copiado al portapapeles');
-    }).catch((err) => {
-      console.error('Error al copiar detalle:', err);
+    }).catch(() => {
       mostrarMensaje('error', 'Error al copiar detalle');
     });
   };
 
-  // Corregido: cada local lleva sus propias actas, fecha, hora y sello
   const copiarCuadro = async () => {
     const destino = [...new Set(
       locales.map((l: any) => {
@@ -854,7 +797,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
   };
 
-  // ---------- IMPRESIÓN ----------
   const prepararImpresion = (localesAImprimir: any[], copias: string[]) => {
     const localesParaImprimir = localesAImprimir.map((local: any) => {
       const bultos = bultosPorLocal[local.id] || [];
@@ -904,27 +846,18 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       await guardarSellosGlobales();
 
       for (const local of locales) {
-        const resp = await fetch(
-          API_URL + '/sd01_documento_locales?id=eq.' + local.id,
-          {
-            method: 'PATCH',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sello_trasero: local.sello_trasero || null,
-              cantidad_pallet: local.cantidad_pallet || null,
-            })
-          }
-        );
-        if (!resp.ok) {
-          const errorText = await resp.text();
-          console.error('Error guardando local al finalizar:', errorText);
-        }
+        await apiFetch('/sd01_documento_locales?id=eq.' + local.id, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            sello_trasero: local.sello_trasero || null,
+            cantidad_pallet: local.cantidad_pallet || null,
+          })
+        });
       }
 
       const now = new Date().toISOString();
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporte.id, {
+      await apiFetch('/sd01_documentos?id=eq.' + transporte.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           estado: 'Finalizado',
           finalizado_en: now,
@@ -935,7 +868,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
       mostrarMensaje('success', 'Transporte finalizado exitosamente');
 
-      // Generar resumen e imprimir automáticamente
       const logoImg = new Image();
       logoImg.crossOrigin = "anonymous";
       logoImg.onload = () => {
@@ -1003,7 +935,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </div>
       )}
 
-      {/* Barra de acciones horizontal */}
       <div className="sd01-action-bar">
         <button className="sd01-btn sd01-btn-cancel" onClick={onClose}>
           ← Volver a la lista
@@ -1033,7 +964,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </button>
       </div>
 
-      {/* Contenido principal */}
       <div style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
           <button
@@ -1063,9 +993,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
               {transporte.fecha_inicio && (
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Hora Inicio</span>
-                  <span className="sd01-ver-field-value">
-                    {new Date(transporte.fecha_inicio).toLocaleString('es-CL')}
-                  </span>
+                  <span className="sd01-ver-field-value">{new Date(transporte.fecha_inicio).toLocaleString('es-CL')}</span>
                 </div>
               )}
             </div>
@@ -1144,7 +1072,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           </div>
         )}
 
-        {/* Sección Datos Destino con sellos globales y TABLA DE LOCALES (ordenados) */}
         <div style={{ marginTop: '8px' }}>
           <div className="sd01-ver-locales-title" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <span>Datos Destino</span>
@@ -1255,7 +1182,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </div>
       </div>
 
-      {/* Modales */}
       {mostrarModalBultos && localActual && (
         <BultosModal
           localInicial={localActual}
