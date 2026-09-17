@@ -1,17 +1,14 @@
 // src/components/Transactions/ED/ED02Dashboard.tsx
 
+// src/components/Transactions/ED01/ED02Dashboard.tsx
+
 import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend
 } from 'recharts';
+import { apiFetch } from '../../../lib/apiClient';
 import './ED02Dashboard.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = { 
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' 
-};
 
 const formatNum = (num: number): string => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -28,30 +25,27 @@ const ED02Dashboard: React.FC = () => {
 
   const cargarUsuarios = async () => {
     try {
-      const resp = await fetch(API_URL + '/usuarios?select=id,nombre,apellido', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/usuarios?select=id,nombre,apellido');
       if (data) setUsuarios(data);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando usuarios:', e);
+    }
   };
 
-  const cargarTodosLosRegistros = async (urlBase: string) => {
+  const cargarTodosLosRegistros = async (pathBase: string) => {
     let todosLosDatos: any[] = [];
     let offset = 0;
     const limit = 1000;
     let hayMas = true;
 
     while (hayMas) {
-      const url = urlBase + '&limit=' + limit + '&offset=' + offset;
-      const resp = await fetch(url, { headers: HEADERS });
-      const data = await resp.json();
-      
+      const path = pathBase + '&limit=' + limit + '&offset=' + offset;
+      const data = await apiFetch<any[]>(path);
+
       if (data && data.length > 0) {
         todosLosDatos = [...todosLosDatos, ...data];
         offset += limit;
-        
-        if (data.length < limit) {
-          hayMas = false;
-        }
+        if (data.length < limit) hayMas = false;
       } else {
         hayMas = false;
       }
@@ -63,13 +57,13 @@ const ED02Dashboard: React.FC = () => {
   const cargarDatos = async () => {
     setCargando(true);
     try {
-      let urlBase = API_URL + '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc';
-      if (filtros.usuario) urlBase += '&creado_por=eq.' + filtros.usuario;
-      if (filtros.desde) urlBase += '&creado_en=gte.' + filtros.desde;
-      if (filtros.hasta) urlBase += '&creado_en=lte.' + filtros.hasta + 'T23:59:59';
-      
-      const data = await cargarTodosLosRegistros(urlBase);
-      
+      let pathBase = '/ed01_empaques?select=*&estado=eq.Finalizado&order=creado_en.asc';
+      if (filtros.usuario) pathBase += '&creado_por=eq.' + filtros.usuario;
+      if (filtros.desde) pathBase += '&creado_en=gte.' + filtros.desde;
+      if (filtros.hasta) pathBase += '&creado_en=lte.' + filtros.hasta + 'T23:59:59';
+
+      const data = await cargarTodosLosRegistros(pathBase);
+
       if (data && data.length > 0) {
         const puntosLinea = data.map((reg: any) => ({
           fechaHora: new Date(reg.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
@@ -87,13 +81,13 @@ const ED02Dashboard: React.FC = () => {
           agrupado[dia].tareas++;
           agrupado[dia].bultos += reg.cantidad_bultos || 0;
         });
-        
+
         const barrasOrdenadas = Object.values(agrupado).sort((a: any, b: any) => {
           const fechaA = a.dia.split('-').reverse().join('');
           const fechaB = b.dia.split('-').reverse().join('');
           return fechaA.localeCompare(fechaB);
         });
-        
+
         setDatosBarra(barrasOrdenadas);
       } else {
         setDatosLinea([]);
@@ -146,9 +140,9 @@ const ED02Dashboard: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="fechaHora" stroke="var(--text-muted)" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
                 <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-                <Tooltip 
-                  labelFormatter={(label: any) => 'Fecha: ' + label} 
-                  formatter={(value: any) => [formatNum(value), 'Bultos']} 
+                <Tooltip
+                  labelFormatter={(label: any) => 'Fecha: ' + label}
+                  formatter={(value: any) => [formatNum(value), 'Bultos']}
                 />
                 <Legend />
                 <Line type="monotone" dataKey="bultos" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} name="Bultos por empaque" />
