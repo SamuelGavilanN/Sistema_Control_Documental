@@ -2,13 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../../lib/auth';
+import { apiFetch } from '../../../lib/apiClient';
 import './BD01.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = { 
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' 
-};
 
 interface Usuario {
   id: string;
@@ -26,7 +21,7 @@ const TRANSACCIONES = [
   { id: 'ed-tickets', label: 'ED03 BT Portico' },
   { id: 'ed-lotes', label: 'ED04 Almacén Lotes' },
   { id: 'sd', label: 'SD01 Salida Despacho' },
-  { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.' }, // NUEVO
+  { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.' },
   { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp' },
   { id: 'sd-analisis-bultos', label: 'SD04 Análisis Bultos Desp' },
   { id: 'sd-estado-carga', label: 'SD05 Estado de Carga' },
@@ -53,8 +48,7 @@ const BD01Usuarios: React.FC = () => {
   const cargarUsuarios = async () => {
     setCargando(true);
     try {
-      const resp = await fetch(API_URL + '/usuarios?select=*&order=nombre.asc', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/usuarios?select=*&order=nombre.asc');
       if (data) setUsuarios(data);
     } catch (e) {
       console.error('Error cargando usuarios:', e);
@@ -75,52 +69,30 @@ const BD01Usuarios: React.FC = () => {
 
     try {
       if (usuarioEditar) {
+        // --- Editar usuario existente ---
+        // Solo se actualizan nombre, apellido, usuario y rol.
+        // El cambio de contraseña requiere service_role (Fase 5).
         const updateData: any = {
           nombre: form.nombre,
           apellido: form.apellido,
           usuario: form.usuario,
           rol: form.rol
         };
-        
-        if (form.password) {
-          updateData.password = form.password;
-        }
 
-        const resp = await fetch(API_URL + '/usuarios?id=eq.' + usuarioEditar.id, {
+        await apiFetch('/usuarios?id=eq.' + usuarioEditar.id, {
           method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify(updateData)
         });
-
-        if (!resp.ok) {
-          const errorData = await resp.json();
-          mostrarMensaje('error', 'Error al actualizar: ' + (errorData.message || 'Error desconocido'));
-          return;
-        }
       } else {
-        if (!form.password) {
-          mostrarMensaje('error', 'Ingresa una contraseña');
-          return;
-        }
-
-        const resp = await fetch(API_URL + '/usuarios', {
-          method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-          body: JSON.stringify({
-            nombre: form.nombre,
-            apellido: form.apellido,
-            usuario: form.usuario,
-            password: form.password,
-            rol: form.rol,
-            activo: true
-          })
-        });
-
-        if (!resp.ok) {
-          const errorData = await resp.json();
-          mostrarMensaje('error', 'Error al crear: ' + (errorData.message || 'Error desconocido'));
-          return;
-        }
+        // --- Crear usuario nuevo ---
+        // ⚠️ Con Supabase Auth, la creación requiere service_role.
+        // Se implementará con una Edge Function en Fase 5.
+        mostrarMensaje(
+          'error',
+          'La creación de usuarios se implementará en la próxima fase. ' +
+          'Por ahora, los usuarios deben crearse desde Supabase Auth.'
+        );
+        return;
       }
 
       setShowModal(false);
@@ -129,7 +101,7 @@ const BD01Usuarios: React.FC = () => {
       mostrarMensaje('success', usuarioEditar ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente');
     } catch (e: any) {
       console.error('Error:', e);
-      mostrarMensaje('error', 'Error al guardar usuario');
+      mostrarMensaje('error', 'Error al guardar usuario: ' + (e.message || ''));
     }
   };
 
@@ -141,33 +113,27 @@ const BD01Usuarios: React.FC = () => {
 
   const handleToggleActivo = async (u: Usuario) => {
     try {
-      const resp = await fetch(API_URL + '/usuarios?id=eq.' + u.id, {
+      await apiFetch('/usuarios?id=eq.' + u.id, {
         method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ activo: !u.activo })
       });
-
-      if (!resp.ok) {
-        const errorData = await resp.json();
-        mostrarMensaje('error', 'Error: ' + (errorData.message || 'Error desconocido'));
-        return;
-      }
 
       cargarUsuarios();
       mostrarMensaje('success', u.activo ? 'Usuario desactivado' : 'Usuario activado');
     } catch (e: any) {
       console.error('Error:', e);
-      mostrarMensaje('error', 'Error al cambiar estado');
+      mostrarMensaje('error', 'Error al cambiar estado: ' + (e.message || ''));
     }
   };
 
   const handleAbrirPermisos = async (u: Usuario) => {
     setUsuarioEditar(u);
     try {
-      const resp = await fetch(API_URL + '/usuario_permisos?select=transaccion_id&usuario_id=eq.' + u.id + '&activo=eq.true', { headers: HEADERS });
-      const data = await resp.json();
+      const data = await apiFetch<any[]>('/usuario_permisos?select=transaccion_id&usuario_id=eq.' + u.id + '&activo=eq.true');
       setPermisosUsuario(data?.map((p: any) => p.transaccion_id) || []);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error cargando permisos:', e);
+    }
     setShowPermisosModal(true);
   };
 
@@ -179,19 +145,28 @@ const BD01Usuarios: React.FC = () => {
   const handleGuardarPermisos = async () => {
     if (!usuarioEditar) return;
     try {
-      await fetch(API_URL + '/usuario_permisos?usuario_id=eq.' + usuarioEditar.id, { method: 'DELETE', headers: HEADERS });
+      // 1. Eliminar permisos actuales
+      await apiFetch('/usuario_permisos?usuario_id=eq.' + usuarioEditar.id, {
+        method: 'DELETE'
+      });
+
+      // 2. Insertar los nuevos
       if (permisosUsuario.length > 0) {
-        await fetch(API_URL + '/usuario_permisos', { 
-          method: 'POST', 
-          headers: { ...HEADERS, 'Content-Type': 'application/json' }, 
-          body: JSON.stringify(permisosUsuario.map((tid: string) => ({ usuario_id: usuarioEditar.id, transaccion_id: tid, activo: true }))) 
+        await apiFetch('/usuario_permisos', {
+          method: 'POST',
+          body: JSON.stringify(permisosUsuario.map((tid: string) => ({
+            usuario_id: usuarioEditar.id,
+            transaccion_id: tid,
+            activo: true
+          })))
         });
       }
+
       setShowPermisosModal(false);
       cargarUsuarios();
       mostrarMensaje('success', 'Permisos actualizados correctamente');
-    } catch (e) {
-      mostrarMensaje('error', 'Error al guardar permisos');
+    } catch (e: any) {
+      mostrarMensaje('error', 'Error al guardar permisos: ' + (e.message || ''));
     }
   };
 
@@ -206,13 +181,13 @@ const BD01Usuarios: React.FC = () => {
     };
     const badge = badges[rol] || { color: '#64748b', bg: '#f1f5f9' };
     return (
-      <span style={{ 
-        padding: '3px 10px', 
-        borderRadius: '10px', 
-        fontSize: '11px', 
-        fontWeight: 600, 
-        background: badge.bg, 
-        color: badge.color 
+      <span style={{
+        padding: '3px 10px',
+        borderRadius: '10px',
+        fontSize: '11px',
+        fontWeight: 600,
+        background: badge.bg,
+        color: badge.color
       }}>
         {rol}
       </span>
@@ -278,6 +253,20 @@ const BD01Usuarios: React.FC = () => {
               <button className="sd01-modal-close" onClick={() => setShowModal(false)}>×</button>
             </div>
             <div className="sd01-modal-body">
+              {!usuarioEditar && (
+                <div style={{
+                  background: 'var(--warning-bg)',
+                  color: 'var(--warning-text)',
+                  border: '1px solid var(--warning-border)',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  marginBottom: '16px',
+                  fontSize: '12px'
+                }}>
+                  ⚠️ La creación de usuarios se implementará en la próxima fase.
+                  Por ahora, los usuarios deben crearse desde el panel de Supabase Auth.
+                </div>
+              )}
               <div className="sd01-form-group">
                 <label className="sd01-form-label">Nombre</label>
                 <input className="sd01-form-input" value={form.nombre} onChange={(e: any) => setForm({ ...form, nombre: e.target.value })} />
@@ -290,25 +279,30 @@ const BD01Usuarios: React.FC = () => {
                 <label className="sd01-form-label">Usuario</label>
                 <input className="sd01-form-input" value={form.usuario} onChange={(e: any) => setForm({ ...form, usuario: e.target.value })} />
               </div>
-              <div className="sd01-form-group">
-                <label className="sd01-form-label">Contraseña {usuarioEditar ? '(dejar vacío para no cambiar)' : ''}</label>
-                <input className="sd01-form-input" type="password" value={form.password} onChange={(e: any) => setForm({ ...form, password: e.target.value })} />
-              </div>
+              {usuarioEditar && (
+                <div className="sd01-form-group">
+                  <label className="sd01-form-label">Contraseña</label>
+                  <input className="sd01-form-input" type="password" value="" disabled placeholder="Gestionar desde Supabase Auth" />
+                  <small style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                    El cambio de contraseña se gestiona desde Supabase Auth
+                  </small>
+                </div>
+              )}
               <div className="sd01-form-group">
                 <label className="sd01-form-label">Rol</label>
                 <select className="sd01-form-select" value={form.rol} onChange={(e: any) => setForm({ ...form, rol: e.target.value })}>
-                  <option value="Auditor">Auditor</option>
-                  <option value="Portico">Portico</option>
-                  <option value="Lider">Lider</option>
-                  <option value="Administrativo">Administrativo</option>
-                  <option value="Admin">Admin</option>
                   <option value="Owner">Owner</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Lider">Lider</option>
+                  <option value="Portico">Portico</option>
                 </select>
               </div>
             </div>
             <div className="sd01-modal-footer">
               <button className="sd01-btn-cancel" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="sd01-btn-save" onClick={handleGuardar}>Guardar</button>
+              <button className="sd01-btn-save" onClick={handleGuardar} disabled={!usuarioEditar}>
+                {usuarioEditar ? 'Guardar' : 'Crear (no disponible)'}
+              </button>
             </div>
           </div>
         </div>
@@ -324,25 +318,25 @@ const BD01Usuarios: React.FC = () => {
             <div className="sd01-modal-body">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {TRANSACCIONES.map((t: any) => (
-                  <label 
-                    key={t.id} 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '10px', 
-                      padding: '10px 14px', 
-                      background: 'var(--bg-section)', 
-                      borderRadius: '8px', 
-                      cursor: 'pointer', 
+                  <label
+                    key={t.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 14px',
+                      background: 'var(--bg-section)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
                       fontSize: '13px',
                       color: 'var(--text-primary)',
                       border: '1px solid var(--border)',
                       transition: 'all 0.15s'
                     }}
                   >
-                    <input 
-                      type="checkbox" 
-                      checked={permisosUsuario.includes(t.id)} 
+                    <input
+                      type="checkbox"
+                      checked={permisosUsuario.includes(t.id)}
                       onChange={() => togglePermiso(t.id)}
                       style={{ accentColor: '#1d4ed8', width: '16px', height: '16px' }}
                     />
