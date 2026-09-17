@@ -5,6 +5,7 @@ import logoPath from '../../assets/fashions-park-logo2.png';
 import docxentraLogo from '../../assets/Carrusel/docxentra-logo.png';
 import { auth } from '../../lib/auth';
 import { getPermisos, getFavoritos } from '../../lib/api';
+import { apiFetch } from '../../lib/apiClient';
 
 interface MenuSection {
   id: string;
@@ -30,17 +31,17 @@ const menuSections: MenuSection[] = [
     ]
   },
   {
-  id: 'sd',
-  title: 'SD · Salida Despacho',
-  items: [
-    { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
-    { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.', type: 'subitem' },
-    { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp', type: 'subitem' },
-    { id: 'sd-analisis-bultos', label: 'SD04 Análisis Bultos Desp', type: 'subitem' },
-    { id: 'sd-estado-carga', label: 'SD05 Estado de Carga', type: 'subitem' },
-    { id: 'sd-pedidos-especiales', label: 'SD06 Pedidos Especiales', type: 'subitem' },
-    { id: 'sd-comparativa-cd01', label: 'SD07 Comparativa CD01 vs WMS', type: 'subitem' },
-  ]
+    id: 'sd',
+    title: 'SD · Salida Despacho',
+    items: [
+      { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
+      { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.', type: 'subitem' },
+      { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp', type: 'subitem' },
+      { id: 'sd-analisis-bultos', label: 'SD04 Análisis Bultos Desp', type: 'subitem' },
+      { id: 'sd-estado-carga', label: 'SD05 Estado de Carga', type: 'subitem' },
+      { id: 'sd-pedidos-especiales', label: 'SD06 Pedidos Especiales', type: 'subitem' },
+      { id: 'sd-comparativa-cd01', label: 'SD07 Comparativa CD01 vs WMS', type: 'subitem' },
+    ]
   },
   {
     id: 'ut',
@@ -108,17 +109,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
     try {
       if (esFavorito) {
-        await fetch(
-          `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos?usuario_id=eq.${usuario.id}&transaccion_id=eq.${transaccionId}`,
-          { method: 'DELETE', headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
+        await apiFetch(
+          `/usuario_favoritos?usuario_id=eq.${usuario.id}&transaccion_id=eq.${transaccionId}`,
+          { method: 'DELETE' }
         );
         setFavoritos(favoritos.filter(f => f !== transaccionId));
       } else {
-        await fetch(
-          'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos',
+        await apiFetch(
+          '/usuario_favoritos',
           {
             method: 'POST',
-            headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Content-Type': 'application/json' },
             body: JSON.stringify({
               usuario_id: usuario.id,
               transaccion_id: transaccionId
