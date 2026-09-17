@@ -1,16 +1,12 @@
 // src/components/Transactions/SD/SD02InformeBultosDesp.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+// src/components/Transactions/SD/SD02InformeBultos.tsx
+
+import React, { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { cache } from '../../../lib/cache';
-import { auth } from '../../../lib/auth';
+import { apiFetch } from '../../../lib/apiClient';
 import './SD02.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
-};
 
 interface InformeRow {
   id_transporte: string;
@@ -32,114 +28,12 @@ const SD02InformeBultosDesp: React.FC = () => {
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [totalSolicitados, setTotalSolicitados] = useState(0);
   const [totalDespachados, setTotalDespachados] = useState(0);
-  const usuario = auth.getUsuario();
 
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Formatear fecha para consulta (usa la fecha tal cual para evitar desfase)
-  const formatearFechaConsulta = (fecha: string) => {
-    if (!fecha) return '';
-    // Supabase espera YYYY-MM-DD
-    return fecha;
-  };
-
-  const cargarInforme = useCallback(async () => {
-    // Validaciones
-    if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) {
-      mostrarMensaje('error', 'La fecha "desde" no puede ser mayor que la fecha "hasta"');
-      return;
-    }
-
-    setCargando(true);
-    setRows([]);
-    setTotalSolicitados(0);
-    setTotalDespachados(0);
-
-    try {
-      // Construir filtros dinámicamente
-      let filtros = '';
-      if (fechaDesde) filtros += `&fecha_programacion=gte.${fechaDesde}`;
-      if (fechaHasta) filtros += `&fecha_programacion=lte.${fechaHasta}T23:59:59`;
-
-      const cacheKey = `informe_bultos_desp_${fechaDesde}_${fechaHasta}`;
-      const cacheTTL = 300000; // 5 minutos
-      const cached = cache.get<InformeRow[]>(cacheKey);
-
-      if (cached) {
-        setRows(cached);
-        calcularTotales(cached);
-      } else {
-        // 1. Obtener transportes filtrados por fecha de programación
-        const respTransportes = await fetch(
-          `${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion&order=fecha_programacion.asc${filtros}`,
-          { headers: HEADERS }
-        );
-        if (!respTransportes.ok) throw new Error('Error al obtener transportes');
-        const transportes = await respTransportes.json();
-
-        if (!transportes || transportes.length === 0) {
-          setRows([]);
-          setCargando(false);
-          mostrarMensaje('info', 'No hay transportes en el rango seleccionado');
-          return;
-        }
-
-        // 2. Para cada transporte, obtener sus locales y bultos
-        const informeRows: InformeRow[] = [];
-
-        for (const transporte of transportes) {
-          // Obtener locales del transporte
-          const respLocales = await fetch(
-            `${API_URL}/sd01_documento_locales?select=id,codigo_local,nombre_local,fecha_entrega,hora_entrega,cantidad_solicitada&documento_id=eq.${transporte.id_documento}`,
-            { headers: HEADERS }
-          );
-          if (!respLocales.ok) continue;
-          const locales = await respLocales.json();
-
-          // Para cada local, obtener bultos despachados (suma de cantidades)
-          for (const local of locales) {
-            const respBultos = await fetch(
-              `${API_URL}/sd01_bultos?select=cantidad&local_id=eq.${local.id}`,
-              { headers: HEADERS }
-            );
-            if (!respBultos.ok) continue;
-            const bultos = await respBultos.json();
-
-            const bultosDespachados = Array.isArray(bultos)
-              ? bultos.reduce((sum: number, b: any) => sum + (b.cantidad || 0), 0)
-              : 0;
-
-            informeRows.push({
-              id_transporte: transporte.id_documento,
-              id_documento: transporte.id_documento,
-              fecha_programacion: transporte.fecha_programacion ? formatearFechaLectura(transporte.fecha_programacion) : '-',
-              codigo_local: local.codigo_local,
-              nombre_local: local.nombre_local || '-',
-              fecha_entrega: local.fecha_entrega ? formatearFechaLectura(local.fecha_entrega) : '-',
-              hora_entrega: local.hora_entrega || '-',
-              bultos_solicitados: local.cantidad_solicitada || 0,
-              bultos_despachados: bultosDespachados
-            });
-          }
-        }
-
-        cache.set(cacheKey, informeRows, cacheTTL);
-        setRows(informeRows);
-        calcularTotales(informeRows);
-      }
-
-      setCargando(false);
-    } catch (e) {
-      console.error('Error cargando informe:', e);
-      mostrarMensaje('error', 'Error al cargar el informe');
-      setCargando(false);
-    }
-  }, [fechaDesde, fechaHasta]);
-
-  // Formatear fecha para lectura (sin desfase UTC)
   const formatearFechaLectura = (fecha: string) => {
     if (!fecha) return '-';
     return new Date(fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' });
@@ -151,6 +45,87 @@ const SD02InformeBultosDesp: React.FC = () => {
     setTotalSolicitados(totalSol);
     setTotalDespachados(totalDesp);
   };
+
+  const cargarInforme = useCallback(async () => {
+    if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) {
+      mostrarMensaje('error', 'La fecha "desde" no puede ser mayor que la fecha "hasta"');
+      return;
+    }
+
+    setCargando(true);
+    setRows([]);
+    setTotalSolicitados(0);
+    setTotalDespachados(0);
+
+    try {
+      let filtros = '';
+      if (fechaDesde) filtros += `&fecha_programacion=gte.${fechaDesde}`;
+      if (fechaHasta) filtros += `&fecha_programacion=lte.${fechaHasta}T23:59:59`;
+
+      const cacheKey = `informe_bultos_desp_${fechaDesde}_${fechaHasta}`;
+      const cacheTTL = 300000;
+      const cached = cache.get<InformeRow[]>(cacheKey);
+
+      if (cached) {
+        setRows(cached);
+        calcularTotales(cached);
+        setCargando(false);
+        return;
+      }
+
+      // 1. Obtener transportes filtrados por fecha
+      const transportes = await apiFetch<any[]>(
+        `/sd01_documentos?select=id,id_documento,fecha_programacion&order=fecha_programacion.asc${filtros}`
+      );
+
+      if (!transportes || transportes.length === 0) {
+        setRows([]);
+        setCargando(false);
+        mostrarMensaje('info', 'No hay transportes en el rango seleccionado');
+        return;
+      }
+
+      // 2. Para cada transporte, obtener sus locales y bultos
+      const informeRows: InformeRow[] = [];
+
+      for (const transporte of transportes) {
+        const locales = await apiFetch<any[]>(
+          `/sd01_documento_locales?select=id,codigo_local,nombre_local,fecha_entrega,hora_entrega,cantidad_solicitada&documento_id=eq.${transporte.id_documento}`
+        );
+
+        for (const local of (locales || [])) {
+          const bultos = await apiFetch<any[]>(
+            `/sd01_bultos?select=cantidad&local_id=eq.${local.id}`
+          );
+
+          const bultosDespachados = Array.isArray(bultos)
+            ? bultos.reduce((sum: number, b: any) => sum + (b.cantidad || 0), 0)
+            : 0;
+
+          informeRows.push({
+            id_transporte: transporte.id_documento,
+            id_documento: transporte.id_documento,
+            fecha_programacion: transporte.fecha_programacion ? formatearFechaLectura(transporte.fecha_programacion) : '-',
+            codigo_local: local.codigo_local,
+            nombre_local: local.nombre_local || '-',
+            fecha_entrega: local.fecha_entrega ? formatearFechaLectura(local.fecha_entrega) : '-',
+            hora_entrega: local.hora_entrega || '-',
+            bultos_solicitados: local.cantidad_solicitada || 0,
+            bultos_despachados: bultosDespachados
+          });
+        }
+      }
+
+      cache.set(cacheKey, informeRows, cacheTTL);
+      setRows(informeRows);
+      calcularTotales(informeRows);
+      setCargando(false);
+    } catch (e) {
+      console.error('Error cargando informe:', e);
+      mostrarMensaje('error', 'Error al cargar el informe');
+      setCargando(false);
+    }
+  }, [fechaDesde, fechaHasta]);
 
   const exportarExcel = () => {
     if (rows.length === 0) {
@@ -173,7 +148,6 @@ const SD02InformeBultosDesp: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Informe Bultos');
 
-    // Filas de totales al final
     const totalRow = {
       'Numero Transporte': '',
       'Fecha Programación': '',
@@ -205,7 +179,6 @@ const SD02InformeBultosDesp: React.FC = () => {
         <p className="sd02-subtitle">Desglose de bultos por transporte y local</p>
       </div>
 
-      {/* Barra de filtros y acciones */}
       <div style={{
         display: 'flex',
         gap: '10px',
@@ -282,7 +255,6 @@ const SD02InformeBultosDesp: React.FC = () => {
         </div>
       </div>
 
-      {/* Resumen de totales */}
       {rows.length > 0 && (
         <div style={{
           display: 'flex',
@@ -316,21 +288,20 @@ const SD02InformeBultosDesp: React.FC = () => {
           marginBottom: '15px',
           fontSize: '13px',
           fontWeight: 500,
-          background: mensaje.tipo === 'success' ? 'var(--success-bg)' : 
-                      mensaje.tipo === 'error' ? 'var(--error-bg)' : 
+          background: mensaje.tipo === 'success' ? 'var(--success-bg)' :
+                      mensaje.tipo === 'error' ? 'var(--error-bg)' :
                       mensaje.tipo === 'warning' ? 'var(--warning-bg)' : 'var(--info-bg)',
-          color: mensaje.tipo === 'success' ? 'var(--success-text)' : 
-                 mensaje.tipo === 'error' ? 'var(--error-text)' : 
+          color: mensaje.tipo === 'success' ? 'var(--success-text)' :
+                 mensaje.tipo === 'error' ? 'var(--error-text)' :
                  mensaje.tipo === 'warning' ? 'var(--warning-text)' : 'var(--info-text)',
-          border: mensaje.tipo === 'success' ? '1px solid var(--success-border)' : 
-                  mensaje.tipo === 'error' ? '1px solid var(--error-border)' : 
+          border: mensaje.tipo === 'success' ? '1px solid var(--success-border)' :
+                  mensaje.tipo === 'error' ? '1px solid var(--error-border)' :
                   mensaje.tipo === 'warning' ? '1px solid var(--warning-border)' : '1px solid var(--info-border)'
         }}>
           {mensaje.texto}
         </div>
       )}
 
-      {/* Tabla de resultados */}
       <div style={{ overflowX: 'auto', maxHeight: '70vh', overflowY: 'auto' }}>
         <table className="sd01-table" style={{ minWidth: '1200px' }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--table-header-bg)' }}>
