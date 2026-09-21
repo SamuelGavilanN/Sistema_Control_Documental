@@ -3,8 +3,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
-import { auth } from '../../../lib/auth'; // <-- IMPORTACIÓN AGREGADA
+import { auth } from '../../../lib/auth';
 import './SD05.css';
+
+const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
+const HEADERS: any = {
+  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  'Content-Type': 'application/json'
+};
 
 interface Frecuencia {
   id: string;
@@ -60,11 +67,10 @@ const SD05EstadoCarga: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Calcular día actual (después de las 4 AM)
   const obtenerDiaActual = useCallback(() => {
     const ahora = new Date();
     const hora = ahora.getHours();
-    let diaIndex = ahora.getDay(); // 0=domingo
+    let diaIndex = ahora.getDay();
     if (hora < 4) diaIndex = (diaIndex + 6) % 7;
     return DIAS[diaIndex];
   }, []);
@@ -108,11 +114,11 @@ const SD05EstadoCarga: React.FC = () => {
         const wms = wmsConsolidado.find((w) => w.drop_local === normalizar(f.drop_local));
         const cantidad_actual = wms ? wms.cantidad : 0;
         const cantidad_estimada = f.cantidad_estimada_despacho || 0;
-        // Si estimado es 0 pero actual > 0, igualamos estimado a actual
         let estimado = cantidad_estimada;
         if (estimado === 0 && cantidad_actual > 0) estimado = cantidad_actual;
         const diferencia = cantidad_actual - estimado;
-        const pct = estimado > 0 ? Math.round((cantidad_actual / estimado) * 100) : 0;
+        // *** TOPE DEL 100% ***
+        const pct = estimado > 0 ? Math.min(100, Math.round((cantidad_actual / estimado) * 100)) : 0;
         return {
           dia_carga: f.dia_carga,
           codigo: f.codigo_local,
@@ -152,7 +158,11 @@ const SD05EstadoCarga: React.FC = () => {
     }));
   };
 
-  // Exportar a Excel
+  // Totales (con tope del 100% también en el global)
+  const totalEstimado = datos.reduce((s, d) => s + d.cantidad_estimada, 0);
+  const totalActual = datos.reduce((s, d) => s + d.cantidad_actual, 0);
+  const pctTotal = totalEstimado > 0 ? Math.min(100, Math.round((totalActual / totalEstimado) * 100)) : 0;
+
   const exportarExcel = () => {
     if (datos.length === 0) {
       mostrarMensaje('warning', 'No hay datos para exportar');
@@ -168,7 +178,6 @@ const SD05EstadoCarga: React.FC = () => {
     XLSX.writeFile(wb, `Estado_Carga_${filtroDia}_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  // Procesar archivo WMS y consolidar
   const procesarArchivo = async () => {
     if (!archivo) {
       mostrarMensaje('warning', 'Seleccione un archivo Excel');
@@ -181,7 +190,6 @@ const SD05EstadoCarga: React.FC = () => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Buscar encabezados (normalizados)
       let headerIndex = -1;
       let idxUbicacion = -1;
       let idxCantidad = -1;
@@ -190,10 +198,8 @@ const SD05EstadoCarga: React.FC = () => {
         const row = rows[i];
         if (!row || !Array.isArray(row)) continue;
         const headersRow = row.map((cell: any) => normalizar(cell?.toString() || ''));
-
         const ubicacionIndex = headersRow.findIndex((h: string) => h.includes('UBICACION'));
         const cantidadIndex = headersRow.findIndex((h: string) => h.includes('CANTIDAD') && !h.includes('REVISION'));
-
         if (ubicacionIndex !== -1 && cantidadIndex !== -1) {
           headerIndex = i;
           idxUbicacion = ubicacionIndex;
@@ -208,10 +214,8 @@ const SD05EstadoCarga: React.FC = () => {
         return;
       }
 
-      // Recoger filas de datos
       const filasData = rows.slice(headerIndex + 1).filter((r: any) => r && r[idxUbicacion]);
 
-      // Consolidar por ubicación normalizada (mayúsculas y sin espacios)
       const mapa = new Map<string, number>();
       filasData.forEach((r: any) => {
         const ubicacion = normalizar(String(r[idxUbicacion]).trim());
@@ -233,11 +237,14 @@ const SD05EstadoCarga: React.FC = () => {
         return;
       }
 
-      // 1. Eliminar todos los registros de wms_carga_consolidada
-      const { error: deleteError } = await supabase.from('wms_carga_consolidada').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      // Eliminar todos los registros anteriores
+      const { error: deleteError } = await supabase
+        .from('wms_carga_consolidada')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
       if (deleteError) throw deleteError;
 
-      // 2. Insertar nuevos datos en lotes
+      // Insertar nuevos en lotes
       const BATCH = 100;
       for (let i = 0; i < consolidado.length; i += BATCH) {
         const batch = consolidado.slice(i, i + BATCH);
@@ -330,16 +337,16 @@ const SD05EstadoCarga: React.FC = () => {
       <div className="sd05-totales">
         <div className="sd05-total-card">
           <span>Total Estimado</span>
-          <strong>{formatNumber(datos.reduce((s, d) => s + d.cantidad_estimada, 0))}</strong>
+          <strong>{formatNumber(totalEstimado)}</strong>
         </div>
         <div className="sd05-total-card">
           <span>Total Actual</span>
-          <strong>{formatNumber(datos.reduce((s, d) => s + d.cantidad_actual, 0))}</strong>
+          <strong>{formatNumber(totalActual)}</strong>
         </div>
         <div className="sd05-total-card">
           <span>% Cumplimiento</span>
-          <strong style={{ color: datos.reduce((s, d) => s + d.cantidad_estimada, 0) > 0 ? (datos.reduce((s, d) => s + d.cantidad_actual, 0) / datos.reduce((s, d) => s + d.cantidad_estimada, 0)) * 100 >= 100 ? '#16a34a' : '#d97706' : '#dc2626' }}>
-            {datos.reduce((s, d) => s + d.cantidad_estimada, 0) > 0 ? Math.round((datos.reduce((s, d) => s + d.cantidad_actual, 0) / datos.reduce((s, d) => s + d.cantidad_estimada, 0)) * 100) : 0}%
+          <strong style={{ color: pctTotal >= 100 ? '#16a34a' : pctTotal >= 80 ? '#d97706' : '#dc2626' }}>
+            {pctTotal}%
           </strong>
         </div>
       </div>
@@ -379,7 +386,6 @@ const SD05EstadoCarga: React.FC = () => {
         )}
       </div>
 
-      {/* Modal Subir Informe WMS */}
       {mostrarSubirModal && (
         <div className="sd05-modal-overlay" onClick={() => setMostrarSubirModal(false)}>
           <div className="sd05-modal" onClick={(e) => e.stopPropagation()}>
