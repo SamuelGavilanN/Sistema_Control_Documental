@@ -1,17 +1,10 @@
 // src/components/Transactions/SD/SD05EstadoCarga.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
 import './SD05.css';
-
-const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
-const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Content-Type': 'application/json'
-};
 
 interface Frecuencia {
   id: string;
@@ -41,16 +34,18 @@ const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
 
 const formatNumber = (num: number): string => num.toLocaleString('es-CL');
 
-const normalizar = (texto: string): string => {
-  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
-};
+const normalizar = (texto: string): string =>
+  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
 
 const SD05EstadoCarga: React.FC = () => {
   const [frecuencias, setFrecuencias] = useState<Frecuencia[]>([]);
   const [wmsConsolidado, setWmsConsolidado] = useState<WmsConsolidado[]>([]);
   const [filtroDia, setFiltroDia] = useState('');
   const [datos, setDatos] = useState<FilaDashboard[]>([]);
-  const [orden, setOrden] = useState<{ columna: string; direccion: 'asc' | 'desc' }>({ columna: 'codigo', direccion: 'asc' });
+  const [orden, setOrden] = useState<{ columna: string; direccion: 'asc' | 'desc' }>({
+    columna: 'codigo',
+    direccion: 'asc'
+  });
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [vistaCompleta, setVistaCompleta] = useState(false);
@@ -67,10 +62,11 @@ const SD05EstadoCarga: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  // Calcular día actual (después de las 4 AM)
   const obtenerDiaActual = useCallback(() => {
     const ahora = new Date();
     const hora = ahora.getHours();
-    let diaIndex = ahora.getDay();
+    let diaIndex = ahora.getDay(); // 0=domingo
     if (hora < 4) diaIndex = (diaIndex + 6) % 7;
     return DIAS[diaIndex];
   }, []);
@@ -117,8 +113,7 @@ const SD05EstadoCarga: React.FC = () => {
         let estimado = cantidad_estimada;
         if (estimado === 0 && cantidad_actual > 0) estimado = cantidad_actual;
         const diferencia = cantidad_actual - estimado;
-        // *** TOPE DEL 100% ***
-        const pct = estimado > 0 ? Math.min(100, Math.round((cantidad_actual / estimado) * 100)) : 0;
+        const pct = estimado > 0 ? Math.round((cantidad_actual / estimado) * 100) : 0;
         return {
           dia_carga: f.dia_carga,
           codigo: f.codigo_local,
@@ -132,15 +127,34 @@ const SD05EstadoCarga: React.FC = () => {
       .filter((d) => d.cantidad_estimada > 0 || d.cantidad_actual > 0)
       .sort((a, b) => {
         const { columna, direccion } = orden;
-        let valA = a[columna as keyof FilaDashboard];
-        let valB = b[columna as keyof FilaDashboard];
-        if (typeof valA === 'string') return direccion === 'asc' ? valA.localeCompare(valB as string) : (valB as string).localeCompare(valA);
-        return direccion === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
+        const valA = a[columna as keyof FilaDashboard];
+        const valB = b[columna as keyof FilaDashboard];
+        if (typeof valA === 'string')
+          return direccion === 'asc'
+            ? valA.localeCompare(valB as string)
+            : (valB as string).localeCompare(valA);
+        return direccion === 'asc'
+          ? (valA as number) - (valB as number)
+          : (valB as number) - (valA as number);
       });
 
     setDatos(datosFiltrados);
     setLocalesDeficit(datosFiltrados.filter((d) => d.diferencia < 0));
   }, [frecuencias, wmsConsolidado, filtroDia, orden]);
+
+  // Totales con tope de 100% por local (no se considera sobre stock)
+  const totales = useMemo(() => {
+    const totalEstimado = datos.reduce((s, d) => s + d.cantidad_estimada, 0);
+    // Topamos la cantidad actual al estimado por local
+    const totalActualTopado = datos.reduce(
+      (s, d) => s + Math.min(d.cantidad_actual, d.cantidad_estimada),
+      0
+    );
+    const pctTotal = totalEstimado > 0
+      ? Math.round((totalActualTopado / totalEstimado) * 100)
+      : 0;
+    return { totalEstimado, totalActualTopado, pctTotal };
+  }, [datos]);
 
   // Carrusel automático (cada 30 segundos)
   useEffect(() => {
@@ -158,26 +172,37 @@ const SD05EstadoCarga: React.FC = () => {
     }));
   };
 
-  // Totales (con tope del 100% también en el global)
-  const totalEstimado = datos.reduce((s, d) => s + d.cantidad_estimada, 0);
-  const totalActual = datos.reduce((s, d) => s + d.cantidad_actual, 0);
-  const pctTotal = totalEstimado > 0 ? Math.min(100, Math.round((totalActual / totalEstimado) * 100)) : 0;
-
+  // Exportar a Excel
   const exportarExcel = () => {
     if (datos.length === 0) {
       mostrarMensaje('warning', 'No hay datos para exportar');
       return;
     }
-    const headers = ['Dia Carga', 'Código', 'Tienda', 'Cantidad Estimada', 'Cantidad Actual', 'Dif', '% Cumplimiento'];
+    const headers = [
+      'Dia Carga',
+      'Código',
+      'Tienda',
+      'Cantidad Estimada',
+      'Cantidad Actual',
+      'Dif',
+      '% Cumplimiento'
+    ];
     const rows = datos.map((d) => [
-      d.dia_carga, d.codigo, d.tienda, d.cantidad_estimada, d.cantidad_actual, d.diferencia, `${d.pct_cumplimiento}%`
+      d.dia_carga,
+      d.codigo,
+      d.tienda,
+      d.cantidad_estimada,
+      d.cantidad_actual,
+      d.diferencia,
+      `${d.pct_cumplimiento}%`
     ]);
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Estado Carga');
-    XLSX.writeFile(wb, `Estado_Carga_${filtroDia}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `Estado_Carga_${filtroDia}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // Procesar archivo WMS y consolidar
   const procesarArchivo = async () => {
     if (!archivo) {
       mostrarMensaje('warning', 'Seleccione un archivo Excel');
@@ -199,7 +224,9 @@ const SD05EstadoCarga: React.FC = () => {
         if (!row || !Array.isArray(row)) continue;
         const headersRow = row.map((cell: any) => normalizar(cell?.toString() || ''));
         const ubicacionIndex = headersRow.findIndex((h: string) => h.includes('UBICACION'));
-        const cantidadIndex = headersRow.findIndex((h: string) => h.includes('CANTIDAD') && !h.includes('REVISION'));
+        const cantidadIndex = headersRow.findIndex(
+          (h: string) => h.includes('CANTIDAD') && !h.includes('REVISION')
+        );
         if (ubicacionIndex !== -1 && cantidadIndex !== -1) {
           headerIndex = i;
           idxUbicacion = ubicacionIndex;
@@ -215,7 +242,6 @@ const SD05EstadoCarga: React.FC = () => {
       }
 
       const filasData = rows.slice(headerIndex + 1).filter((r: any) => r && r[idxUbicacion]);
-
       const mapa = new Map<string, number>();
       filasData.forEach((r: any) => {
         const ubicacion = normalizar(String(r[idxUbicacion]).trim());
@@ -237,14 +263,14 @@ const SD05EstadoCarga: React.FC = () => {
         return;
       }
 
-      // Eliminar todos los registros anteriores
+      // 1. Eliminar todos los registros de wms_carga_consolidada
       const { error: deleteError } = await supabase
         .from('wms_carga_consolidada')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000');
       if (deleteError) throw deleteError;
 
-      // Insertar nuevos en lotes
+      // 2. Insertar nuevos datos en lotes
       const BATCH = 100;
       for (let i = 0; i < consolidado.length; i += BATCH) {
         const batch = consolidado.slice(i, i + BATCH);
@@ -282,7 +308,9 @@ const SD05EstadoCarga: React.FC = () => {
               <span>{t.tienda}</span>
               <span>Estimado: {formatNumber(t.cantidad_estimada)}</span>
               <span>Actual: {formatNumber(t.cantidad_actual)}</span>
-              <span style={{ color: '#dc2626', fontWeight: 'bold' }}>Déficit: {formatNumber(Math.abs(t.diferencia))}</span>
+              <span style={{ color: '#dc2626', fontWeight: 'bold' }}>
+                Déficit: {formatNumber(Math.abs(t.diferencia))}
+              </span>
             </div>
           ))}
         </div>
@@ -306,14 +334,24 @@ const SD05EstadoCarga: React.FC = () => {
       <div className="sd05-toolbar">
         <div className="sd05-filter-group">
           <label className="sd05-filter-label">Día de Carga:</label>
-          <select className="sd05-select" value={filtroDia} onChange={(e) => setFiltroDia(e.target.value)}>
+          <select
+            className="sd05-select"
+            value={filtroDia}
+            onChange={(e) => setFiltroDia(e.target.value)}
+          >
             {DIAS.map((dia) => (
-              <option key={dia} value={dia}>{dia}</option>
+              <option key={dia} value={dia}>
+                {dia}
+              </option>
             ))}
           </select>
         </div>
 
-        <button className="sd05-btn sd05-btn-primary" onClick={cargarDatos} disabled={cargando}>
+        <button
+          className="sd05-btn sd05-btn-primary"
+          onClick={cargarDatos}
+          disabled={cargando}
+        >
           {cargando ? 'Cargando...' : 'Actualizar'}
         </button>
 
@@ -321,7 +359,11 @@ const SD05EstadoCarga: React.FC = () => {
           📤 Subir Informe WMS
         </button>
 
-        <button className="sd05-btn sd05-btn-success" onClick={exportarExcel} disabled={datos.length === 0}>
+        <button
+          className="sd05-btn sd05-btn-success"
+          onClick={exportarExcel}
+          disabled={datos.length === 0}
+        >
           📊 Exportar Excel
         </button>
 
@@ -337,16 +379,25 @@ const SD05EstadoCarga: React.FC = () => {
       <div className="sd05-totales">
         <div className="sd05-total-card">
           <span>Total Estimado</span>
-          <strong>{formatNumber(totalEstimado)}</strong>
+          <strong>{formatNumber(totales.totalEstimado)}</strong>
         </div>
         <div className="sd05-total-card">
           <span>Total Actual</span>
-          <strong>{formatNumber(totalActual)}</strong>
+          <strong>{formatNumber(totales.totalActualTopado)}</strong>
         </div>
         <div className="sd05-total-card">
           <span>% Cumplimiento</span>
-          <strong style={{ color: pctTotal >= 100 ? '#16a34a' : pctTotal >= 80 ? '#d97706' : '#dc2626' }}>
-            {pctTotal}%
+          <strong
+            style={{
+              color:
+                totales.pctTotal >= 100
+                  ? '#16a34a'
+                  : totales.pctTotal >= 80
+                  ? '#d97706'
+                  : '#dc2626'
+            }}
+          >
+            {totales.pctTotal}%
           </strong>
         </div>
       </div>
@@ -355,30 +406,86 @@ const SD05EstadoCarga: React.FC = () => {
         {cargando ? (
           <div className="sd05-loading">Cargando datos...</div>
         ) : datos.length === 0 ? (
-          <div className="sd05-empty">No hay datos para el día seleccionado. Ajusta el filtro.</div>
+          <div className="sd05-empty">
+            No hay datos para el día seleccionado. Ajusta el filtro.
+          </div>
         ) : (
           <table className="sd05-table">
             <thead>
               <tr>
-                <th onClick={() => cambiarOrden('dia_carga')}>Dia Carga {orden.columna === 'dia_carga' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('codigo')}>Código {orden.columna === 'codigo' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('tienda')}>Tienda {orden.columna === 'tienda' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('cantidad_estimada')}>Cantidad Estimada {orden.columna === 'cantidad_estimada' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('cantidad_actual')}>Cantidad Actual {orden.columna === 'cantidad_actual' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('diferencia')}>Dif {orden.columna === 'diferencia' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
-                <th onClick={() => cambiarOrden('pct_cumplimiento')}>% Cumplimiento {orden.columna === 'pct_cumplimiento' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}</th>
+                <th onClick={() => cambiarOrden('dia_carga')}>
+                  Dia Carga{' '}
+                  {orden.columna === 'dia_carga' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('codigo')}>
+                  Código{' '}
+                  {orden.columna === 'codigo' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('tienda')}>
+                  Tienda{' '}
+                  {orden.columna === 'tienda' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('cantidad_estimada')}>
+                  Cantidad Estimada{' '}
+                  {orden.columna === 'cantidad_estimada'
+                    ? orden.direccion === 'asc'
+                      ? '▲'
+                      : '▼'
+                    : ''}
+                </th>
+                <th onClick={() => cambiarOrden('cantidad_actual')}>
+                  Cantidad Actual{' '}
+                  {orden.columna === 'cantidad_actual'
+                    ? orden.direccion === 'asc'
+                      ? '▲'
+                      : '▼'
+                    : ''}
+                </th>
+                <th onClick={() => cambiarOrden('diferencia')}>
+                  Dif{' '}
+                  {orden.columna === 'diferencia' ? (orden.direccion === 'asc' ? '▲' : '▼') : ''}
+                </th>
+                <th onClick={() => cambiarOrden('pct_cumplimiento')}>
+                  % Cumplimiento{' '}
+                  {orden.columna === 'pct_cumplimiento'
+                    ? orden.direccion === 'asc'
+                      ? '▲'
+                      : '▼'
+                    : ''}
+                </th>
               </tr>
             </thead>
             <tbody>
               {datos.map((d) => (
                 <tr key={d.codigo}>
                   <td>{d.dia_carga}</td>
-                  <td><strong>{d.codigo}</strong></td>
+                  <td>
+                    <strong>{d.codigo}</strong>
+                  </td>
                   <td>{d.tienda}</td>
                   <td>{formatNumber(d.cantidad_estimada)}</td>
                   <td>{formatNumber(d.cantidad_actual)}</td>
-                  <td style={{ color: d.diferencia < 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{formatNumber(d.diferencia)}</td>
-                  <td style={{ color: d.pct_cumplimiento >= 100 ? '#16a34a' : d.pct_cumplimiento >= 80 ? '#d97706' : '#dc2626', fontWeight: 600 }}>{d.pct_cumplimiento}%</td>
+                  <td
+                    style={{
+                      color: d.diferencia < 0 ? '#dc2626' : '#16a34a',
+                      fontWeight: 600
+                    }}
+                  >
+                    {formatNumber(d.diferencia)}
+                  </td>
+                  <td
+                    style={{
+                      color:
+                        d.pct_cumplimiento >= 100
+                          ? '#16a34a'
+                          : d.pct_cumplimiento >= 80
+                          ? '#d97706'
+                          : '#dc2626',
+                      fontWeight: 600
+                    }}
+                  >
+                    {d.pct_cumplimiento}%
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -391,11 +498,18 @@ const SD05EstadoCarga: React.FC = () => {
           <div className="sd05-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sd05-modal-header">
               <h2>📤 Subir Informe WMS</h2>
-              <button className="sd05-modal-close" onClick={() => setMostrarSubirModal(false)}>×</button>
+              <button
+                className="sd05-modal-close"
+                onClick={() => setMostrarSubirModal(false)}
+              >
+                ×
+              </button>
             </div>
             <div className="sd05-modal-body">
               <p className="sd05-modal-desc">
-                Selecciona el archivo Excel del WMS. El sistema buscará automáticamente las columnas <strong>"Número de Ubicación"</strong> y <strong>"Cantidad"</strong>, y consolidará las cantidades por DROP.
+                Selecciona el archivo Excel del WMS. El sistema buscará automáticamente las
+                columnas <strong>"Número de Ubicación"</strong> y <strong>"Cantidad"</strong>, y
+                consolidará las cantidades por DROP.
               </p>
               <div className="sd05-file-upload">
                 <input
@@ -410,8 +524,17 @@ const SD05EstadoCarga: React.FC = () => {
                 </label>
               </div>
               <div className="sd05-modal-actions">
-                <button className="sd05-btn" onClick={() => setMostrarSubirModal(false)}>Cancelar</button>
-                <button className="sd05-btn sd05-btn-primary" onClick={procesarArchivo} disabled={!archivo || procesando}>
+                <button
+                  className="sd05-btn"
+                  onClick={() => setMostrarSubirModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="sd05-btn sd05-btn-primary"
+                  onClick={procesarArchivo}
+                  disabled={!archivo || procesando}
+                >
                   {procesando ? 'Procesando...' : 'Cargar y Consolidar'}
                 </button>
               </div>
