@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD01View.tsx
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../../lib/auth';
 import SD01CrearTransporte from './SD01CrearTransporte';
 import SD01CargaExcel from './SD01CargaExcel';
@@ -16,7 +16,15 @@ const HEADERS: any = {
 
 const PAGE_SIZE = 20;
 
-type OrdenColumna = 'id_documento' | 'fecha_programacion' | 'conductor' | 'patente' | 'locales' | 'estado' | 'creado_por' | 'creado_en' | 'modificado_por' | 'modificado_en';
+type OrdenColumna =
+  | 'id_documento'
+  | 'fecha_programacion'
+  | 'conductor'
+  | 'patente'
+  | 'locales'
+  | 'estado'
+  | 'creado_en'
+  | 'modificado_en';
 type OrdenDireccion = 'asc' | 'desc';
 
 const SD01View: React.FC = () => {
@@ -29,69 +37,129 @@ const SD01View: React.FC = () => {
   const [mostrarCargaExcel, setMostrarCargaExcel] = useState(false);
   const [mostrarDetalle, setMostrarDetalle] = useState<any>(null);
 
+  // Toggle finalizados
+  const [mostrarFinalizados, setMostrarFinalizados] = useState(true);
+
+  // Ordenamiento
+  const [ordenColumna, setOrdenColumna] = useState<OrdenColumna>('creado_en');
+  const [ordenDireccion, setOrdenDireccion] = useState<OrdenDireccion>('desc');
+
+  // Expansión inline
+  const [filaExpandida, setFilaExpandida] = useState<string | null>(null);
+  const [detallesExpandido, setDetallesExpandido] = useState<any>(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(0);
 
-  // Nuevos estados
-  const [mostrarFinalizados, setMostrarFinalizados] = useState(false);
-  const [ordenColumna, setOrdenColumna] = useState<OrdenColumna>('creado_en');
-  const [ordenDireccion, setOrdenDireccion] = useState<OrdenDireccion>('desc');
-  const [filaExpandida, setFilaExpandida] = useState<string | null>(null);
-
   const usuario = auth.getUsuario();
 
-  const cargarTransportes = useCallback(async (paginaActual: number, incluirFinalizados: boolean) => {
-    setCargando(true);
-    try {
-      const offset = (paginaActual - 1) * PAGE_SIZE;
-      // Filtro de estado: si no incluye finalizados, excluye Finalizado y Cancelado
-      let filtroEstado = '';
-      if (!incluirFinalizados) {
-        filtroEstado = '&estado=not.in.(Finalizado,Cancelado)';
+  const cargarTransportes = useCallback(
+    async (paginaActual: number) => {
+      setCargando(true);
+      try {
+        const offset = (paginaActual - 1) * PAGE_SIZE;
+        let query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)`;
+
+        if (!mostrarFinalizados) {
+          query += `&estado=neq.Finalizado`;
+        }
+
+        query += `&order=${ordenColumna}.${ordenDireccion}&limit=${PAGE_SIZE}&offset=${offset}`;
+
+        const cacheKey = `sd01_transportes_p${paginaActual}_${mostrarFinalizados}_${ordenColumna}_${ordenDireccion}`;
+        const cacheTTL = 10000;
+        const cached = cache.get<any>(cacheKey);
+        if (cached) {
+          setTransportes(cached.data);
+          setTotal(cached.total);
+          setTotalPaginas(Math.ceil(cached.total / PAGE_SIZE));
+          setCargando(false);
+          return;
+        }
+
+        const resp = await fetch(query, { headers: HEADERS });
+        if (!resp.ok) throw new Error('Error al cargar transportes');
+        const data = await resp.json();
+
+        // Contar total
+        let countQuery = `${API_URL}/sd01_documentos?select=id`;
+        if (!mostrarFinalizados) countQuery += `&estado=neq.Finalizado`;
+        const countResp = await fetch(countQuery, {
+          headers: { ...HEADERS, Prefer: 'count=exact' }
+        });
+        const countData = await countResp.json();
+        const totalCount = Array.isArray(countData) ? countData.length : 0;
+
+        cache.set(cacheKey, { data, total: totalCount }, cacheTTL);
+
+        setTransportes(data);
+        setTotal(totalCount);
+        setTotalPaginas(Math.ceil(totalCount / PAGE_SIZE));
+        setCargando(false);
+      } catch (e) {
+        console.error('Error cargando transportes:', e);
+        setCargando(false);
       }
-
-      const query = `${API_URL}/sd01_documentos?select=*,conductor:conductor_id(*),patente_principal:patente_principal_id(*),patente_adicional:patente_adicional_id(*),creador:creado_por(*),locales:sd01_documento_locales(*)&order=creado_en.desc&limit=${PAGE_SIZE}&offset=${offset}${filtroEstado}`;
-
-      const resp = await fetch(query, { headers: HEADERS });
-      if (!resp.ok) throw new Error('Error al cargar transportes');
-      const data = await resp.json();
-      setTransportes(data);
-
-      // Conteo total
-      const countQuery = `${API_URL}/sd01_documentos?select=id${filtroEstado}`;
-      const countResp = await fetch(countQuery, { headers: { ...HEADERS, 'Prefer': 'count=exact' } });
-      const countData = await countResp.json();
-      const totalCount = Array.isArray(countData) ? countData.length : 0;
-      setTotal(totalCount);
-      setTotalPaginas(Math.ceil(totalCount / PAGE_SIZE));
-    } catch (e) {
-      console.error('Error cargando transportes:', e);
-    } finally {
-      setCargando(false);
-    }
-  }, []);
+    },
+    [mostrarFinalizados, ordenColumna, ordenDireccion]
+  );
 
   useEffect(() => {
-    cargarTransportes(1, mostrarFinalizados);
+    cargarTransportes(1);
     setPagina(1);
-  }, [mostrarFinalizados]);
+  }, [mostrarFinalizados, ordenColumna, ordenDireccion, cargarTransportes]);
 
   useEffect(() => {
-    cargarTransportes(pagina, mostrarFinalizados);
-  }, [pagina]);
+    cargarTransportes(pagina);
+  }, [pagina, cargarTransportes]);
 
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
+  const cambiarOrden = (columna: OrdenColumna) => {
+    if (ordenColumna === columna) {
+      setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrdenColumna(columna);
+      setOrdenDireccion('asc');
+    }
+  };
+
+  const indicador = (columna: OrdenColumna) => {
+    if (ordenColumna !== columna) return '';
+    return ordenDireccion === 'asc' ? ' ▲' : ' ▼';
+  };
+
   const seleccionarTransporte = (transporte: any) => {
     setTransporteSeleccionado(transporte);
   };
 
-  const toggleFilaExpandida = (id: string) => {
-    setFilaExpandida(filaExpandida === id ? null : id);
+  const toggleExpandir = async (transporte: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (filaExpandida === transporte.id) {
+      setFilaExpandida(null);
+      setDetallesExpandido(null);
+      return;
+    }
+    setFilaExpandida(transporte.id);
+    setCargandoDetalle(true);
+    try {
+      const resp = await fetch(
+        `${API_URL}/sd01_documento_locales?select=*&documento_id=eq.${transporte.id_documento}&order=codigo_local.asc`,
+        { headers: HEADERS }
+      );
+      const data = await resp.json();
+      setDetallesExpandido({ ...transporte, localesDetalle: data || [] });
+    } catch (e) {
+      console.error('Error cargando detalle:', e);
+      setDetallesExpandido({ ...transporte, localesDetalle: [] });
+    } finally {
+      setCargandoDetalle(false);
+    }
   };
 
   const handleEliminarSeleccionados = async () => {
@@ -106,13 +174,19 @@ const SD01View: React.FC = () => {
     }
     if (!window.confirm('¿Eliminar el transporte ' + t.id_documento + '?')) return;
     try {
-      await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, { method: 'DELETE', headers: HEADERS });
-      const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, { method: 'DELETE', headers: HEADERS });
+      await fetch(
+        API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento,
+        { method: 'DELETE', headers: HEADERS }
+      );
+      const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, {
+        method: 'DELETE',
+        headers: HEADERS
+      });
       if (resp.ok) {
         mostrarMensaje('success', 'Transporte eliminado correctamente');
         setTransporteSeleccionado(null);
         cache.invalidatePrefix('sd01_transportes_');
-        cargarTransportes(pagina, mostrarFinalizados);
+        cargarTransportes(pagina);
       } else {
         mostrarMensaje('error', 'Error al eliminar transporte');
       }
@@ -130,7 +204,11 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'Solo se pueden cancelar transportes en Pendiente o En Proceso');
       return;
     }
-    const motivo = window.prompt('¿Está seguro de cancelar el transporte ' + transporteSeleccionado.id_documento + '?\n\nIngrese el motivo:');
+    const motivo = window.prompt(
+      '¿Está seguro de cancelar el transporte ' +
+        transporteSeleccionado.id_documento +
+        '?\n\nIngrese el motivo:'
+    );
     if (motivo === null) return;
     if (!motivo.trim()) {
       mostrarMensaje('warning', 'Debe ingresar un motivo');
@@ -151,7 +229,7 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte cancelado exitosamente');
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina, mostrarFinalizados);
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al cancelar transporte');
     }
@@ -185,7 +263,7 @@ const SD01View: React.FC = () => {
       setTransporteSeleccionado(actualizado);
       setMostrarDetalle(actualizado);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina, mostrarFinalizados);
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al iniciar transporte');
     }
@@ -200,7 +278,8 @@ const SD01View: React.FC = () => {
       mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado');
       return;
     }
-    if (!window.confirm('¿Reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a Pendiente.')) return;
+    if (!window.confirm('¿Reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a Pendiente.'))
+      return;
     try {
       await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
         method: 'PATCH',
@@ -215,7 +294,7 @@ const SD01View: React.FC = () => {
       mostrarMensaje('success', 'Transporte reabierto exitosamente');
       setTransporteSeleccionado(null);
       cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina, mostrarFinalizados);
+      cargarTransportes(pagina);
     } catch (e) {
       mostrarMensaje('error', 'Error al reabrir transporte');
     }
@@ -237,21 +316,21 @@ const SD01View: React.FC = () => {
   const handleTransporteCreado = () => {
     setMostrarCrearTransporte(false);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(1, mostrarFinalizados);
+    cargarTransportes(1);
     mostrarMensaje('success', 'Transporte creado exitosamente');
   };
   const handleTransporteEditado = () => {
     setMostrarEditarTransporte(false);
     setTransporteSeleccionado(null);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(pagina, mostrarFinalizados);
+    cargarTransportes(pagina);
     mostrarMensaje('success', 'Transporte editado exitosamente');
   };
   const handleCargarTransporte = () => setMostrarCargaExcel(true);
   const handleCargaExcelCompletada = () => {
     setMostrarCargaExcel(false);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(1, mostrarFinalizados);
+    cargarTransportes(1);
     mostrarMensaje('success', 'Transportes creados exitosamente');
   };
 
@@ -262,47 +341,6 @@ const SD01View: React.FC = () => {
     setFilaExpandida(null);
   };
 
-  // Ordenamiento en cliente
-  const cambiarOrden = (columna: OrdenColumna) => {
-    if (ordenColumna === columna) {
-      setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
-    } else {
-      setOrdenColumna(columna);
-      setOrdenDireccion('asc');
-    }
-  };
-
-  const transportesOrdenados = useMemo(() => {
-    const copia = [...transportes];
-    const getValor = (t: any, col: OrdenColumna): any => {
-      switch (col) {
-        case 'id_documento': return t.id_documento || '';
-        case 'fecha_programacion': return t.fecha_programacion || '';
-        case 'conductor': return t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '';
-        case 'patente': return t.patente_principal?.numero_patente || '';
-        case 'locales': return t.locales?.length || 0;
-        case 'estado': return t.estado || '';
-        case 'creado_por': return t.creador ? `${t.creador.nombre} ${t.creador.apellido}` : '';
-        case 'creado_en': return t.creado_en || '';
-        case 'modificado_por': return t.modificado_por || '';
-        case 'modificado_en': return t.modificado_en || '';
-        default: return '';
-      }
-    };
-    copia.sort((a, b) => {
-      const va = getValor(a, ordenColumna);
-      const vb = getValor(b, ordenColumna);
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return ordenDireccion === 'asc' ? va - vb : vb - va;
-      }
-      return ordenDireccion === 'asc'
-        ? String(va).localeCompare(String(vb))
-        : String(vb).localeCompare(String(va));
-    });
-    return copia;
-  }, [transportes, ordenColumna, ordenDireccion]);
-
-  // --- Helpers de formato ---
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
     const soloFecha = fecha.includes('T') ? fecha.split('T')[0] : fecha;
@@ -316,28 +354,48 @@ const SD01View: React.FC = () => {
     try {
       const d = new Date(fecha);
       if (isNaN(d.getTime())) return fecha;
-      return `${d.toLocaleDateString('es-CL')} ${d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`;
-    } catch { return fecha; }
+      const fechaParte = d.toLocaleDateString('es-CL');
+      const horaParte = d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      return `${fechaParte} ${horaParte}`;
+    } catch (e) {
+      return fecha;
+    }
   };
 
-  const getConductorNombre = (t: any) => t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '-';
-  const getPatenteNumero = (t: any) => t.patente_principal ? t.patente_principal.numero_patente : '-';
-  const getCreadoPorNombre = (t: any) => t.creador ? `${t.creador.nombre} ${t.creador.apellido}` : '-';
+  const getConductorNombre = (t: any) =>
+    t.conductor ? `${t.conductor.nombre} ${t.conductor.apellido}` : '-';
+  const getPatenteNumero = (t: any) =>
+    t.patente_principal ? t.patente_principal.numero_patente : '-';
+  const getCreadoPorNombre = (t: any) =>
+    t.creador ? `${t.creador.nombre} ${t.creador.apellido}` : '-';
 
   const getEstadoBadge = (estado: string) => {
     const badges: any = {
-      'Pendiente': { color: '#b45309', bg: '#fef3c7' },
+      Pendiente: { color: '#b45309', bg: '#fef3c7' },
       'En Proceso': { color: '#1d4ed8', bg: '#dbeafe' },
-      'Finalizado': { color: '#15803d', bg: '#dcfce7' },
-      'Cancelado': { color: '#64748b', bg: '#f1f5f9' }
+      Finalizado: { color: '#15803d', bg: '#dcfce7' },
+      Cancelado: { color: '#64748b', bg: '#f1f5f9' }
     };
-    const b = badges[estado] || badges['Cancelado'];
-    return <span className="sd01-estado-badge" style={{ color: b.color, background: b.bg }}>{estado}</span>;
+    const badge = badges[estado] || badges['Cancelado'];
+    return (
+      <span className="sd01-estado-badge" style={{ color: badge.color, background: badge.bg }}>
+        {estado}
+      </span>
+    );
   };
 
-  if (cargando && transportes.length === 0) {
+  if (cargando) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#64748b', fontSize: '16px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '400px',
+          color: '#64748b',
+          fontSize: '16px'
+        }}
+      >
         Cargando transportes...
       </div>
     );
@@ -350,30 +408,16 @@ const SD01View: React.FC = () => {
         onClose={() => {
           setMostrarDetalle(null);
           setTransporteSeleccionado(null);
-          cargarTransportes(pagina, mostrarFinalizados);
+          cargarTransportes(pagina);
         }}
         onActualizar={() => {
           cache.invalidatePrefix('sd01_transportes_');
-          cargarTransportes(pagina, mostrarFinalizados);
+          cargarTransportes(pagina);
         }}
         usuario={usuario}
       />
     );
   }
-
-  // Columnas con sus etiquetas
-  const columnas: { key: OrdenColumna; label: string }[] = [
-    { key: 'id_documento', label: 'ID Transporte' },
-    { key: 'fecha_programacion', label: 'Fecha Programación' },
-    { key: 'conductor', label: 'Conductor' },
-    { key: 'patente', label: 'Patente' },
-    { key: 'locales', label: 'Locales' },
-    { key: 'estado', label: 'Estado' },
-    { key: 'creado_por', label: 'Creado Por' },
-    { key: 'creado_en', label: 'Creado En' },
-    { key: 'modificado_por', label: 'Modificado Por' },
-    { key: 'modificado_en', label: 'Modificado En' }
-  ];
 
   return (
     <div className="sd01-container">
@@ -381,18 +425,98 @@ const SD01View: React.FC = () => {
         <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>{mensaje.texto}</div>
       )}
 
-      <div className="sd01-toolbar" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)', padding: '10px 16px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+      {/* Barra de opciones sticky */}
+      <div
+        className="sd01-toolbar"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          background: 'var(--bg-panel)',
+          padding: '10px 16px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
+        }}
+      >
         <button className="sd01-btn sd01-btn-primary" onClick={handleCrearTransporte}>
-          + Crear Transporte
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Crear Transporte
         </button>
-        <button className="sd01-btn" onClick={handleCargarTransporte}>Cargar Excel</button>
-        <button className="sd01-btn" onClick={() => cargarTransportes(pagina, mostrarFinalizados)}>Actualizar</button>
+
+        <button className="sd01-btn" onClick={handleCargarTransporte}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Cargar Excel
+        </button>
+
+        <button className="sd01-btn" onClick={() => cargarTransportes(pagina)} title="Actualizar tabla">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M12.6667 2L12.6667 5.33333L9.33333 5.33333"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Actualizar
+        </button>
 
         <div className="sd01-separator"></div>
 
-        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>Editar</button>
-        <button className="sd01-btn sd01-btn-danger" onClick={handleCancelarTransporte} disabled={!transporteSeleccionado}>Cancelar</button>
-        <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={!transporteSeleccionado}>Eliminar</button>
+        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M11.3333 2.00004C11.5084 1.82494 11.7163 1.68605 11.9451 1.59129C12.1738 1.49653 12.4187 1.44775 12.6663 1.44775C12.9138 1.44775 13.1587 1.49653 13.3875 1.59129C13.6163 1.68605 13.8242 1.82494 13.9993 2.00004C14.1744 2.17514 14.3133 2.38305 14.408 2.61187C14.5028 2.8407 14.5516 3.08557 14.5516 3.33337C14.5516 3.58118 14.5028 3.82605 14.408 4.05487C14.3133 4.2837 14.1744 4.49161 13.9993 4.66671L5.33333 13.3327L2 13.9994L2.66667 10.666L11.3333 2.00004Z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Editar
+        </button>
+
+        <button className="sd01-btn sd01-btn-danger" onClick={handleCancelarTransporte} disabled={!transporteSeleccionado}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Cancelar
+        </button>
+
+        <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={!transporteSeleccionado}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Eliminar ({transporteSeleccionado ? 1 : 0})
+        </button>
 
         <div className="sd01-separator"></div>
 
@@ -400,15 +524,52 @@ const SD01View: React.FC = () => {
           className="sd01-btn sd01-btn-success"
           onClick={handleIniciarTransporte}
           disabled={!transporteSeleccionado || !['Pendiente', 'En Proceso'].includes(transporteSeleccionado.estado)}
+          style={{
+            background:
+              transporteSeleccionado?.estado === 'Pendiente'
+                ? '#16a34a'
+                : transporteSeleccionado?.estado === 'En Proceso'
+                ? '#3b82f6'
+                : 'var(--bg-readonly)',
+            color: ['Pendiente', 'En Proceso'].includes(transporteSeleccionado?.estado)
+              ? 'white'
+              : 'var(--text-muted)'
+          }}
         >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 2L12 8L4 14V2Z" fill="currentColor" />
+          </svg>
           {transporteSeleccionado?.estado === 'En Proceso' ? 'Continuar' : 'Iniciar'}
         </button>
-        <button className="sd01-btn sd01-btn-warning" onClick={handleReabrirTransporte} disabled={!transporteSeleccionado}>Reabrir</button>
 
         <div className="sd01-separator"></div>
 
-        {/* Toggle finalizados */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <button className="sd01-btn sd01-btn-warning" onClick={handleReabrirTransporte} disabled={!transporteSeleccionado}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Reabrir
+        </button>
+
+        <div className="sd01-separator"></div>
+
+        {/* Toggle Finalizados */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer'
+          }}
+        >
           <input
             type="checkbox"
             checked={mostrarFinalizados}
@@ -420,10 +581,46 @@ const SD01View: React.FC = () => {
 
         {/* Paginación */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Mostrar</span>
+          <select
+            value={20}
+            onChange={() => {
+              setPagina(1);
+              cargarTransportes(1);
+            }}
+            style={{
+              padding: '4px 8px',
+              border: '1px solid var(--border-input)',
+              borderRadius: '6px',
+              background: 'var(--bg-input)',
+              color: 'var(--text-primary)',
+              fontSize: '13px'
+            }}
+          >
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>|</span>
-          <button className="sd01-btn" onClick={() => cambiarPagina(pagina - 1)} disabled={pagina <= 1} style={{ padding: '4px 8px' }}>‹</button>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{pagina} / {totalPaginas}</span>
-          <button className="sd01-btn" onClick={() => cambiarPagina(pagina + 1)} disabled={pagina >= totalPaginas} style={{ padding: '4px 8px' }}>›</button>
+          <button
+            className="sd01-btn"
+            onClick={() => cambiarPagina(pagina - 1)}
+            disabled={pagina <= 1}
+            style={{ padding: '4px 8px' }}
+          >
+            ‹
+          </button>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+            {pagina} / {totalPaginas}
+          </span>
+          <button
+            className="sd01-btn"
+            onClick={() => cambiarPagina(pagina + 1)}
+            disabled={pagina >= totalPaginas}
+            style={{ padding: '4px 8px' }}
+          >
+            ›
+          </button>
         </div>
       </div>
 
@@ -432,39 +629,67 @@ const SD01View: React.FC = () => {
           <table className="sd01-table" style={{ minWidth: '1500px' }}>
             <thead>
               <tr>
-                {columnas.map((col) => (
-                  <th
-                    key={col.key}
-                    onClick={() => cambiarOrden(col.key)}
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                  >
-                    {col.label}
-                    {ordenColumna === col.key ? (ordenDireccion === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </th>
-                ))}
+                <th style={{ width: '36px' }}></th>
+                <th onClick={() => cambiarOrden('id_documento')} style={{ cursor: 'pointer' }}>
+                  ID Transporte{indicador('id_documento')}
+                </th>
+                <th onClick={() => cambiarOrden('fecha_programacion')} style={{ cursor: 'pointer' }}>
+                  Fecha Programación{indicador('fecha_programacion')}
+                </th>
+                <th onClick={() => cambiarOrden('conductor')} style={{ cursor: 'pointer' }}>
+                  Conductor{indicador('conductor')}
+                </th>
+                <th onClick={() => cambiarOrden('patente')} style={{ cursor: 'pointer' }}>
+                  Patente{indicador('patente')}
+                </th>
+                <th onClick={() => cambiarOrden('locales')} style={{ cursor: 'pointer', textAlign: 'center' }}>
+                  Locales{indicador('locales')}
+                </th>
+                <th onClick={() => cambiarOrden('estado')} style={{ cursor: 'pointer' }}>
+                  Estado{indicador('estado')}
+                </th>
+                <th onClick={() => cambiarOrden('creado_en')} style={{ cursor: 'pointer' }}>
+                  Creado Por{indicador('creado_en')}
+                </th>
+                <th onClick={() => cambiarOrden('creado_en')} style={{ cursor: 'pointer' }}>
+                  Creado En{indicador('creado_en')}
+                </th>
+                <th onClick={() => cambiarOrden('modificado_en')} style={{ cursor: 'pointer' }}>
+                  Modificado Por{indicador('modificado_en')}
+                </th>
+                <th onClick={() => cambiarOrden('modificado_en')} style={{ cursor: 'pointer' }}>
+                  Modificado En{indicador('modificado_en')}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {transportesOrdenados.length === 0 ? (
+              {transportes.length === 0 ? (
                 <tr>
-                  <td colSpan={columnas.length} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                  <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                     No hay transportes registrados
                   </td>
                 </tr>
               ) : (
-                transportesOrdenados.map((transporte: any) => {
+                transportes.map((transporte: any) => {
                   const seleccionado = transporteSeleccionado?.id === transporte.id;
                   const expandido = filaExpandida === transporte.id;
                   return (
                     <React.Fragment key={transporte.id}>
                       <tr
                         className={seleccionado ? 'sd01-row-selected' : ''}
-                        style={{ background: seleccionado ? 'var(--table-row-selected)' : 'transparent', cursor: 'pointer' }}
-                        onClick={() => {
-                          seleccionarTransporte(transporte);
-                          toggleFilaExpandida(transporte.id);
+                        style={{
+                          background: seleccionado ? 'var(--table-row-selected)' : 'transparent',
+                          cursor: 'pointer'
                         }}
+                        onClick={() => seleccionarTransporte(transporte)}
                       >
+                        <td
+                          onClick={(e) => toggleExpandir(transporte, e)}
+                          style={{ textAlign: 'center', userSelect: 'none', fontSize: '14px' }}
+                          title={expandido ? 'Ocultar detalle' : 'Ver detalle'}
+                        >
+                          {expandido ? '▼' : '▶'}
+                        </td>
                         <td className="sd01-id-documento">{transporte.id_documento}</td>
                         <td>{formatearFecha(transporte.fecha_programacion)}</td>
                         <td>{getConductorNombre(transporte)}</td>
@@ -474,44 +699,55 @@ const SD01View: React.FC = () => {
                         </td>
                         <td>{getEstadoBadge(transporte.estado)}</td>
                         <td>{getCreadoPorNombre(transporte)}</td>
-                        <td style={{ fontSize: '12px', color: '#64748b' }}>{formatearFechaHora(transporte.creado_en)}</td>
+                        <td style={{ fontSize: '12px', color: '#64748b' }}>
+                          {formatearFechaHora(transporte.creado_en)}
+                        </td>
                         <td>{transporte.modificado_por || '-'}</td>
-                        <td style={{ fontSize: '12px', color: '#64748b' }}>{transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}</td>
+                        <td style={{ fontSize: '12px', color: '#64748b' }}>
+                          {transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}
+                        </td>
                       </tr>
                       {expandido && (
                         <tr>
-                          <td colSpan={columnas.length} style={{ padding: 0, background: 'var(--bg-section)' }}>
-                            <div style={{ padding: '16px 24px' }}>
-                              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: 'var(--text-primary)' }}>
-                                Locales de Entrega ({transporte.locales?.length || 0})
-                              </h4>
-                              {(!transporte.locales || transporte.locales.length === 0) ? (
-                                <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Sin locales asignados</p>
-                              ) : (
-                                <table className="sd01-table" style={{ minWidth: 'auto', background: 'var(--bg-panel)', borderRadius: '8px' }}>
+                          <td colSpan={11} style={{ background: 'var(--bg-section)', padding: '12px 16px' }}>
+                            {cargandoDetalle ? (
+                              <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Cargando detalle...</div>
+                            ) : (
+                              <div>
+                                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
+                                  Locales del transporte
+                                </div>
+                                <table className="sd01-table" style={{ minWidth: '600px' }}>
                                   <thead>
                                     <tr>
                                       <th>Código</th>
                                       <th>Nombre Local</th>
                                       <th>Fecha Entrega</th>
                                       <th>Hora Entrega</th>
-                                      <th style={{ textAlign: 'right' }}>Cantidad Solicitada</th>
+                                      <th style={{ textAlign: 'right' }}>Bultos Solicitados</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {transporte.locales.map((l: any) => (
-                                      <tr key={l.id}>
-                                        <td><strong>{l.codigo_local}</strong></td>
+                                    {(detallesExpandido?.localesDetalle || []).map((l: any, idx: number) => (
+                                      <tr key={l.id || idx}>
+                                        <td>{l.codigo_local}</td>
                                         <td>{l.nombre_local || '-'}</td>
-                                        <td>{formatearFecha(l.fecha_entrega)}</td>
+                                        <td>{l.fecha_entrega ? formatearFecha(l.fecha_entrega) : '-'}</td>
                                         <td>{l.hora_entrega || '-'}</td>
                                         <td style={{ textAlign: 'right' }}>{l.cantidad_solicitada || 0}</td>
                                       </tr>
                                     ))}
+                                    {(detallesExpandido?.localesDetalle || []).length === 0 && (
+                                      <tr>
+                                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                                          Sin locales
+                                        </td>
+                                      </tr>
+                                    )}
                                   </tbody>
                                 </table>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}
@@ -529,13 +765,23 @@ const SD01View: React.FC = () => {
       </div>
 
       {mostrarCrearTransporte && (
-        <SD01CrearTransporte onClose={() => setMostrarCrearTransporte(false)} onTransporteCreado={handleTransporteCreado} />
+        <SD01CrearTransporte
+          onClose={() => setMostrarCrearTransporte(false)}
+          onTransporteCreado={handleTransporteCreado}
+        />
       )}
       {mostrarEditarTransporte && (
-        <SD01CrearTransporte onClose={() => setMostrarEditarTransporte(false)} onTransporteCreado={handleTransporteEditado} transporteEditar={transporteSeleccionado} />
+        <SD01CrearTransporte
+          onClose={() => setMostrarEditarTransporte(false)}
+          onTransporteCreado={handleTransporteEditado}
+          transporteEditar={transporteSeleccionado}
+        />
       )}
       {mostrarCargaExcel && (
-        <SD01CargaExcel onClose={() => setMostrarCargaExcel(false)} onTransportesCreados={handleCargaExcelCompletada} />
+        <SD01CargaExcel
+          onClose={() => setMostrarCargaExcel(false)}
+          onTransportesCreados={handleCargaExcelCompletada}
+        />
       )}
     </div>
   );
