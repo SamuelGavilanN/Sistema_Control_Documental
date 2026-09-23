@@ -112,9 +112,10 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     }
     if (transporteEditar.patente_principal_id) {
       try {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id, {
-          headers: HEADERS
-        });
+        const resp = await fetch(
+          API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id,
+          { headers: HEADERS }
+        );
         const data = await resp.json();
         if (data && data.length > 0) {
           setPatentePrincipalId(data[0].id);
@@ -124,9 +125,10 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     }
     if (transporteEditar.patente_adicional_id) {
       try {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_adicional_id, {
-          headers: HEADERS
-        });
+        const resp = await fetch(
+          API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_adicional_id,
+          { headers: HEADERS }
+        );
         const data = await resp.json();
         if (data && data.length > 0) {
           setPatenteAdicionalId(data[0].id);
@@ -389,9 +391,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
   };
 
   const handleLocalChange = (index: number, campo: string, valor: string) => {
-    setLocales((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, [campo]: valor } : l))
-    );
+    setLocales((prev) => prev.map((l, i) => (i === index ? { ...l, [campo]: valor } : l)));
   };
 
   const agregarLocal = () => {
@@ -668,7 +668,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
   };
 
   return (
-    <div className="sd01-modal-overlay" onClick={onClose}>
+    <div className="sd01-modal-overlay">
       <div className="sd01-modal" onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>{esEdicion ? 'Editar Transporte' : 'Crear Nuevo Transporte'}</h2>
@@ -706,7 +706,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
                     onChange={(e: any) => handleBuscarConductor(e.target.value)}
                     onKeyDown={handleKeyDownConductor}
                     onFocus={() => {
-                      if (conductorTexto.trim() && sugerenciasConductor.length > 0) setMostrarSugerenciasConductor(true);
+                      if (conductorTexto.trim() && sugerenciasConductor.length > 0)
+                        setMostrarSugerenciasConductor(true);
                     }}
                     onBlur={() => setTimeout(() => setMostrarSugerenciasConductor(false), 200)}
                     placeholder="Buscar conductor..."
@@ -972,7 +973,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
       </div>
 
       {showModalConductor && (
-        <div className="sd01-modal-overlay" onClick={() => setShowModalConductor(false)}>
+        <div className="sd01-modal-overlay">
           <div className="sd01-modal" style={{ maxWidth: '500px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="sd01-modal-header">
               <h2>Nuevo Conductor</h2>
@@ -1045,7 +1046,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
       )}
 
       {showModalPatente && (
-        <div className="sd01-modal-overlay" onClick={() => setShowModalPatente(false)}>
+        <div className="sd01-modal-overlay">
           <div className="sd01-modal" style={{ maxWidth: '500px' }} onClick={(e: any) => e.stopPropagation()}>
             <div className="sd01-modal-header">
               <h2>Nueva Patente</h2>
