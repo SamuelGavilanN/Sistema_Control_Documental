@@ -76,6 +76,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   // Estado para ocultar/mostrar TODO el sidebar (no persistente)
   const [sidebarVisible, setSidebarVisible] = useState(true);
 
+  // Añade/quita una clase al body para desplazar el tabs-bar del header
+  useEffect(() => {
+    if (!sidebarVisible) {
+      document.body.classList.add('sidebar-hidden');
+    } else {
+      document.body.classList.remove('sidebar-hidden');
+    }
+    return () => {
+      document.body.classList.remove('sidebar-hidden');
+    };
+  }, [sidebarVisible]);
+
   useEffect(() => {
     setPermisosActuales(permisos || []);
   }, [permisos]);
@@ -181,43 +193,54 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   // Cuando el sidebar está oculto, solo muestra el botón flotante para restaurarlo
   if (!sidebarVisible) {
     return (
-      <button
-        onClick={() => setSidebarVisible(true)}
-        title="Mostrar menú lateral"
-        style={{
-          position: 'fixed',
-          top: '15px',
-          left: '15px',
-          width: '40px',
-          height: '40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--btn-primary-bg)',
-          color: 'var(--btn-primary-text)',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          zIndex: 2000,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          transition: 'all 0.15s'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--btn-primary-hover)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'var(--btn-primary-bg)';
-        }}
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M3 5H17M3 10H17M3 15H17"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
+      <>
+        <button
+          onClick={() => setSidebarVisible(true)}
+          title="Mostrar menú lateral"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '28px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--btn-primary-bg)',
+            color: 'var(--btn-primary-text)',
+            border: 'none',
+            borderRadius: '0 8px 8px 0',
+            cursor: 'pointer',
+            zIndex: 2000,
+            boxShadow: '2px 1px 6px rgba(0,0,0,0.12)',
+            transition: 'background 0.15s',
+            padding: 0
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--btn-primary-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--btn-primary-bg)';
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M6 3L11 8L6 13"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+
+        {/* Desplaza la barra de tabs del header cuando el sidebar está oculto */}
+        <style>{`
+          body.sidebar-hidden .tabs-bar {
+            padding-left: 38px !important;
+          }
+        `}</style>
+      </>
     );
   }
 
