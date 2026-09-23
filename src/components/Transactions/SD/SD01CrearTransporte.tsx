@@ -701,43 +701,63 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({ onClose, onTr
             </div>
           </div>
 
-          <div className="sd01-locales-section">
-            <div className="sd01-locales-header">
-              <h3 className="sd01-locales-title">Locales de Entrega</h3>
-              <button className="sd01-btn-add-local" onClick={agregarLocal}>
-                <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Agregar Local
-              </button>
-            </div>
+<div className="sd01-locales-section">
+  <div className="sd01-locales-header">
+    <h3 className="sd01-locales-title">Locales de Entrega</h3>
+    <div style={{ display: 'flex', gap: '8px' }}>
+      <button
+        type="button"
+        className="sd01-btn-add-local"
+        onClick={() => {
+          if (locales.length === 0) return;
+          const primero = locales[0];
+          if (!primero.fecha_entrega && !primero.hora_entrega) {
+            alert('El primer local no tiene fecha/hora para replicar');
+            return;
+          }
+          const nuevos = locales.map((l: any, i: number) =>
+            i === 0 ? l : { ...l, fecha_entrega: primero.fecha_entrega, hora_entrega: primero.hora_entrega }
+          );
+          setLocales(nuevos);
+        }}
+        title="Replicar fecha y hora del primer local a todos los demás"
+      >
+        ⟳ Replicar Fecha/Hora del 1er Local
+      </button>
+      <button className="sd01-btn-add-local" onClick={agregarLocal}>
+        <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Agregar Local
+      </button>
+    </div>
+  </div>
 
-            <div className="sd01-locales-list">
-              {locales.map((local: any, index: number) => (
-                <div key={index} className="sd01-local-card">
-                  <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Código Local *</label>
-                    <input type="text" className="sd01-form-input" value={local.codigo_local} onChange={(e: any) => handleCodigoLocalChange(index, e.target.value)} placeholder="Ej: D001" style={{ textTransform: 'uppercase' }} />
-                  </div>
-                  <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Nombre Local</label>
-                    <input type="text" className="sd01-form-input" value={local.nombre_local} readOnly />
-                  </div>
-                  <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Fecha Entrega *</label>
-                    <input type="date" className="sd01-form-input" value={local.fecha_entrega} onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)} />
-                  </div>
-                  <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Hora Entrega</label>
-                    <input type="time" className="sd01-form-input" value={local.hora_entrega} onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)} />
-                  </div>
-                  <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>Cantidad Solicitada</label>
-                    <input type="number" className="sd01-form-input" value={local.cantidad_solicitada} onChange={(e: any) => handleLocalChange(index, 'cantidad_solicitada', e.target.value)} placeholder="0" min="0" />
-                  </div>
-                  <button className="sd01-btn-delete-local" onClick={() => eliminarLocal(index)} title="Eliminar local">×</button>
-                </div>
-              ))}
-            </div>
-          </div>
+  <div className="sd01-locales-list">
+    {locales.map((local: any, index: number) => (
+      <div key={index} className="sd01-local-card">
+        <div className="sd01-form-group">
+          <label className="sd01-form-label" style={{ fontSize: '12px' }}>Código Local *</label>
+          <input type="text" className="sd01-form-input" value={local.codigo_local} onChange={(e: any) => handleCodigoLocalChange(index, e.target.value)} placeholder="Ej: D001" style={{ textTransform: 'uppercase' }} />
         </div>
+        <div className="sd01-form-group">
+          <label className="sd01-form-label" style={{ fontSize: '12px' }}>Nombre Local</label>
+          <input type="text" className="sd01-form-input" value={local.nombre_local} readOnly />
+        </div>
+        <div className="sd01-form-group">
+          <label className="sd01-form-label" style={{ fontSize: '12px' }}>Fecha Entrega *</label>
+          <input type="date" className="sd01-form-input" value={local.fecha_entrega} onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)} />
+        </div>
+        <div className="sd01-form-group">
+          <label className="sd01-form-label" style={{ fontSize: '12px' }}>Hora Entrega</label>
+          <input type="time" className="sd01-form-input" value={local.hora_entrega} onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)} />
+        </div>
+        <div className="sd01-form-group">
+          <label className="sd01-form-label" style={{ fontSize: '12px' }}>Cantidad Solicitada</label>
+          <input type="number" className="sd01-form-input" value={local.cantidad_solicitada} onChange={(e: any) => handleLocalChange(index, 'cantidad_solicitada', e.target.value)} placeholder="0" min="0" />
+        </div>
+        <button className="sd01-btn-delete-local" onClick={() => eliminarLocal(index)} title="Eliminar local">×</button>
+      </div>
+    ))}
+  </div>
+</div>
         <div className="sd01-modal-footer">
           <div></div>
           <div style={{ display: 'flex', gap: '10px' }}>
