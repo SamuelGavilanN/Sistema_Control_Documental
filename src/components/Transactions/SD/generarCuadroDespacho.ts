@@ -13,9 +13,9 @@ interface LocalData {
   nombre: string;
   selloTrasero: string;
   cantidadPallet?: number;
-  fechaEntrega?: string; // Agregado
-  horaEntrega?: string;  // Agregado
-  actas?: string;        // Agregado
+  fechaEntrega?: string;
+  horaEntrega?: string;
+  actas?: string;
   bultos: BultoData[];
 }
 
@@ -78,9 +78,11 @@ function esNoAplica(valor: string): boolean {
   return v === '' || v === 'no aplica' || v === 'n/a';
 }
 
+// Ampliado: incluye PV y MZ como centros de distribución
 function esCentroDistribucion(origen: string): boolean {
   const o = origen.toUpperCase().trim();
   if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV')) return true;
+  if (o.startsWith('PV') || o.startsWith('MZ')) return true;
   if (/^C\d+/.test(o)) return true;
   return false;
 }
@@ -101,7 +103,6 @@ export function generarCuadroHTML(datos: TransporteData): string {
   let htmlLocales = '';
 
   for (const local of datos.locales) {
-    // Cada local usa SUS PROPIOS datos
     const codigo = escaparHTML(local.codigo);
     const nombre = escaparHTML(local.nombre);
     const selloTraseroLocal = escaparHTML(local.selloTrasero || '');
@@ -110,14 +111,13 @@ export function generarCuadroHTML(datos: TransporteData): string {
     const horaLocal = formatearHora(local.horaEntrega || '');
     const actasLocal = escaparHTML(local.actas || '');
 
-    const centros = local.bultos.filter(b => esCentroDistribucion(b.origenCarga));
-    const segmentos = local.bultos.filter(b => !esCentroDistribucion(b.origenCarga));
+    const centros = local.bultos.filter((b) => esCentroDistribucion(b.origenCarga));
+    const segmentos = local.bultos.filter((b) => !esCentroDistribucion(b.origenCarga));
 
     const totalCentros = centros.reduce((s, b) => s + b.cantidad, 0);
     const totalSegmentos = segmentos.reduce((s, b) => s + b.cantidad, 0);
     const totalGeneral = totalCentros + totalSegmentos;
 
-    // Encabezado de pallets por local (solo si es mayor a 0)
     if (cantidadPallet > 0) {
       htmlLocales += `
         <p style="margin:0 0 5px 0 !important; font-weight:bold !important; font-size:20px !important; color:#ff0000 !important; white-space:nowrap !important;">
@@ -126,11 +126,8 @@ export function generarCuadroHTML(datos: TransporteData): string {
       `;
     }
 
-    // ===== TABLA ÚNICA DEL LOCAL (con sus propios datos) =====
     htmlLocales += `
       <table style="width:100%; border-collapse:collapse; margin-bottom:60px; font-family:Arial, sans-serif; font-size:12px; text-align:center; table-layout:auto;">
-
-        <!-- Campos largos -->
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Nombre Local</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;"><strong>${codigo}-${nombre}</strong></td>
@@ -143,11 +140,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Administrativo</td>
           <td colspan="5" style="border:1px solid #000; padding:5px; white-space:nowrap;">${administrativo}</td>
         </tr>
-
-        <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
-
-        <!-- Campos en pares (usando datos DEL LOCAL) -->
         <tr>
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Fecha Entrega</td>
           <td style="border:1px solid #000; padding:5px; white-space:nowrap;">${fechaLocal}</td>
@@ -178,11 +171,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
           <td bgcolor="#ff7c7c" style="border:1px solid #000; padding:5px; font-weight:bold; white-space:nowrap;">Sello Adicional</td>
           <td colspan="3" style="border:1px solid #000; padding:5px; white-space:nowrap;">${selloAdicional}</td>
         </tr>
-
-        <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
-
-        <!-- CENTROS DE DISTRIBUCIÓN -->
         ${
           centros.length > 0
             ? `
@@ -217,11 +206,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
             `
             : ''
         }
-
-        <!-- Separación -->
         <tr><td colspan="6" style="border:1px solid #000; padding:3px; background:#fff; white-space:nowrap;"></td></tr>
-
-        <!-- SEGMENTOS ADICIONALES -->
         ${
           segmentos.length > 0
             ? `
@@ -256,18 +241,15 @@ export function generarCuadroHTML(datos: TransporteData): string {
             `
             : ''
         }
-
-        <!-- TOTAL GENERAL -->
         <tr bgcolor="#fff665" style="font-weight:bold;">
           <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
           <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">${totalGeneral}</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td.resolve>
         </tr>
       </table>
     `;
   }
 
-  // Contenedor principal
   const html = `
     <html>
       <head>
@@ -304,7 +286,7 @@ export async function copiarCuadroDespacho(datos: TransporteData): Promise<boole
     if (navigator.clipboard && navigator.clipboard.write) {
       const clipboardItem = new ClipboardItem({
         'text/html': Promise.resolve(new Blob([html], { type: 'text/html' })),
-        'text/plain': Promise.resolve(new Blob([html], { type: 'text/plain' })),
+        'text/plain': Promise(new Blob([html], { type: 'text/plain' })),
       });
       await navigator.clipboard.write([clipboardItem]);
       return true;
