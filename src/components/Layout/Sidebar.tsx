@@ -26,28 +26,28 @@ const menuSections: MenuSection[] = [
       { id: 'ed', label: 'ED01 Registro Empaque', type: 'item' },
       { id: 'ed-history', label: 'ED02 Dashboard Produccion', type: 'subitem' },
       { id: 'ed-tickets', label: 'ED03 BT Portico', type: 'subitem' },
-      { id: 'ed-lotes', label: 'ED04 Almacén Lotes', type: 'subitem' },
+      { id: 'ed-lotes', label: 'ED04 Almacén Lotes', type: 'subitem' }
     ]
   },
   {
-  id: 'sd',
-  title: 'SD · Salida Despacho',
-  items: [
-    { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
-    { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.', type: 'subitem' },
-    { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp', type: 'subitem' },
-    { id: 'sd-analisis-bultos', label: 'SD04 Análisis Bultos Desp', type: 'subitem' },
-    { id: 'sd-estado-carga', label: 'SD05 Estado de Carga', type: 'subitem' },
-    { id: 'sd-pedidos-especiales', label: 'SD06 Pedidos Especiales', type: 'subitem' },
-    { id: 'sd-comparativa-cd01', label: 'SD07 Comparativa CD01 vs WMS', type: 'subitem' },
-  ]
+    id: 'sd',
+    title: 'SD · Salida Despacho',
+    items: [
+      { id: 'sd', label: 'SD01 Planificación Transporte', type: 'item' },
+      { id: 'sd-informe-bultos', label: 'SD02 Informe Bultos Desp.', type: 'subitem' },
+      { id: 'sd-informe-unidades', label: 'SD03 Informe Un Desp', type: 'subitem' },
+      { id: 'sd-analisis-bultos', label: 'SD04 Análisis Bultos Desp', type: 'subitem' },
+      { id: 'sd-estado-carga', label: 'SD05 Estado de Carga', type: 'subitem' },
+      { id: 'sd-pedidos-especiales', label: 'SD06 Pedidos Especiales', type: 'subitem' },
+      { id: 'sd-comparativa-cd01', label: 'SD07 Comparativa CD01 vs WMS', type: 'subitem' }
+    ]
   },
   {
     id: 'ut',
     title: 'UT · Utilidades',
     items: [
       { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
-      { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' },
+      { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' }
     ]
   },
   {
@@ -73,6 +73,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   const [permisosActuales, setPermisosActuales] = useState<string[]>(permisos || []);
   const [favoritos, setFavoritos] = useState<string[]>([]);
 
+  // Estado para ocultar/mostrar la lista de transacciones (no persistente)
+  const [listaVisible, setListaVisible] = useState(true);
+
   useEffect(() => {
     setPermisosActuales(permisos || []);
   }, [permisos]);
@@ -83,10 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
     const cargarDatos = async () => {
       try {
-        const [perms, favs] = await Promise.all([
-          getPermisos(usuario.id),
-          getFavoritos(usuario.id)
-        ]);
+        const [perms, favs] = await Promise.all([getPermisos(usuario.id), getFavoritos(usuario.id)]);
         if (perms) setPermisosActuales(perms);
         if (favs) setFavoritos(favs);
       } catch (e) {
@@ -110,21 +110,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
       if (esFavorito) {
         await fetch(
           `https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos?usuario_id=eq.${usuario.id}&transaccion_id=eq.${transaccionId}`,
-          { method: 'DELETE', headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G' } }
-        );
-        setFavoritos(favoritos.filter(f => f !== transaccionId));
-      } else {
-        await fetch(
-          'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos',
           {
-            method: 'POST',
-            headers: { 'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G', 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              usuario_id: usuario.id,
-              transaccion_id: transaccionId
-            })
+            method: 'DELETE',
+            headers: {
+              apikey: 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+              Authorization: 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+            }
           }
         );
+        setFavoritos(favoritos.filter((f) => f !== transaccionId));
+      } else {
+        await fetch('https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1/usuario_favoritos', {
+          method: 'POST',
+          headers: {
+            apikey: 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+            Authorization: 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            usuario_id: usuario.id,
+            transaccion_id: transaccionId
+          })
+        });
         setFavoritos([...favoritos, transaccionId]);
       }
     } catch (e) {
@@ -133,8 +140,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   };
 
   const toggleSection = (sectionId: string) => {
-    setExpandedSections(prev =>
-      prev.includes(sectionId) ? prev.filter(id => id !== sectionId) : [...prev, sectionId]
+    setExpandedSections((prev) =>
+      prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId]
     );
   };
 
@@ -142,28 +149,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     if (!searchTerm.trim()) return menuSections;
     const term = searchTerm.toLowerCase();
     return menuSections
-      .map(section => ({
+      .map((section) => ({
         ...section,
-        items: section.items.filter(item =>
-          item.label.toLowerCase().includes(term) ||
-          section.title.toLowerCase().includes(term) ||
-          item.id.toLowerCase().includes(term)
+        items: section.items.filter(
+          (item) =>
+            item.label.toLowerCase().includes(term) ||
+            section.title.toLowerCase().includes(term) ||
+            item.id.toLowerCase().includes(term)
         )
       }))
-      .filter(section => section.items.length > 0);
+      .filter((section) => section.items.length > 0);
   };
 
   const filteredSections = filterMenuSections();
 
   useEffect(() => {
     if (searchTerm.trim()) {
-      setExpandedSections(filteredSections.map(s => s.id));
+      setExpandedSections(filteredSections.map((s) => s.id));
     }
   }, [searchTerm, filteredSections]);
 
   const itemPermitido = (itemId: string): boolean => {
     if (!permisosActuales || permisosActuales.length === 0) {
-      if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin') return false;
+      if ((itemId === 'bd-usuarios' || itemId === 'bd-locales') && rol !== 'Owner' && rol !== 'Admin')
+        return false;
       return true;
     }
     return permisosActuales.includes(itemId);
@@ -171,110 +180,195 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
 
   return (
     <div className="sidebar">
-      <div className="logo-area">
+      <div className="logo-area" style={{ position: 'relative' }}>
         <div className="logo">
           <img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" />
         </div>
-      </div>
 
-      <div className="search-container">
-        <div className="search-wrapper">
-          <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M14 14L11.1 11.1" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Buscar transacción..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button className="search-clear" onClick={() => setSearchTerm('')}>×</button>
+        {/* Botón para ocultar/mostrar la lista */}
+        <button
+          onClick={() => setListaVisible(!listaVisible)}
+          title={listaVisible ? 'Ocultar lista de transacciones' : 'Mostrar lista de transacciones'}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            right: '12px',
+            transform: 'translateY(-50%)',
+            width: '30px',
+            height: '30px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--btn-bg)',
+            border: '1px solid var(--btn-border)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            color: 'var(--text-muted)',
+            padding: 0,
+            zIndex: 2
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--btn-hover-bg)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--btn-bg)';
+          }}
+        >
+          {listaVisible ? (
+            // Ícono "ocultar" (ojo tachado o chevron hacia arriba)
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M3 6L8 11L13 6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            // Ícono "mostrar" (chevron hacia abajo)
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M3 10L8 5L13 10"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           )}
-        </div>
+        </button>
       </div>
 
-      <div className="nav-menu">
-        {filteredSections.length === 0 ? (
-          <div className="search-no-results">No se encontraron resultados</div>
-        ) : (
-          filteredSections.map(section => {
-            const isExpanded = expandedSections.includes(section.id);
-            const itemsVisibles = section.items.filter(item => itemPermitido(item.id));
-            if (itemsVisibles.length === 0) return null;
+      {listaVisible && (
+        <>
+          <div className="search-container">
+            <div className="search-wrapper">
+              <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z"
+                  stroke="#94a3b8"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M14 14L11.1 11.1"
+                  stroke="#94a3b8"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Buscar transacción..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button className="search-clear" onClick={() => setSearchTerm('')}>
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
 
-            return (
-              <div key={section.id} className="nav-section">
-                <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
-                  <span className="nav-section-title">{section.title}</span>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`section-arrow ${isExpanded ? 'expanded' : ''}`}>
-                    <path d="M3 4.5L6 7.5L9 4.5" stroke="#8a93a5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                {isExpanded && (
-                  <div className="nav-section-content">
-                    {section.items.map(item => {
-                      if (!itemPermitido(item.id)) return null;
-                      const esFavorito = favoritos.includes(item.id);
-                      return item.type === 'item' ? (
-                        <div
-                          key={item.id}
-                          className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                          onClick={() => onModuleClick(item.id)}
-                        >
-                          <span className="nav-indicator"></span>
-                          <span style={{ flex: 1 }}>{item.label}</span>
-                          <span
-                            onClick={(e) => toggleFavorito(item.id, e)}
-                            style={{
-                              cursor: 'pointer',
-                              fontSize: '14px',
-                              color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
-                              padding: '2px 4px',
-                              transition: 'color 0.15s',
-                              flexShrink: 0
-                            }}
-                            title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                          >
-                            {esFavorito ? '★' : '☆'}
-                          </span>
-                        </div>
-                      ) : (
-                        <div
-                          key={item.id}
-                          className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`}
-                          style={{ display: 'flex', alignItems: 'center' }}
-                        >
-                          <span style={{ flex: 1 }} onClick={() => onModuleClick(item.id)}>
-                            {item.label}
-                          </span>
-                          <span
-                            onClick={(e) => toggleFavorito(item.id, e)}
-                            style={{
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                              color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
-                              padding: '2px 4px',
-                              transition: 'color 0.15s',
-                              flexShrink: 0,
-                              marginRight: '4px'
-                            }}
-                            title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                          >
-                            {esFavorito ? '★' : '☆'}
-                          </span>
-                        </div>
-                      );
-                    })}
+          <div className="nav-menu">
+            {filteredSections.length === 0 ? (
+              <div className="search-no-results">No se encontraron resultados</div>
+            ) : (
+              filteredSections.map((section) => {
+                const isExpanded = expandedSections.includes(section.id);
+                const itemsVisibles = section.items.filter((item) => itemPermitido(item.id));
+                if (itemsVisibles.length === 0) return null;
+
+                return (
+                  <div key={section.id} className="nav-section">
+                    <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
+                      <span className="nav-section-title">{section.title}</span>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        className={`section-arrow ${isExpanded ? 'expanded' : ''}`}
+                      >
+                        <path
+                          d="M3 4.5L6 7.5L9 4.5"
+                          stroke="#8a93a5"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                    {isExpanded && (
+                      <div className="nav-section-content">
+                        {section.items.map((item) => {
+                          if (!itemPermitido(item.id)) return null;
+                          const esFavorito = favoritos.includes(item.id);
+                          return item.type === 'item' ? (
+                            <div
+                              key={item.id}
+                              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                              onClick={() => onModuleClick(item.id)}
+                            >
+                              <span className="nav-indicator"></span>
+                              <span style={{ flex: 1 }}>{item.label}</span>
+                              <span
+                                onClick={(e) => toggleFavorito(item.id, e)}
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
+                                  padding: '2px 4px',
+                                  transition: 'color 0.15s',
+                                  flexShrink: 0
+                                }}
+                                title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                              >
+                                {esFavorito ? '★' : '☆'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              key={item.id}
+                              className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`}
+                              style={{ display: 'flex', alignItems: 'center' }}
+                            >
+                              <span style={{ flex: 1 }} onClick={() => onModuleClick(item.id)}>
+                                {item.label}
+                              </span>
+                              <span
+                                onClick={(e) => toggleFavorito(item.id, e)}
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: '13px',
+                                  color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
+                                  padding: '2px 4px',
+                                  transition: 'color 0.15s',
+                                  flexShrink: 0,
+                                  marginRight: '4px'
+                                }}
+                                title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                              >
+                                {esFavorito ? '★' : '☆'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
 
       <div className="sidebar-footer">
         <div className="logo">
