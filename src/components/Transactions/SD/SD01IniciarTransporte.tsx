@@ -41,8 +41,7 @@ const origenesCarga = [
   'SG03 Traspasos',
   'SG04 Valija',
   'SG05 Bultos Regularizar Stock',
-  'SG06 Bultos Quedados en Camion',
-  'SG07 Insumos con Guia'
+  'SG06 Bultos Quedados en Camion'
 ];
 
 const tiposDocumentoPorOrigen: Record<string, string[]> = {
@@ -62,8 +61,36 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   'SG03 Traspasos': ['Guia'],
   'SG04 Valija': [],
   'SG05 Bultos Regularizar Stock': ['Sap', 'Vtradex', 'Guia'],
-  'SG06 Bultos Quedados en Camion': ['Sap', 'Vtradex', 'Guia'],
-  'SG07 Insumos con Guia': ['Guia']
+  'SG06 Bultos Quedados en Camion': ['Sap', 'Vtradex', 'Guia']
+};
+
+/**
+ * Evalúa una expresión aritmética simple tipo Excel.
+ * Acepta "=23+27", "23+27", "10*3", "=100/2" etc.
+ * Si no es una expresión válida, intenta interpretarlo como número simple.
+ */
+const evaluarExpresion = (texto: string): number => {
+  if (texto === null || texto === undefined) return 0;
+  let expr = String(texto).trim();
+  if (expr.startsWith('=')) expr = expr.substring(1).trim();
+  if (!expr) return 0;
+
+  // Validar que solo contenga dígitos, operadores, paréntesis y espacios
+  if (!/^[\d+\-*/().\s]+$/.test(expr)) {
+    const n = parseFloat(expr);
+    return isNaN(n) ? 0 : Math.round(n);
+  }
+
+  try {
+    // Validación previa garantiza que no hay identificadores ni propiedades
+    const resultado = Function('"use strict"; return (' + expr + ')')();
+    if (typeof resultado === 'number' && isFinite(resultado)) {
+      return Math.round(resultado);
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
 };
 
 interface Bulto {
@@ -72,6 +99,14 @@ interface Bulto {
   tipoDocumento: string;
   numeroDocumento: string;
   cantidad: number;
+  observacion: string;
+}
+
+interface FormBulto {
+  origenCarga: string;
+  tipoDocumento: string;
+  numeroDocumento: string;
+  cantidadTexto: string;
   observacion: string;
 }
 
@@ -230,11 +265,11 @@ const BultosModal = ({
 }: any) => {
   const [localActual, setLocalActual] = useState(localInicial);
   const [bultos, setBultos] = useState<Bulto[]>(bultosPorLocal[localInicial.id] || []);
-  const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
+  const [nuevoBulto, setNuevoBulto] = useState<FormBulto>({
     origenCarga: '',
     tipoDocumento: '',
     numeroDocumento: '',
-    cantidad: 0,
+    cantidadTexto: '',
     observacion: ''
   });
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -255,7 +290,13 @@ const BultosModal = ({
 
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
-    setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
+    setNuevoBulto({
+      origenCarga: '',
+      tipoDocumento: '',
+      numeroDocumento: '',
+      cantidadTexto: '',
+      observacion: ''
+    });
     setEditandoId(null);
     setTiposDisponibles([]);
     setErrorMsg('');
@@ -278,7 +319,7 @@ const BultosModal = ({
       origenCarga: bulto.origenCarga,
       tipoDocumento: bulto.tipoDocumento,
       numeroDocumento: bulto.numeroDocumento,
-      cantidad: bulto.cantidad,
+      cantidadTexto: String(bulto.cantidad),
       observacion: bulto.observacion
     });
     setTiposDisponibles(tiposDocumentoPorOrigen[bulto.origenCarga] || []);
@@ -287,7 +328,13 @@ const BultosModal = ({
   };
 
   const handleCancelarEdicion = () => {
-    setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
+    setNuevoBulto({
+      origenCarga: '',
+      tipoDocumento: '',
+      numeroDocumento: '',
+      cantidadTexto: '',
+      observacion: ''
+    });
     setTiposDisponibles([]);
     setEditandoId(null);
     setErrorMsg('');
@@ -295,7 +342,15 @@ const BultosModal = ({
   };
 
   const agregarOActualizarBulto = async () => {
-    if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
+    if (!nuevoBulto.origenCarga) return;
+
+    // Evaluar la cantidad (permite "=23+27" u operaciones simples)
+    const cantidadNum = evaluarExpresion(nuevoBulto.cantidadTexto);
+    if (!cantidadNum || cantidadNum <= 0) {
+      setErrorMsg('La cantidad debe ser un número mayor a 0 (puedes usar =23+27)');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
 
     if (!origenesCarga.includes(nuevoBulto.origenCarga)) {
       setErrorMsg('El Origen de Carga no es válido. Debe seleccionar uno de la lista.');
@@ -323,7 +378,7 @@ const BultosModal = ({
         origen_carga: nuevoBulto.origenCarga,
         tipo_documento: tipoNoAplica ? '' : nuevoBulto.tipoDocumento,
         numero_documento: nuevoBulto.numeroDocumento || '',
-        cantidad: nuevoBulto.cantidad,
+        cantidad: cantidadNum,
         observacion: nuevoBulto.observacion || '',
         creado_por: usuario?.id,
         creado_en: new Date().toISOString()
@@ -337,7 +392,16 @@ const BultosModal = ({
         });
         if (!resp.ok) throw new Error(await resp.text());
         const nuevos = bultos.map((b) =>
-          b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
+          b.id === editandoId
+            ? {
+                ...b,
+                origenCarga: nuevoBulto.origenCarga,
+                tipoDocumento: tipoNoAplica ? '' : nuevoBulto.tipoDocumento,
+                numeroDocumento: nuevoBulto.numeroDocumento || '',
+                cantidad: cantidadNum,
+                observacion: nuevoBulto.observacion || ''
+              }
+            : b
         );
         setBultos(nuevos);
         onBultosChange(localActual.id, nuevos);
@@ -359,13 +423,18 @@ const BultosModal = ({
           cantidad: creado.cantidad,
           observacion: creado.observacion || ''
         };
-        // Agregar al final para respetar el orden de inserción
         const nuevos = [...bultos, nuevo];
         setBultos(nuevos);
         onBultosChange(localActual.id, nuevos);
       }
 
-      setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
+      setNuevoBulto({
+        origenCarga: '',
+        tipoDocumento: '',
+        numeroDocumento: '',
+        cantidadTexto: '',
+        observacion: ''
+      });
       setTiposDisponibles([]);
       setTimeout(() => origenRef.current?.focus(), 50);
     } catch (e: any) {
@@ -384,7 +453,13 @@ const BultosModal = ({
       onBultosChange(localActual.id, nuevos);
       if (editandoId === id) {
         setEditandoId(null);
-        setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
+        setNuevoBulto({
+          origenCarga: '',
+          tipoDocumento: '',
+          numeroDocumento: '',
+          cantidadTexto: '',
+          observacion: ''
+        });
       }
     } catch (e: any) {
       setErrorMsg('Error al eliminar bulto: ' + (e.message || 'Desconocido'));
@@ -483,11 +558,11 @@ const BultosModal = ({
                 <label>Cantidad Bultos</label>
                 <input
                   ref={cantidadRef}
-                  type="number"
+                  type="text"
                   className="dc-input"
-                  value={nuevoBulto.cantidad || ''}
+                  value={nuevoBulto.cantidadTexto || ''}
                   onChange={(e) =>
-                    setNuevoBulto({ ...nuevoBulto, cantidad: parseInt(e.target.value) || 0 })
+                    setNuevoBulto({ ...nuevoBulto, cantidadTexto: e.target.value })
                   }
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -495,9 +570,20 @@ const BultosModal = ({
                       observacionRef.current?.focus();
                     }
                   }}
-                  placeholder="0"
-                  min="0"
+                  placeholder="Ej: 25 o =23+27"
+                  title="Puedes usar fórmulas simples tipo Excel: =23+27, 10*2, 100/4"
                 />
+                {nuevoBulto.cantidadTexto && nuevoBulto.cantidadTexto.startsWith('=') && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      marginTop: '2px'
+                    }}
+                  >
+                    Resultado: {evaluarExpresion(nuevoBulto.cantidadTexto)}
+                  </span>
+                )}
               </div>
               <div className="dc-form-field">
                 <label>Observación</label>
@@ -773,7 +859,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     }
   };
 
-  // Replicar sello trasero del primer local
   const replicarSelloTrasero = () => {
     if (locales.length === 0) return;
     const valor = locales[0].sello_trasero;
@@ -787,7 +872,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     mostrarMensaje('success', 'Sello trasero replicado a todos los locales');
   };
 
-  // Replicar cantidad pallet del primer local
   const replicarCantidadPallet = () => {
     if (locales.length === 0) return;
     const valor = locales[0].cantidad_pallet;
@@ -1035,7 +1119,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         const datosResumen = {
           numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
           fechaProgramacion: transporte.fecha_programacion || '',
-          administrativo: transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
+          administrativo:
+            transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
           conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
           rutConductor: detallesConductor?.numero_documento || '',
           patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
