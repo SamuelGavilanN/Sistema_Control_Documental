@@ -70,9 +70,6 @@ const Header: React.FC<HeaderProps> = ({
   const [toastMostrado, setToastMostrado] = useState<Set<string>>(new Set());
   const [darkMode, setDarkMode] = useState(false);
 
-  // Estado para ocultar/mostrar la barra de tabs (no persistente)
-  const [tabsVisibles, setTabsVisibles] = useState(true);
-
   const getTabTitle = (tabId: string): string => moduleTitles[tabId] || tabId;
   const iniciales = usuario
     ? `${usuario.nombre?.charAt(0) || ''}${usuario.apellido?.charAt(0) || ''}`.toUpperCase()
@@ -267,79 +264,28 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <div className="top-header">
-      {/* Botón para ocultar/mostrar los tabs */}
-      <button
-        onClick={() => setTabsVisibles(!tabsVisibles)}
-        title={tabsVisibles ? 'Ocultar pestañas' : 'Mostrar pestañas'}
-        style={{
-          width: '34px',
-          height: '34px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--btn-bg)',
-          border: '1px solid var(--btn-border)',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          transition: 'all 0.15s',
-          marginRight: '10px',
-          marginLeft: '10px',
-          color: 'var(--text-muted)',
-          flexShrink: 0
-        }}
-      >
-        {tabsVisibles ? (
-          // Ícono de "ocultar" (chevron hacia la izquierda)
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M10 3L5 8L10 13"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ) : (
-          // Ícono de "mostrar" (chevron hacia la derecha)
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M6 3L11 8L6 13"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-      </button>
-
-      {/* Barra de tabs */}
-      {tabsVisibles && (
-        <div className="tabs-bar">
-          {openTabs.map((tabId) => (
-            <div
-              key={tabId}
-              className={`tab ${activeTab === tabId ? 'active-tab' : ''}`}
-              onClick={() => onTabClick(tabId)}
-            >
-              <span>{getTabTitle(tabId)}</span>
-              {tabId !== 'dashboard' && (
-                <span
-                  className="tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTabClose(tabId);
-                  }}
-                >
-                  ×
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!tabsVisibles && <div style={{ flex: 1 }}></div>}
+      <div className="tabs-bar">
+        {openTabs.map((tabId) => (
+          <div
+            key={tabId}
+            className={`tab ${activeTab === tabId ? 'active-tab' : ''}`}
+            onClick={() => onTabClick(tabId)}
+          >
+            <span>{getTabTitle(tabId)}</span>
+            {tabId !== 'dashboard' && (
+              <span
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabClose(tabId);
+                }}
+              >
+                ×
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
 
       <button
         onClick={toggleDarkMode}
