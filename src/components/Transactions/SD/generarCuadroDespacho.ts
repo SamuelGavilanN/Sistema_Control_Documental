@@ -78,12 +78,23 @@ function esNoAplica(valor: string): boolean {
   return v === '' || v === 'no aplica' || v === 'n/a';
 }
 
-// Ampliado: incluye PV y MZ como centros de distribución
-function esCentroDistribucion(origen: string): boolean {
-  const o = origen.toUpperCase().trim();
-  if (o.startsWith('CD') || o.startsWith('OUT') || o.startsWith('AGV')) return true;
-  if (o.startsWith('PV') || o.startsWith('MZ')) return true;
-  if (/^C\d+/.test(o)) return true;
+/**
+ * Determina si un origen es Centro de Distribución.
+ * Reconocidos: CD, OUT, AGV, PV, MZ, y bodegas tipo C<dígitos>.
+ * Se aplica trim + uppercase + normalización de espacios para mayor robustez.
+ */
+function esCentroDistribucion(origen: string | null | undefined): boolean {
+  if (!origen) return false;
+  // Normalizar: trim, uppercase, colapsar espacios múltiples
+  const o = String(origen).toUpperCase().replace(/\s+/g, ' ').trim();
+  if (!o) return false;
+
+  // Centros con prefijo identificable al inicio (CD01, OUT1, AGV, PV01, MZ01, etc.)
+  if (/^(CD|OUT|AGV|PV|MZ)\d*/i.test(o)) return true;
+
+  // Bodegas tipo C144, C12, C30, C31, etc.
+  if (/^C\d+/i.test(o)) return true;
+
   return false;
 }
 
@@ -101,6 +112,24 @@ export function generarCuadroHTML(datos: TransporteData): string {
   const administrativo = escaparHTML(datos.administrativo);
 
   let htmlLocales = '';
+
+  // === DIAGNÓSTICO: recorrer todos los bultos para listar orígenes únicos ===
+  if (typeof window !== 'undefined' && (window as any).__debugCuadro) {
+    const origenesUnicos = new Set<string>();
+    datos.locales.forEach((loc) => {
+      loc.bultos.forEach((b) => {
+        if (b.origenCarga) origenesUnicos.add(b.origenCarga);
+      });
+    });
+    console.log('=== DIAGNÓSTICO CUADRO DESPACHO ===');
+    console.log('Total locales:', datos.locales.length);
+    console.log('Orígenes únicos detectados:');
+    origenesUnicos.forEach((o) => {
+      const detectado = esCentroDistribucion(o);
+      console.log(`  - "${o}"  → ${detectado ? '✅ Centro' : '❌ Segmento'}`);
+    });
+    console.log('===================================');
+  }
 
   for (const local of datos.locales) {
     const codigo = escaparHTML(local.codigo);
@@ -244,7 +273,7 @@ export function generarCuadroHTML(datos: TransporteData): string {
         <tr bgcolor="#fff665" style="font-weight:bold;">
           <td colspan="3" style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">Total de Bultos Despachados</td>
           <td style="border:1px solid #000; padding:5px; text-align:center; white-space:nowrap;">${totalGeneral}</td>
-          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td.resolve>
+          <td colspan="2" style="border:1px solid #000; padding:5px; white-space:nowrap;"></td>
         </tr>
       </table>
     `;
@@ -286,7 +315,7 @@ export async function copiarCuadroDespacho(datos: TransporteData): Promise<boole
     if (navigator.clipboard && navigator.clipboard.write) {
       const clipboardItem = new ClipboardItem({
         'text/html': Promise.resolve(new Blob([html], { type: 'text/html' })),
-        'text/plain': Promise(new Blob([html], { type: 'text/plain' })),
+        'text/plain': Promise.resolve(new Blob([html], { type: 'text/plain' })),
       });
       await navigator.clipboard.write([clipboardItem]);
       return true;
