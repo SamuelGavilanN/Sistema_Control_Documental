@@ -73,8 +73,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
   const [permisosActuales, setPermisosActuales] = useState<string[]>(permisos || []);
   const [favoritos, setFavoritos] = useState<string[]>([]);
 
-  // Estado para ocultar/mostrar la lista de transacciones (no persistente)
-  const [listaVisible, setListaVisible] = useState(true);
+  // Estado para ocultar/mostrar TODO el sidebar (no persistente)
+  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   useEffect(() => {
     setPermisosActuales(permisos || []);
@@ -178,6 +178,49 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
     return permisosActuales.includes(itemId);
   };
 
+  // Cuando el sidebar está oculto, solo muestra el botón flotante para restaurarlo
+  if (!sidebarVisible) {
+    return (
+      <button
+        onClick={() => setSidebarVisible(true)}
+        title="Mostrar menú lateral"
+        style={{
+          position: 'fixed',
+          top: '15px',
+          left: '15px',
+          width: '40px',
+          height: '40px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--btn-primary-bg)',
+          color: 'var(--btn-primary-text)',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          zIndex: 2000,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          transition: 'all 0.15s'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--btn-primary-hover)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'var(--btn-primary-bg)';
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M3 5H17M3 10H17M3 15H17"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <div className="sidebar">
       <div className="logo-area" style={{ position: 'relative' }}>
@@ -185,28 +228,27 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
           <img src={logoPath} alt="FASHIONSPARK Logo" className="logo-image" />
         </div>
 
-        {/* Botón para ocultar/mostrar la lista */}
+        {/* Botón para ocultar todo el sidebar */}
         <button
-          onClick={() => setListaVisible(!listaVisible)}
-          title={listaVisible ? 'Ocultar lista de transacciones' : 'Mostrar lista de transacciones'}
+          onClick={() => setSidebarVisible(false)}
+          title="Ocultar menú lateral"
           style={{
             position: 'absolute',
             top: '50%',
             right: '12px',
             transform: 'translateY(-50%)',
-            width: '30px',
-            height: '30px',
+            width: '28px',
+            height: '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             background: 'var(--btn-bg)',
             border: '1px solid var(--btn-border)',
-            borderRadius: '8px',
+            borderRadius: '6px',
             cursor: 'pointer',
             transition: 'all 0.15s',
             color: 'var(--text-muted)',
-            padding: 0,
-            zIndex: 2
+            padding: 0
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'var(--btn-hover-bg)';
@@ -215,160 +257,142 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onModuleClick, rol, permis
             e.currentTarget.style.background = 'var(--btn-bg)';
           }}
         >
-          {listaVisible ? (
-            // Ícono "ocultar" (ojo tachado o chevron hacia arriba)
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M3 6L8 11L13 6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            // Ícono "mostrar" (chevron hacia abajo)
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M3 10L8 5L13 10"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M9 3L4 7L9 11"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
 
-      {listaVisible && (
-        <>
-          <div className="search-container">
-            <div className="search-wrapper">
-              <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z"
-                  stroke="#94a3b8"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M14 14L11.1 11.1"
-                  stroke="#94a3b8"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Buscar transacción..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button className="search-clear" onClick={() => setSearchTerm('')}>
-                  ×
-                </button>
-              )}
-            </div>
-          </div>
+      <div className="search-container">
+        <div className="search-wrapper">
+          <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z"
+              stroke="#94a3b8"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M14 14L11.1 11.1"
+              stroke="#94a3b8"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Buscar transacción..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button className="search-clear" onClick={() => setSearchTerm('')}>
+              ×
+            </button>
+          )}
+        </div>
+      </div>
 
-          <div className="nav-menu">
-            {filteredSections.length === 0 ? (
-              <div className="search-no-results">No se encontraron resultados</div>
-            ) : (
-              filteredSections.map((section) => {
-                const isExpanded = expandedSections.includes(section.id);
-                const itemsVisibles = section.items.filter((item) => itemPermitido(item.id));
-                if (itemsVisibles.length === 0) return null;
+      <div className="nav-menu">
+        {filteredSections.length === 0 ? (
+          <div className="search-no-results">No se encontraron resultados</div>
+        ) : (
+          filteredSections.map((section) => {
+            const isExpanded = expandedSections.includes(section.id);
+            const itemsVisibles = section.items.filter((item) => itemPermitido(item.id));
+            if (itemsVisibles.length === 0) return null;
 
-                return (
-                  <div key={section.id} className="nav-section">
-                    <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
-                      <span className="nav-section-title">{section.title}</span>
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        className={`section-arrow ${isExpanded ? 'expanded' : ''}`}
-                      >
-                        <path
-                          d="M3 4.5L6 7.5L9 4.5"
-                          stroke="#8a93a5"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
-                    {isExpanded && (
-                      <div className="nav-section-content">
-                        {section.items.map((item) => {
-                          if (!itemPermitido(item.id)) return null;
-                          const esFavorito = favoritos.includes(item.id);
-                          return item.type === 'item' ? (
-                            <div
-                              key={item.id}
-                              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                              onClick={() => onModuleClick(item.id)}
-                            >
-                              <span className="nav-indicator"></span>
-                              <span style={{ flex: 1 }}>{item.label}</span>
-                              <span
-                                onClick={(e) => toggleFavorito(item.id, e)}
-                                style={{
-                                  cursor: 'pointer',
-                                  fontSize: '14px',
-                                  color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
-                                  padding: '2px 4px',
-                                  transition: 'color 0.15s',
-                                  flexShrink: 0
-                                }}
-                                title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                              >
-                                {esFavorito ? '★' : '☆'}
-                              </span>
-                            </div>
-                          ) : (
-                            <div
-                              key={item.id}
-                              className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`}
-                              style={{ display: 'flex', alignItems: 'center' }}
-                            >
-                              <span style={{ flex: 1 }} onClick={() => onModuleClick(item.id)}>
-                                {item.label}
-                              </span>
-                              <span
-                                onClick={(e) => toggleFavorito(item.id, e)}
-                                style={{
-                                  cursor: 'pointer',
-                                  fontSize: '13px',
-                                  color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
-                                  padding: '2px 4px',
-                                  transition: 'color 0.15s',
-                                  flexShrink: 0,
-                                  marginRight: '4px'
-                                }}
-                                title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                              >
-                                {esFavorito ? '★' : '☆'}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+            return (
+              <div key={section.id} className="nav-section">
+                <div className="nav-section-header" onClick={() => toggleSection(section.id)}>
+                  <span className="nav-section-title">{section.title}</span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    className={`section-arrow ${isExpanded ? 'expanded' : ''}`}
+                  >
+                    <path
+                      d="M3 4.5L6 7.5L9 4.5"
+                      stroke="#8a93a5"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                {isExpanded && (
+                  <div className="nav-section-content">
+                    {section.items.map((item) => {
+                      if (!itemPermitido(item.id)) return null;
+                      const esFavorito = favoritos.includes(item.id);
+                      return item.type === 'item' ? (
+                        <div
+                          key={item.id}
+                          className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                          onClick={() => onModuleClick(item.id)}
+                        >
+                          <span className="nav-indicator"></span>
+                          <span style={{ flex: 1 }}>{item.label}</span>
+                          <span
+                            onClick={(e) => toggleFavorito(item.id, e)}
+                            style={{
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
+                              padding: '2px 4px',
+                              transition: 'color 0.15s',
+                              flexShrink: 0
+                            }}
+                            title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                          >
+                            {esFavorito ? '★' : '☆'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          key={item.id}
+                          className={`nav-subitem ${activeTab === item.id ? 'active-sub' : ''}`}
+                          style={{ display: 'flex', alignItems: 'center' }}
+                        >
+                          <span style={{ flex: 1 }} onClick={() => onModuleClick(item.id)}>
+                            {item.label}
+                          </span>
+                          <span
+                            onClick={(e) => toggleFavorito(item.id, e)}
+                            style={{
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              color: esFavorito ? '#f59e0b' : 'var(--text-placeholder)',
+                              padding: '2px 4px',
+                              transition: 'color 0.15s',
+                              flexShrink: 0,
+                              marginRight: '4px'
+                            }}
+                            title={esFavorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                          >
+                            {esFavorito ? '★' : '☆'}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })
-            )}
-          </div>
-        </>
-      )}
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
 
       <div className="sidebar-footer">
         <div className="logo">
