@@ -902,45 +902,16 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
                     />
                   </div>
                   <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>
-                      Nombre Local
-                    </label>
-                    <input type="text" className="sd01-form-input" value={local.nombre_local} readOnly />
-                  </div>
-                  <div className="sd01-form-group">
-                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>
-                      Fecha Entrega *
-                    </label>
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <label className="sd01-form-label" style={{ fontSize: '12px' }}>
+                        Fecha Entrega *
+                      </label>
                       <input
                         type="date"
                         className="sd01-form-input"
                         value={local.fecha_entrega}
                         onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
-                        style={{ flex: 1 }}
                       />
-                      {index === 0 && locales.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={replicarFecha}
-                          title="Replicar esta fecha a todos los locales"
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '14px',
-                            cursor: 'pointer',
-                            background: 'var(--btn-primary-bg)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            lineHeight: 1,
-                            flexShrink: 0
-                          }}
-                        >
-                          +
-                        </button>
-                      )}
                     </div>
-                  </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>
                       Hora Entrega
