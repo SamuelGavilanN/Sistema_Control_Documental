@@ -856,9 +856,33 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
           <div className="sd01-locales-section">
             <div className="sd01-locales-header">
               <h3 className="sd01-locales-title">Locales de Entrega</h3>
-              <button className="sd01-btn-add-local" onClick={agregarLocal}>
-                <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Agregar Local
-              </button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {locales.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      className="sd01-btn"
+                      onClick={replicarFecha}
+                      title="Replicar la fecha del primer local a todos los locales"
+                      style={{ padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      📅 Replicar Fecha
+                    </button>
+                    <button
+                      type="button"
+                      className="sd01-btn"
+                      onClick={replicarHora}
+                      title="Replicar la hora del primer local a todos los locales"
+                      style={{ padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      🕐 Replicar Hora
+                    </button>
+                  </>
+                )}
+                <button className="sd01-btn-add-local" onClick={agregarLocal}>
+                  <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Agregar Local
+                </button>
+              </div>
             </div>
 
             <div className="sd01-locales-list">
