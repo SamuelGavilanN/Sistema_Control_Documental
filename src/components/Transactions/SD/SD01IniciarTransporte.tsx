@@ -12,8 +12,8 @@ import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
 const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+  apikey: 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  Authorization: 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
 interface SD01IniciarTransporteProps {
@@ -25,45 +25,45 @@ interface SD01IniciarTransporteProps {
 
 // Orígenes de carga y tipos de documento
 const origenesCarga = [
-  "CD01 Fashions-Park",
-  "CD16 Bodegas San Francisco",
-  "OUT1 Outlet San Francisco",
-  "OUT2 Outlet Lampa",
-  "OUT3 Redestinacion",
-  "CD12 Bodega Lampa",
-  "CD30 Bodega HC",  
-  "CD31 Bodega AGV",
-  "C144 Tiendas sin Bodega",
-  "DV01 Devoluciones",
-  "MR01 Mermas",
-  "SG01 Internet",
-  "SG02 Insumos",
-  "SG03 Traspasos",
-  "SG04 Valija",
-  "SG05 Bultos Regularizar Stock",
-  "SG06 Bultos Quedados en Camion",
-  "SG07 Insumos Con Guia",
+  'CD01 Fashions-Park',
+  'CD16 Bodegas San Francisco',
+  'OUT1 Outlet San Francisco',
+  'OUT2 Outlet Lampa',
+  'OUT3 Redestinacion',
+  'CD12 Bodega Lampa',
+  'CD30 Bodega HC',
+  'CD31 Bodega AGV',
+  'C144 Tiendas sin Bodega',
+  'PV01 Primavera-Verano 2025',
+  'MZ01 Pedido Mezclilla',
+  'SG01 Internet',
+  'SG02 Insumos',
+  'SG03 Traspasos',
+  'SG04 Valija',
+  'SG05 Bultos Regularizar Stock',
+  'SG06 Bultos Quedados en Camion',
+  'SG07 Insumos con Guia'
 ];
 
 const tiposDocumentoPorOrigen: Record<string, string[]> = {
-  "CD01 Fashions-Park": ["Sap", "Vtradex", "Guia"],
-  "CD16 Bodegas San Francisco": ["Sap", "Vtradex", "Guia"],
-  "OUT1 Outlet San Francisco": ["Sap", "Vtradex", "Guia"],
-  "OUT2 Outlet Lampa": ["Sap", "Vtradex", "Guia"],
-  "OUT3 Redestinacion": ["Sap", "Vtradex", "Guia"],
-  "CD12 Bodega Lampa": ["Sap", "Vtradex", "Guia"],
-  "CD30 Bodega HC": ["Sap", "Vtradex", "Guia"],   
-  "CD31 Bodega AGV": ["Sap", "Vtradex", "Guia"],
-  "C144 Tiendas sin Bodega": ["Sap", "Vtradex", "Guia"],
-  "DV01 Devoluciones": ["Guia"],
-  "MR01 Mermas": ["Guia"],
-  "SG01 Internet": [],
-  "SG02 Insumos": [],
-  "SG03 Traspasos": ["Guia", "No Aplica",],
-  "SG04 Valija": [],
-  "SG05 Bultos Regularizar Stock": ["Sap", "Vtradex", "Guia"],
-  "SG06 Bultos Quedados en Camion": ["Sap", "Vtradex", "Guia"],
-  "SG07 Insumos Con Guia": ["Guia"],
+  'CD01 Fashions-Park': ['Sap', 'Vtradex', 'Guia'],
+  'CD16 Bodegas San Francisco': ['Sap', 'Vtradex', 'Guia'],
+  'OUT1 Outlet San Francisco': ['Sap', 'Vtradex', 'Guia'],
+  'OUT2 Outlet Lampa': ['Sap', 'Vtradex', 'Guia'],
+  'OUT3 Redestinacion': ['Sap', 'Vtradex', 'Guia'],
+  'CD12 Bodega Lampa': ['Sap', 'Vtradex', 'Guia'],
+  'CD30 Bodega HC': ['Sap', 'Vtradex', 'Guia'],
+  'CD31 Bodega AGV': ['Sap', 'Vtradex', 'Guia'],
+  'C144 Tiendas sin Bodega': ['Sap', 'Vtradex', 'Guia'],
+  'PV01 Primavera-Verano 2025': ['Sap', 'Guia'],
+  'MZ01 Pedido Mezclilla': ['Sap', 'Guia'],
+  'SG01 Internet': [],
+  'SG02 Insumos': [],
+  'SG03 Traspasos': ['Guia'],
+  'SG04 Valija': [],
+  'SG05 Bultos Regularizar Stock': ['Sap', 'Vtradex', 'Guia'],
+  'SG06 Bultos Quedados en Camion': ['Sap', 'Vtradex', 'Guia'],
+  'SG07 Insumos con Guia': ['Guia']
 };
 
 interface Bulto {
@@ -90,7 +90,6 @@ interface LocalImprimir {
   }>;
 }
 
-// Autocomplete component
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -108,7 +107,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   placeholder,
   disabled = false,
   onEnter,
-  inputRef,
+  inputRef
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
@@ -123,8 +122,8 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const getBestMatch = (input: string): string | null => {
@@ -149,7 +148,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       if (isOpen && highlightIndex >= 0) {
         e.preventDefault();
         handleSelect(filteredSuggestions[highlightIndex]);
@@ -162,11 +161,11 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         }
         if (onEnter) onEnter();
       }
-    } else if (e.key === "Tab") {
+    } else if (e.key === 'Tab') {
       const bestMatch = getBestMatch(value);
       if (bestMatch) onChange(bestMatch);
       setIsOpen(false);
-    } else if (e.key === "ArrowDown") {
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!isOpen && value) {
         const filtered = suggestions.filter((s) => s.toLowerCase().includes(value.toLowerCase()));
@@ -174,12 +173,12 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         setIsOpen(true);
         setHighlightIndex(0);
       } else {
-        setHighlightIndex((prev) => prev < filteredSuggestions.length - 1 ? prev + 1 : prev);
+        setHighlightIndex((prev) => (prev < filteredSuggestions.length - 1 ? prev + 1 : prev));
       }
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlightIndex((prev) => prev > 0 ? prev - 1 : prev);
-    } else if (e.key === "Escape") {
+      setHighlightIndex((prev) => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === 'Escape') {
       setIsOpen(false);
     }
   };
@@ -208,7 +207,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           {filteredSuggestions.map((suggestion, index) => (
             <div
               key={suggestion}
-              className={`autocomplete-item ${index === highlightIndex ? "highlighted" : ""}`}
+              className={`autocomplete-item ${index === highlightIndex ? 'highlighted' : ''}`}
               onClick={() => handleSelect(suggestion)}
             >
               {suggestion}
@@ -220,7 +219,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   );
 };
 
-// Modal de bultos con guardado inmediato en Supabase
 const BultosModal = ({
   localInicial,
   locales,
@@ -233,11 +231,11 @@ const BultosModal = ({
   const [localActual, setLocalActual] = useState(localInicial);
   const [bultos, setBultos] = useState<Bulto[]>(bultosPorLocal[localInicial.id] || []);
   const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
-    origenCarga: "",
-    tipoDocumento: "",
-    numeroDocumento: "",
+    origenCarga: '',
+    tipoDocumento: '',
+    numeroDocumento: '',
     cantidad: 0,
-    observacion: ""
+    observacion: ''
   });
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [tiposDisponibles, setTiposDisponibles] = useState<string[]>([]);
@@ -257,7 +255,7 @@ const BultosModal = ({
 
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
-    setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
+    setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
     setEditandoId(null);
     setTiposDisponibles([]);
     setErrorMsg('');
@@ -269,8 +267,8 @@ const BultosModal = ({
     setNuevoBulto({
       ...nuevoBulto,
       origenCarga: origen,
-      tipoDocumento: tipos.length === 0 ? "No aplica" : "",
-      numeroDocumento: tipos.length === 0 ? "" : nuevoBulto.numeroDocumento,
+      tipoDocumento: tipos.length === 0 ? 'No aplica' : '',
+      numeroDocumento: tipos.length === 0 ? '' : nuevoBulto.numeroDocumento
     });
     setTiposDisponibles(tipos);
   };
@@ -289,13 +287,7 @@ const BultosModal = ({
   };
 
   const handleCancelarEdicion = () => {
-    setNuevoBulto({
-      origenCarga: "",
-      tipoDocumento: "",
-      numeroDocumento: "",
-      cantidad: 0,
-      observacion: ""
-    });
+    setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
     setTiposDisponibles([]);
     setEditandoId(null);
     setErrorMsg('');
@@ -305,16 +297,17 @@ const BultosModal = ({
   const agregarOActualizarBulto = async () => {
     if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
 
-    // VALIDACIÓN ESTRICTA: el origen debe estar en la lista exacta
     if (!origenesCarga.includes(nuevoBulto.origenCarga)) {
       setErrorMsg('El Origen de Carga no es válido. Debe seleccionar uno de la lista.');
       setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
 
-    // Validar tipo de documento si aplica
     if (!tipoNoAplica) {
-      if (!nuevoBulto.tipoDocumento || !tiposDocumentoPorOrigen[nuevoBulto.origenCarga].includes(nuevoBulto.tipoDocumento)) {
+      if (
+        !nuevoBulto.tipoDocumento ||
+        !tiposDocumentoPorOrigen[nuevoBulto.origenCarga].includes(nuevoBulto.tipoDocumento)
+      ) {
         setErrorMsg('El Tipo de Documento no es válido. Debe seleccionar uno de la lista.');
         setTimeout(() => setErrorMsg(''), 3000);
         return;
@@ -352,7 +345,7 @@ const BultosModal = ({
       } else {
         const resp = await fetch(API_URL + '/sd01_bultos', {
           method: 'POST',
-          headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=representation' },
           body: JSON.stringify(data)
         });
         if (!resp.ok) throw new Error(await resp.text());
@@ -366,18 +359,13 @@ const BultosModal = ({
           cantidad: creado.cantidad,
           observacion: creado.observacion || ''
         };
+        // Agregar al final para respetar el orden de inserción
         const nuevos = [...bultos, nuevo];
         setBultos(nuevos);
         onBultosChange(localActual.id, nuevos);
       }
 
-      setNuevoBulto({
-        origenCarga: "",
-        tipoDocumento: "",
-        numeroDocumento: "",
-        cantidad: 0,
-        observacion: ""
-      });
+      setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
       setTiposDisponibles([]);
       setTimeout(() => origenRef.current?.focus(), 50);
     } catch (e: any) {
@@ -396,7 +384,7 @@ const BultosModal = ({
       onBultosChange(localActual.id, nuevos);
       if (editandoId === id) {
         setEditandoId(null);
-        setNuevoBulto({ origenCarga: "", tipoDocumento: "", numeroDocumento: "", cantidad: 0, observacion: "" });
+        setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
       }
     } catch (e: any) {
       setErrorMsg('Error al eliminar bulto: ' + (e.message || 'Desconocido'));
@@ -410,11 +398,24 @@ const BultosModal = ({
       <div className="sd01-modal sd01-modal-bultos" onClick={(e) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Bultos por Local</h2>
-          <button className="sd01-modal-close" onClick={onClose}>×</button>
+          <button className="sd01-modal-close" onClick={onClose}>
+            ×
+          </button>
         </div>
         <div className="sd01-modal-body">
           {errorMsg && (
-            <div style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)', borderRadius: '6px', padding: '8px 12px', marginBottom: '12px', fontSize: '13px', fontWeight: 500 }}>
+            <div
+              style={{
+                background: 'var(--error-bg)',
+                color: 'var(--error-text)',
+                border: '1px solid var(--error-border)',
+                borderRadius: '6px',
+                padding: '8px 12px',
+                marginBottom: '12px',
+                fontSize: '13px',
+                fontWeight: 500
+              }}
+            >
               {errorMsg}
             </div>
           )}
@@ -422,7 +423,7 @@ const BultosModal = ({
             {locales.map((local: any) => (
               <button
                 key={local.id}
-                className={`local-nav-btn ${localActual.id === local.id ? "active" : ""}`}
+                className={`local-nav-btn ${localActual.id === local.id ? 'active' : ''}`}
                 onClick={() => setLocalActual(local)}
               >
                 {local.codigo_local} - {local.nombre_local || ''}
@@ -430,12 +431,14 @@ const BultosModal = ({
             ))}
           </div>
           <div className="dc-form-section">
-            <h3>{editandoId !== null ? "Editar Bulto" : "Agregar Bulto"} - Local {localActual.codigo_local}</h3>
+            <h3>
+              {editandoId !== null ? 'Editar Bulto' : 'Agregar Bulto'} - Local {localActual.codigo_local}
+            </h3>
             <div className="dc-form-grid">
               <div className="dc-form-field">
                 <label>Origen de Carga</label>
                 <AutocompleteInput
-                  value={nuevoBulto.origenCarga || ""}
+                  value={nuevoBulto.origenCarga || ''}
                   onChange={handleOrigenChange}
                   suggestions={origenesCarga}
                   placeholder="Buscar o escribir..."
@@ -446,12 +449,15 @@ const BultosModal = ({
               <div className="dc-form-field">
                 <label>Tipo de Documento</label>
                 <AutocompleteInput
-                  value={nuevoBulto.tipoDocumento || ""}
+                  value={nuevoBulto.tipoDocumento || ''}
                   onChange={(val) => setNuevoBulto({ ...nuevoBulto, tipoDocumento: val })}
                   suggestions={tiposDisponibles}
-                  placeholder={tipoNoAplica ? "No aplica" : "Buscar o escribir..."}
+                  placeholder={tipoNoAplica ? 'No aplica' : 'Buscar o escribir...'}
                   disabled={tipoNoAplica}
-                  onEnter={() => { if (tipoNoAplica) cantidadRef.current?.focus(); else numeroDocRef.current?.focus(); }}
+                  onEnter={() => {
+                    if (tipoNoAplica) cantidadRef.current?.focus();
+                    else numeroDocRef.current?.focus();
+                  }}
                   inputRef={tipoDocRef}
                 />
               </div>
@@ -460,11 +466,16 @@ const BultosModal = ({
                 <input
                   ref={numeroDocRef}
                   type="text"
-                  className={`dc-input ${tipoNoAplica ? "disabled" : ""}`}
-                  value={nuevoBulto.numeroDocumento || ""}
+                  className={`dc-input ${tipoNoAplica ? 'disabled' : ''}`}
+                  value={nuevoBulto.numeroDocumento || ''}
                   onChange={(e) => setNuevoBulto({ ...nuevoBulto, numeroDocumento: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); cantidadRef.current?.focus(); } }}
-                  placeholder={tipoNoAplica ? "No aplica" : "Ej: 22687"}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      cantidadRef.current?.focus();
+                    }
+                  }}
+                  placeholder={tipoNoAplica ? 'No aplica' : 'Ej: 22687'}
                   disabled={tipoNoAplica}
                 />
               </div>
@@ -474,9 +485,16 @@ const BultosModal = ({
                   ref={cantidadRef}
                   type="number"
                   className="dc-input"
-                  value={nuevoBulto.cantidad || ""}
-                  onChange={(e) => setNuevoBulto({ ...nuevoBulto, cantidad: parseInt(e.target.value) || 0 })}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); observacionRef.current?.focus(); } }}
+                  value={nuevoBulto.cantidad || ''}
+                  onChange={(e) =>
+                    setNuevoBulto({ ...nuevoBulto, cantidad: parseInt(e.target.value) || 0 })
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      observacionRef.current?.focus();
+                    }
+                  }}
                   placeholder="0"
                   min="0"
                 />
@@ -487,24 +505,37 @@ const BultosModal = ({
                   ref={observacionRef}
                   type="text"
                   className="dc-input"
-                  value={nuevoBulto.observacion || ""}
+                  value={nuevoBulto.observacion || ''}
                   onChange={(e) => setNuevoBulto({ ...nuevoBulto, observacion: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarBtnRef.current?.focus(); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      agregarBtnRef.current?.focus();
+                    }
+                  }}
                   placeholder="Observación opcional"
                 />
               </div>
             </div>
             <div className="dc-form-actions">
-              <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto} disabled={guardando}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                {guardando ? 'Guardando...' : editandoId !== null ? "Actualizar" : "Agregar"}
+              <button
+                ref={agregarBtnRef}
+                className="dc-btn-add"
+                onClick={agregarOActualizarBulto}
+                disabled={guardando}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                {guardando ? 'Guardando...' : editandoId !== null ? 'Actualizar' : 'Agregar'}
               </button>
               {editandoId !== null && (
-                <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>Cancelar</button>
+                <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>
+                  Cancelar
+                </button>
               )}
             </div>
           </div>
-          {/* SCROLL CORREGIDO: contenedor con altura máxima y scroll */}
           <div className="dc-table-container" style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
             <table className="dc-table">
               <thead>
@@ -519,21 +550,35 @@ const BultosModal = ({
               </thead>
               <tbody>
                 {bultos.length === 0 ? (
-                  <tr><td colSpan={6} className="dc-empty-table">No hay bultos registrados en este local.</td></tr>
+                  <tr>
+                    <td colSpan={6} className="dc-empty-table">
+                      No hay bultos registrados en este local.
+                    </td>
+                  </tr>
                 ) : (
                   bultos.map((bulto) => (
-                    <tr key={bulto.id} className={editandoId === bulto.id ? "fila-editando" : ""}>
+                    <tr key={bulto.id} className={editandoId === bulto.id ? 'fila-editando' : ''}>
                       <td>{bulto.origenCarga}</td>
-                      <td>{bulto.tipoDocumento || "-"}</td>
-                      <td>{bulto.numeroDocumento || "-"}</td>
+                      <td>{bulto.tipoDocumento || '-'}</td>
+                      <td>{bulto.numeroDocumento || '-'}</td>
                       <td>{bulto.cantidad}</td>
-                      <td>{bulto.observacion || "-"}</td>
+                      <td>{bulto.observacion || '-'}</td>
                       <td>
                         <div className="dc-acciones">
                           <button className="dc-row-edit" onClick={() => handleEditar(bulto)} title="Editar">
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 1.5L12.5 3.5L4.5 11.5L1.5 12.5L2.5 9.5L10.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M9 3L11 5" stroke="currentColor" strokeWidth="1.5" /></svg>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <path
+                                d="M10.5 1.5L12.5 3.5L4.5 11.5L1.5 12.5L2.5 9.5L10.5 1.5Z"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinejoin="round"
+                              />
+                              <path d="M9 3L11 5" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
                           </button>
-                          <button className="dc-row-delete" onClick={() => eliminarBulto(bulto.id)} title="Eliminar">×</button>
+                          <button className="dc-row-delete" onClick={() => eliminarBulto(bulto.id)} title="Eliminar">
+                            ×
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -547,7 +592,9 @@ const BultosModal = ({
               <span>Total Bultos ({localActual.codigo_local}):</span>
               <strong>{totalBultos}</strong>
             </div>
-            <button className="dc-btn-save" onClick={onClose}>Cerrar</button>
+            <button className="dc-btn-save" onClick={onClose}>
+              Cerrar
+            </button>
           </div>
         </div>
       </div>
@@ -555,8 +602,12 @@ const BultosModal = ({
   );
 };
 
-// Componente principal
-const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transporte, onClose, onActualizar, usuario }) => {
+const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
+  transporte,
+  onClose,
+  onActualizar,
+  usuario
+}) => {
   const [locales, setLocales] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarInfo, setMostrarInfo] = useState(true);
@@ -575,14 +626,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const [copiasImprimir, setCopiasImprimir] = useState<string[]>([]);
   const [mostrarSeleccionCopias, setMostrarSeleccionCopias] = useState(false);
 
-  // Sistema de toasts
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const mostrarMensaje = (tipo: string, texto: string) => {
     setMensaje({ tipo, texto, visible: true });
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Función para ordenar locales por fecha y hora de entrega
   const ordenarLocales = (localesArray: any[]) => {
     return [...localesArray].sort((a, b) => {
       const fechaA = a.fecha_entrega || '';
@@ -606,17 +655,25 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const cargarDetalles = async () => {
     try {
       if (transporte.conductor_id) {
-        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporte.conductor_id, { headers: HEADERS });
+        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporte.conductor_id, {
+          headers: HEADERS
+        });
         const data = await resp.json();
         if (data && data.length > 0) setDetallesConductor(data[0]);
       }
       if (transporte.patente_principal_id) {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
+        const resp = await fetch(
+          API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id,
+          { headers: HEADERS }
+        );
         const data = await resp.json();
         if (data && data.length > 0) setDetallesPatentePrincipal(data[0]);
       }
       if (transporte.patente_adicional_id) {
-        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id, { headers: HEADERS });
+        const resp = await fetch(
+          API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id,
+          { headers: HEADERS }
+        );
         const data = await resp.json();
         if (data && data.length > 0) setDetallesPatenteAdicional(data[0]);
       }
@@ -634,16 +691,18 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       const data = await resp.json();
 
       if (Array.isArray(data)) {
-        const localesMapeados = ordenarLocales(data.map((local: any) => ({
-          ...local,
-          sello_trasero: local.sello_trasero || '',
-          cantidad_pallet: local.cantidad_pallet || null,
-          seleccionado: false,
-        })));
+        const localesMapeados = ordenarLocales(
+          data.map((local: any) => ({
+            ...local,
+            sello_trasero: local.sello_trasero || '',
+            cantidad_pallet: local.cantidad_pallet || null,
+            seleccionado: false
+          }))
+        );
         setLocales(localesMapeados);
 
         const respBultos = await fetch(
-          API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento,
+          API_URL + '/sd01_bultos?select=*&documento_id=eq.' + transporte.id_documento + '&order=creado_en.asc,id.asc',
           { headers: HEADERS }
         );
         const bultosData = await respBultos.json();
@@ -695,17 +754,14 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   const guardarCambiosLocal = async (index: number) => {
     const local = locales[index];
     try {
-      const resp = await fetch(
-        API_URL + '/sd01_documento_locales?id=eq.' + local.id,
-        {
-          method: 'PATCH',
-          headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sello_trasero: local.sello_trasero || null,
-            cantidad_pallet: local.cantidad_pallet || null,
-          })
-        }
-      );
+      const resp = await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
+        method: 'PATCH',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sello_trasero: local.sello_trasero || null,
+          cantidad_pallet: local.cantidad_pallet || null
+        })
+      });
       if (!resp.ok) {
         const errorText = await resp.text();
         console.error('Error guardando local:', errorText);
@@ -717,30 +773,56 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
   };
 
+  // Replicar sello trasero del primer local
+  const replicarSelloTrasero = () => {
+    if (locales.length === 0) return;
+    const valor = locales[0].sello_trasero;
+    if (!valor) {
+      mostrarMensaje('warning', 'El primer local no tiene sello trasero para replicar');
+      return;
+    }
+    const nuevos = locales.map((l) => ({ ...l, sello_trasero: valor }));
+    setLocales(nuevos);
+    nuevos.forEach((_, idx) => guardarCambiosLocal(idx));
+    mostrarMensaje('success', 'Sello trasero replicado a todos los locales');
+  };
+
+  // Replicar cantidad pallet del primer local
+  const replicarCantidadPallet = () => {
+    if (locales.length === 0) return;
+    const valor = locales[0].cantidad_pallet;
+    if (!valor) {
+      mostrarMensaje('warning', 'El primer local no tiene cantidad de pallet para replicar');
+      return;
+    }
+    const nuevos = locales.map((l) => ({ ...l, cantidad_pallet: valor }));
+    setLocales(nuevos);
+    nuevos.forEach((_, idx) => guardarCambiosLocal(idx));
+    mostrarMensaje('success', 'Cantidad de pallet replicada a todos los locales');
+  };
+
   const handleIngresarBultos = (local: any) => {
     setLocalActual(local);
     setMostrarModalBultos(true);
   };
 
   const handleBultosChange = (localId: string, nuevosBultos: Bulto[]) => {
-    setBultosPorLocal((prev) => ({
-      ...prev,
-      [localId]: nuevosBultos
-    }));
+    setBultosPorLocal((prev) => ({ ...prev, [localId]: nuevosBultos }));
   };
 
-  const handleBultosGuardados = () => {
-    setMostrarModalBultos(false);
-    onActualizar();
-  };
-
-  const totalBultosGlobal = Object.values(bultosPorLocal).reduce((sum, bultos) => 
-    sum + bultos.reduce((s, b) => s + b.cantidad, 0), 0
+  const totalBultosGlobal = Object.values(bultosPorLocal).reduce(
+    (sum, bultos) => sum + bultos.reduce((s, b) => s + b.cantidad, 0),
+    0
   );
 
   const formatearFecha = (fecha: string) => {
     if (!fecha) return '-';
-    return new Date(fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+    return new Date(fecha).toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'UTC'
+    });
   };
 
   const formatearRut = (rut: string) => {
@@ -753,57 +835,71 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     return numeroFormateado + '-' + dv;
   };
 
-  // ---------- FUNCIONES DE CORREO ----------
   const copiarCorreos = () => {
-    const correos = locales.map((l: any) => {
-      const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
-      return localMaestro?.correo;
-    }).filter(Boolean).join(';');
+    const correos = locales
+      .map((l: any) => {
+        const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
+        return localMaestro?.correo;
+      })
+      .filter(Boolean)
+      .join(';');
     if (!correos) {
       mostrarMensaje('warning', 'No hay correos configurados para los locales');
       return;
     }
-    navigator.clipboard.writeText(correos).then(() => {
-      mostrarMensaje('success', 'Correos copiados al portapapeles');
-    }).catch((err) => {
-      console.error('Error al copiar correos:', err);
-      mostrarMensaje('error', 'Error al copiar correos');
-    });
+    navigator.clipboard
+      .writeText(correos)
+      .then(() => mostrarMensaje('success', 'Correos copiados al portapapeles'))
+      .catch((err) => {
+        console.error('Error al copiar correos:', err);
+        mostrarMensaje('error', 'Error al copiar correos');
+      });
   };
 
-  // Corregido: recorre todos los locales y junta actas por local
   const copiarAsuntoDetalle = () => {
-    const nombresLocales = locales.map((l: any) => {
-      const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
-      return localMaestro?.nombre_local || l.nombre_local;
-    }).filter(Boolean);
-    const nombresUnicos = [...new Set(nombresLocales)].join(', ');
-
-    const detallePorLocal = locales.map((local: any) => {
-      const actasLocal = (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean);
-      if (actasLocal.length === 0) return '';
-      const nombreLocal = localesMaestros.find((lm: any) => lm.codigo_local === local.codigo_local)?.nombre_local || local.nombre_local || '';
-      return `${nombreLocal}: ${actasLocal.join(', ')}`;
-    }).filter(Boolean);
-
-    const texto = `DETALLE DE DESPACHO: ${nombresUnicos} /// N° DE ACTA: ${detallePorLocal.join(' | ')}`;
-
-    navigator.clipboard.writeText(texto).then(() => {
-      mostrarMensaje('success', 'Detalle copiado al portapapeles');
-    }).catch((err) => {
-      console.error('Error al copiar detalle:', err);
-      mostrarMensaje('error', 'Error al copiar detalle');
-    });
-  };
-
-  // Corregido: cada local lleva sus propias actas, fecha, hora y sello
-  const copiarCuadro = async () => {
-    const destino = [...new Set(
-      locales.map((l: any) => {
+    const nombresLocales = locales
+      .map((l: any) => {
         const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
         return localMaestro?.nombre_local || l.nombre_local;
-      }).filter(Boolean)
-    )].join(', ');
+      })
+      .filter(Boolean);
+    const nombresUnicos = [...new Set(nombresLocales)].join(', ');
+
+    const detallePorLocal = locales
+      .map((local: any) => {
+        const actasLocal = (bultosPorLocal[local.id] || [])
+          .map((b: any) => b.numeroDocumento)
+          .filter(Boolean);
+        if (actasLocal.length === 0) return '';
+        const nombreLocal =
+          localesMaestros.find((lm: any) => lm.codigo_local === local.codigo_local)?.nombre_local ||
+          local.nombre_local ||
+          '';
+        return `${nombreLocal}: ${actasLocal.join(', ')}`;
+      })
+      .filter(Boolean);
+
+    const texto = `DETALLE DE DESPACHO: ${nombresUnicos} /// N° DE ACTA: ${detallePorLocal.join(' | ')}`;
+    navigator.clipboard
+      .writeText(texto)
+      .then(() => mostrarMensaje('success', 'Detalle copiado al portapapeles'))
+      .catch((err) => {
+        console.error('Error al copiar detalle:', err);
+        mostrarMensaje('error', 'Error al copiar detalle');
+      });
+  };
+
+  const copiarCuadro = async () => {
+    const destino = [
+      ...new Set(
+        locales
+          .map((l: any) => {
+            const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
+            return localMaestro?.nombre_local || l.nombre_local;
+          })
+          .filter(Boolean)
+      )
+    ].join(', ');
 
     const localesCuadro = locales.map((local: any) => {
       const bultosLocal = bultosPorLocal[local.id] || [];
@@ -820,12 +916,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           tipoDocumento: b.tipoDocumento,
           numeroDocumento: b.numeroDocumento,
           cantidad: b.cantidad,
-          observacion: b.observacion,
-        })),
+          observacion: b.observacion
+        }))
       };
     });
 
-    const administrativo = transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
+    const administrativo =
+      transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
 
     const datos = {
       idDocumento: transporte.id_documento,
@@ -843,18 +940,14 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
       selloAdicional: selloAdicionalGlobal,
       administrativo,
       actasInformadas: '',
-      locales: localesCuadro,
+      locales: localesCuadro
     };
 
     const exito = await copiarCuadroDespacho(datos);
-    if (exito) {
-      mostrarMensaje('success', 'Cuadro copiado al portapapeles');
-    } else {
-      mostrarMensaje('error', 'Error al copiar el cuadro');
-    }
+    if (exito) mostrarMensaje('success', 'Cuadro copiado al portapapeles');
+    else mostrarMensaje('error', 'Error al copiar el cuadro');
   };
 
-  // ---------- IMPRESIÓN ----------
   const prepararImpresion = (localesAImprimir: any[], copias: string[]) => {
     const localesParaImprimir = localesAImprimir.map((local: any) => {
       const bultos = bultosPorLocal[local.id] || [];
@@ -873,14 +966,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         }))
       };
     });
-
     setLocalesImprimir(localesParaImprimir);
     setCopiasImprimir(copias);
     setMostrarImprimirModal(true);
   };
 
   const imprimirTodos = () => {
-    prepararImpresion(locales, ["Local", "Guardia", "Conductor", "Original"]);
+    prepararImpresion(locales, ['Local', 'Guardia', 'Conductor', 'Original']);
   };
 
   const imprimirSeleccionados = () => {
@@ -899,22 +991,17 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
   const finalizarTransporte = async () => {
     if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
-
     try {
       await guardarSellosGlobales();
-
       for (const local of locales) {
-        const resp = await fetch(
-          API_URL + '/sd01_documento_locales?id=eq.' + local.id,
-          {
-            method: 'PATCH',
-            headers: { ...HEADERS, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sello_trasero: local.sello_trasero || null,
-              cantidad_pallet: local.cantidad_pallet || null,
-            })
-          }
-        );
+        const resp = await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sello_trasero: local.sello_trasero || null,
+            cantidad_pallet: local.cantidad_pallet || null
+          })
+        });
         if (!resp.ok) {
           const errorText = await resp.text();
           console.error('Error guardando local al finalizar:', errorText);
@@ -935,16 +1022,15 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
       mostrarMensaje('success', 'Transporte finalizado exitosamente');
 
-      // Generar resumen e imprimir automáticamente
       const logoImg = new Image();
-      logoImg.crossOrigin = "anonymous";
+      logoImg.crossOrigin = 'anonymous';
       logoImg.onload = () => {
-        const canvas = document.createElement("canvas");
+        const canvas = document.createElement('canvas');
         canvas.width = logoImg.naturalWidth;
         canvas.height = logoImg.naturalHeight;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext('2d');
         ctx?.drawImage(logoImg, 0, 0);
-        const logoBase64 = canvas.toDataURL("image/png");
+        const logoBase64 = canvas.toDataURL('image/png');
 
         const datosResumen = {
           numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
@@ -959,7 +1045,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
           locales: locales.map((local: any) => ({
             codigo: local.codigo_local,
             nombre: local.nombre_local || '',
-            actas: (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
+            actas: (bultosPorLocal[local.id] || [])
+              .map((b: any) => b.numeroDocumento)
+              .filter(Boolean)
+              .join(' - '),
             fechaEntrega: local.fecha_entrega || '',
             selloTrasero: local.sello_trasero || ''
           }))
@@ -984,7 +1073,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
     }
   };
 
-  const selloLateralHabilitado = (detallesPatentePrincipal?.cantidad_sellos || 0) >= 2 || (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
+  const selloLateralHabilitado =
+    (detallesPatentePrincipal?.cantidad_sellos || 0) >= 2 ||
+    (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
   const selloAdicionalHabilitado = (detallesPatenteAdicional?.cantidad_sellos || 0) >= 1;
 
   if (cargando) {
@@ -998,12 +1089,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
   return (
     <div className="sd01-container">
       {mensaje.visible && (
-        <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>
-          {mensaje.texto}
-        </div>
+        <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>{mensaje.texto}</div>
       )}
 
-      {/* Barra de acciones horizontal */}
       <div className="sd01-action-bar">
         <button className="sd01-btn sd01-btn-cancel" onClick={onClose}>
           ← Volver a la lista
@@ -1013,27 +1101,40 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
 
         <div className="sd01-action-group">
           <span className="sd01-action-label">Imprimir</span>
-          <button className="sd01-btn" onClick={imprimirTodos}>Todos los locales</button>
-          <button className="sd01-btn" onClick={imprimirSeleccionados}>Locales Seleccionados</button>
+          <button className="sd01-btn" onClick={imprimirTodos}>
+            Todos los locales
+          </button>
+          <button className="sd01-btn" onClick={imprimirSeleccionados}>
+            Locales Seleccionados
+          </button>
         </div>
 
         <div className="sd01-separator"></div>
 
         <div className="sd01-action-group">
           <span className="sd01-action-label">Envío Correo</span>
-          <button className="sd01-btn" onClick={copiarCorreos}>Seleccionar Correos</button>
-          <button className="sd01-btn" onClick={copiarAsuntoDetalle}>Asunto y Detalle</button>
-          <button className="sd01-btn" onClick={copiarCuadro}>Copiar Cuadro</button>
+          <button className="sd01-btn" onClick={copiarCorreos}>
+            Seleccionar Correos
+          </button>
+          <button className="sd01-btn" onClick={copiarAsuntoDetalle}>
+            Asunto y Detalle
+          </button>
+          <button className="sd01-btn" onClick={copiarCuadro}>
+            Copiar Cuadro
+          </button>
         </div>
 
         <div className="sd01-separator"></div>
 
-        <button className="sd01-btn sd01-btn-success" onClick={finalizarTransporte} style={{ background: '#16a34a', color: 'white' }}>
+        <button
+          className="sd01-btn sd01-btn-success"
+          onClick={finalizarTransporte}
+          style={{ background: '#16a34a', color: 'white' }}
+        >
           Finalizar Transporte
         </button>
       </div>
 
-      {/* Contenido principal */}
       <div style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
           <button
@@ -1053,7 +1154,14 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </div>
 
         {mostrarInfo && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '16px',
+              marginBottom: '24px'
+            }}
+          >
             <div className="sd01-ver-card">
               <div className="sd01-ver-card-title">Programación</div>
               <div className="sd01-ver-field">
@@ -1082,7 +1190,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                 <>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">RUT</span>
-                    <span className="sd01-ver-field-value">{formatearRut(detallesConductor.numero_documento)}</span>
+                    <span className="sd01-ver-field-value">
+                      {formatearRut(detallesConductor.numero_documento)}
+                    </span>
                   </div>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Teléfono</span>
@@ -1107,13 +1217,17 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
               {detallesPatentePrincipal && (
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Tipo de Vehículo</span>
-                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.tipo_vehiculo || 'Otro'}</span>
+                  <span className="sd01-ver-field-value">
+                    {detallesPatentePrincipal.tipo_vehiculo || 'Otro'}
+                  </span>
                 </div>
               )}
               {detallesPatentePrincipal && (
                 <div className="sd01-ver-field">
                   <span className="sd01-ver-field-label">Cant. Sellos</span>
-                  <span className="sd01-ver-field-value">{detallesPatentePrincipal.cantidad_sellos || 0}</span>
+                  <span className="sd01-ver-field-value">
+                    {detallesPatentePrincipal.cantidad_sellos || 0}
+                  </span>
                 </div>
               )}
             </div>
@@ -1124,34 +1238,46 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                 <>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Patente</span>
-                    <span className="sd01-ver-field-value-large">{detallesPatenteAdicional.numero_patente}</span>
+                    <span className="sd01-ver-field-value-large">
+                      {detallesPatenteAdicional.numero_patente}
+                    </span>
                   </div>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Tipo de Vehículo</span>
-                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.tipo_vehiculo || 'Otro'}</span>
+                    <span className="sd01-ver-field-value">
+                      {detallesPatenteAdicional.tipo_vehiculo || 'Otro'}
+                    </span>
                   </div>
                   <div className="sd01-ver-field">
                     <span className="sd01-ver-field-label">Cant. Sellos</span>
-                    <span className="sd01-ver-field-value">{detallesPatenteAdicional.cantidad_sellos || 0}</span>
+                    <span className="sd01-ver-field-value">
+                      {detallesPatenteAdicional.cantidad_sellos || 0}
+                    </span>
                   </div>
                 </>
               ) : (
                 <div className="sd01-ver-field">
-                  <span className="sd01-ver-field-value" style={{ color: 'var(--text-muted)' }}>No asignada</span>
+                  <span className="sd01-ver-field-value" style={{ color: 'var(--text-muted)' }}>
+                    No asignada
+                  </span>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Sección Datos Destino con sellos globales y TABLA DE LOCALES (ordenados) */}
         <div style={{ marginTop: '8px' }}>
-          <div className="sd01-ver-locales-title" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div
+            className="sd01-ver-locales-title"
+            style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}
+          >
             <span>Datos Destino</span>
             <span className="sd01-ver-locales-count">{locales.length} locales</span>
             <span className="sd01-ver-locales-count">Total Bultos: {totalBultosGlobal}</span>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Sello Lateral</label>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Sello Lateral
+              </label>
               <input
                 type="text"
                 className="sd01-form-input"
@@ -1163,7 +1289,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                 disabled={!selloLateralHabilitado}
                 title={!selloLateralHabilitado ? 'Requiere 2 sellos en patente principal o 1 en adicional' : ''}
               />
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Sello Adicional</label>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Sello Adicional
+              </label>
               <input
                 type="text"
                 className="sd01-form-input"
@@ -1183,17 +1311,62 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}>
-                    <input type="checkbox" onChange={(e) => {
-                      const checked = e.target.checked;
-                      setLocales(locales.map((l: any) => ({ ...l, seleccionado: checked })));
-                    }} />
+                    <input
+                      type="checkbox"
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setLocales(locales.map((l: any) => ({ ...l, seleccionado: checked })));
+                      }}
+                    />
                   </th>
                   <th>Código</th>
                   <th>Nombre Local</th>
                   <th>Fecha Entrega</th>
                   <th>Hora Entrega</th>
-                  <th>Sello Trasero</th>
-                  <th>Cantidad Pallet</th>
+                  <th>
+                    Sello Trasero{' '}
+                    {locales.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={replicarSelloTrasero}
+                        title="Replicar el sello del primer local a todos"
+                        style={{
+                          marginLeft: '4px',
+                          padding: '0 6px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          background: 'var(--btn-primary-bg)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px'
+                        }}
+                      >
+                        +
+                      </button>
+                    )}
+                  </th>
+                  <th>
+                    Cantidad Pallet{' '}
+                    {locales.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={replicarCantidadPallet}
+                        title="Replicar la cantidad del primer local a todos"
+                        style={{
+                          marginLeft: '4px',
+                          padding: '0 6px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          background: 'var(--btn-primary-bg)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px'
+                        }}
+                      >
+                        +
+                      </button>
+                    )}
+                  </th>
                   <th style={{ width: '50px' }}></th>
                 </tr>
               </thead>
@@ -1211,7 +1384,9 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                         }}
                       />
                     </td>
-                    <td><strong>{local.codigo_local}</strong></td>
+                    <td>
+                      <strong>{local.codigo_local}</strong>
+                    </td>
                     <td>{local.nombre_local || '-'}</td>
                     <td>{formatearFecha(local.fecha_entrega)}</td>
                     <td>{local.hora_entrega || '-'}</td>
@@ -1232,7 +1407,13 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
                         className="sd01-form-input"
                         style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
                         value={local.cantidad_pallet || ''}
-                        onChange={(e) => handleLocalChange(index, 'cantidad_pallet', e.target.value ? Number(e.target.value) : null)}
+                        onChange={(e) =>
+                          handleLocalChange(
+                            index,
+                            'cantidad_pallet',
+                            e.target.value ? Number(e.target.value) : null
+                          )
+                        }
                         onBlur={() => guardarCambiosLocal(index)}
                         placeholder="0"
                         min="0"
@@ -1255,7 +1436,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({ transport
         </div>
       </div>
 
-      {/* Modales */}
       {mostrarModalBultos && localActual && (
         <BultosModal
           localInicial={localActual}
