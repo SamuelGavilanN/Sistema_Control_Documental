@@ -417,7 +417,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     setLocales(locales.filter((_, i) => i !== index));
   };
 
-  // Replicar fecha del primer local a todos
   const replicarFecha = () => {
     if (locales.length === 0) return;
     const fechaBase = locales[0].fecha_entrega;
@@ -431,7 +430,6 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     setTimeout(() => setMensaje({ tipo: '', texto: '' }), 2000);
   };
 
-  // Replicar hora del primer local a todos
   const replicarHora = () => {
     if (locales.length === 0) return;
     const horaBase = locales[0].hora_entrega;
@@ -902,49 +900,32 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
                     />
                   </div>
                   <div className="sd01-form-group">
-                      <label className="sd01-form-label" style={{ fontSize: '12px' }}>
-                        Fecha Entrega *
-                      </label>
-                      <input
-                        type="date"
-                        className="sd01-form-input"
-                        value={local.fecha_entrega}
-                        onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
-                      />
-                    </div>
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>
+                      Nombre Local
+                    </label>
+                    <input type="text" className="sd01-form-input" value={local.nombre_local} readOnly />
+                  </div>
+                  <div className="sd01-form-group">
+                    <label className="sd01-form-label" style={{ fontSize: '12px' }}>
+                      Fecha Entrega *
+                    </label>
+                    <input
+                      type="date"
+                      className="sd01-form-input"
+                      value={local.fecha_entrega}
+                      onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
+                    />
+                  </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>
                       Hora Entrega
                     </label>
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      <input
-                        type="time"
-                        className="sd01-form-input"
-                        value={local.hora_entrega}
-                        onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
-                        style={{ flex: 1 }}
-                      />
-                      {index === 0 && locales.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={replicarHora}
-                          title="Replicar esta hora a todos los locales"
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '14px',
-                            cursor: 'pointer',
-                            background: 'var(--btn-primary-bg)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            lineHeight: 1,
-                            flexShrink: 0
-                          }}
-                        >
-                          +
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="time"
+                      className="sd01-form-input"
+                      value={local.hora_entrega}
+                      onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
+                    />
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>
