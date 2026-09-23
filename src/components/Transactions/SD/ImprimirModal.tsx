@@ -52,10 +52,12 @@ const limpiarValor = (val: string): string => {
   return val;
 };
 
+// Ampliado: incluye PV y MZ como centros de distribución
 const esCentroDistribucion = (origen: string): boolean => {
   const o = origen.toUpperCase().trim();
   if (o.startsWith("CD") || o.startsWith("OUT") || o.startsWith("AGV")) return true;
-  // Reconocer orígenes tipo C144, C12, etc.
+  if (o.startsWith("PV") || o.startsWith("MZ")) return true;
+  // Reconocer orígenes tipo C144, C12, C30, etc.
   if (/^C\d+/.test(o)) return true;
   return false;
 };
