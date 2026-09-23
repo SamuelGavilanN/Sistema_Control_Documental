@@ -376,19 +376,22 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
   };
 
   const handleCodigoLocalChange = (index: number, valor: string) => {
-    const nuevosLocales = [...locales];
-    nuevosLocales[index].codigo_local = valor.toUpperCase();
-    const localEncontrado = todosLocales.find(
-      (l: any) => l.codigo_local.toUpperCase() === valor.toUpperCase()
-    );
-    nuevosLocales[index].nombre_local = localEncontrado ? localEncontrado.nombre_local : '';
-    setLocales(nuevosLocales);
+    setLocales((prev) => {
+      const nuevos = prev.map((l, i) =>
+        i === index ? { ...l, codigo_local: valor.toUpperCase() } : l
+      );
+      const localEncontrado = todosLocales.find(
+        (l: any) => l.codigo_local.toUpperCase() === valor.toUpperCase()
+      );
+      nuevos[index].nombre_local = localEncontrado ? localEncontrado.nombre_local : '';
+      return nuevos;
+    });
   };
 
   const handleLocalChange = (index: number, campo: string, valor: string) => {
-    const nuevosLocales = [...locales];
-    nuevosLocales[index][campo] = valor;
-    setLocales(nuevosLocales);
+    setLocales((prev) =>
+      prev.map((l, i) => (i === index ? { ...l, [campo]: valor } : l))
+    );
   };
 
   const agregarLocal = () => {
@@ -424,6 +427,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
       return;
     }
     setLocales(locales.map((l) => ({ ...l, fecha_entrega: fechaBase })));
+    setMensaje({ tipo: 'success', texto: 'Fecha replicada a todos los locales' });
+    setTimeout(() => setMensaje({ tipo: '', texto: '' }), 2000);
   };
 
   // Replicar hora del primer local a todos
@@ -436,6 +441,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
       return;
     }
     setLocales(locales.map((l) => ({ ...l, hora_entrega: horaBase })));
+    setMensaje({ tipo: 'success', texto: 'Hora replicada a todos los locales' });
+    setTimeout(() => setMensaje({ tipo: '', texto: '' }), 2000);
   };
 
   const validarFormulario = () => {
@@ -878,63 +885,71 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>
-                      Fecha Entrega *{' '}
+                      Fecha Entrega *
+                    </label>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <input
+                        type="date"
+                        className="sd01-form-input"
+                        value={local.fecha_entrega}
+                        onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
+                        style={{ flex: 1 }}
+                      />
                       {index === 0 && locales.length > 1 && (
                         <button
                           type="button"
                           onClick={replicarFecha}
                           title="Replicar esta fecha a todos los locales"
                           style={{
-                            marginLeft: '4px',
-                            padding: '0 6px',
-                            fontSize: '12px',
+                            padding: '4px 8px',
+                            fontSize: '14px',
                             cursor: 'pointer',
                             background: 'var(--btn-primary-bg)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '4px'
+                            borderRadius: '4px',
+                            lineHeight: 1,
+                            flexShrink: 0
                           }}
                         >
                           +
                         </button>
                       )}
-                    </label>
-                    <input
-                      type="date"
-                      className="sd01-form-input"
-                      value={local.fecha_entrega}
-                      onChange={(e: any) => handleLocalChange(index, 'fecha_entrega', e.target.value)}
-                    />
+                    </div>
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>
-                      Hora Entrega{' '}
+                      Hora Entrega
+                    </label>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <input
+                        type="time"
+                        className="sd01-form-input"
+                        value={local.hora_entrega}
+                        onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
+                        style={{ flex: 1 }}
+                      />
                       {index === 0 && locales.length > 1 && (
                         <button
                           type="button"
                           onClick={replicarHora}
                           title="Replicar esta hora a todos los locales"
                           style={{
-                            marginLeft: '4px',
-                            padding: '0 6px',
-                            fontSize: '12px',
+                            padding: '4px 8px',
+                            fontSize: '14px',
                             cursor: 'pointer',
                             background: 'var(--btn-primary-bg)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '4px'
+                            borderRadius: '4px',
+                            lineHeight: 1,
+                            flexShrink: 0
                           }}
                         >
                           +
                         </button>
                       )}
-                    </label>
-                    <input
-                      type="time"
-                      className="sd01-form-input"
-                      value={local.hora_entrega}
-                      onChange={(e: any) => handleLocalChange(index, 'hora_entrega', e.target.value)}
-                    />
+                    </div>
                   </div>
                   <div className="sd01-form-group">
                     <label className="sd01-form-label" style={{ fontSize: '12px' }}>
