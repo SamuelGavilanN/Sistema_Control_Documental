@@ -11,6 +11,7 @@ const HEADERS: any = {
 };
 
 const PAGE_SIZE = 50;
+const FETCH_PAGE = 1000;
 
 type Vista = 'transportes' | 'locales' | 'bultos';
 
@@ -86,9 +87,33 @@ const formatFechaHora = (f: string): string => {
 };
 const normalizar = (t: any): string =>
   String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
 const contieneTexto = (valor: any, query: string): boolean =>
   normalizar(valor).includes(normalizar(query));
+
+// Divide un array en chunks
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+// Fetch paginado (para superar el límite de 1000 filas de Supabase)
+const fetchAllPaginado = async (baseUrl: string): Promise<any[]> => {
+  const out: any[] = [];
+  let offset = 0;
+  while (true) {
+    const sep = baseUrl.includes('?') ? '&' : '?';
+    const url = `${baseUrl}${sep}limit=${FETCH_PAGE}&offset=${offset}`;
+    const resp = await fetch(url, { headers: HEADERS });
+    if (!resp.ok) throw new Error(`Error al consultar: ${resp.statusText}`);
+    const data = await resp.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    out.push(...data);
+    if (data.length < FETCH_PAGE) break;
+    offset += FETCH_PAGE;
+  }
+  return out;
+};
 
 // ============ MultiSelectDropdown ============
 interface MultiSelectProps {
@@ -97,16 +122,13 @@ interface MultiSelectProps {
   onChange: (v: string[]) => void;
   placeholder: string;
 }
-
 const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onChange, placeholder }) => {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -146,17 +168,22 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
   );
 };
 
-// ============ Componente principal ============
 interface SavedQuery { nombre: string; filtros: Filtros; }
 
 const SD08Consultor: React.FC = () => {
-  const [transportes, setTransportes] = useState<any[]>([]);
-  const [locales, setLocales] = useState<any[]>([]);
-  const [bultos, setBultos] = useState<any[]>([]);
+  // Catálogos pequeños (se cargan una vez)
+  const [conductores, setConductores] = useState<any[]>([]);
+  const [patentes, setPatentes] = useState<any[]>([]);
   const [conductoresMap, setConductoresMap] = useState<Map<string, any>>(new Map());
   const [patentesMap, setPatentesMap] = useState<Map<string, any>>(new Map());
 
-  const [cargando, setCargando] = useState(true);
+  // Datos consultados (bajo demanda)
+  const [transportes, setTransportes] = useState<any[]>([]);
+  const [locales, setLocales] = useState<any[]>([]);
+  const [bultos, setBultos] = useState<any[]>([]);
+
+  const [consultando, setConsultando] = useState(false);
+  const [haConsultado, setHaConsultado] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
 
   const [filtrosForm, setFiltrosForm] = useState<Filtros>(filtrosIniciales);
@@ -197,43 +224,27 @@ const SD08Consultor: React.FC = () => {
     } catch {}
   }, []);
 
+  // Cargar catálogos pequeños al montar
   useEffect(() => {
-    const cargarTodo = async () => {
-      setCargando(true);
+    const cargarCatalogos = async () => {
       try {
-        const [respT, respL, respB, respC, respP] = await Promise.all([
-          fetch(`${API_URL}/sd01_documentos?select=*`, { headers: HEADERS }),
-          fetch(`${API_URL}/sd01_documento_locales?select=*`, { headers: HEADERS }),
-          fetch(`${API_URL}/sd01_bultos?select=*`, { headers: HEADERS }),
-          fetch(`${API_URL}/conductores?select=*`, { headers: HEADERS }),
-          fetch(`${API_URL}/patentes?select=*`, { headers: HEADERS })
+        const [c, p] = await Promise.all([
+          fetchAllPaginado(`${API_URL}/conductores?select=*`),
+          fetchAllPaginado(`${API_URL}/patentes?select=*`)
         ]);
-
-        const t = await respT.json();
-        const l = await respL.json();
-        const b = await respB.json();
-        const c = await respC.json();
-        const p = await respP.json();
-
-        setTransportes(Array.isArray(t) ? t : []);
-        setLocales(Array.isArray(l) ? l : []);
-        setBultos(Array.isArray(b) ? b : []);
-
+        setConductores(c);
+        setPatentes(p);
         const cm = new Map<string, any>();
-        (Array.isArray(c) ? c : []).forEach((x: any) => cm.set(x.id, x));
+        c.forEach((x: any) => cm.set(x.id, x));
         setConductoresMap(cm);
-
         const pm = new Map<string, any>();
-        (Array.isArray(p) ? p : []).forEach((x: any) => pm.set(x.id, x));
+        p.forEach((x: any) => pm.set(x.id, x));
         setPatentesMap(pm);
       } catch (e) {
-        console.error('Error cargando datos SD08:', e);
-        mostrarMensaje('error', 'Error al cargar datos');
-      } finally {
-        setCargando(false);
+        console.error('Error cargando catálogos:', e);
       }
     };
-    cargarTodo();
+    cargarCatalogos();
   }, []);
 
   const getConductorNombre = useCallback((doc: any) => {
@@ -253,120 +264,318 @@ const SD08Consultor: React.FC = () => {
     return p?.numero_patente || '';
   }, [patentesMap]);
 
-  // =====================================================
-  // LÓGICA DE FILTRADO EN CASCADA (no circular)
-  // =====================================================
-
-  // PASO 1: Transportes que cumplen solo filtros propios del transporte
-  const transportesBase = useMemo(() => {
-    const f = filtrosAplicados;
-    return transportes.filter((doc) => {
-      if (f.fechaDesde && (doc.fecha_programacion || '').slice(0, 10) < f.fechaDesde) return false;
-      if (f.fechaHasta && (doc.fecha_programacion || '').slice(0, 10) > f.fechaHasta) return false;
-      if (f.numeroTransporte && !contieneTexto(doc.id_documento, f.numeroTransporte)) return false;
-      if (f.conductor && !contieneTexto(getConductorNombre(doc), f.conductor)) return false;
-      if (f.patente) {
-        const pat = `${getPatente(doc)} ${getPatente(doc, true)}`;
-        if (!contieneTexto(pat, f.patente)) return false;
+  // ===============================
+  // CONSULTA BAJO DEMANDA
+  // ===============================
+  const consultar = async () => {
+    const f = filtrosForm;
+    setConsultando(true);
+    setHaConsultado(true);
+    try {
+      // === 1) Filtros previos: resolver conductor y patente a IDs ===
+      let conductorIdsFiltro: string[] | null = null;
+      if (f.conductor.trim()) {
+        const q = normalizar(f.conductor);
+        conductorIdsFiltro = conductores
+          .filter((c) => normalizar(`${c.nombre} ${c.apellido}`).includes(q))
+          .map((c) => c.id);
+        if (conductorIdsFiltro.length === 0) {
+          // No hay conductores que coincidan → no habrá resultados
+          setTransportes([]); setLocales([]); setBultos([]);
+          setFiltrosAplicados({ ...f });
+          setConsultando(false);
+          mostrarMensaje('info', 'No hay conductores que coincidan con la búsqueda');
+          return;
+        }
       }
-      if (f.estado && f.estado !== 'Todos' && doc.estado !== f.estado) return false;
+
+      let patenteIdsFiltro: string[] | null = null;
+      if (f.patente.trim()) {
+        const q = normalizar(f.patente);
+        patenteIdsFiltro = patentes
+          .filter((p) => normalizar(p.numero_patente).includes(q))
+          .map((p) => p.id);
+        if (patenteIdsFiltro.length === 0) {
+          setTransportes([]); setLocales([]); setBultos([]);
+          setFiltrosAplicados({ ...f });
+          setConsultando(false);
+          mostrarMensaje('info', 'No hay patentes que coincidan con la búsqueda');
+          return;
+        }
+      }
+
+      // === 2) Consultar sd01_documentos con filtros de documento ===
+      const paramsDoc = new URLSearchParams();
+      paramsDoc.set('select', '*');
+      if (f.fechaDesde) paramsDoc.append('fecha_programacion', `gte.${f.fechaDesde}T00:00:00`);
+      if (f.fechaHasta) paramsDoc.append('fecha_programacion', `lte.${f.fechaHasta}T23:59:59`);
+      if (f.numeroTransporte) paramsDoc.append('id_documento', `ilike.*${f.numeroTransporte}*`);
+      if (f.estado && f.estado !== 'Todos') paramsDoc.append('estado', `eq.${f.estado}`);
       if (f.sello) {
-        const sellos = `${doc.sello_lateral || ''} ${doc.sello_adicional || ''}`;
-        if (!contieneTexto(sellos, f.sello)) return false;
+        paramsDoc.append('or', `(sello_lateral.ilike.*${f.sello}*,sello_adicional.ilike.*${f.sello}*)`);
       }
-      return true;
-    });
-  }, [transportes, filtrosAplicados, getConductorNombre, getPatente]);
-
-  const docIdsBase = useMemo(
-    () => new Set(transportesBase.map((d) => d.id_documento)),
-    [transportesBase]
-  );
-
-  // PASO 2: Locales que pertenecen a esos transportes
-  const localesDeTransportesBase = useMemo(
-    () => locales.filter((l) => docIdsBase.has(l.documento_id)),
-    [locales, docIdsBase]
-  );
-
-  // PASO 3: Filtro de codigoLocal sobre esos locales
-  const localesFiltradosPorCodigo = useMemo(() => {
-    if (!filtrosAplicados.codigoLocal) return localesDeTransportesBase;
-    return localesDeTransportesBase.filter((l) =>
-      contieneTexto(l.codigo_local, filtrosAplicados.codigoLocal)
-    );
-  }, [localesDeTransportesBase, filtrosAplicados.codigoLocal]);
-
-  // PASO 4: Bultos que pertenecen a esos locales
-  const localIdsFiltrados = useMemo(
-    () => new Set(localesFiltradosPorCodigo.map((l) => l.id)),
-    [localesFiltradosPorCodigo]
-  );
-
-  const bultosBase = useMemo(
-    () => bultos.filter((b) => localIdsFiltrados.has(b.local_id)),
-    [bultos, localIdsFiltrados]
-  );
-
-  // PASO 5: ¿Hay filtros propios de bulto?
-  const hayFiltrosBulto = useMemo(() => {
-    const f = filtrosAplicados;
-    return (
-      f.origenes.length > 0 ||
-      f.tiposDoc.length > 0 ||
-      !!f.numeroDocumento ||
-      !!f.bultosMin ||
-      !!f.bultosMax
-    );
-  }, [filtrosAplicados]);
-
-  // PASO 6: Filtrar bultos por filtros propios de bulto
-  const bultosFinales = useMemo(() => {
-    const f = filtrosAplicados;
-    return bultosBase.filter((b) => {
-      if (f.origenes.length > 0 && !f.origenes.includes(b.origen_carga)) return false;
-      if (f.tiposDoc.length > 0) {
-        const td = b.tipo_documento || 'No aplica';
-        if (!f.tiposDoc.includes(td)) return false;
+      if (conductorIdsFiltro) {
+        paramsDoc.append('conductor_id', `in.(${conductorIdsFiltro.join(',')})`);
       }
-      if (f.numeroDocumento && !contieneTexto(b.numero_documento, f.numeroDocumento)) return false;
-      if (f.bultosMin && Number(b.cantidad) < Number(f.bultosMin)) return false;
-      if (f.bultosMax && Number(b.cantidad) > Number(f.bultosMax)) return false;
-      return true;
-    });
-  }, [bultosBase, filtrosAplicados]);
+      if (patenteIdsFiltro) {
+        paramsDoc.append('or', `(patente_principal_id.in.(${patenteIdsFiltro.join(',')}),patente_adicional_id.in.(${patenteIdsFiltro.join(',')}))`);
+      }
 
-  // PASO 7: Si hay filtros de bulto, locales finales = solo los que tienen al menos un bulto que cumple
-  const localIdsConBultoFinal = useMemo(
-    () => new Set(bultosFinales.map((b) => b.local_id)),
-    [bultosFinales]
-  );
+      const docs = await fetchAllPaginado(`${API_URL}/sd01_documentos?${paramsDoc.toString()}`);
 
-  const localesFinales = useMemo(() => {
-    if (!hayFiltrosBulto) return localesFiltradosPorCodigo;
-    return localesFiltradosPorCodigo.filter((l) => localIdsConBultoFinal.has(l.id));
-  }, [localesFiltradosPorCodigo, hayFiltrosBulto, localIdsConBultoFinal]);
+      if (docs.length === 0) {
+        setTransportes([]); setLocales([]); setBultos([]);
+        setFiltrosAplicados({ ...f });
+        setConsultando(false);
+        mostrarMensaje('info', 'No se encontraron transportes con esos filtros');
+        return;
+      }
 
-  // PASO 8: Transportes finales = solo los que tienen al menos un local final
-  const docIdsConLocalFinal = useMemo(
-    () => new Set(localesFinales.map((l) => l.documento_id)),
-    [localesFinales]
-  );
+      const docIds = docs.map((d) => d.id_documento);
 
-  const transportesFinales = useMemo(
-    () => transportesBase.filter((d) => docIdsConLocalFinal.has(d.id_documento)),
-    [transportesBase, docIdsConLocalFinal]
-  );
+      // === 3) Consultar sd01_documento_locales con filtro de local ===
+      const paramsLoc = new URLSearchParams();
+      paramsLoc.set('select', '*');
+      const localesChunks: any[] = [];
+      for (const chunk of chunkArray(docIds, 80)) {
+        const p = new URLSearchParams(paramsLoc.toString());
+        p.append('documento_id', `in.(${chunk.join(',')})`);
+        if (f.codigoLocal) p.append('codigo_local', `ilike.*${f.codigoLocal}*`);
+        const l = await fetchAllPaginado(`${API_URL}/sd01_documento_locales?${p.toString()}`);
+        localesChunks.push(...l);
+      }
+      const locs = localesChunks;
 
-  // =====================================================
-  // CONSTRUCCIÓN DE FILAS
-  // =====================================================
+      // === 4) Consultar sd01_bultos con filtros de bulto ===
+      let bults: any[] = [];
+      if (locs.length > 0) {
+        const locIds = locs.map((l) => l.id);
+        const tieneFiltrosBulto =
+          f.origenes.length > 0 ||
+          f.tiposDoc.length > 0 ||
+          !!f.numeroDocumento ||
+          !!f.bultosMin ||
+          !!f.bultosMax;
+
+        for (const chunk of chunkArray(locIds, 80)) {
+          const p = new URLSearchParams();
+          p.set('select', '*');
+          p.append('local_id', `in.(${chunk.join(',')})`);
+          if (f.origenes.length > 0) p.append('origen_carga', `in.(${f.origenes.map((o) => `"${o}"`).join(',')})`);
+          if (f.tiposDoc.length > 0) {
+            const tiposConValor = f.tiposDoc.filter((t) => t !== 'No aplica');
+            const incluyeNA = f.tiposDoc.includes('No aplica');
+            const orParts: string[] = [];
+            if (tiposConValor.length > 0) orParts.push(`tipo_documento.in.(${tiposConValor.join(',')})`);
+            if (incluyeNA) {
+              orParts.push(`tipo_documento.is.null`);
+              orParts.push(`tipo_documento.eq.`);
+            }
+            p.append('or', `(${orParts.join(',')})`);
+          }
+          if (f.numeroDocumento) p.append('numero_documento', `ilike.*${f.numeroDocumento}*`);
+          if (f.bultosMin) p.append('cantidad', `gte.${f.bultosMin}`);
+          if (f.bultosMax) p.append('cantidad', `lte.${f.bultosMax}`);
+
+          const b = await fetchAllPaginado(`${API_URL}/sd01_bultos?${p.toString()}`);
+          bults.push(...b);
+        }
+
+        // Si hay filtros de bulto, quedarnos solo con los locales y documentos que tienen al menos un bulto que cumple
+        if (tieneFiltrosBulto) {
+          const locIdsConBulto = new Set(bults.map((b) => b.local_id));
+          const locsFiltrados = locs.filter((l) => locIdsConBulto.has(l.id));
+          const docIdsConLocal = new Set(locsFiltrados.map((l) => l.documento_id));
+          const docsFiltrados = docs.filter((d) => docIdsConLocal.has(d.id_documento));
+
+          setTransportes(docsFiltrados);
+          setLocales(locsFiltrados);
+          setBultos(bults);
+        } else {
+          setTransportes(docs);
+          setLocales(locs);
+          setBultos(bults);
+        }
+      } else {
+        // No hay locales, no hay bultos
+        setTransportes(docs);
+        setLocales([]);
+        setBultos([]);
+      }
+
+      setFiltrosAplicados({ ...f });
+      setPagina(1);
+    } catch (e) {
+      console.error('Error en consulta SD08:', e);
+      mostrarMensaje('error', 'Error al consultar: ' + (e as Error).message);
+    } finally {
+      setConsultando(false);
+    }
+  };
+
+  const limpiarFiltros = () => {
+    setFiltrosForm(filtrosIniciales);
+    setFiltrosAplicados(filtrosIniciales);
+    setTransportes([]);
+    setLocales([]);
+    setBultos([]);
+    setHaConsultado(false);
+    setPagina(1);
+  };
+
+  const quitarFiltro = (campo: keyof Filtros, valor?: string) => {
+    const nuevo = { ...filtrosAplicados };
+    if (campo === 'origenes' && valor) nuevo.origenes = nuevo.origenes.filter((o) => o !== valor);
+    else if (campo === 'tiposDoc' && valor) nuevo.tiposDoc = nuevo.tiposDoc.filter((t) => t !== valor);
+    else if (campo === 'fechaDesde' || campo === 'fechaHasta') { nuevo.fechaDesde = ''; nuevo.fechaHasta = ''; }
+    else if (campo === 'bultosMin' || campo === 'bultosMax') { nuevo.bultosMin = ''; nuevo.bultosMax = ''; }
+    else if (campo === 'estado') nuevo.estado = 'Todos';
+    else (nuevo as any)[campo] = '';
+
+    setFiltrosForm(nuevo);
+    // Volver a consultar con los filtros actualizados (solo si ya se había consultado)
+    if (haConsultado) {
+      setFiltrosForm(nuevo);
+      setTimeout(() => { consultarCon(nuevo); }, 0);
+    } else {
+      setFiltrosAplicados(nuevo);
+    }
+  };
+
+  // Variante de consultar que recibe filtros explícitos
+  const consultarCon = async (f: Filtros) => {
+    // Reemplaza filtrosForm momentáneamente, consulta, y restaura
+    const prev = filtrosForm;
+    setFiltrosForm(f);
+    // Usamos un requestAnimationFrame para que el estado se aplique, luego llamamos consultar con f
+    // Como consultar lee filtrosForm, hacemos una copia local y ejecutamos la lógica directamente.
+    // Para simplificar, replicamos la lógica llamando a un método que recibe f.
+    await ejecutarConsulta(f);
+    setFiltrosForm(f); // nos aseguramos que quede sincronizado
+    void prev;
+  };
+
+  // Extraemos el cuerpo del consultar en una función que recibe los filtros
+  const ejecutarConsulta = async (f: Filtros) => {
+    setConsultando(true);
+    setHaConsultado(true);
+    try {
+      let conductorIdsFiltro: string[] | null = null;
+      if (f.conductor.trim()) {
+        const q = normalizar(f.conductor);
+        conductorIdsFiltro = conductores.filter((c) => normalizar(`${c.nombre} ${c.apellido}`).includes(q)).map((c) => c.id);
+        if (conductorIdsFiltro.length === 0) {
+          setTransportes([]); setLocales([]); setBultos([]);
+          setFiltrosAplicados({ ...f });
+          setConsultando(false);
+          return;
+        }
+      }
+      let patenteIdsFiltro: string[] | null = null;
+      if (f.patente.trim()) {
+        const q = normalizar(f.patente);
+        patenteIdsFiltro = patentes.filter((p) => normalizar(p.numero_patente).includes(q)).map((p) => p.id);
+        if (patenteIdsFiltro.length === 0) {
+          setTransportes([]); setLocales([]); setBultos([]);
+          setFiltrosAplicados({ ...f });
+          setConsultando(false);
+          return;
+        }
+      }
+
+      const paramsDoc = new URLSearchParams();
+      paramsDoc.set('select', '*');
+      if (f.fechaDesde) paramsDoc.append('fecha_programacion', `gte.${f.fechaDesde}T00:00:00`);
+      if (f.fechaHasta) paramsDoc.append('fecha_programacion', `lte.${f.fechaHasta}T23:59:59`);
+      if (f.numeroTransporte) paramsDoc.append('id_documento', `ilike.*${f.numeroTransporte}*`);
+      if (f.estado && f.estado !== 'Todos') paramsDoc.append('estado', `eq.${f.estado}`);
+      if (f.sello) paramsDoc.append('or', `(sello_lateral.ilike.*${f.sello}*,sello_adicional.ilike.*${f.sello}*)`);
+      if (conductorIdsFiltro) paramsDoc.append('conductor_id', `in.(${conductorIdsFiltro.join(',')})`);
+      if (patenteIdsFiltro) paramsDoc.append('or', `(patente_principal_id.in.(${patenteIdsFiltro.join(',')}),patente_adicional_id.in.(${patenteIdsFiltro.join(',')}))`);
+
+      const docs = await fetchAllPaginado(`${API_URL}/sd01_documentos?${paramsDoc.toString()}`);
+      if (docs.length === 0) {
+        setTransportes([]); setLocales([]); setBultos([]);
+        setFiltrosAplicados({ ...f });
+        setConsultando(false);
+        return;
+      }
+      const docIds = docs.map((d) => d.id_documento);
+
+      const localesChunks: any[] = [];
+      for (const chunk of chunkArray(docIds, 80)) {
+        const p = new URLSearchParams();
+        p.set('select', '*');
+        p.append('documento_id', `in.(${chunk.join(',')})`);
+        if (f.codigoLocal) p.append('codigo_local', `ilike.*${f.codigoLocal}*`);
+        const l = await fetchAllPaginado(`${API_URL}/sd01_documento_locales?${p.toString()}`);
+        localesChunks.push(...l);
+      }
+      const locs = localesChunks;
+
+      let bults: any[] = [];
+      if (locs.length > 0) {
+        const locIds = locs.map((l) => l.id);
+        const tieneFiltrosBulto = f.origenes.length > 0 || f.tiposDoc.length > 0 || !!f.numeroDocumento || !!f.bultosMin || !!f.bultosMax;
+
+        for (const chunk of chunkArray(locIds, 80)) {
+          const p = new URLSearchParams();
+          p.set('select', '*');
+          p.append('local_id', `in.(${chunk.join(',')})`);
+          if (f.origenes.length > 0) p.append('origen_carga', `in.(${f.origenes.map((o) => `"${o}"`).join(',')})`);
+          if (f.tiposDoc.length > 0) {
+            const tiposConValor = f.tiposDoc.filter((t) => t !== 'No aplica');
+            const incluyeNA = f.tiposDoc.includes('No aplica');
+            const orParts: string[] = [];
+            if (tiposConValor.length > 0) orParts.push(`tipo_documento.in.(${tiposConValor.join(',')})`);
+            if (incluyeNA) { orParts.push(`tipo_documento.is.null`); orParts.push(`tipo_documento.eq.`); }
+            p.append('or', `(${orParts.join(',')})`);
+          }
+          if (f.numeroDocumento) p.append('numero_documento', `ilike.*${f.numeroDocumento}*`);
+          if (f.bultosMin) p.append('cantidad', `gte.${f.bultosMin}`);
+          if (f.bultosMax) p.append('cantidad', `lte.${f.bultosMax}`);
+          const b = await fetchAllPaginado(`${API_URL}/sd01_bultos?${p.toString()}`);
+          bults.push(...b);
+        }
+
+        if (tieneFiltrosBulto) {
+          const locIdsConBulto = new Set(bults.map((b) => b.local_id));
+          const locsFiltrados = locs.filter((l) => locIdsConBulto.has(l.id));
+          const docIdsConLocal = new Set(locsFiltrados.map((l) => l.documento_id));
+          const docsFiltrados = docs.filter((d) => docIdsConLocal.has(d.id_documento));
+          setTransportes(docsFiltrados);
+          setLocales(locsFiltrados);
+          setBultos(bults);
+        } else {
+          setTransportes(docs);
+          setLocales(locs);
+          setBultos(bults);
+        }
+      } else {
+        setTransportes(docs);
+        setLocales([]);
+        setBultos([]);
+      }
+
+      setFiltrosAplicados({ ...f });
+      setPagina(1);
+    } catch (e) {
+      console.error('Error en consulta SD08:', e);
+      mostrarMensaje('error', 'Error al consultar: ' + (e as Error).message);
+    } finally {
+      setConsultando(false);
+    }
+  };
+
+  // ===============================
+  // CONSTRUCCIÓN DE FILAS (solo ordenar/paginar; los datos ya vienen filtrados)
+  // ===============================
 
   const filasTransportes = useMemo(() => {
-    return transportesFinales.map((doc) => {
-      const localesDelDoc = localesFinales.filter((l) => l.documento_id === doc.id_documento);
+    return transportes.map((doc) => {
+      const localesDelDoc = locales.filter((l) => l.documento_id === doc.id_documento);
       const locIds = new Set(localesDelDoc.map((l) => l.id));
-      const bultosDelDoc = bultosFinales.filter((b) => locIds.has(b.local_id));
+      const bultosDelDoc = bultos.filter((b) => locIds.has(b.local_id));
       const totalBultos = bultosDelDoc.reduce((s, b) => s + (b.cantidad || 0), 0);
       return {
         ...doc,
@@ -381,20 +590,19 @@ const SD08Consultor: React.FC = () => {
         _fechaHora: formatFechaHora(doc.creado_en)
       };
     });
-  }, [transportesFinales, localesFinales, bultosFinales, getConductorNombre, getConductorRut, getPatente]);
+  }, [transportes, locales, bultos, getConductorNombre, getConductorRut, getPatente]);
 
   const filasLocales = useMemo(() => {
-    const docMap = new Map(transportesFinales.map((d) => [d.id_documento, d]));
-    return localesFinales
+    const docMap = new Map(transportes.map((d) => [d.id_documento, d]));
+    return locales
       .filter((loc) => docMap.has(loc.documento_id))
       .map((loc) => {
         const doc = docMap.get(loc.documento_id);
-        const bultosDelLocal = bultosFinales.filter((b) => b.local_id === loc.id);
+        const bultosDelLocal = bultos.filter((b) => b.local_id === loc.id);
         const totalBultos = bultosDelLocal.reduce((s, b) => s + (b.cantidad || 0), 0);
         return {
           ...loc,
           _id: loc.id,
-          _doc: doc,
           _id_documento: loc.documento_id,
           _fecha_programacion: doc ? formatFecha(doc.fecha_programacion) : '-',
           _conductor: doc ? getConductorNombre(doc) : '-',
@@ -403,12 +611,12 @@ const SD08Consultor: React.FC = () => {
           _fecha_entrega_fmt: formatFecha(loc.fecha_entrega)
         };
       });
-  }, [localesFinales, transportesFinales, bultosFinales, getConductorNombre, getPatente]);
+  }, [locales, transportes, bultos, getConductorNombre, getPatente]);
 
   const filasBultos = useMemo(() => {
     const localMap = new Map(locales.map((l) => [l.id, l]));
     const docMap = new Map(transportes.map((d) => [d.id_documento, d]));
-    return bultosFinales.map((b) => {
+    return bultos.map((b) => {
       const local = localMap.get(b.local_id);
       const doc = local ? docMap.get(local.documento_id) : null;
       return {
@@ -419,9 +627,8 @@ const SD08Consultor: React.FC = () => {
         _fecha_programacion: doc ? formatFecha(doc.fecha_programacion) : '-'
       };
     });
-  }, [bultosFinales, locales, transportes]);
+  }, [bultos, locales, transportes]);
 
-  // Ordenamiento
   const ordenarFilas = useCallback((filas: any[], columna: string, direccion: 'asc' | 'desc') => {
     const copia = [...filas];
     copia.sort((a, b) => {
@@ -457,46 +664,10 @@ const SD08Consultor: React.FC = () => {
 
   const indicador = (col: string) => ordenColumna === col ? (ordenDireccion === 'asc' ? ' ▲' : ' ▼') : '';
 
-  // ============= ACCIONES =============
-  const consultar = () => {
-    setFiltrosAplicados({ ...filtrosForm });
-    setPagina(1);
-  };
-
-  const limpiarFiltros = () => {
-    setFiltrosForm(filtrosIniciales);
-    setFiltrosAplicados(filtrosIniciales);
-    setPagina(1);
-  };
-
-  const quitarFiltro = (campo: keyof Filtros, valor?: string) => {
-    setFiltrosAplicados((prev) => {
-      const nuevo = { ...prev };
-      if (campo === 'origenes' && valor) nuevo.origenes = prev.origenes.filter((o) => o !== valor);
-      else if (campo === 'tiposDoc' && valor) nuevo.tiposDoc = prev.tiposDoc.filter((t) => t !== valor);
-      else if (campo === 'fechaDesde' || campo === 'fechaHasta') {
-        nuevo.fechaDesde = '';
-        nuevo.fechaHasta = '';
-      } else if (campo === 'bultosMin' || campo === 'bultosMax') {
-        nuevo.bultosMin = '';
-        nuevo.bultosMax = '';
-      } else if (campo === 'estado') {
-        nuevo.estado = 'Todos';
-      } else {
-        (nuevo as any)[campo] = '';
-      }
-      setFiltrosForm((f) => ({ ...f, ...nuevo }));
-      return nuevo;
-    });
-  };
-
   const filtrosActivos = useMemo(() => {
     const f = filtrosAplicados;
     const chips: { label: string; quitar: () => void }[] = [];
-    if (f.fechaDesde || f.fechaHasta) chips.push({
-      label: `📅 ${f.fechaDesde || '...'} → ${f.fechaHasta || '...'}`,
-      quitar: () => quitarFiltro('fechaDesde')
-    });
+    if (f.fechaDesde || f.fechaHasta) chips.push({ label: `📅 ${f.fechaDesde || '...'} → ${f.fechaHasta || '...'}`, quitar: () => quitarFiltro('fechaDesde') });
     if (f.numeroTransporte) chips.push({ label: `🚚 ${f.numeroTransporte}`, quitar: () => quitarFiltro('numeroTransporte') });
     if (f.conductor) chips.push({ label: `👤 ${f.conductor}`, quitar: () => quitarFiltro('conductor') });
     if (f.patente) chips.push({ label: `🚛 ${f.patente}`, quitar: () => quitarFiltro('patente') });
@@ -506,14 +677,10 @@ const SD08Consultor: React.FC = () => {
     if (f.estado && f.estado !== 'Todos') chips.push({ label: `⚙️ ${f.estado}`, quitar: () => quitarFiltro('estado') });
     f.origenes.forEach((o) => chips.push({ label: `📦 ${o}`, quitar: () => quitarFiltro('origenes', o) }));
     f.tiposDoc.forEach((t) => chips.push({ label: `📑 ${t}`, quitar: () => quitarFiltro('tiposDoc', t) }));
-    if (f.bultosMin || f.bultosMax) chips.push({
-      label: `🔢 ${f.bultosMin || '0'} - ${f.bultosMax || '∞'}`,
-      quitar: () => quitarFiltro('bultosMin')
-    });
+    if (f.bultosMin || f.bultosMax) chips.push({ label: `🔢 ${f.bultosMin || '0'} - ${f.bultosMax || '∞'}`, quitar: () => quitarFiltro('bultosMin') });
     return chips;
   }, [filtrosAplicados]);
 
-  // ============= EXPORTAR =============
   const exportarExcel = () => {
     if (filasActuales.length === 0) {
       mostrarMensaje('warning', 'No hay datos para exportar');
@@ -521,28 +688,15 @@ const SD08Consultor: React.FC = () => {
     }
     let headers: string[] = [];
     let rows: any[][] = [];
-
     if (vista === 'transportes') {
       headers = ['N° Transporte', 'Fecha Prog.', 'Conductor', 'RUT', 'Patente', 'Patente Adicional', 'Locales', 'Bultos', 'Estado', 'Creado Por', 'Creado En'];
-      rows = filasActuales.map((t: any) => [
-        t.id_documento, t._fechaFormato, t._conductor, t._rut,
-        t._patente, t._patenteAdicional, t._localesCount, t._bultosCount,
-        t.estado, t.creado_por || '-', t._fechaHora
-      ]);
+      rows = filasActuales.map((t: any) => [t.id_documento, t._fechaFormato, t._conductor, t._rut, t._patente, t._patenteAdicional, t._localesCount, t._bultosCount, t.estado, t.creado_por || '-', t._fechaHora]);
     } else if (vista === 'locales') {
       headers = ['N° Transporte', 'Fecha Prog.', 'Código Local', 'Nombre Local', 'Fecha Entrega', 'Hora Entrega', 'Conductor', 'Patente', 'Sello Trasero', 'Cant. Pallet', 'Bultos'];
-      rows = filasActuales.map((l: any) => [
-        l._id_documento, l._fecha_programacion, l.codigo_local, l.nombre_local,
-        l._fecha_entrega_fmt, l.hora_entrega || '-', l._conductor, l._patente,
-        l.sello_trasero || '-', l.cantidad_pallet || 0, l._bultosCount
-      ]);
+      rows = filasActuales.map((l: any) => [l._id_documento, l._fecha_programacion, l.codigo_local, l.nombre_local, l._fecha_entrega_fmt, l.hora_entrega || '-', l._conductor, l._patente, l.sello_trasero || '-', l.cantidad_pallet || 0, l._bultosCount]);
     } else {
       headers = ['N° Transporte', 'Fecha Prog.', 'Código Local', 'Origen', 'Tipo Doc', 'N° Documento', 'Cantidad', 'Observación'];
-      rows = filasActuales.map((b: any) => [
-        b._id_documento, b._fecha_programacion, b._codigo_local,
-        b.origen_carga, b.tipo_documento || '-', b.numero_documento || '-',
-        b.cantidad, b.observacion || '-'
-      ]);
+      rows = filasActuales.map((b: any) => [b._id_documento, b._fecha_programacion, b._codigo_local, b.origen_carga, b.tipo_documento || '-', b.numero_documento || '-', b.cantidad, b.observacion || '-']);
     }
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
@@ -551,12 +705,8 @@ const SD08Consultor: React.FC = () => {
     mostrarMensaje('success', 'Excel exportado');
   };
 
-  // ============= GUARDAR / CARGAR =============
   const guardarConsulta = () => {
-    if (!nombreConsulta.trim()) {
-      mostrarMensaje('warning', 'Ingresa un nombre');
-      return;
-    }
+    if (!nombreConsulta.trim()) { mostrarMensaje('warning', 'Ingresa un nombre'); return; }
     const nuevas = [...savedQueries.filter((q) => q.nombre !== nombreConsulta), { nombre: nombreConsulta, filtros: filtrosAplicados }];
     setSavedQueries(nuevas);
     localStorage.setItem('sd08_saved_queries', JSON.stringify(nuevas));
@@ -567,9 +717,8 @@ const SD08Consultor: React.FC = () => {
 
   const cargarConsulta = (q: SavedQuery) => {
     setFiltrosForm(q.filtros);
-    setFiltrosAplicados(q.filtros);
     setShowLoadModal(false);
-    setPagina(1);
+    ejecutarConsulta(q.filtros);
     mostrarMensaje('info', `Consulta "${q.nombre}" cargada`);
   };
 
@@ -579,7 +728,7 @@ const SD08Consultor: React.FC = () => {
     localStorage.setItem('sd08_saved_queries', JSON.stringify(nuevas));
   };
 
-  // ============= COLUMNAS =============
+  // Columnas
   const columnasDisponiblesTransportes = [
     { id: 'id_documento', label: 'N° Transporte' },
     { id: 'fecha_programacion', label: 'Fecha Programación' },
@@ -629,9 +778,7 @@ const SD08Consultor: React.FC = () => {
   const setColumnasActuales: any = vista === 'transportes' ? setColumnasTransportes : vista === 'locales' ? setColumnasLocales : setColumnasBultos;
 
   const toggleColumna = (col: string) => {
-    setColumnasActuales((prev: string[]) =>
-      prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col]
-    );
+    setColumnasActuales((prev: string[]) => prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col]);
   };
 
   return (
@@ -643,14 +790,16 @@ const SD08Consultor: React.FC = () => {
       <div className="sd08-header">
         <h1>SD08 – Consultor de Transportes</h1>
         <p>
-          Consulta avanzada · {transportes.length} transportes · {locales.length} locales · {bultos.length} bultos cargados
-          {filtrosActivos.length > 0 && <> · <strong>{filtrosActivos.length} filtros aplicados</strong></>}
+          Consulta bajo demanda · {conductores.length} conductores · {patentes.length} patentes cargadas
+          {haConsultado && <> · Últimos resultados: {transportes.length} transportes · {locales.length} locales · {bultos.length} bultos</>}
         </p>
       </div>
 
       <div className="sd08-toolbar">
-        <button className="sd08-btn sd08-btn-primary" onClick={consultar}>🔍 Consultar</button>
-        <button className="sd08-btn" onClick={limpiarFiltros}>🧹 Limpiar</button>
+        <button className="sd08-btn sd08-btn-primary" onClick={() => ejecutarConsulta(filtrosForm)} disabled={consultando}>
+          {consultando ? '⏳ Consultando...' : '🔍 Consultar'}
+        </button>
+        <button className="sd08-btn" onClick={limpiarFiltros} disabled={consultando}>🧹 Limpiar</button>
         <button className="sd08-btn" onClick={() => setMostrarFiltros(!mostrarFiltros)}>
           {mostrarFiltros ? '👁️ Ocultar filtros' : '👁️ Mostrar filtros'}
         </button>
@@ -660,7 +809,7 @@ const SD08Consultor: React.FC = () => {
           📁 Cargar consulta {savedQueries.length > 0 && `(${savedQueries.length})`}
         </button>
         <div className="sd08-separator"></div>
-        <button className="sd08-btn sd08-btn-success" style={{ marginLeft: 'auto' }} onClick={exportarExcel}>
+        <button className="sd08-btn sd08-btn-success" style={{ marginLeft: 'auto' }} onClick={exportarExcel} disabled={filasActuales.length === 0}>
           📊 Exportar Excel
         </button>
         <button className="sd08-btn" onClick={() => setMostrarColumnas(!mostrarColumnas)}>⚙️ Columnas</button>
@@ -670,11 +819,7 @@ const SD08Consultor: React.FC = () => {
             <h4>Mostrar columnas</h4>
             {columnasDisponibles.map((c) => (
               <label key={c.id}>
-                <input
-                  type="checkbox"
-                  checked={columnasActuales.includes(c.id)}
-                  onChange={() => toggleColumna(c.id)}
-                />
+                <input type="checkbox" checked={columnasActuales.includes(c.id)} onChange={() => toggleColumna(c.id)} />
                 {c.label}
               </label>
             ))}
@@ -732,21 +877,11 @@ const SD08Consultor: React.FC = () => {
           </div>
           <div className="sd08-filter-group">
             <label>Origen de Carga</label>
-            <MultiSelectDropdown
-              options={ORIGENES_DISPONIBLES}
-              value={filtrosForm.origenes}
-              onChange={(v) => setFiltrosForm({ ...filtrosForm, origenes: v })}
-              placeholder="Seleccionar orígenes..."
-            />
+            <MultiSelectDropdown options={ORIGENES_DISPONIBLES} value={filtrosForm.origenes} onChange={(v) => setFiltrosForm({ ...filtrosForm, origenes: v })} placeholder="Seleccionar orígenes..." />
           </div>
           <div className="sd08-filter-group">
             <label>Tipo de Documento</label>
-            <MultiSelectDropdown
-              options={TIPOS_DOC_DISPONIBLES}
-              value={filtrosForm.tiposDoc}
-              onChange={(v) => setFiltrosForm({ ...filtrosForm, tiposDoc: v })}
-              placeholder="Seleccionar tipos..."
-            />
+            <MultiSelectDropdown options={TIPOS_DOC_DISPONIBLES} value={filtrosForm.tiposDoc} onChange={(v) => setFiltrosForm({ ...filtrosForm, tiposDoc: v })} placeholder="Seleccionar tipos..." />
           </div>
           <div className="sd08-filter-group">
             <label>Rango bultos solicitados</label>
@@ -759,7 +894,9 @@ const SD08Consultor: React.FC = () => {
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button className="sd08-btn" onClick={() => setFiltrosForm(filtrosIniciales)}>Resetear formulario</button>
-          <button className="sd08-btn sd08-btn-primary" onClick={consultar}>🔍 Aplicar filtros</button>
+          <button className="sd08-btn sd08-btn-primary" onClick={() => ejecutarConsulta(filtrosForm)} disabled={consultando}>
+            {consultando ? '⏳ Consultando...' : '🔍 Aplicar filtros'}
+          </button>
         </div>
 
         {filtrosActivos.length > 0 && (
@@ -790,112 +927,125 @@ const SD08Consultor: React.FC = () => {
       </div>
 
       <div className="sd08-results-wrapper">
-        <div className="sd08-results-info">
-          <span>Mostrando <strong>{filasPaginadas.length}</strong> de <strong>{filasActuales.length}</strong> registros</span>
-          {vista === 'transportes' && <span className="chip">Total bultos: {formatNumber(filasTransportes.reduce((s, t) => s + t._bultosCount, 0))}</span>}
-          {vista === 'locales' && <span className="chip">Total bultos: {formatNumber(filasLocales.reduce((s, l) => s + l._bultosCount, 0))}</span>}
-          {vista === 'bultos' && <span className="chip">Total cantidad: {formatNumber(filasBultos.reduce((s, b) => s + (b.cantidad || 0), 0))}</span>}
-        </div>
-
-        <div className="sd08-results-table-wrap">
-          {cargando ? (
-            <div className="sd08-loading">Cargando datos...</div>
-          ) : filasActuales.length === 0 ? (
-            <div className="sd08-empty">No hay resultados con los filtros aplicados.</div>
-          ) : (
-            <table className="sd08-results">
-              <thead>
-                <tr>
-                  {vista === 'transportes' && columnasTransportes.map((col) => {
-                    const cfg = columnasDisponiblesTransportes.find((c) => c.id === col);
-                    if (!cfg) return null;
-                    return <th key={col} onClick={() => cambiarOrden(col)}>{cfg.label}{indicador(col)}</th>;
-                  })}
-                  {vista === 'locales' && columnasLocales.map((col) => {
-                    const cfg = columnasDisponiblesLocales.find((c) => c.id === col);
-                    if (!cfg) return null;
-                    return <th key={col} onClick={() => cambiarOrden(col)}>{cfg.label}{indicador(col)}</th>;
-                  })}
-                  {vista === 'bultos' && columnasBultos.map((col) => {
-                    const cfg = columnasDisponiblesBultos.find((c) => c.id === col);
-                    if (!cfg) return null;
-                    return <th key={col} onClick={() => cambiarOrden(col)}>{cfg.label}{indicador(col)}</th>;
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {vista === 'transportes' && filasPaginadas.map((t: any) => (
-                  <tr key={t._id}>
-                    {columnasTransportes.includes('id_documento') && <td className="sd08-mono">{t.id_documento}</td>}
-                    {columnasTransportes.includes('fecha_programacion') && <td>{t._fechaFormato}</td>}
-                    {columnasTransportes.includes('conductor') && <td>{t._conductor}</td>}
-                    {columnasTransportes.includes('rut') && <td>{t._rut}</td>}
-                    {columnasTransportes.includes('patente') && <td>{t._patente}</td>}
-                    {columnasTransportes.includes('patenteAdicional') && <td>{t._patenteAdicional || '-'}</td>}
-                    {columnasTransportes.includes('locales') && <td className="sd08-num">{t._localesCount}</td>}
-                    {columnasTransportes.includes('bultos') && <td className="sd08-num">{formatNumber(t._bultosCount)}</td>}
-                    {columnasTransportes.includes('estado') && <td><span className={`sd08-badge sd08-badge-${(t.estado || '').toLowerCase().replace(' ', '')}`}>{t.estado}</span></td>}
-                    {columnasTransportes.includes('creado_por') && <td>{t.creado_por || '-'}</td>}
-                    {columnasTransportes.includes('creado_en') && <td>{t._fechaHora}</td>}
-                    {columnasTransportes.includes('modificado_por') && <td>{t.modificado_por || '-'}</td>}
-                    {columnasTransportes.includes('modificado_en') && <td>{t.modificado_en ? formatFechaHora(t.modificado_en) : '-'}</td>}
-                    {columnasTransportes.includes('fecha_inicio') && <td>{t.fecha_inicio ? formatFechaHora(t.fecha_inicio) : '-'}</td>}
-                    {columnasTransportes.includes('finalizado_en') && <td>{t.finalizado_en ? formatFechaHora(t.finalizado_en) : '-'}</td>}
-                    {columnasTransportes.includes('sello_lateral') && <td>{t.sello_lateral || '-'}</td>}
-                    {columnasTransportes.includes('sello_adicional') && <td>{t.sello_adicional || '-'}</td>}
-                  </tr>
-                ))}
-                {vista === 'locales' && filasPaginadas.map((l: any) => (
-                  <tr key={l._id}>
-                    {columnasLocales.includes('id_documento') && <td className="sd08-mono">{l._id_documento}</td>}
-                    {columnasLocales.includes('fecha_programacion') && <td>{l._fecha_programacion}</td>}
-                    {columnasLocales.includes('codigo_local') && <td className="sd08-mono">{l.codigo_local}</td>}
-                    {columnasLocales.includes('nombre_local') && <td>{l.nombre_local || '-'}</td>}
-                    {columnasLocales.includes('fecha_entrega') && <td>{l._fecha_entrega_fmt}</td>}
-                    {columnasLocales.includes('hora_entrega') && <td>{l.hora_entrega || '-'}</td>}
-                    {columnasLocales.includes('conductor') && <td>{l._conductor}</td>}
-                    {columnasLocales.includes('patente') && <td>{l._patente}</td>}
-                    {columnasLocales.includes('sello_trasero') && <td>{l.sello_trasero || '-'}</td>}
-                    {columnasLocales.includes('cantidad_pallet') && <td className="sd08-num">{l.cantidad_pallet || 0}</td>}
-                    {columnasLocales.includes('bultos') && <td className="sd08-num">{formatNumber(l._bultosCount)}</td>}
-                    {columnasLocales.includes('cantidad_solicitada') && <td className="sd08-num">{l.cantidad_solicitada || 0}</td>}
-                  </tr>
-                ))}
-                {vista === 'bultos' && filasPaginadas.map((b: any) => (
-                  <tr key={b._id}>
-                    {columnasBultos.includes('id_documento') && <td className="sd08-mono">{b._id_documento}</td>}
-                    {columnasBultos.includes('fecha_programacion') && <td>{b._fecha_programacion}</td>}
-                    {columnasBultos.includes('codigo_local') && <td className="sd08-mono">{b._codigo_local}</td>}
-                    {columnasBultos.includes('origen_carga') && <td>{b.origen_carga}</td>}
-                    {columnasBultos.includes('tipo_documento') && <td>{b.tipo_documento || '-'}</td>}
-                    {columnasBultos.includes('numero_documento') && <td>{b.numero_documento || '-'}</td>}
-                    {columnasBultos.includes('cantidad') && <td className="sd08-num">{formatNumber(b.cantidad)}</td>}
-                    {columnasBultos.includes('observacion') && <td>{b.observacion || '-'}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div className="sd08-pagination">
-          <span>
-            Registros por página:{' '}
-            <select value={paginaSize} onChange={(e) => setPaginaSize(Number(e.target.value))} style={{ padding: '2px 6px', border: '1px solid var(--border-input)', borderRadius: 4, fontSize: 12, background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-              <option value={200}>200</option>
-            </select>
-          </span>
-          <div className="pages">
-            <button disabled={paginaActual <= 1} onClick={() => setPagina(1)}>«</button>
-            <button disabled={paginaActual <= 1} onClick={() => setPagina(paginaActual - 1)}>‹ Anterior</button>
-            <span style={{ padding: '0 8px' }}>Página {paginaActual} de {totalPaginas}</span>
-            <button disabled={paginaActual >= totalPaginas} onClick={() => setPagina(paginaActual + 1)}>Siguiente ›</button>
-            <button disabled={paginaActual >= totalPaginas} onClick={() => setPagina(totalPaginas)}>»</button>
+        {!haConsultado ? (
+          <div className="sd08-empty" style={{ padding: '80px 20px' }}>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+              Presiona "Consultar" para cargar datos
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              Selecciona los filtros que necesites y haz clic en Consultar. Solo se traerán los datos que coincidan.
+            </p>
           </div>
-        </div>
+        ) : consultando ? (
+          <div className="sd08-loading">Consultando datos...</div>
+        ) : (
+          <>
+            <div className="sd08-results-info">
+              <span>Mostrando <strong>{filasPaginadas.length}</strong> de <strong>{filasActuales.length}</strong> registros</span>
+              {vista === 'transportes' && <span className="chip">Total bultos: {formatNumber(filasTransportes.reduce((s, t) => s + t._bultosCount, 0))}</span>}
+              {vista === 'locales' && <span className="chip">Total bultos: {formatNumber(filasLocales.reduce((s, l) => s + l._bultosCount, 0))}</span>}
+              {vista === 'bultos' && <span className="chip">Total cantidad: {formatNumber(filasBultos.reduce((s, b) => s + (b.cantidad || 0), 0))}</span>}
+            </div>
+
+            <div className="sd08-results-table-wrap">
+              {filasActuales.length === 0 ? (
+                <div className="sd08-empty">No hay resultados con los filtros aplicados.</div>
+              ) : (
+                <table className="sd08-results">
+                  <thead>
+                    <tr>
+                      {vista === 'transportes' && columnasTransportes.map((col) => {
+                        const cfg = columnasDisponiblesTransportes.find((c) => c.id === col);
+                        if (!cfg) return null;
+                        return <th key={col} onClick={() => cambiarOrden(col)}>{cfg.label}{indicador(col)}</th>;
+                      })}
+                      {vista === 'locales' && columnasLocales.map((col) => {
+                        const cfg = columnasDisponiblesLocales.find((c) => c.id === col);
+                        if (!cfg) return null;
+                        return <th key={col} onClick={() => cambiarOrden(col)}>{cfg.label}{indicador(col)}</th>;
+                      })}
+                      {vista === 'bultos' && columnasBultos.map((col) => {
+                        const cfg = columnasDisponiblesBultos.find((c) => c.id === col);
+                        if (!cfg) return null;
+                        return <th key={col} onClick={() => cambiarOrden(col)}>{cfg.label}{indicador(col)}</th>;
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vista === 'transportes' && filasPaginadas.map((t: any) => (
+                      <tr key={t._id}>
+                        {columnasTransportes.includes('id_documento') && <td className="sd08-mono">{t.id_documento}</td>}
+                        {columnasTransportes.includes('fecha_programacion') && <td>{t._fechaFormato}</td>}
+                        {columnasTransportes.includes('conductor') && <td>{t._conductor}</td>}
+                        {columnasTransportes.includes('rut') && <td>{t._rut}</td>}
+                        {columnasTransportes.includes('patente') && <td>{t._patente}</td>}
+                        {columnasTransportes.includes('patenteAdicional') && <td>{t._patenteAdicional || '-'}</td>}
+                        {columnasTransportes.includes('locales') && <td className="sd08-num">{t._localesCount}</td>}
+                        {columnasTransportes.includes('bultos') && <td className="sd08-num">{formatNumber(t._bultosCount)}</td>}
+                        {columnasTransportes.includes('estado') && <td><span className={`sd08-badge sd08-badge-${(t.estado || '').toLowerCase().replace(' ', '')}`}>{t.estado}</span></td>}
+                        {columnasTransportes.includes('creado_por') && <td>{t.creado_por || '-'}</td>}
+                        {columnasTransportes.includes('creado_en') && <td>{t._fechaHora}</td>}
+                        {columnasTransportes.includes('modificado_por') && <td>{t.modificado_por || '-'}</td>}
+                        {columnasTransportes.includes('modificado_en') && <td>{t.modificado_en ? formatFechaHora(t.modificado_en) : '-'}</td>}
+                        {columnasTransportes.includes('fecha_inicio') && <td>{t.fecha_inicio ? formatFechaHora(t.fecha_inicio) : '-'}</td>}
+                        {columnasTransportes.includes('finalizado_en') && <td>{t.finalizado_en ? formatFechaHora(t.finalizado_en) : '-'}</td>}
+                        {columnasTransportes.includes('sello_lateral') && <td>{t.sello_lateral || '-'}</td>}
+                        {columnasTransportes.includes('sello_adicional') && <td>{t.sello_adicional || '-'}</td>}
+                      </tr>
+                    ))}
+                    {vista === 'locales' && filasPaginadas.map((l: any) => (
+                      <tr key={l._id}>
+                        {columnasLocales.includes('id_documento') && <td className="sd08-mono">{l._id_documento}</td>}
+                        {columnasLocales.includes('fecha_programacion') && <td>{l._fecha_programacion}</td>}
+                        {columnasLocales.includes('codigo_local') && <td className="sd08-mono">{l.codigo_local}</td>}
+                        {columnasLocales.includes('nombre_local') && <td>{l.nombre_local || '-'}</td>}
+                        {columnasLocales.includes('fecha_entrega') && <td>{l._fecha_entrega_fmt}</td>}
+                        {columnasLocales.includes('hora_entrega') && <td>{l.hora_entrega || '-'}</td>}
+                        {columnasLocales.includes('conductor') && <td>{l._conductor}</td>}
+                        {columnasLocales.includes('patente') && <td>{l._patente}</td>}
+                        {columnasLocales.includes('sello_trasero') && <td>{l.sello_trasero || '-'}</td>}
+                        {columnasLocales.includes('cantidad_pallet') && <td className="sd08-num">{l.cantidad_pallet || 0}</td>}
+                        {columnasLocales.includes('bultos') && <td className="sd08-num">{formatNumber(l._bultosCount)}</td>}
+                        {columnasLocales.includes('cantidad_solicitada') && <td className="sd08-num">{l.cantidad_solicitada || 0}</td>}
+                      </tr>
+                    ))}
+                    {vista === 'bultos' && filasPaginadas.map((b: any) => (
+                      <tr key={b._id}>
+                        {columnasBultos.includes('id_documento') && <td className="sd08-mono">{b._id_documento}</td>}
+                        {columnasBultos.includes('fecha_programacion') && <td>{b._fecha_programacion}</td>}
+                        {columnasBultos.includes('codigo_local') && <td className="sd08-mono">{b._codigo_local}</td>}
+                        {columnasBultos.includes('origen_carga') && <td>{b.origen_carga}</td>}
+                        {columnasBultos.includes('tipo_documento') && <td>{b.tipo_documento || '-'}</td>}
+                        {columnasBultos.includes('numero_documento') && <td>{b.numero_documento || '-'}</td>}
+                        {columnasBultos.includes('cantidad') && <td className="sd08-num">{formatNumber(b.cantidad)}</td>}
+                        {columnasBultos.includes('observacion') && <td>{b.observacion || '-'}</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="sd08-pagination">
+              <span>
+                Registros por página:{' '}
+                <select value={paginaSize} onChange={(e) => setPaginaSize(Number(e.target.value))} style={{ padding: '2px 6px', border: '1px solid var(--border-input)', borderRadius: 4, fontSize: 12, background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </span>
+              <div className="pages">
+                <button disabled={paginaActual <= 1} onClick={() => setPagina(1)}>«</button>
+                <button disabled={paginaActual <= 1} onClick={() => setPagina(paginaActual - 1)}>‹ Anterior</button>
+                <span style={{ padding: '0 8px' }}>Página {paginaActual} de {totalPaginas}</span>
+                <button disabled={paginaActual >= totalPaginas} onClick={() => setPagina(paginaActual + 1)}>Siguiente ›</button>
+                <button disabled={paginaActual >= totalPaginas} onClick={() => setPagina(totalPaginas)}>»</button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {showSaveModal && (
