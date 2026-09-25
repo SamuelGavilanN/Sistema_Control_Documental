@@ -32,6 +32,7 @@ const TRANSACCIONES = [
   { id: 'sd-estado-carga', label: 'SD05 Estado de Carga' },
   { id: 'sd-pedidos-especiales', label: 'SD06 Pedidos Especiales' },
   { id: 'sd-comparativa-cd01', label: 'SD07 Comparativa CD01 vs WMS' },
+  { id: 'sd-consultor', label: 'SD08 Consultor Transportes' },
   { id: 'ut', label: 'UT01 Correlativo QR' },
   { id: 'ut-revision', label: 'UT02 Revisión Pallet' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
