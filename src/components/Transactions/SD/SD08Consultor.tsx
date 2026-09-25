@@ -16,8 +16,7 @@ const FETCH_PAGE = 1000;
 type Vista = 'transportes' | 'locales' | 'bultos';
 
 interface Filtros {
-  fechaDesde: string;
-  fechaHasta: string;
+  fechaProgramacion: string;
   numeroTransporte: string;
   conductor: string;
   patente: string;
@@ -32,8 +31,7 @@ interface Filtros {
 }
 
 const filtrosIniciales: Filtros = {
-  fechaDesde: '',
-  fechaHasta: '',
+  fechaProgramacion: '',
   numeroTransporte: '',
   conductor: '',
   patente: '',
@@ -90,14 +88,12 @@ const normalizar = (t: any): string =>
 const contieneTexto = (valor: any, query: string): boolean =>
   normalizar(valor).includes(normalizar(query));
 
-// Divide un array en chunks
 const chunkArray = <T,>(arr: T[], size: number): T[][] => {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
 };
 
-// Fetch paginado (para superar el límite de 1000 filas de Supabase)
 const fetchAllPaginado = async (baseUrl: string): Promise<any[]> => {
   const out: any[] = [];
   let offset = 0;
@@ -115,20 +111,25 @@ const fetchAllPaginado = async (baseUrl: string): Promise<any[]> => {
   return out;
 };
 
-// ============ MultiSelectDropdown ============
+// ============ MultiSelectDropdown (rediseñado) ============
 interface MultiSelectProps {
   options: string[];
   value: string[];
   onChange: (v: string[]) => void;
   placeholder: string;
 }
+
 const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onChange, placeholder }) => {
   const [open, setOpen] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusqueda('');
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -138,26 +139,79 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
     onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
   };
 
-  const label = value.length === 0
-    ? placeholder
-    : value.length === 1
-    ? value[0]
-    : `${value.length} seleccionados`;
+  const quitar = (opt: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange(value.filter((v) => v !== opt));
+  };
+
+  const filtradas = useMemo(() => {
+    if (!busqueda.trim()) return options;
+    const q = normalizar(busqueda);
+    return options.filter((o) => normalizar(o).includes(q));
+  }, [options, busqueda]);
+
+  // Máximo de chips visibles dentro del trigger
+  const MAX_CHIPS = 2;
+  const visibles = value.slice(0, MAX_CHIPS);
+  const restantes = value.length - visibles.length;
 
   return (
     <div className="sd08-multiselect" ref={wrapperRef}>
-      <button type="button" className="sd08-multiselect-trigger" onClick={() => setOpen(!open)}>
-        <span className={value.length === 0 ? 'placeholder' : 'value'}>{label}</span>
+      <button
+        type="button"
+        className={`sd08-multiselect-trigger ${open ? 'open' : ''}`}
+        onClick={() => setOpen(!open)}
+      >
+        {value.length === 0 ? (
+          <span className="sd08-multiselect-placeholder">{placeholder}</span>
+        ) : (
+          <span className="sd08-multiselect-chips">
+            {visibles.map((v) => (
+              <span key={v} className="sd08-multiselect-chip">
+                {v}
+                <span className="x" onClick={(e) => quitar(v, e)}>×</span>
+              </span>
+            ))}
+            {restantes > 0 && (
+              <span className="sd08-multiselect-more">+{restantes}</span>
+            )}
+          </span>
+        )}
         <span className="sd08-multiselect-arrow">{open ? '▲' : '▼'}</span>
       </button>
+
       {open && (
         <div className="sd08-multiselect-dropdown">
-          {options.map((opt) => (
-            <label key={opt} className="sd08-multiselect-item">
-              <input type="checkbox" checked={value.includes(opt)} onChange={() => toggle(opt)} />
-              {opt}
-            </label>
-          ))}
+          {options.length > 6 && (
+            <div className="sd08-multiselect-search">
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
+          <div className="sd08-multiselect-list">
+            {filtradas.length === 0 ? (
+              <div className="sd08-multiselect-empty">Sin resultados</div>
+            ) : (
+              filtradas.map((opt) => (
+                <label
+                  key={opt}
+                  className={`sd08-multiselect-item ${value.includes(opt) ? 'selected' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={value.includes(opt)}
+                    onChange={() => toggle(opt)}
+                  />
+                  {opt}
+                </label>
+              ))
+            )}
+          </div>
           <div className="sd08-multiselect-footer">
             <button type="button" onClick={() => onChange(options)}>Seleccionar todo</button>
             <button type="button" onClick={() => onChange([])}>Limpiar</button>
@@ -171,13 +225,11 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
 interface SavedQuery { nombre: string; filtros: Filtros; }
 
 const SD08Consultor: React.FC = () => {
-  // Catálogos pequeños (se cargan una vez)
   const [conductores, setConductores] = useState<any[]>([]);
   const [patentes, setPatentes] = useState<any[]>([]);
   const [conductoresMap, setConductoresMap] = useState<Map<string, any>>(new Map());
   const [patentesMap, setPatentesMap] = useState<Map<string, any>>(new Map());
 
-  // Datos consultados (bajo demanda)
   const [transportes, setTransportes] = useState<any[]>([]);
   const [locales, setLocales] = useState<any[]>([]);
   const [bultos, setBultos] = useState<any[]>([]);
@@ -220,11 +272,22 @@ const SD08Consultor: React.FC = () => {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('sd08_saved_queries');
-      if (raw) setSavedQueries(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Compatibilidad con consultas antiguas que tenían fechaDesde/fechaHasta
+        const migradas = parsed.map((q: any) => ({
+          ...q,
+          filtros: {
+            ...filtrosIniciales,
+            ...q.filtros,
+            fechaProgramacion: q.filtros?.fechaProgramacion || q.filtros?.fechaDesde || ''
+          }
+        }));
+        setSavedQueries(migradas);
+      }
     } catch {}
   }, []);
 
-  // Cargar catálogos pequeños al montar
   useEffect(() => {
     const cargarCatalogos = async () => {
       try {
@@ -267,20 +330,15 @@ const SD08Consultor: React.FC = () => {
   // ===============================
   // CONSULTA BAJO DEMANDA
   // ===============================
-  const consultar = async () => {
-    const f = filtrosForm;
+  const ejecutarConsulta = async (f: Filtros) => {
     setConsultando(true);
     setHaConsultado(true);
     try {
-      // === 1) Filtros previos: resolver conductor y patente a IDs ===
       let conductorIdsFiltro: string[] | null = null;
       if (f.conductor.trim()) {
         const q = normalizar(f.conductor);
-        conductorIdsFiltro = conductores
-          .filter((c) => normalizar(`${c.nombre} ${c.apellido}`).includes(q))
-          .map((c) => c.id);
+        conductorIdsFiltro = conductores.filter((c) => normalizar(`${c.nombre} ${c.apellido}`).includes(q)).map((c) => c.id);
         if (conductorIdsFiltro.length === 0) {
-          // No hay conductores que coincidan → no habrá resultados
           setTransportes([]); setLocales([]); setBultos([]);
           setFiltrosAplicados({ ...f });
           setConsultando(false);
@@ -288,13 +346,10 @@ const SD08Consultor: React.FC = () => {
           return;
         }
       }
-
       let patenteIdsFiltro: string[] | null = null;
       if (f.patente.trim()) {
         const q = normalizar(f.patente);
-        patenteIdsFiltro = patentes
-          .filter((p) => normalizar(p.numero_patente).includes(q))
-          .map((p) => p.id);
+        patenteIdsFiltro = patentes.filter((p) => normalizar(p.numero_patente).includes(q)).map((p) => p.id);
         if (patenteIdsFiltro.length === 0) {
           setTransportes([]); setLocales([]); setBultos([]);
           setFiltrosAplicados({ ...f });
@@ -304,11 +359,13 @@ const SD08Consultor: React.FC = () => {
         }
       }
 
-      // === 2) Consultar sd01_documentos con filtros de documento ===
       const paramsDoc = new URLSearchParams();
       paramsDoc.set('select', '*');
-      if (f.fechaDesde) paramsDoc.append('fecha_programacion', `gte.${f.fechaDesde}T00:00:00`);
-      if (f.fechaHasta) paramsDoc.append('fecha_programacion', `lte.${f.fechaHasta}T23:59:59`);
+      // Fecha única: mismo día en desde y hasta
+      if (f.fechaProgramacion) {
+        paramsDoc.append('fecha_programacion', `gte.${f.fechaProgramacion}T00:00:00`);
+        paramsDoc.append('fecha_programacion', `lte.${f.fechaProgramacion}T23:59:59`);
+      }
       if (f.numeroTransporte) paramsDoc.append('id_documento', `ilike.*${f.numeroTransporte}*`);
       if (f.estado && f.estado !== 'Todos') paramsDoc.append('estado', `eq.${f.estado}`);
       if (f.sello) {
@@ -322,182 +379,11 @@ const SD08Consultor: React.FC = () => {
       }
 
       const docs = await fetchAllPaginado(`${API_URL}/sd01_documentos?${paramsDoc.toString()}`);
-
       if (docs.length === 0) {
         setTransportes([]); setLocales([]); setBultos([]);
         setFiltrosAplicados({ ...f });
         setConsultando(false);
         mostrarMensaje('info', 'No se encontraron transportes con esos filtros');
-        return;
-      }
-
-      const docIds = docs.map((d) => d.id_documento);
-
-      // === 3) Consultar sd01_documento_locales con filtro de local ===
-      const paramsLoc = new URLSearchParams();
-      paramsLoc.set('select', '*');
-      const localesChunks: any[] = [];
-      for (const chunk of chunkArray(docIds, 80)) {
-        const p = new URLSearchParams(paramsLoc.toString());
-        p.append('documento_id', `in.(${chunk.join(',')})`);
-        if (f.codigoLocal) p.append('codigo_local', `ilike.*${f.codigoLocal}*`);
-        const l = await fetchAllPaginado(`${API_URL}/sd01_documento_locales?${p.toString()}`);
-        localesChunks.push(...l);
-      }
-      const locs = localesChunks;
-
-      // === 4) Consultar sd01_bultos con filtros de bulto ===
-      let bults: any[] = [];
-      if (locs.length > 0) {
-        const locIds = locs.map((l) => l.id);
-        const tieneFiltrosBulto =
-          f.origenes.length > 0 ||
-          f.tiposDoc.length > 0 ||
-          !!f.numeroDocumento ||
-          !!f.bultosMin ||
-          !!f.bultosMax;
-
-        for (const chunk of chunkArray(locIds, 80)) {
-          const p = new URLSearchParams();
-          p.set('select', '*');
-          p.append('local_id', `in.(${chunk.join(',')})`);
-          if (f.origenes.length > 0) p.append('origen_carga', `in.(${f.origenes.map((o) => `"${o}"`).join(',')})`);
-          if (f.tiposDoc.length > 0) {
-            const tiposConValor = f.tiposDoc.filter((t) => t !== 'No aplica');
-            const incluyeNA = f.tiposDoc.includes('No aplica');
-            const orParts: string[] = [];
-            if (tiposConValor.length > 0) orParts.push(`tipo_documento.in.(${tiposConValor.join(',')})`);
-            if (incluyeNA) {
-              orParts.push(`tipo_documento.is.null`);
-              orParts.push(`tipo_documento.eq.`);
-            }
-            p.append('or', `(${orParts.join(',')})`);
-          }
-          if (f.numeroDocumento) p.append('numero_documento', `ilike.*${f.numeroDocumento}*`);
-          if (f.bultosMin) p.append('cantidad', `gte.${f.bultosMin}`);
-          if (f.bultosMax) p.append('cantidad', `lte.${f.bultosMax}`);
-
-          const b = await fetchAllPaginado(`${API_URL}/sd01_bultos?${p.toString()}`);
-          bults.push(...b);
-        }
-
-        // Si hay filtros de bulto, quedarnos solo con los locales y documentos que tienen al menos un bulto que cumple
-        if (tieneFiltrosBulto) {
-          const locIdsConBulto = new Set(bults.map((b) => b.local_id));
-          const locsFiltrados = locs.filter((l) => locIdsConBulto.has(l.id));
-          const docIdsConLocal = new Set(locsFiltrados.map((l) => l.documento_id));
-          const docsFiltrados = docs.filter((d) => docIdsConLocal.has(d.id_documento));
-
-          setTransportes(docsFiltrados);
-          setLocales(locsFiltrados);
-          setBultos(bults);
-        } else {
-          setTransportes(docs);
-          setLocales(locs);
-          setBultos(bults);
-        }
-      } else {
-        // No hay locales, no hay bultos
-        setTransportes(docs);
-        setLocales([]);
-        setBultos([]);
-      }
-
-      setFiltrosAplicados({ ...f });
-      setPagina(1);
-    } catch (e) {
-      console.error('Error en consulta SD08:', e);
-      mostrarMensaje('error', 'Error al consultar: ' + (e as Error).message);
-    } finally {
-      setConsultando(false);
-    }
-  };
-
-  const limpiarFiltros = () => {
-    setFiltrosForm(filtrosIniciales);
-    setFiltrosAplicados(filtrosIniciales);
-    setTransportes([]);
-    setLocales([]);
-    setBultos([]);
-    setHaConsultado(false);
-    setPagina(1);
-  };
-
-  const quitarFiltro = (campo: keyof Filtros, valor?: string) => {
-    const nuevo = { ...filtrosAplicados };
-    if (campo === 'origenes' && valor) nuevo.origenes = nuevo.origenes.filter((o) => o !== valor);
-    else if (campo === 'tiposDoc' && valor) nuevo.tiposDoc = nuevo.tiposDoc.filter((t) => t !== valor);
-    else if (campo === 'fechaDesde' || campo === 'fechaHasta') { nuevo.fechaDesde = ''; nuevo.fechaHasta = ''; }
-    else if (campo === 'bultosMin' || campo === 'bultosMax') { nuevo.bultosMin = ''; nuevo.bultosMax = ''; }
-    else if (campo === 'estado') nuevo.estado = 'Todos';
-    else (nuevo as any)[campo] = '';
-
-    setFiltrosForm(nuevo);
-    // Volver a consultar con los filtros actualizados (solo si ya se había consultado)
-    if (haConsultado) {
-      setFiltrosForm(nuevo);
-      setTimeout(() => { consultarCon(nuevo); }, 0);
-    } else {
-      setFiltrosAplicados(nuevo);
-    }
-  };
-
-  // Variante de consultar que recibe filtros explícitos
-  const consultarCon = async (f: Filtros) => {
-    // Reemplaza filtrosForm momentáneamente, consulta, y restaura
-    const prev = filtrosForm;
-    setFiltrosForm(f);
-    // Usamos un requestAnimationFrame para que el estado se aplique, luego llamamos consultar con f
-    // Como consultar lee filtrosForm, hacemos una copia local y ejecutamos la lógica directamente.
-    // Para simplificar, replicamos la lógica llamando a un método que recibe f.
-    await ejecutarConsulta(f);
-    setFiltrosForm(f); // nos aseguramos que quede sincronizado
-    void prev;
-  };
-
-  // Extraemos el cuerpo del consultar en una función que recibe los filtros
-  const ejecutarConsulta = async (f: Filtros) => {
-    setConsultando(true);
-    setHaConsultado(true);
-    try {
-      let conductorIdsFiltro: string[] | null = null;
-      if (f.conductor.trim()) {
-        const q = normalizar(f.conductor);
-        conductorIdsFiltro = conductores.filter((c) => normalizar(`${c.nombre} ${c.apellido}`).includes(q)).map((c) => c.id);
-        if (conductorIdsFiltro.length === 0) {
-          setTransportes([]); setLocales([]); setBultos([]);
-          setFiltrosAplicados({ ...f });
-          setConsultando(false);
-          return;
-        }
-      }
-      let patenteIdsFiltro: string[] | null = null;
-      if (f.patente.trim()) {
-        const q = normalizar(f.patente);
-        patenteIdsFiltro = patentes.filter((p) => normalizar(p.numero_patente).includes(q)).map((p) => p.id);
-        if (patenteIdsFiltro.length === 0) {
-          setTransportes([]); setLocales([]); setBultos([]);
-          setFiltrosAplicados({ ...f });
-          setConsultando(false);
-          return;
-        }
-      }
-
-      const paramsDoc = new URLSearchParams();
-      paramsDoc.set('select', '*');
-      if (f.fechaDesde) paramsDoc.append('fecha_programacion', `gte.${f.fechaDesde}T00:00:00`);
-      if (f.fechaHasta) paramsDoc.append('fecha_programacion', `lte.${f.fechaHasta}T23:59:59`);
-      if (f.numeroTransporte) paramsDoc.append('id_documento', `ilike.*${f.numeroTransporte}*`);
-      if (f.estado && f.estado !== 'Todos') paramsDoc.append('estado', `eq.${f.estado}`);
-      if (f.sello) paramsDoc.append('or', `(sello_lateral.ilike.*${f.sello}*,sello_adicional.ilike.*${f.sello}*)`);
-      if (conductorIdsFiltro) paramsDoc.append('conductor_id', `in.(${conductorIdsFiltro.join(',')})`);
-      if (patenteIdsFiltro) paramsDoc.append('or', `(patente_principal_id.in.(${patenteIdsFiltro.join(',')}),patente_adicional_id.in.(${patenteIdsFiltro.join(',')}))`);
-
-      const docs = await fetchAllPaginado(`${API_URL}/sd01_documentos?${paramsDoc.toString()}`);
-      if (docs.length === 0) {
-        setTransportes([]); setLocales([]); setBultos([]);
-        setFiltrosAplicados({ ...f });
-        setConsultando(false);
         return;
       }
       const docIds = docs.map((d) => d.id_documento);
@@ -567,9 +453,31 @@ const SD08Consultor: React.FC = () => {
     }
   };
 
-  // ===============================
-  // CONSTRUCCIÓN DE FILAS (solo ordenar/paginar; los datos ya vienen filtrados)
-  // ===============================
+  const limpiarFiltros = () => {
+    setFiltrosForm(filtrosIniciales);
+    setFiltrosAplicados(filtrosIniciales);
+    setTransportes([]);
+    setLocales([]);
+    setBultos([]);
+    setHaConsultado(false);
+    setPagina(1);
+  };
+
+  const quitarFiltro = (campo: keyof Filtros, valor?: string) => {
+    const nuevo = { ...filtrosAplicados };
+    if (campo === 'origenes' && valor) nuevo.origenes = nuevo.origenes.filter((o) => o !== valor);
+    else if (campo === 'tiposDoc' && valor) nuevo.tiposDoc = nuevo.tiposDoc.filter((t) => t !== valor);
+    else if (campo === 'bultosMin' || campo === 'bultosMax') { nuevo.bultosMin = ''; nuevo.bultosMax = ''; }
+    else if (campo === 'estado') nuevo.estado = 'Todos';
+    else (nuevo as any)[campo] = '';
+
+    setFiltrosForm(nuevo);
+    if (haConsultado) {
+      setTimeout(() => { ejecutarConsulta(nuevo); }, 0);
+    } else {
+      setFiltrosAplicados(nuevo);
+    }
+  };
 
   const filasTransportes = useMemo(() => {
     return transportes.map((doc) => {
@@ -667,7 +575,7 @@ const SD08Consultor: React.FC = () => {
   const filtrosActivos = useMemo(() => {
     const f = filtrosAplicados;
     const chips: { label: string; quitar: () => void }[] = [];
-    if (f.fechaDesde || f.fechaHasta) chips.push({ label: `📅 ${f.fechaDesde || '...'} → ${f.fechaHasta || '...'}`, quitar: () => quitarFiltro('fechaDesde') });
+    if (f.fechaProgramacion) chips.push({ label: `📅 ${formatFecha(f.fechaProgramacion)}`, quitar: () => quitarFiltro('fechaProgramacion') });
     if (f.numeroTransporte) chips.push({ label: `🚚 ${f.numeroTransporte}`, quitar: () => quitarFiltro('numeroTransporte') });
     if (f.conductor) chips.push({ label: `👤 ${f.conductor}`, quitar: () => quitarFiltro('conductor') });
     if (f.patente) chips.push({ label: `🚛 ${f.patente}`, quitar: () => quitarFiltro('patente') });
@@ -728,7 +636,6 @@ const SD08Consultor: React.FC = () => {
     localStorage.setItem('sd08_saved_queries', JSON.stringify(nuevas));
   };
 
-  // Columnas
   const columnasDisponiblesTransportes = [
     { id: 'id_documento', label: 'N° Transporte' },
     { id: 'fecha_programacion', label: 'Fecha Programación' },
@@ -834,12 +741,12 @@ const SD08Consultor: React.FC = () => {
         </h3>
         <div className="sd08-filters-grid">
           <div className="sd08-filter-group">
-            <label>Fecha programación desde</label>
-            <input type="date" value={filtrosForm.fechaDesde} onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaDesde: e.target.value })} />
-          </div>
-          <div className="sd08-filter-group">
-            <label>Fecha programación hasta</label>
-            <input type="date" value={filtrosForm.fechaHasta} onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaHasta: e.target.value })} />
+            <label>Fecha programación</label>
+            <input
+              type="date"
+              value={filtrosForm.fechaProgramacion}
+              onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaProgramacion: e.target.value })}
+            />
           </div>
           <div className="sd08-filter-group">
             <label>N° Transporte</label>
@@ -877,11 +784,21 @@ const SD08Consultor: React.FC = () => {
           </div>
           <div className="sd08-filter-group">
             <label>Origen de Carga</label>
-            <MultiSelectDropdown options={ORIGENES_DISPONIBLES} value={filtrosForm.origenes} onChange={(v) => setFiltrosForm({ ...filtrosForm, origenes: v })} placeholder="Seleccionar orígenes..." />
+            <MultiSelectDropdown
+              options={ORIGENES_DISPONIBLES}
+              value={filtrosForm.origenes}
+              onChange={(v) => setFiltrosForm({ ...filtrosForm, origenes: v })}
+              placeholder="Seleccionar orígenes..."
+            />
           </div>
           <div className="sd08-filter-group">
             <label>Tipo de Documento</label>
-            <MultiSelectDropdown options={TIPOS_DOC_DISPONIBLES} value={filtrosForm.tiposDoc} onChange={(v) => setFiltrosForm({ ...filtrosForm, tiposDoc: v })} placeholder="Seleccionar tipos..." />
+            <MultiSelectDropdown
+              options={TIPOS_DOC_DISPONIBLES}
+              value={filtrosForm.tiposDoc}
+              onChange={(v) => setFiltrosForm({ ...filtrosForm, tiposDoc: v })}
+              placeholder="Seleccionar tipos..."
+            />
           </div>
           <div className="sd08-filter-group">
             <label>Rango bultos solicitados</label>
