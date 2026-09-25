@@ -19,6 +19,7 @@ import SD04AnalisisBultosDesp from './components/Transactions/SD/SD04AnalisisBul
 import SD05EstadoCarga from './components/Transactions/SD/SD05EstadoCarga'; // NUEVO
 import SD06PedidosEspeciales from './components/Transactions/SD/SD06PedidosEspeciales';
 import SD07ComparativaCD01 from './components/Transactions/SD/SD07ComparativaCD01';
+import SD08Consultor from './components/Transactions/SD/SD08Consultor';
 
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
@@ -110,6 +111,7 @@ const App: React.FC = () => {
           {tabsMontadas.has('sd-estado-carga') && <div style={{ display: activeTab === 'sd-estado-carga' ? 'block' : 'none' }}><SD05EstadoCarga key="sd-estado-carga" /></div>}
           {tabsMontadas.has('sd-pedidos-especiales') && <div style={{ display: activeTab === 'sd-pedidos-especiales' ? 'block' : 'none' }}><SD06PedidosEspeciales key="sd-pedidos-especiales" /></div>}
           {tabsMontadas.has('sd-comparativa-cd01') && <div style={{ display: activeTab === 'sd-comparativa-cd01' ? 'block' : 'none' }}><SD07ComparativaCD01 key="sd-comparativa-cd01" /></div>}
+          {tabsMontadas.has('sd-consultor') && <div style={{ display: activeTab === 'sd-consultor' ? 'block' : 'none' }}><SD08Consultor key="sd-consultor" /></div>}
 
           {/* UT */}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
