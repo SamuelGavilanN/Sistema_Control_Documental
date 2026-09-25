@@ -184,7 +184,7 @@ const UT02RevisionPallet: React.FC = () => {
               creado_por: usuario?.id
             })
           });
-          empaqueId = Array.isArray(empaqueData) ? empaqueData[0].id : empaqueData.id;
+          empaqueId = Array.isArray(empaqueData) ? empaqueData[0].id : (empaqueData as any).id;
         }
         for (const bom of Object.keys(emp.boms)) {
           await apiFetch('/ut02_inventario_boms', {
