@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD08Consultor.tsx
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import './SD08.css';
 
@@ -12,7 +12,6 @@ const HEADERS: any = {
 
 const PAGE_SIZE = 50;
 
-// --- Tipos de vista ---
 type Vista = 'transportes' | 'locales' | 'bultos';
 
 interface Filtros {
@@ -85,22 +84,94 @@ const formatFechaHora = (f: string): string => {
     return `${d.toLocaleDateString('es-CL')} ${d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`;
   } catch { return f; }
 };
-const normalizar = (t: any): string => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const normalizar = (t: any): string =>
+  String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
+const contieneTexto = (valor: any, query: string): boolean =>
+  normalizar(valor).includes(normalizar(query));
+
+// ============ MultiSelectDropdown ============
+interface MultiSelectProps {
+  options: string[];
+  value: string[];
+  onChange: (v: string[]) => void;
+  placeholder: string;
+}
+
+const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onChange, placeholder }) => {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggle = (opt: string) => {
+    onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+  };
+
+  const label = value.length === 0
+    ? placeholder
+    : value.length === 1
+    ? value[0]
+    : `${value.length} seleccionados`;
+
+  return (
+    <div className="sd08-multiselect" ref={wrapperRef}>
+      <button
+        type="button"
+        className="sd08-multiselect-trigger"
+        onClick={() => setOpen(!open)}
+      >
+        <span className={value.length === 0 ? 'placeholder' : 'value'}>{label}</span>
+        <span className="sd08-multiselect-arrow">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="sd08-multiselect-dropdown">
+          {options.map((opt) => (
+            <label key={opt} className="sd08-multiselect-item">
+              <input
+                type="checkbox"
+                checked={value.includes(opt)}
+                onChange={() => toggle(opt)}
+              />
+              {opt}
+            </label>
+          ))}
+          <div className="sd08-multiselect-footer">
+            <button type="button" onClick={() => onChange(options)}>Seleccionar todo</button>
+            <button type="button" onClick={() => onChange([])}>Limpiar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============ Componente principal ============
 interface SavedQuery { nombre: string; filtros: Filtros; }
 
 const SD08Consultor: React.FC = () => {
+  // Datos
   const [transportes, setTransportes] = useState<any[]>([]);
   const [locales, setLocales] = useState<any[]>([]);
   const [bultos, setBultos] = useState<any[]>([]);
   const [conductoresMap, setConductoresMap] = useState<Map<string, any>>(new Map());
   const [patentesMap, setPatentesMap] = useState<Map<string, any>>(new Map());
-  const [documentosMap, setDocumentosMap] = useState<Map<string, any>>(new Map());
 
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
 
-  const [filtros, setFiltros] = useState<Filtros>(filtrosIniciales);
+  // Filtros: form vs aplicados (solo se aplican al hacer clic en Consultar)
+  const [filtrosForm, setFiltrosForm] = useState<Filtros>(filtrosIniciales);
+  const [filtrosAplicados, setFiltrosAplicados] = useState<Filtros>(filtrosIniciales);
+
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [vista, setVista] = useState<Vista>('transportes');
   const [pagina, setPagina] = useState(1);
@@ -108,7 +179,6 @@ const SD08Consultor: React.FC = () => {
   const [ordenColumna, setOrdenColumna] = useState<string>('fecha_programacion');
   const [ordenDireccion, setOrdenDireccion] = useState<'asc' | 'desc'>('desc');
 
-  // Columnas visibles (por vista)
   const [columnasTransportes, setColumnasTransportes] = useState<string[]>([
     'id_documento', 'fecha_programacion', 'conductor', 'rut', 'patente', 'locales', 'bultos', 'estado', 'creado_por', 'creado_en'
   ]);
@@ -118,7 +188,6 @@ const SD08Consultor: React.FC = () => {
   const [columnasBultos, setColumnasBultos] = useState<string[]>([
     'id_documento', 'fecha_programacion', 'codigo_local', 'origen_carga', 'tipo_documento', 'numero_documento', 'cantidad', 'observacion'
   ]);
-
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
 
   // Consultas guardadas
@@ -132,7 +201,6 @@ const SD08Consultor: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 4000);
   };
 
-  // Cargar consultas guardadas de localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem('sd08_saved_queries');
@@ -140,26 +208,24 @@ const SD08Consultor: React.FC = () => {
     } catch {}
   }, []);
 
-  // Carga inicial de datos
+  // Carga inicial
   useEffect(() => {
     const cargarTodo = async () => {
       setCargando(true);
       try {
-        const [respTransp, respLocales, respBultos, respCond, respPat, respDocs] = await Promise.all([
+        const [respT, respL, respB, respC, respP] = await Promise.all([
           fetch(`${API_URL}/sd01_documentos?select=*`, { headers: HEADERS }),
           fetch(`${API_URL}/sd01_documento_locales?select=*`, { headers: HEADERS }),
           fetch(`${API_URL}/sd01_bultos?select=*`, { headers: HEADERS }),
           fetch(`${API_URL}/conductores?select=*`, { headers: HEADERS }),
-          fetch(`${API_URL}/patentes?select=*`, { headers: HEADERS }),
-          fetch(`${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion,estado,creado_por,creado_en,conductor_id,patente_principal_id,patente_adicional_id,modificado_por,modificado_en,fecha_inicio,finalizado_en,sello_lateral,sello_adicional,observaciones`, { headers: HEADERS })
+          fetch(`${API_URL}/patentes?select=*`, { headers: HEADERS })
         ]);
 
-        const t = await respTransp.json();
-        const l = await respLocales.json();
-        const b = await respBultos.json();
-        const c = await respCond.json();
-        const p = await respPat.json();
-        const d = await respDocs.json();
+        const t = await respT.json();
+        const l = await respL.json();
+        const b = await respB.json();
+        const c = await respC.json();
+        const p = await respP.json();
 
         setTransportes(Array.isArray(t) ? t : []);
         setLocales(Array.isArray(l) ? l : []);
@@ -172,10 +238,6 @@ const SD08Consultor: React.FC = () => {
         const pm = new Map<string, any>();
         (Array.isArray(p) ? p : []).forEach((x: any) => pm.set(x.id, x));
         setPatentesMap(pm);
-
-        const dm = new Map<string, any>();
-        (Array.isArray(d) ? d : []).forEach((x: any) => dm.set(x.id_documento, x));
-        setDocumentosMap(dm);
       } catch (e) {
         console.error('Error cargando datos SD08:', e);
         mostrarMensaje('error', 'Error al cargar datos');
@@ -186,152 +248,107 @@ const SD08Consultor: React.FC = () => {
     cargarTodo();
   }, []);
 
-  // Helpers para enriquecer datos
+  // Helpers
   const getConductorNombre = useCallback((doc: any) => {
-    const c = conductoresMap.get(doc.conductor_id);
+    const c = conductoresMap.get(doc?.conductor_id);
     return c ? `${c.nombre} ${c.apellido}` : '-';
   }, [conductoresMap]);
 
   const getConductorRut = useCallback((doc: any) => {
-    const c = conductoresMap.get(doc.conductor_id);
+    const c = conductoresMap.get(doc?.conductor_id);
     return c?.numero_documento || '-';
   }, [conductoresMap]);
 
   const getPatente = useCallback((doc: any, adicional = false) => {
-    const id = adicional ? doc.patente_adicional_id : doc.patente_principal_id;
+    const id = adicional ? doc?.patente_adicional_id : doc?.patente_principal_id;
     if (!id) return '';
     const p = patentesMap.get(id);
     return p?.numero_patente || '';
   }, [patentesMap]);
 
-  const getSelloLateral = useCallback((doc: any) => doc?.sello_lateral || '', []);
-  const getSelloAdicional = useCallback((doc: any) => doc?.sello_adicional || '', []);
+  // ============= LÓGICA DE FILTRADO EN CASCADA =============
 
-  // ============= APLICAR FILTROS =============
-  const transportesFiltrados = useMemo(() => {
-    const filtroTexto = (v: any, q: string) => normalizar(v).includes(normalizar(q));
-
-    // Primero filtro de transportes por criterios propios del documento
-    let lista = transportes.filter((doc) => {
-      // Fecha
-      if (filtros.fechaDesde) {
-        const f = (doc.fecha_programacion || '').slice(0, 10);
-        if (f < filtros.fechaDesde) return false;
-      }
-      if (filtros.fechaHasta) {
-        const f = (doc.fecha_programacion || '').slice(0, 10);
-        if (f > filtros.fechaHasta) return false;
-      }
-      // N° transporte
-      if (filtros.numeroTransporte && !filtroTexto(doc.id_documento, filtros.numeroTransporte)) return false;
-      // Conductor
-      if (filtros.conductor && !filtroTexto(getConductorNombre(doc), filtros.conductor)) return false;
-      // Patente
-      if (filtros.patente) {
-        const pat = `${getPatente(doc)} ${getPatente(doc, true)}`;
-        if (!filtroTexto(pat, filtros.patente)) return false;
-      }
-      // Estado
-      if (filtros.estado && filtros.estado !== 'Todos' && doc.estado !== filtros.estado) return false;
-      // Sello
-      if (filtros.sello) {
-        const sellos = `${getSelloLateral(doc)} ${getSelloAdicional(doc)}`;
-        if (!filtroTexto(sellos, filtros.sello)) return false;
-      }
-      return true;
-    });
-
-    // Recolectar IDs de locales válidos por filtros de local
-    const localIdsValidos = new Set<string>();
-    if (filtros.codigoLocal) {
-      locales.forEach((l) => {
-        if (filtroTexto(l.codigo_local, filtros.codigoLocal)) localIdsValidos.add(l.id);
-      });
-    }
-
-    // Recolectar doc IDs válidos por filtros de bulto
-    let docIdsPorBultos: Set<string> | null = null;
-    if (
-      filtros.origenes.length > 0 ||
-      filtros.tiposDoc.length > 0 ||
-      filtros.numeroDocumento ||
-      filtros.bultosMin ||
-      filtros.bultosMax
-    ) {
-      docIdsPorBultos = new Set<string>();
-      const localMap = new Map<string, any>();
-      locales.forEach((l) => localMap.set(l.id, l));
-
-      bultos.forEach((b) => {
-        const local = localMap.get(b.local_id);
-        if (!local) return;
-        if (filtros.origenes.length > 0 && !filtros.origenes.includes(b.origen_carga)) return;
-        if (filtros.tiposDoc.length > 0) {
-          const td = b.tipo_documento || 'No aplica';
-          if (!filtros.tiposDoc.includes(td)) return;
-        }
-        if (filtros.numeroDocumento && !filtroTexto(b.numero_documento, filtros.numeroDocumento)) return;
-        if (filtros.bultosMin && Number(b.cantidad) < Number(filtros.bultosMin)) return;
-        if (filtros.bultosMax && Number(b.cantidad) > Number(filtros.bultosMax)) return;
-        docIdsPorBultos!.add(local.documento_id);
-      });
-    }
-
-    // Filtrar transportes por local y por bulto
-    lista = lista.filter((doc) => {
-      if (filtros.codigoLocal) {
-        const tieneLocal = locales.some(
-          (l) => l.documento_id === doc.id_documento && localIdsValidos.has(l.id)
-        );
-        if (!tieneLocal) return false;
-      }
-      if (docIdsPorBultos && !docIdsPorBultos.has(doc.id_documento)) return false;
-      return true;
-    });
-
-    return lista;
-  }, [transportes, locales, bultos, filtros, conductoresMap, patentesMap, getConductorNombre, getPatente, getSelloLateral, getSelloAdicional]);
-
-  // Filas de locales filtradas (solo las que pertenecen a transportes filtrados + filtros propios)
-  const localesFiltrados = useMemo(() => {
-    const filtroTexto = (v: any, q: string) => normalizar(v).includes(normalizar(q));
-    const docIds = new Set(transportesFiltrados.map((d) => d.id_documento));
-    let lista = locales.filter((l) => docIds.has(l.documento_id));
-
-    if (filtros.codigoLocal) {
-      lista = lista.filter((l) => filtroTexto(l.codigo_local, filtros.codigoLocal));
-    }
-    return lista;
-  }, [locales, transportesFiltrados, filtros.codigoLocal]);
-
-  // Filas de bultos filtradas
-  const bultosFiltrados = useMemo(() => {
-    const filtroTexto = (v: any, q: string) => normalizar(v).includes(normalizar(q));
-    const localIds = new Set(localesFiltrados.map((l) => l.id));
-    let lista = bultos.filter((b) => localIds.has(b.local_id));
-
-    if (filtros.origenes.length > 0) {
-      lista = lista.filter((b) => filtros.origenes.includes(b.origen_carga));
-    }
-    if (filtros.tiposDoc.length > 0) {
-      lista = lista.filter((b) => {
+  // 1) Bultos que cumplen los filtros propios de bulto
+  const bultosQueCumplen = useMemo(() => {
+    const f = filtrosAplicados;
+    return bultos.filter((b) => {
+      if (f.origenes.length > 0 && !f.origenes.includes(b.origen_carga)) return false;
+      if (f.tiposDoc.length > 0) {
         const td = b.tipo_documento || 'No aplica';
-        return filtros.tiposDoc.includes(td);
-      });
-    }
-    if (filtros.numeroDocumento) {
-      lista = lista.filter((b) => filtroTexto(b.numero_documento, filtros.numeroDocumento));
-    }
-    if (filtros.bultosMin) {
-      lista = lista.filter((b) => Number(b.cantidad) >= Number(filtros.bultosMin));
-    }
-    if (filtros.bultosMax) {
-      lista = lista.filter((b) => Number(b.cantidad) <= Number(filtros.bultosMax));
-    }
-    return lista;
-  }, [bultos, localesFiltrados, filtros]);
+        if (!f.tiposDoc.includes(td)) return false;
+      }
+      if (f.numeroDocumento && !contieneTexto(b.numero_documento, f.numeroDocumento)) return false;
+      if (f.bultosMin && Number(b.cantidad) < Number(f.bultosMin)) return false;
+      if (f.bultosMax && Number(b.cantidad) > Number(f.bultosMax)) return false;
+      return true;
+    });
+  }, [bultos, filtrosAplicados]);
 
-  // ============= CONSTRUCCIÓN DE FILAS PARA CADA VISTA =============
+  const hayFiltrosBulto = useMemo(() => {
+    const f = filtrosAplicados;
+    return (
+      f.origenes.length > 0 ||
+      f.tiposDoc.length > 0 ||
+      !!f.numeroDocumento ||
+      !!f.bultosMin ||
+      !!f.bultosMax
+    );
+  }, [filtrosAplicados]);
+
+  // 2) Local IDs que cumplen los filtros de bulto (null si no hay filtros de bulto)
+  const localIdsQueCumplenBultos = useMemo(() => {
+    if (!hayFiltrosBulto) return null;
+    return new Set<string>(bultosQueCumplen.map((b) => b.local_id));
+  }, [bultosQueCumplen, hayFiltrosBulto]);
+
+  // 3) Locales que cumplen filtros de local Y (si hay) están en localIdsQueCumplenBultos
+  const localesFiltrados = useMemo(() => {
+    const f = filtrosAplicados;
+    return locales.filter((l) => {
+      if (f.codigoLocal && !contieneTexto(l.codigo_local, f.codigoLocal)) return false;
+      if (localIdsQueCumplenBultos && !localIdsQueCumplenBultos.has(l.id)) return false;
+      return true;
+    });
+  }, [locales, filtrosAplicados, localIdsQueCumplenBultos]);
+
+  // 4) Documento IDs de esos locales
+  const docIdsQueCumplenLocales = useMemo(
+    () => new Set<string>(localesFiltrados.map((l) => l.documento_id)),
+    [localesFiltrados]
+  );
+
+  // 5) Transportes que cumplen filtros propios Y pertenecen a docIdsQueCumplenLocales
+  const transportesFiltrados = useMemo(() => {
+    const f = filtrosAplicados;
+    return transportes.filter((doc) => {
+      if (f.fechaDesde && (doc.fecha_programacion || '').slice(0, 10) < f.fechaDesde) return false;
+      if (f.fechaHasta && (doc.fecha_programacion || '').slice(0, 10) > f.fechaHasta) return false;
+      if (f.numeroTransporte && !contieneTexto(doc.id_documento, f.numeroTransporte)) return false;
+      if (f.conductor && !contieneTexto(getConductorNombre(doc), f.conductor)) return false;
+      if (f.patente) {
+        const pat = `${getPatente(doc)} ${getPatente(doc, true)}`;
+        if (!contieneTexto(pat, f.patente)) return false;
+      }
+      if (f.estado && f.estado !== 'Todos' && doc.estado !== f.estado) return false;
+      if (f.sello) {
+        const sellos = `${doc.sello_lateral || ''} ${doc.sello_adicional || ''}`;
+        if (!contieneTexto(sellos, f.sello)) return false;
+      }
+      // Si hay algún filtro de local o bulto, el doc debe estar en docIdsQueCumplenLocales
+      const hayFiltrosLocalOBulto = !!f.codigoLocal || hayFiltrosBulto;
+      if (hayFiltrosLocalOBulto && !docIdsQueCumplenLocales.has(doc.id_documento)) return false;
+      return true;
+    });
+  }, [transportes, filtrosAplicados, docIdsQueCumplenLocales, hayFiltrosBulto, getConductorNombre, getPatente]);
+
+  // 6) Bultos finales (los que pertenecen a locales filtrados y cumplen filtros de bulto)
+  const bultosFinales = useMemo(() => {
+    const localIdsSet = new Set<string>(localesFiltrados.map((l) => l.id));
+    return bultosQueCumplen.filter((b) => localIdsSet.has(b.local_id));
+  }, [bultosQueCumplen, localesFiltrados]);
+
+  // ============= CONSTRUCCIÓN DE FILAS =============
+
   const filasTransportes = useMemo(() => {
     return transportesFiltrados.map((doc) => {
       const localesDelDoc = locales.filter((l) => l.documento_id === doc.id_documento);
@@ -347,7 +364,6 @@ const SD08Consultor: React.FC = () => {
         _patenteAdicional: getPatente(doc, true),
         _localesCount: localesDelDoc.length,
         _bultosCount: totalBultos,
-        _creadoPor: doc.creado_por || '-',
         _fechaFormato: formatFecha(doc.fecha_programacion),
         _fechaHora: formatFechaHora(doc.creado_en)
       };
@@ -356,28 +372,30 @@ const SD08Consultor: React.FC = () => {
 
   const filasLocales = useMemo(() => {
     const docMap = new Map(transportesFiltrados.map((d) => [d.id_documento, d]));
-    return localesFiltrados.map((loc) => {
-      const doc = docMap.get(loc.documento_id);
-      const bultosDelLocal = bultos.filter((b) => b.local_id === loc.id);
-      const totalBultos = bultosDelLocal.reduce((s, b) => s + (b.cantidad || 0), 0);
-      return {
-        ...loc,
-        _id: loc.id,
-        _doc: doc,
-        _id_documento: loc.documento_id,
-        _fecha_programacion: doc ? formatFecha(doc.fecha_programacion) : '-',
-        _conductor: doc ? getConductorNombre(doc) : '-',
-        _patente: doc ? getPatente(doc) : '-',
-        _bultosCount: totalBultos,
-        _fecha_entrega_fmt: formatFecha(loc.fecha_entrega)
-      };
-    });
-  }, [localesFiltrados, transportesFiltrados, bultos, getConductorNombre, getPatente]);
+    return localesFiltrados
+      .filter((loc) => docMap.has(loc.documento_id))
+      .map((loc) => {
+        const doc = docMap.get(loc.documento_id);
+        const bultosDelLocal = bultosFinales.filter((b) => b.local_id === loc.id);
+        const totalBultos = bultosDelLocal.reduce((s, b) => s + (b.cantidad || 0), 0);
+        return {
+          ...loc,
+          _id: loc.id,
+          _doc: doc,
+          _id_documento: loc.documento_id,
+          _fecha_programacion: doc ? formatFecha(doc.fecha_programacion) : '-',
+          _conductor: doc ? getConductorNombre(doc) : '-',
+          _patente: doc ? getPatente(doc) : '-',
+          _bultosCount: totalBultos,
+          _fecha_entrega_fmt: formatFecha(loc.fecha_entrega)
+        };
+      });
+  }, [localesFiltrados, transportesFiltrados, bultosFinales, getConductorNombre, getPatente]);
 
   const filasBultos = useMemo(() => {
     const localMap = new Map(locales.map((l) => [l.id, l]));
     const docMap = new Map(transportes.map((d) => [d.id_documento, d]));
-    return bultosFiltrados.map((b) => {
+    return bultosFinales.map((b) => {
       const local = localMap.get(b.local_id);
       const doc = local ? docMap.get(local.documento_id) : null;
       return {
@@ -388,9 +406,9 @@ const SD08Consultor: React.FC = () => {
         _fecha_programacion: doc ? formatFecha(doc.fecha_programacion) : '-'
       };
     });
-  }, [bultosFiltrados, locales, transportes]);
+  }, [bultosFinales, locales, transportes]);
 
-  // ============= ORDENAMIENTO =============
+  // Ordenamiento
   const ordenarFilas = useCallback((filas: any[], columna: string, direccion: 'asc' | 'desc') => {
     const copia = [...filas];
     copia.sort((a, b) => {
@@ -413,12 +431,11 @@ const SD08Consultor: React.FC = () => {
     return ordenarFilas(base, ordenColumna, ordenDireccion);
   }, [vista, filasTransportes, filasLocales, filasBultos, ordenColumna, ordenDireccion, ordenarFilas]);
 
-  // Paginación
   const totalPaginas = Math.max(1, Math.ceil(filasActuales.length / paginaSize));
   const paginaActual = Math.min(pagina, totalPaginas);
   const filasPaginadas = filasActuales.slice((paginaActual - 1) * paginaSize, paginaActual * paginaSize);
 
-  useEffect(() => { setPagina(1); }, [vista, filtros, paginaSize]);
+  useEffect(() => { setPagina(1); }, [vista, filtrosAplicados, paginaSize]);
 
   const cambiarOrden = (col: string) => {
     if (ordenColumna === col) setOrdenDireccion(ordenDireccion === 'asc' ? 'desc' : 'asc');
@@ -427,41 +444,71 @@ const SD08Consultor: React.FC = () => {
 
   const indicador = (col: string) => ordenColumna === col ? (ordenDireccion === 'asc' ? ' ▲' : ' ▼') : '';
 
-  // ============= FILTROS ACTIVOS =============
+  // ============= ACCIONES =============
+  const consultar = () => {
+    setFiltrosAplicados({ ...filtrosForm });
+    setPagina(1);
+  };
+
+  const limpiarFiltros = () => {
+    setFiltrosForm(filtrosIniciales);
+    setFiltrosAplicados(filtrosIniciales);
+    setPagina(1);
+  };
+
+  const quitarFiltro = (campo: keyof Filtros, valor?: string) => {
+    setFiltrosAplicados((prev) => {
+      const nuevo = { ...prev };
+      if (campo === 'origenes' && valor) nuevo.origenes = prev.origenes.filter((o) => o !== valor);
+      else if (campo === 'tiposDoc' && valor) nuevo.tiposDoc = prev.tiposDoc.filter((t) => t !== valor);
+      else if (campo === 'fechaDesde' || campo === 'fechaHasta') {
+        nuevo.fechaDesde = '';
+        nuevo.fechaHasta = '';
+      } else if (campo === 'bultosMin' || campo === 'bultosMax') {
+        nuevo.bultosMin = '';
+        nuevo.bultosMax = '';
+      } else if (campo === 'estado') {
+        nuevo.estado = 'Todos';
+      } else {
+        (nuevo as any)[campo] = '';
+      }
+      // Sincronizar el form para no perder la edición en curso
+      setFiltrosForm((f) => ({ ...f, ...nuevo }));
+      return nuevo;
+    });
+  };
+
   const filtrosActivos = useMemo(() => {
+    const f = filtrosAplicados;
     const chips: { label: string; quitar: () => void }[] = [];
-    if (filtros.fechaDesde || filtros.fechaHasta) {
-      chips.push({
-        label: `📅 ${filtros.fechaDesde || '...'} → ${filtros.fechaHasta || '...'}`,
-        quitar: () => setFiltros((f) => ({ ...f, fechaDesde: '', fechaHasta: '' }))
-      });
-    }
-    if (filtros.numeroTransporte) chips.push({ label: `🚚 N° ${filtros.numeroTransporte}`, quitar: () => setFiltros((f) => ({ ...f, numeroTransporte: '' })) });
-    if (filtros.conductor) chips.push({ label: `👤 ${filtros.conductor}`, quitar: () => setFiltros((f) => ({ ...f, conductor: '' })) });
-    if (filtros.patente) chips.push({ label: `🚛 ${filtros.patente}`, quitar: () => setFiltros((f) => ({ ...f, patente: '' })) });
-    if (filtros.codigoLocal) chips.push({ label: `🏬 ${filtros.codigoLocal}`, quitar: () => setFiltros((f) => ({ ...f, codigoLocal: '' })) });
-    if (filtros.sello) chips.push({ label: `🔖 ${filtros.sello}`, quitar: () => setFiltros((f) => ({ ...f, sello: '' })) });
-    if (filtros.numeroDocumento) chips.push({ label: `📄 Acta ${filtros.numeroDocumento}`, quitar: () => setFiltros((f) => ({ ...f, numeroDocumento: '' })) });
-    if (filtros.estado && filtros.estado !== 'Todos') chips.push({ label: `⚙️ ${filtros.estado}`, quitar: () => setFiltros((f) => ({ ...f, estado: 'Todos' })) });
-    filtros.origenes.forEach((o) => chips.push({ label: `📦 ${o}`, quitar: () => setFiltros((f) => ({ ...f, origenes: f.origenes.filter((x) => x !== o) })) }));
-    filtros.tiposDoc.forEach((t) => chips.push({ label: `📑 ${t}`, quitar: () => setFiltros((f) => ({ ...f, tiposDoc: f.tiposDoc.filter((x) => x !== t) })) }));
-    if (filtros.bultosMin || filtros.bultosMax) chips.push({
-      label: `🔢 ${filtros.bultosMin || '0'} - ${filtros.bultosMax || '∞'}`,
-      quitar: () => setFiltros((f) => ({ ...f, bultosMin: '', bultosMax: '' }))
+    if (f.fechaDesde || f.fechaHasta) chips.push({
+      label: `📅 ${f.fechaDesde || '...'} → ${f.fechaHasta || '...'}`,
+      quitar: () => quitarFiltro('fechaDesde')
+    });
+    if (f.numeroTransporte) chips.push({ label: `🚚 ${f.numeroTransporte}`, quitar: () => quitarFiltro('numeroTransporte') });
+    if (f.conductor) chips.push({ label: `👤 ${f.conductor}`, quitar: () => quitarFiltro('conductor') });
+    if (f.patente) chips.push({ label: `🚛 ${f.patente}`, quitar: () => quitarFiltro('patente') });
+    if (f.codigoLocal) chips.push({ label: `🏬 ${f.codigoLocal}`, quitar: () => quitarFiltro('codigoLocal') });
+    if (f.sello) chips.push({ label: `🔖 ${f.sello}`, quitar: () => quitarFiltro('sello') });
+    if (f.numeroDocumento) chips.push({ label: `📄 ${f.numeroDocumento}`, quitar: () => quitarFiltro('numeroDocumento') });
+    if (f.estado && f.estado !== 'Todos') chips.push({ label: `⚙️ ${f.estado}`, quitar: () => quitarFiltro('estado') });
+    f.origenes.forEach((o) => chips.push({ label: `📦 ${o}`, quitar: () => quitarFiltro('origenes', o) }));
+    f.tiposDoc.forEach((t) => chips.push({ label: `📑 ${t}`, quitar: () => quitarFiltro('tiposDoc', t) }));
+    if (f.bultosMin || f.bultosMax) chips.push({
+      label: `🔢 ${f.bultosMin || '0'} - ${f.bultosMax || '∞'}`,
+      quitar: () => quitarFiltro('bultosMin')
     });
     return chips;
-  }, [filtros]);
+  }, [filtrosAplicados]);
 
-  const limpiarFiltros = () => setFiltros(filtrosIniciales);
-
-  const toggleCheckbox = (campo: 'origenes' | 'tiposDoc', valor: string) => {
-    setFiltros((f) => {
+  const toggleCheckboxForm = (campo: 'origenes' | 'tiposDoc', valor: string) => {
+    setFiltrosForm((f) => {
       const arr = f[campo];
       return { ...f, [campo]: arr.includes(valor) ? arr.filter((x) => x !== valor) : [...arr, valor] };
     });
   };
 
-  // ============= EXPORTAR A EXCEL =============
+  // ============= EXPORTAR =============
   const exportarExcel = () => {
     if (filasActuales.length === 0) {
       mostrarMensaje('warning', 'No hay datos para exportar');
@@ -472,21 +519,21 @@ const SD08Consultor: React.FC = () => {
 
     if (vista === 'transportes') {
       headers = ['N° Transporte', 'Fecha Prog.', 'Conductor', 'RUT', 'Patente', 'Patente Adicional', 'Locales', 'Bultos', 'Estado', 'Creado Por', 'Creado En'];
-      rows = filasActuales.map((t) => [
+      rows = filasActuales.map((t: any) => [
         t.id_documento, t._fechaFormato, t._conductor, t._rut,
         t._patente, t._patenteAdicional, t._localesCount, t._bultosCount,
-        t.estado, t._creadoPor, t._fechaHora
+        t.estado, t.creado_por || '-', t._fechaHora
       ]);
     } else if (vista === 'locales') {
       headers = ['N° Transporte', 'Fecha Prog.', 'Código Local', 'Nombre Local', 'Fecha Entrega', 'Hora Entrega', 'Conductor', 'Patente', 'Sello Trasero', 'Cant. Pallet', 'Bultos'];
-      rows = filasActuales.map((l) => [
+      rows = filasActuales.map((l: any) => [
         l._id_documento, l._fecha_programacion, l.codigo_local, l.nombre_local,
         l._fecha_entrega_fmt, l.hora_entrega || '-', l._conductor, l._patente,
         l.sello_trasero || '-', l.cantidad_pallet || 0, l._bultosCount
       ]);
     } else {
       headers = ['N° Transporte', 'Fecha Prog.', 'Código Local', 'Origen', 'Tipo Doc', 'N° Documento', 'Cantidad', 'Observación'];
-      rows = filasActuales.map((b) => [
+      rows = filasActuales.map((b: any) => [
         b._id_documento, b._fecha_programacion, b._codigo_local,
         b.origen_carga, b.tipo_documento || '-', b.numero_documento || '-',
         b.cantidad, b.observacion || '-'
@@ -502,10 +549,10 @@ const SD08Consultor: React.FC = () => {
   // ============= GUARDAR / CARGAR CONSULTAS =============
   const guardarConsulta = () => {
     if (!nombreConsulta.trim()) {
-      mostrarMensaje('warning', 'Ingresa un nombre para la consulta');
+      mostrarMensaje('warning', 'Ingresa un nombre');
       return;
     }
-    const nuevas = [...savedQueries.filter((q) => q.nombre !== nombreConsulta), { nombre: nombreConsulta, filtros }];
+    const nuevas = [...savedQueries.filter((q) => q.nombre !== nombreConsulta), { nombre: nombreConsulta, filtros: filtrosAplicados }];
     setSavedQueries(nuevas);
     localStorage.setItem('sd08_saved_queries', JSON.stringify(nuevas));
     setNombreConsulta('');
@@ -514,8 +561,10 @@ const SD08Consultor: React.FC = () => {
   };
 
   const cargarConsulta = (q: SavedQuery) => {
-    setFiltros(q.filtros);
+    setFiltrosForm(q.filtros);
+    setFiltrosAplicados(q.filtros);
     setShowLoadModal(false);
+    setPagina(1);
     mostrarMensaje('info', `Consulta "${q.nombre}" cargada`);
   };
 
@@ -525,7 +574,7 @@ const SD08Consultor: React.FC = () => {
     localStorage.setItem('sd08_saved_queries', JSON.stringify(nuevas));
   };
 
-  // ============= RENDER DE COLUMNAS =============
+  // ============= COLUMNAS =============
   const columnasDisponiblesTransportes = [
     { id: 'id_documento', label: 'N° Transporte' },
     { id: 'fecha_programacion', label: 'Fecha Programación' },
@@ -572,7 +621,7 @@ const SD08Consultor: React.FC = () => {
 
   const columnasDisponibles = vista === 'transportes' ? columnasDisponiblesTransportes : vista === 'locales' ? columnasDisponiblesLocales : columnasDisponiblesBultos;
   const columnasActuales = vista === 'transportes' ? columnasTransportes : vista === 'locales' ? columnasLocales : columnasBultos;
-  const setColumnasActuales = vista === 'transportes' ? setColumnasTransportes : vista === 'locales' ? setColumnasLocales : setColumnasBultos;
+  const setColumnasActuales: any = vista === 'transportes' ? setColumnasTransportes : vista === 'locales' ? setColumnasLocales : setColumnasBultos;
 
   const toggleColumna = (col: string) => {
     setColumnasActuales((prev: string[]) =>
@@ -588,19 +637,24 @@ const SD08Consultor: React.FC = () => {
 
       <div className="sd08-header">
         <h1>SD08 – Consultor de Transportes</h1>
-        <p>Consulta avanzada con filtros combinados · {transportes.length} transportes · {locales.length} locales · {bultos.length} bultos cargados</p>
+        <p>
+          Consulta avanzada · {transportes.length} transportes · {locales.length} locales · {bultos.length} bultos cargados
+          {filtrosActivos.length > 0 && <> · <strong>{filtrosActivos.length} filtros aplicados</strong></>}
+        </p>
       </div>
 
       {/* Toolbar */}
       <div className="sd08-toolbar">
-        <button className="sd08-btn sd08-btn-primary" onClick={() => setPagina(1)}>🔍 Consultar</button>
+        <button className="sd08-btn sd08-btn-primary" onClick={consultar}>🔍 Consultar</button>
         <button className="sd08-btn" onClick={limpiarFiltros}>🧹 Limpiar</button>
         <button className="sd08-btn" onClick={() => setMostrarFiltros(!mostrarFiltros)}>
           {mostrarFiltros ? '👁️ Ocultar filtros' : '👁️ Mostrar filtros'}
         </button>
         <div className="sd08-separator"></div>
         <button className="sd08-btn" onClick={() => setShowSaveModal(true)}>💾 Guardar consulta</button>
-        <button className="sd08-btn" onClick={() => setShowLoadModal(true)}>📁 Cargar consulta {savedQueries.length > 0 && `(${savedQueries.length})`}</button>
+        <button className="sd08-btn" onClick={() => setShowLoadModal(true)}>
+          📁 Cargar consulta {savedQueries.length > 0 && `(${savedQueries.length})`}
+        </button>
         <div className="sd08-separator"></div>
         <button className="sd08-btn sd08-btn-success" style={{ marginLeft: 'auto' }} onClick={exportarExcel}>
           📊 Exportar Excel
@@ -626,43 +680,46 @@ const SD08Consultor: React.FC = () => {
 
       {/* Filtros */}
       <div className={`sd08-filters-panel ${mostrarFiltros ? '' : 'sd08-collapsed'}`}>
-        <h3>Filtros de búsqueda {filtrosActivos.length > 0 && <span className="badge">{filtrosActivos.length} activos</span>}</h3>
+        <h3>
+          Filtros de búsqueda
+          {filtrosActivos.length > 0 && <span className="badge">{filtrosActivos.length} activos</span>}
+        </h3>
         <div className="sd08-filters-grid">
           <div className="sd08-filter-group">
             <label>Fecha programación desde</label>
-            <input type="date" value={filtros.fechaDesde} onChange={(e) => setFiltros({ ...filtros, fechaDesde: e.target.value })} />
+            <input type="date" value={filtrosForm.fechaDesde} onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaDesde: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>Fecha programación hasta</label>
-            <input type="date" value={filtros.fechaHasta} onChange={(e) => setFiltros({ ...filtros, fechaHasta: e.target.value })} />
+            <input type="date" value={filtrosForm.fechaHasta} onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaHasta: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>N° Transporte</label>
-            <input type="text" placeholder="Ej: SD01092026000001" value={filtros.numeroTransporte} onChange={(e) => setFiltros({ ...filtros, numeroTransporte: e.target.value })} />
+            <input type="text" placeholder="Ej: SD01092026000001" value={filtrosForm.numeroTransporte} onChange={(e) => setFiltrosForm({ ...filtrosForm, numeroTransporte: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>Conductor</label>
-            <input type="text" placeholder="Nombre o apellido" value={filtros.conductor} onChange={(e) => setFiltros({ ...filtros, conductor: e.target.value })} />
+            <input type="text" placeholder="Nombre o apellido" value={filtrosForm.conductor} onChange={(e) => setFiltrosForm({ ...filtrosForm, conductor: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>Patente</label>
-            <input type="text" placeholder="Ej: ABCD12" value={filtros.patente} onChange={(e) => setFiltros({ ...filtros, patente: e.target.value })} />
+            <input type="text" placeholder="Ej: ABCD12" value={filtrosForm.patente} onChange={(e) => setFiltrosForm({ ...filtrosForm, patente: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>Código Local</label>
-            <input type="text" placeholder="Ej: D001" value={filtros.codigoLocal} onChange={(e) => setFiltros({ ...filtros, codigoLocal: e.target.value })} />
+            <input type="text" placeholder="Ej: D001" value={filtrosForm.codigoLocal} onChange={(e) => setFiltrosForm({ ...filtrosForm, codigoLocal: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>Sello (trasero / lateral / adicional)</label>
-            <input type="text" placeholder="Número de sello" value={filtros.sello} onChange={(e) => setFiltros({ ...filtros, sello: e.target.value })} />
+            <input type="text" placeholder="Número de sello" value={filtrosForm.sello} onChange={(e) => setFiltrosForm({ ...filtrosForm, sello: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>N° Documento (acta)</label>
-            <input type="text" placeholder="Ej: 22687" value={filtros.numeroDocumento} onChange={(e) => setFiltros({ ...filtros, numeroDocumento: e.target.value })} />
+            <input type="text" placeholder="Ej: 22687" value={filtrosForm.numeroDocumento} onChange={(e) => setFiltrosForm({ ...filtrosForm, numeroDocumento: e.target.value })} />
           </div>
           <div className="sd08-filter-group">
             <label>Estado</label>
-            <select value={filtros.estado} onChange={(e) => setFiltros({ ...filtros, estado: e.target.value })}>
+            <select value={filtrosForm.estado} onChange={(e) => setFiltrosForm({ ...filtrosForm, estado: e.target.value })}>
               <option value="Todos">Todos</option>
               <option value="Pendiente">Pendiente</option>
               <option value="En Proceso">En Proceso</option>
@@ -672,38 +729,41 @@ const SD08Consultor: React.FC = () => {
           </div>
           <div className="sd08-filter-group">
             <label>Origen de Carga</label>
-            <div className="sd08-multi-select">
-              {ORIGENES_DISPONIBLES.map((o) => (
-                <label key={o}>
-                  <input type="checkbox" checked={filtros.origenes.includes(o)} onChange={() => toggleCheckbox('origenes', o)} />
-                  {o}
-                </label>
-              ))}
-            </div>
+            <MultiSelectDropdown
+              options={ORIGENES_DISPONIBLES}
+              value={filtrosForm.origenes}
+              onChange={(v) => setFiltrosForm({ ...filtrosForm, origenes: v })}
+              placeholder="Seleccionar orígenes..."
+            />
           </div>
           <div className="sd08-filter-group">
             <label>Tipo de Documento</label>
-            <div className="sd08-multi-select">
-              {TIPOS_DOC_DISPONIBLES.map((t) => (
-                <label key={t}>
-                  <input type="checkbox" checked={filtros.tiposDoc.includes(t)} onChange={() => toggleCheckbox('tiposDoc', t)} />
-                  {t}
-                </label>
-              ))}
-            </div>
+            <MultiSelectDropdown
+              options={TIPOS_DOC_DISPONIBLES}
+              value={filtrosForm.tiposDoc}
+              onChange={(v) => setFiltrosForm({ ...filtrosForm, tiposDoc: v })}
+              placeholder="Seleccionar tipos..."
+            />
           </div>
           <div className="sd08-filter-group">
             <label>Rango bultos solicitados</label>
             <div style={{ display: 'flex', gap: 6 }}>
-              <input type="number" placeholder="Min" style={{ width: '50%' }} value={filtros.bultosMin} onChange={(e) => setFiltros({ ...filtros, bultosMin: e.target.value })} />
-              <input type="number" placeholder="Max" style={{ width: '50%' }} value={filtros.bultosMax} onChange={(e) => setFiltros({ ...filtros, bultosMax: e.target.value })} />
+              <input type="number" placeholder="Min" style={{ width: '50%' }} value={filtrosForm.bultosMin} onChange={(e) => setFiltrosForm({ ...filtrosForm, bultosMin: e.target.value })} />
+              <input type="number" placeholder="Max" style={{ width: '50%' }} value={filtrosForm.bultosMax} onChange={(e) => setFiltrosForm({ ...filtrosForm, bultosMax: e.target.value })} />
             </div>
           </div>
         </div>
 
+        {/* Botón grande de consultar */}
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button className="sd08-btn" onClick={() => setFiltrosForm(filtrosIniciales)}>Resetear formulario</button>
+          <button className="sd08-btn sd08-btn-primary" onClick={consultar}>🔍 Aplicar filtros</button>
+        </div>
+
+        {/* Chips de filtros aplicados */}
         {filtrosActivos.length > 0 && (
           <div className="sd08-active-filters">
-            <div className="sd08-active-filters-title">Filtros activos</div>
+            <div className="sd08-active-filters-title">Filtros activos (aplicados)</div>
             <div className="sd08-filter-chips">
               {filtrosActivos.map((c, i) => (
                 <span key={i} className="sd08-filter-chip">
@@ -765,7 +825,7 @@ const SD08Consultor: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {vista === 'transportes' && filasPaginadas.map((t) => (
+                {vista === 'transportes' && filasPaginadas.map((t: any) => (
                   <tr key={t._id}>
                     {columnasTransportes.includes('id_documento') && <td className="sd08-mono">{t.id_documento}</td>}
                     {columnasTransportes.includes('fecha_programacion') && <td>{t._fechaFormato}</td>}
@@ -776,7 +836,7 @@ const SD08Consultor: React.FC = () => {
                     {columnasTransportes.includes('locales') && <td className="sd08-num">{t._localesCount}</td>}
                     {columnasTransportes.includes('bultos') && <td className="sd08-num">{formatNumber(t._bultosCount)}</td>}
                     {columnasTransportes.includes('estado') && <td><span className={`sd08-badge sd08-badge-${(t.estado || '').toLowerCase().replace(' ', '')}`}>{t.estado}</span></td>}
-                    {columnasTransportes.includes('creado_por') && <td>{t._creadoPor}</td>}
+                    {columnasTransportes.includes('creado_por') && <td>{t.creado_por || '-'}</td>}
                     {columnasTransportes.includes('creado_en') && <td>{t._fechaHora}</td>}
                     {columnasTransportes.includes('modificado_por') && <td>{t.modificado_por || '-'}</td>}
                     {columnasTransportes.includes('modificado_en') && <td>{t.modificado_en ? formatFechaHora(t.modificado_en) : '-'}</td>}
@@ -786,7 +846,7 @@ const SD08Consultor: React.FC = () => {
                     {columnasTransportes.includes('sello_adicional') && <td>{t.sello_adicional || '-'}</td>}
                   </tr>
                 ))}
-                {vista === 'locales' && filasPaginadas.map((l) => (
+                {vista === 'locales' && filasPaginadas.map((l: any) => (
                   <tr key={l._id}>
                     {columnasLocales.includes('id_documento') && <td className="sd08-mono">{l._id_documento}</td>}
                     {columnasLocales.includes('fecha_programacion') && <td>{l._fecha_programacion}</td>}
@@ -802,7 +862,7 @@ const SD08Consultor: React.FC = () => {
                     {columnasLocales.includes('cantidad_solicitada') && <td className="sd08-num">{l.cantidad_solicitada || 0}</td>}
                   </tr>
                 ))}
-                {vista === 'bultos' && filasPaginadas.map((b) => (
+                {vista === 'bultos' && filasPaginadas.map((b: any) => (
                   <tr key={b._id}>
                     {columnasBultos.includes('id_documento') && <td className="sd08-mono">{b._id_documento}</td>}
                     {columnasBultos.includes('fecha_programacion') && <td>{b._fecha_programacion}</td>}
@@ -861,7 +921,7 @@ const SD08Consultor: React.FC = () => {
                 autoFocus
               />
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-                Se guardarán los filtros actuales con este nombre para recuperarlos después.
+                Se guardarán los filtros aplicados actualmente.
               </p>
             </div>
             <div className="sd08-modal-footer">
