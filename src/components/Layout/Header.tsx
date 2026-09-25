@@ -31,6 +31,7 @@ const moduleTitles: Record<string, string> = {
   'sd-estado-carga': 'SD05 · Estado de Carga',
   'sd-pedidos-especiales': 'SD06 · Pedidos Especiales',
   'sd-comparativa-cd01': 'SD07 · Comparativa CD01',
+  'sd-consultor': 'SD08 · Consultor Transportes',
   'sd-asignador': 'SD · Asignador Móvil',
   ut: 'UT01 · Correlativo QR',
   'ut-revision': 'UT02 · Revisión Pallet',
