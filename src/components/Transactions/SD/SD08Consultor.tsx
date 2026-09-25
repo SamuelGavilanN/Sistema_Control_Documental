@@ -111,7 +111,7 @@ const fetchAllPaginado = async (baseUrl: string): Promise<any[]> => {
   return out;
 };
 
-// ============ MultiSelectDropdown (rediseñado) ============
+// ============ MultiSelectDropdown ============
 interface MultiSelectProps {
   options: string[];
   value: string[];
@@ -150,7 +150,6 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
     return options.filter((o) => normalizar(o).includes(q));
   }, [options, busqueda]);
 
-  // Máximo de chips visibles dentro del trigger
   const MAX_CHIPS = 2;
   const visibles = value.slice(0, MAX_CHIPS);
   const restantes = value.length - visibles.length;
@@ -227,8 +226,10 @@ interface SavedQuery { nombre: string; filtros: Filtros; }
 const SD08Consultor: React.FC = () => {
   const [conductores, setConductores] = useState<any[]>([]);
   const [patentes, setPatentes] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
   const [conductoresMap, setConductoresMap] = useState<Map<string, any>>(new Map());
   const [patentesMap, setPatentesMap] = useState<Map<string, any>>(new Map());
+  const [usuariosMap, setUsuariosMap] = useState<Map<string, any>>(new Map());
 
   const [transportes, setTransportes] = useState<any[]>([]);
   const [locales, setLocales] = useState<any[]>([]);
@@ -249,7 +250,7 @@ const SD08Consultor: React.FC = () => {
   const [ordenDireccion, setOrdenDireccion] = useState<'asc' | 'desc'>('desc');
 
   const [columnasTransportes, setColumnasTransportes] = useState<string[]>([
-    'id_documento', 'fecha_programacion', 'conductor', 'rut', 'patente', 'locales', 'bultos', 'estado', 'creado_por', 'creado_en'
+    'id_documento', 'fecha_programacion', 'conductor', 'rut', 'patente', 'locales', 'bultosSolicitados', 'bultos', 'estado', 'creado_por', 'creado_en'
   ]);
   const [columnasLocales, setColumnasLocales] = useState<string[]>([
     'id_documento', 'fecha_programacion', 'codigo_local', 'nombre_local', 'fecha_entrega', 'hora_entrega', 'conductor', 'patente', 'sello_trasero', 'cantidad_pallet', 'bultos'
@@ -274,7 +275,6 @@ const SD08Consultor: React.FC = () => {
       const raw = localStorage.getItem('sd08_saved_queries');
       if (raw) {
         const parsed = JSON.parse(raw);
-        // Compatibilidad con consultas antiguas que tenían fechaDesde/fechaHasta
         const migradas = parsed.map((q: any) => ({
           ...q,
           filtros: {
@@ -291,18 +291,23 @@ const SD08Consultor: React.FC = () => {
   useEffect(() => {
     const cargarCatalogos = async () => {
       try {
-        const [c, p] = await Promise.all([
+        const [c, p, u] = await Promise.all([
           fetchAllPaginado(`${API_URL}/conductores?select=*`),
-          fetchAllPaginado(`${API_URL}/patentes?select=*`)
+          fetchAllPaginado(`${API_URL}/patentes?select=*`),
+          fetchAllPaginado(`${API_URL}/usuarios?select=id,nombre,apellido,usuario`)
         ]);
         setConductores(c);
         setPatentes(p);
+        setUsuarios(u);
         const cm = new Map<string, any>();
         c.forEach((x: any) => cm.set(x.id, x));
         setConductoresMap(cm);
         const pm = new Map<string, any>();
         p.forEach((x: any) => pm.set(x.id, x));
         setPatentesMap(pm);
+        const um = new Map<string, any>();
+        u.forEach((x: any) => um.set(x.id, x));
+        setUsuariosMap(um);
       } catch (e) {
         console.error('Error cargando catálogos:', e);
       }
@@ -326,6 +331,18 @@ const SD08Consultor: React.FC = () => {
     const p = patentesMap.get(id);
     return p?.numero_patente || '';
   }, [patentesMap]);
+
+  // Resuelve un UUID de usuario a "Nombre Apellido".
+  // Si el valor no es un UUID (por ejemplo, ya viene como texto), lo deja tal cual.
+  const getUsuarioNombre = useCallback((valor: any): string => {
+    if (!valor) return '-';
+    const s = String(valor);
+    const esUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    if (!esUUID) return s;
+    const u = usuariosMap.get(s);
+    if (!u) return s;
+    return `${u.nombre || ''} ${u.apellido || ''}`.trim() || u.usuario || s;
+  }, [usuariosMap]);
 
   // ===============================
   // CONSULTA BAJO DEMANDA
@@ -361,7 +378,6 @@ const SD08Consultor: React.FC = () => {
 
       const paramsDoc = new URLSearchParams();
       paramsDoc.set('select', '*');
-      // Fecha única: mismo día en desde y hasta
       if (f.fechaProgramacion) {
         paramsDoc.append('fecha_programacion', `gte.${f.fechaProgramacion}T00:00:00`);
         paramsDoc.append('fecha_programacion', `lte.${f.fechaProgramacion}T23:59:59`);
@@ -485,6 +501,7 @@ const SD08Consultor: React.FC = () => {
       const locIds = new Set(localesDelDoc.map((l) => l.id));
       const bultosDelDoc = bultos.filter((b) => locIds.has(b.local_id));
       const totalBultos = bultosDelDoc.reduce((s, b) => s + (b.cantidad || 0), 0);
+      const totalSolicitados = localesDelDoc.reduce((s, l) => s + (Number(l.cantidad_solicitada) || 0), 0);
       return {
         ...doc,
         _id: doc.id,
@@ -493,12 +510,15 @@ const SD08Consultor: React.FC = () => {
         _patente: getPatente(doc),
         _patenteAdicional: getPatente(doc, true),
         _localesCount: localesDelDoc.length,
+        _bultosSolicitados: totalSolicitados,
         _bultosCount: totalBultos,
         _fechaFormato: formatFecha(doc.fecha_programacion),
-        _fechaHora: formatFechaHora(doc.creado_en)
+        _fechaHora: formatFechaHora(doc.creado_en),
+        _creadoPor: getUsuarioNombre(doc.creado_por),
+        _modificadoPor: getUsuarioNombre(doc.modificado_por)
       };
     });
-  }, [transportes, locales, bultos, getConductorNombre, getConductorRut, getPatente]);
+  }, [transportes, locales, bultos, getConductorNombre, getConductorRut, getPatente, getUsuarioNombre]);
 
   const filasLocales = useMemo(() => {
     const docMap = new Map(transportes.map((d) => [d.id_documento, d]));
@@ -597,14 +617,26 @@ const SD08Consultor: React.FC = () => {
     let headers: string[] = [];
     let rows: any[][] = [];
     if (vista === 'transportes') {
-      headers = ['N° Transporte', 'Fecha Prog.', 'Conductor', 'RUT', 'Patente', 'Patente Adicional', 'Locales', 'Bultos', 'Estado', 'Creado Por', 'Creado En'];
-      rows = filasActuales.map((t: any) => [t.id_documento, t._fechaFormato, t._conductor, t._rut, t._patente, t._patenteAdicional, t._localesCount, t._bultosCount, t.estado, t.creado_por || '-', t._fechaHora]);
+      headers = ['N° Transporte', 'Fecha Prog.', 'Conductor', 'RUT', 'Patente', 'Patente Adicional', 'Locales', 'Bultos Solicitados', 'Bultos Despachados', 'Estado', 'Creado Por', 'Creado En', 'Modificado Por'];
+      rows = filasActuales.map((t: any) => [
+        t.id_documento, t._fechaFormato, t._conductor, t._rut,
+        t._patente, t._patenteAdicional, t._localesCount, t._bultosSolicitados, t._bultosCount,
+        t.estado, t._creadoPor, t._fechaHora, t._modificadoPor
+      ]);
     } else if (vista === 'locales') {
       headers = ['N° Transporte', 'Fecha Prog.', 'Código Local', 'Nombre Local', 'Fecha Entrega', 'Hora Entrega', 'Conductor', 'Patente', 'Sello Trasero', 'Cant. Pallet', 'Bultos'];
-      rows = filasActuales.map((l: any) => [l._id_documento, l._fecha_programacion, l.codigo_local, l.nombre_local, l._fecha_entrega_fmt, l.hora_entrega || '-', l._conductor, l._patente, l.sello_trasero || '-', l.cantidad_pallet || 0, l._bultosCount]);
+      rows = filasActuales.map((l: any) => [
+        l._id_documento, l._fecha_programacion, l.codigo_local, l.nombre_local,
+        l._fecha_entrega_fmt, l.hora_entrega || '-', l._conductor, l._patente,
+        l.sello_trasero || '-', l.cantidad_pallet || 0, l._bultosCount
+      ]);
     } else {
       headers = ['N° Transporte', 'Fecha Prog.', 'Código Local', 'Origen', 'Tipo Doc', 'N° Documento', 'Cantidad', 'Observación'];
-      rows = filasActuales.map((b: any) => [b._id_documento, b._fecha_programacion, b._codigo_local, b.origen_carga, b.tipo_documento || '-', b.numero_documento || '-', b.cantidad, b.observacion || '-']);
+      rows = filasActuales.map((b: any) => [
+        b._id_documento, b._fecha_programacion, b._codigo_local,
+        b.origen_carga, b.tipo_documento || '-', b.numero_documento || '-',
+        b.cantidad, b.observacion || '-'
+      ]);
     }
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
@@ -644,7 +676,8 @@ const SD08Consultor: React.FC = () => {
     { id: 'patente', label: 'Patente' },
     { id: 'patenteAdicional', label: 'Patente Adicional' },
     { id: 'locales', label: 'Locales' },
-    { id: 'bultos', label: 'Bultos' },
+    { id: 'bultosSolicitados', label: 'Bultos Solicitados' },
+    { id: 'bultos', label: 'Bultos Despachados' },
     { id: 'estado', label: 'Estado' },
     { id: 'creado_por', label: 'Creado Por' },
     { id: 'creado_en', label: 'Creado En' },
@@ -859,7 +892,12 @@ const SD08Consultor: React.FC = () => {
           <>
             <div className="sd08-results-info">
               <span>Mostrando <strong>{filasPaginadas.length}</strong> de <strong>{filasActuales.length}</strong> registros</span>
-              {vista === 'transportes' && <span className="chip">Total bultos: {formatNumber(filasTransportes.reduce((s, t) => s + t._bultosCount, 0))}</span>}
+              {vista === 'transportes' && (
+                <>
+                  <span className="chip">Total solicitados: {formatNumber(filasTransportes.reduce((s, t) => s + t._bultosSolicitados, 0))}</span>
+                  <span className="chip">Total despachados: {formatNumber(filasTransportes.reduce((s, t) => s + t._bultosCount, 0))}</span>
+                </>
+              )}
               {vista === 'locales' && <span className="chip">Total bultos: {formatNumber(filasLocales.reduce((s, l) => s + l._bultosCount, 0))}</span>}
               {vista === 'bultos' && <span className="chip">Total cantidad: {formatNumber(filasBultos.reduce((s, b) => s + (b.cantidad || 0), 0))}</span>}
             </div>
@@ -898,11 +936,12 @@ const SD08Consultor: React.FC = () => {
                         {columnasTransportes.includes('patente') && <td>{t._patente}</td>}
                         {columnasTransportes.includes('patenteAdicional') && <td>{t._patenteAdicional || '-'}</td>}
                         {columnasTransportes.includes('locales') && <td className="sd08-num">{t._localesCount}</td>}
+                        {columnasTransportes.includes('bultosSolicitados') && <td className="sd08-num">{formatNumber(t._bultosSolicitados)}</td>}
                         {columnasTransportes.includes('bultos') && <td className="sd08-num">{formatNumber(t._bultosCount)}</td>}
                         {columnasTransportes.includes('estado') && <td><span className={`sd08-badge sd08-badge-${(t.estado || '').toLowerCase().replace(' ', '')}`}>{t.estado}</span></td>}
-                        {columnasTransportes.includes('creado_por') && <td>{t.creado_por || '-'}</td>}
+                        {columnasTransportes.includes('creado_por') && <td>{t._creadoPor}</td>}
                         {columnasTransportes.includes('creado_en') && <td>{t._fechaHora}</td>}
-                        {columnasTransportes.includes('modificado_por') && <td>{t.modificado_por || '-'}</td>}
+                        {columnasTransportes.includes('modificado_por') && <td>{t._modificadoPor}</td>}
                         {columnasTransportes.includes('modificado_en') && <td>{t.modificado_en ? formatFechaHora(t.modificado_en) : '-'}</td>}
                         {columnasTransportes.includes('fecha_inicio') && <td>{t.fecha_inicio ? formatFechaHora(t.fecha_inicio) : '-'}</td>}
                         {columnasTransportes.includes('finalizado_en') && <td>{t.finalizado_en ? formatFechaHora(t.finalizado_en) : '-'}</td>}
