@@ -124,11 +124,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
 
   return (
     <div className="sd08-multiselect" ref={wrapperRef}>
-      <button
-        type="button"
-        className="sd08-multiselect-trigger"
-        onClick={() => setOpen(!open)}
-      >
+      <button type="button" className="sd08-multiselect-trigger" onClick={() => setOpen(!open)}>
         <span className={value.length === 0 ? 'placeholder' : 'value'}>{label}</span>
         <span className="sd08-multiselect-arrow">{open ? '▲' : '▼'}</span>
       </button>
@@ -136,11 +132,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
         <div className="sd08-multiselect-dropdown">
           {options.map((opt) => (
             <label key={opt} className="sd08-multiselect-item">
-              <input
-                type="checkbox"
-                checked={value.includes(opt)}
-                onChange={() => toggle(opt)}
-              />
+              <input type="checkbox" checked={value.includes(opt)} onChange={() => toggle(opt)} />
               {opt}
             </label>
           ))}
@@ -158,7 +150,6 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, value, onCha
 interface SavedQuery { nombre: string; filtros: Filtros; }
 
 const SD08Consultor: React.FC = () => {
-  // Datos
   const [transportes, setTransportes] = useState<any[]>([]);
   const [locales, setLocales] = useState<any[]>([]);
   const [bultos, setBultos] = useState<any[]>([]);
@@ -168,7 +159,6 @@ const SD08Consultor: React.FC = () => {
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
 
-  // Filtros: form vs aplicados (solo se aplican al hacer clic en Consultar)
   const [filtrosForm, setFiltrosForm] = useState<Filtros>(filtrosIniciales);
   const [filtrosAplicados, setFiltrosAplicados] = useState<Filtros>(filtrosIniciales);
 
@@ -190,7 +180,6 @@ const SD08Consultor: React.FC = () => {
   ]);
   const [mostrarColumnas, setMostrarColumnas] = useState(false);
 
-  // Consultas guardadas
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
@@ -208,7 +197,6 @@ const SD08Consultor: React.FC = () => {
     } catch {}
   }, []);
 
-  // Carga inicial
   useEffect(() => {
     const cargarTodo = async () => {
       setCargando(true);
@@ -248,7 +236,6 @@ const SD08Consultor: React.FC = () => {
     cargarTodo();
   }, []);
 
-  // Helpers
   const getConductorNombre = useCallback((doc: any) => {
     const c = conductoresMap.get(doc?.conductor_id);
     return c ? `${c.nombre} ${c.apellido}` : '-';
@@ -266,59 +253,12 @@ const SD08Consultor: React.FC = () => {
     return p?.numero_patente || '';
   }, [patentesMap]);
 
-  // ============= LÓGICA DE FILTRADO EN CASCADA =============
+  // =====================================================
+  // LÓGICA DE FILTRADO EN CASCADA (no circular)
+  // =====================================================
 
-  // 1) Bultos que cumplen los filtros propios de bulto
-  const bultosQueCumplen = useMemo(() => {
-    const f = filtrosAplicados;
-    return bultos.filter((b) => {
-      if (f.origenes.length > 0 && !f.origenes.includes(b.origen_carga)) return false;
-      if (f.tiposDoc.length > 0) {
-        const td = b.tipo_documento || 'No aplica';
-        if (!f.tiposDoc.includes(td)) return false;
-      }
-      if (f.numeroDocumento && !contieneTexto(b.numero_documento, f.numeroDocumento)) return false;
-      if (f.bultosMin && Number(b.cantidad) < Number(f.bultosMin)) return false;
-      if (f.bultosMax && Number(b.cantidad) > Number(f.bultosMax)) return false;
-      return true;
-    });
-  }, [bultos, filtrosAplicados]);
-
-  const hayFiltrosBulto = useMemo(() => {
-    const f = filtrosAplicados;
-    return (
-      f.origenes.length > 0 ||
-      f.tiposDoc.length > 0 ||
-      !!f.numeroDocumento ||
-      !!f.bultosMin ||
-      !!f.bultosMax
-    );
-  }, [filtrosAplicados]);
-
-  // 2) Local IDs que cumplen los filtros de bulto (null si no hay filtros de bulto)
-  const localIdsQueCumplenBultos = useMemo(() => {
-    if (!hayFiltrosBulto) return null;
-    return new Set<string>(bultosQueCumplen.map((b) => b.local_id));
-  }, [bultosQueCumplen, hayFiltrosBulto]);
-
-  // 3) Locales que cumplen filtros de local Y (si hay) están en localIdsQueCumplenBultos
-  const localesFiltrados = useMemo(() => {
-    const f = filtrosAplicados;
-    return locales.filter((l) => {
-      if (f.codigoLocal && !contieneTexto(l.codigo_local, f.codigoLocal)) return false;
-      if (localIdsQueCumplenBultos && !localIdsQueCumplenBultos.has(l.id)) return false;
-      return true;
-    });
-  }, [locales, filtrosAplicados, localIdsQueCumplenBultos]);
-
-  // 4) Documento IDs de esos locales
-  const docIdsQueCumplenLocales = useMemo(
-    () => new Set<string>(localesFiltrados.map((l) => l.documento_id)),
-    [localesFiltrados]
-  );
-
-  // 5) Transportes que cumplen filtros propios Y pertenecen a docIdsQueCumplenLocales
-  const transportesFiltrados = useMemo(() => {
+  // PASO 1: Transportes que cumplen solo filtros propios del transporte
+  const transportesBase = useMemo(() => {
     const f = filtrosAplicados;
     return transportes.filter((doc) => {
       if (f.fechaDesde && (doc.fecha_programacion || '').slice(0, 10) < f.fechaDesde) return false;
@@ -334,26 +274,99 @@ const SD08Consultor: React.FC = () => {
         const sellos = `${doc.sello_lateral || ''} ${doc.sello_adicional || ''}`;
         if (!contieneTexto(sellos, f.sello)) return false;
       }
-      // Si hay algún filtro de local o bulto, el doc debe estar en docIdsQueCumplenLocales
-      const hayFiltrosLocalOBulto = !!f.codigoLocal || hayFiltrosBulto;
-      if (hayFiltrosLocalOBulto && !docIdsQueCumplenLocales.has(doc.id_documento)) return false;
       return true;
     });
-  }, [transportes, filtrosAplicados, docIdsQueCumplenLocales, hayFiltrosBulto, getConductorNombre, getPatente]);
+  }, [transportes, filtrosAplicados, getConductorNombre, getPatente]);
 
-  // 6) Bultos finales (los que pertenecen a locales filtrados y cumplen filtros de bulto)
+  const docIdsBase = useMemo(
+    () => new Set(transportesBase.map((d) => d.id_documento)),
+    [transportesBase]
+  );
+
+  // PASO 2: Locales que pertenecen a esos transportes
+  const localesDeTransportesBase = useMemo(
+    () => locales.filter((l) => docIdsBase.has(l.documento_id)),
+    [locales, docIdsBase]
+  );
+
+  // PASO 3: Filtro de codigoLocal sobre esos locales
+  const localesFiltradosPorCodigo = useMemo(() => {
+    if (!filtrosAplicados.codigoLocal) return localesDeTransportesBase;
+    return localesDeTransportesBase.filter((l) =>
+      contieneTexto(l.codigo_local, filtrosAplicados.codigoLocal)
+    );
+  }, [localesDeTransportesBase, filtrosAplicados.codigoLocal]);
+
+  // PASO 4: Bultos que pertenecen a esos locales
+  const localIdsFiltrados = useMemo(
+    () => new Set(localesFiltradosPorCodigo.map((l) => l.id)),
+    [localesFiltradosPorCodigo]
+  );
+
+  const bultosBase = useMemo(
+    () => bultos.filter((b) => localIdsFiltrados.has(b.local_id)),
+    [bultos, localIdsFiltrados]
+  );
+
+  // PASO 5: ¿Hay filtros propios de bulto?
+  const hayFiltrosBulto = useMemo(() => {
+    const f = filtrosAplicados;
+    return (
+      f.origenes.length > 0 ||
+      f.tiposDoc.length > 0 ||
+      !!f.numeroDocumento ||
+      !!f.bultosMin ||
+      !!f.bultosMax
+    );
+  }, [filtrosAplicados]);
+
+  // PASO 6: Filtrar bultos por filtros propios de bulto
   const bultosFinales = useMemo(() => {
-    const localIdsSet = new Set<string>(localesFiltrados.map((l) => l.id));
-    return bultosQueCumplen.filter((b) => localIdsSet.has(b.local_id));
-  }, [bultosQueCumplen, localesFiltrados]);
+    const f = filtrosAplicados;
+    return bultosBase.filter((b) => {
+      if (f.origenes.length > 0 && !f.origenes.includes(b.origen_carga)) return false;
+      if (f.tiposDoc.length > 0) {
+        const td = b.tipo_documento || 'No aplica';
+        if (!f.tiposDoc.includes(td)) return false;
+      }
+      if (f.numeroDocumento && !contieneTexto(b.numero_documento, f.numeroDocumento)) return false;
+      if (f.bultosMin && Number(b.cantidad) < Number(f.bultosMin)) return false;
+      if (f.bultosMax && Number(b.cantidad) > Number(f.bultosMax)) return false;
+      return true;
+    });
+  }, [bultosBase, filtrosAplicados]);
 
-  // ============= CONSTRUCCIÓN DE FILAS =============
+  // PASO 7: Si hay filtros de bulto, locales finales = solo los que tienen al menos un bulto que cumple
+  const localIdsConBultoFinal = useMemo(
+    () => new Set(bultosFinales.map((b) => b.local_id)),
+    [bultosFinales]
+  );
+
+  const localesFinales = useMemo(() => {
+    if (!hayFiltrosBulto) return localesFiltradosPorCodigo;
+    return localesFiltradosPorCodigo.filter((l) => localIdsConBultoFinal.has(l.id));
+  }, [localesFiltradosPorCodigo, hayFiltrosBulto, localIdsConBultoFinal]);
+
+  // PASO 8: Transportes finales = solo los que tienen al menos un local final
+  const docIdsConLocalFinal = useMemo(
+    () => new Set(localesFinales.map((l) => l.documento_id)),
+    [localesFinales]
+  );
+
+  const transportesFinales = useMemo(
+    () => transportesBase.filter((d) => docIdsConLocalFinal.has(d.id_documento)),
+    [transportesBase, docIdsConLocalFinal]
+  );
+
+  // =====================================================
+  // CONSTRUCCIÓN DE FILAS
+  // =====================================================
 
   const filasTransportes = useMemo(() => {
-    return transportesFiltrados.map((doc) => {
-      const localesDelDoc = locales.filter((l) => l.documento_id === doc.id_documento);
+    return transportesFinales.map((doc) => {
+      const localesDelDoc = localesFinales.filter((l) => l.documento_id === doc.id_documento);
       const locIds = new Set(localesDelDoc.map((l) => l.id));
-      const bultosDelDoc = bultos.filter((b) => locIds.has(b.local_id));
+      const bultosDelDoc = bultosFinales.filter((b) => locIds.has(b.local_id));
       const totalBultos = bultosDelDoc.reduce((s, b) => s + (b.cantidad || 0), 0);
       return {
         ...doc,
@@ -368,11 +381,11 @@ const SD08Consultor: React.FC = () => {
         _fechaHora: formatFechaHora(doc.creado_en)
       };
     });
-  }, [transportesFiltrados, locales, bultos, getConductorNombre, getConductorRut, getPatente]);
+  }, [transportesFinales, localesFinales, bultosFinales, getConductorNombre, getConductorRut, getPatente]);
 
   const filasLocales = useMemo(() => {
-    const docMap = new Map(transportesFiltrados.map((d) => [d.id_documento, d]));
-    return localesFiltrados
+    const docMap = new Map(transportesFinales.map((d) => [d.id_documento, d]));
+    return localesFinales
       .filter((loc) => docMap.has(loc.documento_id))
       .map((loc) => {
         const doc = docMap.get(loc.documento_id);
@@ -390,7 +403,7 @@ const SD08Consultor: React.FC = () => {
           _fecha_entrega_fmt: formatFecha(loc.fecha_entrega)
         };
       });
-  }, [localesFiltrados, transportesFiltrados, bultosFinales, getConductorNombre, getPatente]);
+  }, [localesFinales, transportesFinales, bultosFinales, getConductorNombre, getPatente]);
 
   const filasBultos = useMemo(() => {
     const localMap = new Map(locales.map((l) => [l.id, l]));
@@ -472,7 +485,6 @@ const SD08Consultor: React.FC = () => {
       } else {
         (nuevo as any)[campo] = '';
       }
-      // Sincronizar el form para no perder la edición en curso
       setFiltrosForm((f) => ({ ...f, ...nuevo }));
       return nuevo;
     });
@@ -500,13 +512,6 @@ const SD08Consultor: React.FC = () => {
     });
     return chips;
   }, [filtrosAplicados]);
-
-  const toggleCheckboxForm = (campo: 'origenes' | 'tiposDoc', valor: string) => {
-    setFiltrosForm((f) => {
-      const arr = f[campo];
-      return { ...f, [campo]: arr.includes(valor) ? arr.filter((x) => x !== valor) : [...arr, valor] };
-    });
-  };
 
   // ============= EXPORTAR =============
   const exportarExcel = () => {
@@ -546,7 +551,7 @@ const SD08Consultor: React.FC = () => {
     mostrarMensaje('success', 'Excel exportado');
   };
 
-  // ============= GUARDAR / CARGAR CONSULTAS =============
+  // ============= GUARDAR / CARGAR =============
   const guardarConsulta = () => {
     if (!nombreConsulta.trim()) {
       mostrarMensaje('warning', 'Ingresa un nombre');
@@ -643,7 +648,6 @@ const SD08Consultor: React.FC = () => {
         </p>
       </div>
 
-      {/* Toolbar */}
       <div className="sd08-toolbar">
         <button className="sd08-btn sd08-btn-primary" onClick={consultar}>🔍 Consultar</button>
         <button className="sd08-btn" onClick={limpiarFiltros}>🧹 Limpiar</button>
@@ -678,7 +682,6 @@ const SD08Consultor: React.FC = () => {
         )}
       </div>
 
-      {/* Filtros */}
       <div className={`sd08-filters-panel ${mostrarFiltros ? '' : 'sd08-collapsed'}`}>
         <h3>
           Filtros de búsqueda
@@ -754,13 +757,11 @@ const SD08Consultor: React.FC = () => {
           </div>
         </div>
 
-        {/* Botón grande de consultar */}
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button className="sd08-btn" onClick={() => setFiltrosForm(filtrosIniciales)}>Resetear formulario</button>
           <button className="sd08-btn sd08-btn-primary" onClick={consultar}>🔍 Aplicar filtros</button>
         </div>
 
-        {/* Chips de filtros aplicados */}
         {filtrosActivos.length > 0 && (
           <div className="sd08-active-filters">
             <div className="sd08-active-filters-title">Filtros activos (aplicados)</div>
@@ -776,7 +777,6 @@ const SD08Consultor: React.FC = () => {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="sd08-tabs-view">
         <div className={`sd08-tab-view ${vista === 'transportes' ? 'active' : ''}`} onClick={() => setVista('transportes')}>
           Transportes <span className="count">{filasTransportes.length}</span>
@@ -789,7 +789,6 @@ const SD08Consultor: React.FC = () => {
         </div>
       </div>
 
-      {/* Resultados */}
       <div className="sd08-results-wrapper">
         <div className="sd08-results-info">
           <span>Mostrando <strong>{filasPaginadas.length}</strong> de <strong>{filasActuales.length}</strong> registros</span>
@@ -879,7 +878,6 @@ const SD08Consultor: React.FC = () => {
           )}
         </div>
 
-        {/* Paginación */}
         <div className="sd08-pagination">
           <span>
             Registros por página:{' '}
@@ -900,7 +898,6 @@ const SD08Consultor: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal guardar consulta */}
       {showSaveModal && (
         <div className="sd08-modal-overlay" onClick={() => setShowSaveModal(false)}>
           <div className="sd08-modal" onClick={(e) => e.stopPropagation()}>
@@ -920,9 +917,6 @@ const SD08Consultor: React.FC = () => {
                 style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-input)', borderRadius: 8, fontSize: 13, background: 'var(--bg-input)', color: 'var(--text-primary)' }}
                 autoFocus
               />
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-                Se guardarán los filtros aplicados actualmente.
-              </p>
             </div>
             <div className="sd08-modal-footer">
               <button className="sd08-btn" onClick={() => setShowSaveModal(false)}>Cancelar</button>
@@ -932,7 +926,6 @@ const SD08Consultor: React.FC = () => {
         </div>
       )}
 
-      {/* Modal cargar consulta */}
       {showLoadModal && (
         <div className="sd08-modal-overlay" onClick={() => setShowLoadModal(false)}>
           <div className="sd08-modal" onClick={(e) => e.stopPropagation()}>
@@ -947,10 +940,7 @@ const SD08Consultor: React.FC = () => {
                 <div className="sd08-saved-list">
                   {savedQueries.map((q) => (
                     <div key={q.nombre} className="sd08-saved-item">
-                      <span
-                        style={{ cursor: 'pointer', flex: 1, color: 'var(--text-primary)', fontWeight: 500 }}
-                        onClick={() => cargarConsulta(q)}
-                      >
+                      <span style={{ cursor: 'pointer', flex: 1, color: 'var(--text-primary)', fontWeight: 500 }} onClick={() => cargarConsulta(q)}>
                         {q.nombre}
                       </span>
                       <button onClick={() => eliminarConsulta(q.nombre)} title="Eliminar">🗑️</button>
