@@ -16,7 +16,6 @@
 .sd08-btn-primary:hover { background: var(--btn-primary-hover); }
 .sd08-btn-success { background: #16a34a; color: white; border-color: #16a34a; }
 .sd08-btn-success:hover { background: #15803d; }
-.sd08-btn-warning { background: #f59e0b; color: white; border-color: #f59e0b; }
 
 /* Panel de filtros */
 .sd08-filters-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
@@ -24,25 +23,181 @@
 .sd08-filters-panel h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px; }
 .sd08-filters-panel h3 .badge { background: #dbeafe; color: #1d4ed8; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
 .sd08-filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-.sd08-filter-group { display: flex; flex-direction: column; gap: 4px; }
+.sd08-filter-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
 .sd08-filter-group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
 .sd08-filter-group input, .sd08-filter-group select { padding: 8px 12px; border: 1px solid var(--border-input); border-radius: 8px; font-size: 13px; background: var(--bg-input); color: var(--text-primary); outline: none; transition: border-color 0.15s; width: 100%; }
 .sd08-filter-group input:focus, .sd08-filter-group select:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
 .sd08-filter-group input::placeholder { color: var(--text-placeholder); }
 
-/* MultiSelectDropdown */
+/* ================================
+   MultiSelect mejorado
+   ================================ */
 .sd08-multiselect { position: relative; width: 100%; }
-.sd08-multiselect-trigger { width: 100%; padding: 8px 12px; border: 1px solid var(--border-input); border-radius: 8px; background: var(--bg-input); color: var(--text-primary); font-size: 13px; text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.sd08-multiselect-trigger {
+  width: 100%;
+  min-height: 38px;
+  padding: 4px 10px 4px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
 .sd08-multiselect-trigger:hover { border-color: var(--border-focus); }
-.sd08-multiselect-trigger .placeholder { color: var(--text-placeholder); }
-.sd08-multiselect-trigger .value { color: var(--text-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sd08-multiselect-arrow { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
-.sd08-multiselect-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border-input); border-radius: 8px; box-shadow: var(--shadow-lg); max-height: 240px; overflow-y: auto; z-index: 200; padding: 6px; }
-.sd08-multiselect-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+.sd08-multiselect-trigger.open { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+.sd08-multiselect-placeholder { color: var(--text-placeholder); flex: 1; padding: 4px 0; }
+
+.sd08-multiselect-chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0;
+  min-width: 0;
+}
+.sd08-multiselect-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sd08-multiselect-chip .x {
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.sd08-multiselect-chip .x:hover { opacity: 1; }
+.sd08-multiselect-more {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--bg-badge);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+.sd08-multiselect-arrow {
+  color: var(--text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.sd08-multiselect-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  max-height: 300px;
+  overflow: hidden;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+}
+.sd08-multiselect-search {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.sd08-multiselect-search input {
+  width: 100%;
+  padding: 6px 10px 6px 28px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--bg-section);
+  color: var(--text-primary);
+  outline: none;
+}
+.sd08-multiselect-search input:focus { border-color: var(--border-focus); }
+.sd08-multiselect-search::before {
+  content: '🔍';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.sd08-multiselect-list {
+  overflow-y: auto;
+  padding: 4px;
+  flex: 1;
+  max-height: 200px;
+}
+.sd08-multiselect-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.1s;
+}
 .sd08-multiselect-item:hover { background: var(--bg-hover); }
-.sd08-multiselect-item input[type="checkbox"] { accent-color: #1d4ed8; flex-shrink: 0; }
-.sd08-multiselect-footer { border-top: 1px solid var(--border); padding: 6px 8px; display: flex; justify-content: space-between; font-size: 11px; }
-.sd08-multiselect-footer button { background: none; border: none; color: #3b82f6; cursor: pointer; font-size: 11px; font-weight: 600; padding: 2px 4px; }
+.sd08-multiselect-item input[type="checkbox"] {
+  accent-color: #1d4ed8;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+.sd08-multiselect-item.selected {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+.sd08-multiselect-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-placeholder);
+}
+.sd08-multiselect-footer {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  background: var(--bg-section);
+}
+.sd08-multiselect-footer button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.sd08-multiselect-footer button:hover { background: rgba(59,130,246,0.1); }
 
 /* Chips de filtros activos */
 .sd08-active-filters { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
