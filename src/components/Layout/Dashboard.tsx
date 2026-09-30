@@ -24,6 +24,7 @@ const transacciones = [
   { id: 'sd-consultor', label: 'SD08 · Consultor Transportes', desc: 'Consulta avanzada con filtros combinados', color: '#0ea5e9' },
   { id: 'ut', label: 'UT01 · Correlativo QR', desc: 'Generar códigos QR', color: '#0891b2' },
   { id: 'ut-revision', label: 'UT02 · Revisión Pallet', desc: 'Herramienta de revisión de pallets', color: '#f97316' },
+  { id: 'ut-bom-pallet', label: 'UT03 · Captura BOM Pallet', desc: 'Registro y consolidación de BOM por pallet', color: '#7c3aed' },
   { id: 'bd-usuarios', label: 'BD01 · Usuarios', desc: 'Administración de usuarios', color: '#64748b' },
   { id: 'bd-locales', label: 'BD02 · Locales', desc: 'Administración de locales', color: '#475569' },
 ];
