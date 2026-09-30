@@ -8,20 +8,9 @@ import './UT03.css';
 
 const TIENDAS_DISPONIBLES = ['C144 Tiendas sin Bodega'];
 
-// Paleta de colores para diferenciar BOMs
 const COLORES_BOM = [
-  '#3b82f6', // azul
-  '#10b981', // verde
-  '#f59e0b', // ámbar
-  '#ef4444', // rojo
-  '#8b5cf6', // violeta
-  '#ec4899', // rosa
-  '#06b6d4', // cian
-  '#84cc16', // lima
-  '#f97316', // naranja
-  '#14b8a6', // teal
-  '#a855f7', // púrpura
-  '#eab308'  // amarillo
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
+  '#06b6d4', '#84cc16', '#f97316', '#14b8a6', '#a855f7', '#eab308'
 ];
 
 type Vista = 'main' | 'crear' | 'capturar';
@@ -63,14 +52,12 @@ const formatFechaHora = (f: string): string => {
 const UT03CapturaBOM: React.FC = () => {
   const [vista, setVista] = useState<Vista>('main');
 
-  // Formulario de creación
   const [form, setForm] = useState({
     pedido: '',
     tienda: TIENDAS_DISPONIBLES[0],
     numero_acta: ''
   });
 
-  // Tarea en curso
   const [tarea, setTarea] = useState<{
     pedido: string;
     tienda: string;
@@ -79,17 +66,20 @@ const UT03CapturaBOM: React.FC = () => {
   const [pallets, setPallets] = useState<PalletFinalizado[]>([]);
   const [capturasActuales, setCapturasActuales] = useState<string[]>([]);
 
-  // Input de captura
+  // Ref para valor sincrónico de capturas (evita problemas de timing con scanner físico)
+  const capturasRef = useRef<string[]>([]);
+  // Bandera para bloquear capturas durante transiciones (evita caracteres residuales del scanner)
+  const [inputBloqueado, setInputBloqueado] = useState(false);
+
   const [bomInput, setBomInput] = useState('');
   const [inputMode, setInputMode] = useState<'none' | 'text'>('none');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Estado general
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
 
-  // Tareas finalizadas
   const [tareas, setTareas] = useState<TareaFinalizada[]>([]);
 
   const usuario = auth.getUsuario();
@@ -99,8 +89,12 @@ const UT03CapturaBOM: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 3500);
   };
 
-  // ============ MAPA DE COLORES POR BOM ============
-  // Calcula un color único por cada código BOM capturado
+  // Sincronizar ref con el state
+  useEffect(() => {
+    capturasRef.current = capturasActuales;
+  }, [capturasActuales]);
+
+  // ============ COLORES POR BOM ============
   const coloresBOM = useMemo(() => {
     const map = new Map<string, string>();
     const todosLosBoms: string[] = [
@@ -114,7 +108,7 @@ const UT03CapturaBOM: React.FC = () => {
     return map;
   }, [pallets, capturasActuales]);
 
-  // ============ CARGA DE TAREAS FINALIZADAS ============
+  // ============ CARGA DE TAREAS ============
   const cargarTareas = async () => {
     setCargando(true);
     try {
@@ -167,17 +161,16 @@ const UT03CapturaBOM: React.FC = () => {
     cargarTareas();
   }, []);
 
-  // ============ MANTENER FOCO EN EL INPUT (para scanner físico) ============
+  // ============ FOCO AUTOMÁTICO PARA SCANNER ============
   useEffect(() => {
     if (vista !== 'capturar') return;
     if (inputMode !== 'none') return;
-
-    // Refoco después de cada cambio de vista o al montar
+    if (inputBloqueado) return;
     const t = setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
     return () => clearTimeout(t);
-  }, [vista, inputMode]);
+  }, [vista, inputMode, inputBloqueado]);
 
   // ============ HANDLERS ============
   const iniciarCaptura = () => {
@@ -196,18 +189,28 @@ const UT03CapturaBOM: React.FC = () => {
     });
     setPallets([]);
     setCapturasActuales([]);
+    capturasRef.current = [];
     setBomInput('');
+    setInputBloqueado(false);
     setInputMode('none');
     setVista('capturar');
   };
 
   const capturarBOM = () => {
+    if (inputBloqueado) return;
     const codigo = bomInput.trim();
     if (!codigo) return;
-    setCapturasActuales((prev) => [...prev, codigo]);
+
+    const nuevas = [...capturasRef.current, codigo];
+    capturasRef.current = nuevas;
+    setCapturasActuales(nuevas);
     setBomInput('');
-    // Mantener el foco para el scanner
-    setTimeout(() => inputRef.current?.focus(), 50);
+    // Limpiar también el DOM por si el scanner dejó algo residual
+    if (inputRef.current) inputRef.current.value = '';
+
+    setTimeout(() => {
+      if (!inputBloqueado) inputRef.current?.focus();
+    }, 50);
   };
 
   const handleKeyDownInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -218,7 +221,9 @@ const UT03CapturaBOM: React.FC = () => {
   };
 
   const eliminarCaptura = (index: number) => {
-    setCapturasActuales((prev) => prev.filter((_, i) => i !== index));
+    const nuevas = capturasRef.current.filter((_, i) => i !== index);
+    capturasRef.current = nuevas;
+    setCapturasActuales(nuevas);
   };
 
   const abrirTeclado = () => {
@@ -232,47 +237,75 @@ const UT03CapturaBOM: React.FC = () => {
   };
 
   const palletRevisado = () => {
-    if (capturasActuales.length === 0) {
+    // Bloqueo inmediato del input (evita caracteres residuales del scanner)
+    setInputBloqueado(true);
+
+    const capturas = capturasRef.current;
+    if (capturas.length === 0) {
+      setInputBloqueado(false);
       mostrarMensaje('warning', 'No hay capturas en este pallet');
       return;
     }
+
+    // Snapshot antes de cualquier modificación
+    const snapshot = [...capturas];
     const numeroPallet = pallets.length + 1;
-    setPallets((prev) => [...prev, { numero: numeroPallet, boms: [...capturasActuales] }]);
+
+    // Reset COMPLETO del estado del pallet
+    capturasRef.current = [];
     setCapturasActuales([]);
-    setInputMode('none');
     setBomInput('');
-    mostrarMensaje('success', `Pallet ${numeroPallet} guardado (${capturasActuales.length} bultos)`);
-    setTimeout(() => inputRef.current?.focus(), 100);
+    if (inputRef.current) inputRef.current.value = '';
+
+    // Agregar el pallet a la lista
+    setPallets((prev) => [...prev, { numero: numeroPallet, boms: snapshot }]);
+
+    mostrarMensaje('success', `Pallet ${numeroPallet} guardado (${snapshot.length} bultos)`);
+
+    // Desbloquear después de un delay suficiente para que el scanner termine de enviar
+    setTimeout(() => {
+      setInputBloqueado(false);
+      setInputMode('none');
+      inputRef.current?.focus();
+    }, 700);
   };
 
   const finalizarTarea = async () => {
     if (!tarea) return;
 
-    // Si hay capturas pendientes en el pallet actual, preguntar
+    // Bloquear input por si acaso
+    setInputBloqueado(true);
+
     let palletsFinales = [...pallets];
-    if (capturasActuales.length > 0) {
+    const capturasPendientes = [...capturasRef.current];
+
+    if (capturasPendientes.length > 0) {
       const confirmar = window.confirm(
-        `Hay ${capturasActuales.length} captura(s) sin guardar en el pallet actual. ¿Guardar como Pallet ${pallets.length + 1}?`
+        `Hay ${capturasPendientes.length} captura(s) sin guardar en el pallet actual. ¿Guardar como Pallet ${pallets.length + 1}?`
       );
       if (confirmar) {
-        palletsFinales.push({ numero: pallets.length + 1, boms: [...capturasActuales] });
+        palletsFinales.push({ numero: pallets.length + 1, boms: capturasPendientes });
       } else {
+        setInputBloqueado(false);
         return;
       }
     }
 
     if (palletsFinales.length === 0) {
       mostrarMensaje('warning', 'Debes tener al menos un pallet revisado');
+      setInputBloqueado(false);
       return;
     }
 
-    if (!window.confirm(`¿Finalizar tarea? Se guardarán ${palletsFinales.length} pallet(s).`)) return;
+    if (!window.confirm(`¿Finalizar tarea? Se guardarán ${palletsFinales.length} pallet(s).`)) {
+      setInputBloqueado(false);
+      return;
+    }
 
     setGuardando(true);
     try {
       const cantidadTotal = palletsFinales.reduce((s, p) => s + p.boms.length, 0);
 
-      // 1. Insertar tarea
       const { data: tareaInsertada, error: errTarea } = await supabase
         .from('bom_pallet_tareas')
         .insert({
@@ -280,7 +313,10 @@ const UT03CapturaBOM: React.FC = () => {
           tienda: tarea.tienda,
           numero_acta: tarea.numero_acta,
           usuario_id: usuario?.id || null,
-          usuario_nombre: `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim() || usuario?.usuario || 'Desconocido',
+          usuario_nombre:
+            `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim() ||
+            usuario?.usuario ||
+            'Desconocido',
           cantidad_pallets: palletsFinales.length,
           cantidad_total_bultos: cantidadTotal
         })
@@ -289,7 +325,6 @@ const UT03CapturaBOM: React.FC = () => {
 
       if (errTarea) throw errTarea;
 
-      // 2. Insertar pallets
       const palletsRows = palletsFinales.map((p) => ({
         tarea_id: tareaInsertada.id,
         numero_pallet: p.numero,
@@ -303,19 +338,24 @@ const UT03CapturaBOM: React.FC = () => {
 
       if (errPallets) throw errPallets;
 
-      mostrarMensaje('success', `Tarea finalizada: ${palletsFinales.length} pallets, ${cantidadTotal} bultos`);
+      mostrarMensaje(
+        'success',
+        `Tarea finalizada: ${palletsFinales.length} pallets, ${cantidadTotal} bultos`
+      );
 
-      // Limpiar
       setTarea(null);
       setPallets([]);
       setCapturasActuales([]);
+      capturasRef.current = [];
       setForm({ pedido: '', tienda: TIENDAS_DISPONIBLES[0], numero_acta: '' });
+      setInputBloqueado(false);
       setVista('main');
 
       await cargarTareas();
     } catch (e) {
       console.error('Error finalizando tarea:', e);
       mostrarMensaje('error', 'Error al finalizar tarea: ' + (e as Error).message);
+      setInputBloqueado(false);
     } finally {
       setGuardando(false);
     }
@@ -326,8 +366,34 @@ const UT03CapturaBOM: React.FC = () => {
     setTarea(null);
     setPallets([]);
     setCapturasActuales([]);
+    capturasRef.current = [];
     setForm({ pedido: '', tienda: TIENDAS_DISPONIBLES[0], numero_acta: '' });
+    setInputBloqueado(false);
     setVista('main');
+  };
+
+  const eliminarTarea = async (t: TareaFinalizada) => {
+    if (!window.confirm(`¿Eliminar la tarea "${t.pedido}" (Acta ${t.numero_acta})?\n\nSe eliminarán también todos sus pallets. Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setEliminandoId(t.id);
+    try {
+      // Los pallets se eliminan en cascada por la FK (on delete cascade)
+      const { error } = await supabase
+        .from('bom_pallet_tareas')
+        .delete()
+        .eq('id', t.id);
+
+      if (error) throw error;
+
+      mostrarMensaje('success', 'Tarea eliminada');
+      await cargarTareas();
+    } catch (e) {
+      console.error('Error eliminando tarea:', e);
+      mostrarMensaje('error', 'Error al eliminar tarea: ' + (e as Error).message);
+    } finally {
+      setEliminandoId(null);
+    }
   };
 
   // ============ EXPORTAR EXCEL ============
@@ -435,7 +501,6 @@ const UT03CapturaBOM: React.FC = () => {
           <p>Tarea en curso</p>
         </div>
 
-        {/* Info de la tarea */}
         <div className="ut03-info-grid">
           <div className="ut03-info-item">
             <div className="ut03-info-label">Pedido</div>
@@ -451,7 +516,6 @@ const UT03CapturaBOM: React.FC = () => {
           </div>
         </div>
 
-        {/* Contador */}
         <div className="ut03-contador">
           <div className="ut03-contador-pallet">Pallet actual</div>
           <div className="ut03-contador-numero">{numeroPalletActual}</div>
@@ -460,7 +524,6 @@ const UT03CapturaBOM: React.FC = () => {
           </div>
         </div>
 
-        {/* Zona de captura */}
         <div className="ut03-captura-zone">
           <input
             ref={inputRef}
@@ -470,11 +533,12 @@ const UT03CapturaBOM: React.FC = () => {
             onChange={(e) => setBomInput(e.target.value)}
             onKeyDown={handleKeyDownInput}
             inputMode={inputMode}
-            placeholder="Escanear BOM..."
+            placeholder={inputBloqueado ? 'Procesando...' : 'Escanear BOM...'}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
+            disabled={inputBloqueado}
           />
           <div className="ut03-captura-botones">
             {inputMode === 'none' ? (
@@ -482,6 +546,7 @@ const UT03CapturaBOM: React.FC = () => {
                 className="ut03-btn ut03-btn-sm"
                 onClick={abrirTeclado}
                 type="button"
+                disabled={inputBloqueado}
               >
                 ⌨️ Abrir teclado
               </button>
@@ -490,6 +555,7 @@ const UT03CapturaBOM: React.FC = () => {
                 className="ut03-btn ut03-btn-sm"
                 onClick={cerrarTeclado}
                 type="button"
+                disabled={inputBloqueado}
               >
                 ⌨️ Cerrar teclado
               </button>
@@ -498,18 +564,16 @@ const UT03CapturaBOM: React.FC = () => {
               className="ut03-btn ut03-btn-primary ut03-btn-sm"
               onClick={capturarBOM}
               type="button"
+              disabled={inputBloqueado}
             >
               + Capturar
             </button>
           </div>
         </div>
 
-        {/* Lista de capturas del pallet actual */}
         <div className="ut03-capturas-lista">
           {capturasActuales.length === 0 ? (
-            <div className="ut03-empty-capturas">
-              Sin capturas en este pallet
-            </div>
+            <div className="ut03-empty-capturas">Sin capturas en este pallet</div>
           ) : (
             capturasActuales.map((bom, idx) => (
               <div key={`${bom}-${idx}`} className="ut03-captura-item">
@@ -531,7 +595,6 @@ const UT03CapturaBOM: React.FC = () => {
           )}
         </div>
 
-        {/* Pallets finalizados */}
         {pallets.length > 0 && (
           <div className="ut03-pallets-finalizados">
             <div className="ut03-card-title">Pallets revisados ({pallets.length})</div>
@@ -545,11 +608,14 @@ const UT03CapturaBOM: React.FC = () => {
                   className="ut03-btn ut03-btn-sm"
                   onClick={() => {
                     if (window.confirm(`¿Devolver el Pallet ${p.numero} a captura?`)) {
-                      setCapturasActuales([...p.boms]);
+                      const nuevos = [...p.boms];
+                      capturasRef.current = nuevos;
+                      setCapturasActuales(nuevos);
                       setPallets(pallets.filter((x) => x.numero !== p.numero));
                     }
                   }}
                   type="button"
+                  disabled={inputBloqueado}
                 >
                   Editar
                 </button>
@@ -558,12 +624,11 @@ const UT03CapturaBOM: React.FC = () => {
           </div>
         )}
 
-        {/* Barra inferior */}
         <div className="ut03-bottom-bar">
           <button
             className="ut03-btn ut03-btn-success"
             onClick={palletRevisado}
-            disabled={capturasActuales.length === 0}
+            disabled={capturasActuales.length === 0 || inputBloqueado}
             type="button"
           >
             ✓ Pallet {numeroPalletActual} Revisado ({capturasActuales.length} bultos)
@@ -571,15 +636,17 @@ const UT03CapturaBOM: React.FC = () => {
           <button
             className="ut03-btn ut03-btn-warning"
             onClick={finalizarTarea}
-            disabled={guardando || (pallets.length === 0 && capturasActuales.length === 0)}
+            disabled={guardando || inputBloqueado || (pallets.length === 0 && capturasActuales.length === 0)}
             type="button"
           >
-            {guardando ? 'Guardando...' : `Finalizar Tarea (${pallets.length} pallet${pallets.length !== 1 ? 's' : ''})`}
+            {guardando
+              ? 'Guardando...'
+              : `Finalizar Tarea (${pallets.length} pallet${pallets.length !== 1 ? 's' : ''})`}
           </button>
           <button
             className="ut03-btn"
             onClick={cancelarTarea}
-            disabled={guardando}
+            disabled={guardando || inputBloqueado}
             type="button"
             style={{ fontSize: 13 }}
           >
@@ -602,24 +669,33 @@ const UT03CapturaBOM: React.FC = () => {
         <p>Registro y consolidación de BOM por pallet</p>
       </div>
 
-      <button
-        className="ut03-btn ut03-btn-primary"
-        onClick={() => setVista('crear')}
-        style={{ marginBottom: 16 }}
-      >
-        + Nueva Tarea
-      </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button
+          className="ut03-btn ut03-btn-primary"
+          onClick={() => setVista('crear')}
+          style={{ flex: 2 }}
+        >
+          + Nueva Tarea
+        </button>
+        <button
+          className="ut03-btn"
+          onClick={cargarTareas}
+          disabled={cargando}
+          style={{ flex: 1 }}
+          title="Actualizar lista de tareas"
+        >
+          {cargando ? '⏳' : '🔄 Actualizar'}
+        </button>
+      </div>
 
       <div className="ut03-card-title" style={{ marginBottom: 8 }}>
-        Tareas recientes
+        Tareas recientes {tareas.length > 0 && `(${tareas.length})`}
       </div>
 
       {cargando ? (
         <div className="ut03-loading">Cargando tareas...</div>
       ) : tareas.length === 0 ? (
-        <div className="ut03-empty">
-          No hay tareas registradas todavía.
-        </div>
+        <div className="ut03-empty">No hay tareas registradas todavía.</div>
       ) : (
         tareas.map((t) => (
           <div key={t.id} className="ut03-tarea-card">
@@ -630,6 +706,15 @@ const UT03CapturaBOM: React.FC = () => {
                   Acta {t.numero_acta} · {t.tienda}
                 </div>
               </div>
+              <button
+                className="ut03-captura-eliminar"
+                onClick={() => eliminarTarea(t)}
+                disabled={eliminandoId === t.id}
+                title="Eliminar tarea"
+                style={{ alignSelf: 'flex-start' }}
+              >
+                {eliminandoId === t.id ? '…' : '×'}
+              </button>
             </div>
 
             <div className="ut03-tarea-card-body">
@@ -643,13 +728,14 @@ const UT03CapturaBOM: React.FC = () => {
               </div>
               <div className="ut03-stat">
                 <div className="ut03-stat-value" style={{ fontSize: 12, fontFamily: 'sans-serif' }}>
-                  {t.cantidad_pallets > 0 ? Math.round((t.cantidad_total_bultos / t.cantidad_pallets) * 10) / 10 : 0}
+                  {t.cantidad_pallets > 0
+                    ? Math.round((t.cantidad_total_bultos / t.cantidad_pallets) * 10) / 10
+                    : 0}
                 </div>
                 <div className="ut03-stat-label">Prom/Pallet</div>
               </div>
             </div>
 
-            {/* Detalle por pallet */}
             {t.pallets.length > 0 && (
               <div style={{ marginBottom: 10 }}>
                 {t.pallets.map((p) => (
