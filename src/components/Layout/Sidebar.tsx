@@ -48,7 +48,8 @@ const menuSections: MenuSection[] = [
     title: 'UT · Utilidades',
     items: [
       { id: 'ut', label: 'UT01 Correlativo QR', type: 'item' },
-      { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' }
+      { id: 'ut-revision', label: 'UT02 Revisión Pallet', type: 'subitem' },
+      { id: 'ut-bom-pallet', label: 'UT03 Captura BOM Pallet', type: 'subitem' }
     ]
   },
   {
