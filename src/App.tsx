@@ -24,6 +24,7 @@ import SD08Consultor from './components/Transactions/SD/SD08Consultor';
 // Módulos UT
 import UT01View from './components/Transactions/UT/UT01View';
 import UT02RevisionPallet from './components/Transactions/UT/UT02RevisionPallet';
+import UT03CapturaBOM from './components/Transactions/UT/UT03CapturaBOM';
 
 // Módulos BD
 import BD01Usuarios from './components/Transactions/BD/BD01Usuarios';
@@ -116,6 +117,7 @@ const App: React.FC = () => {
           {/* UT */}
           {tabsMontadas.has('ut') && <div style={{ display: activeTab === 'ut' ? 'block' : 'none' }}><UT01View key="ut01" /></div>}
           {tabsMontadas.has('ut-revision') && <div style={{ display: activeTab === 'ut-revision' ? 'block' : 'none' }}><UT02RevisionPallet key="ut02" /></div>}
+          {tabsMontadas.has('ut-bom-pallet') && <div style={{ display: activeTab === 'ut-bom-pallet' ? 'block' : 'none' }}><UT03CapturaBOM key="ut-bom-pallet" /></div>}
 
           {/* BD */}
           {tabsMontadas.has('bd-usuarios') && <div style={{ display: activeTab === 'bd-usuarios' ? 'block' : 'none' }}><BD01Usuarios key="bd01" /></div>}
