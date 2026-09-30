@@ -35,6 +35,7 @@ const TRANSACCIONES = [
   { id: 'sd-consultor', label: 'SD08 Consultor Transportes' },
   { id: 'ut', label: 'UT01 Correlativo QR' },
   { id: 'ut-revision', label: 'UT02 Revisión Pallet' },
+  { id: 'ut-bom-pallet', label: 'UT03 Captura BOM Pallet' },
   { id: 'bd-usuarios', label: 'BD01 Usuarios' },
   { id: 'bd-locales', label: 'BD02 Locales' },
 ];
