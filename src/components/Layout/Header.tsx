@@ -35,6 +35,7 @@ const moduleTitles: Record<string, string> = {
   'sd-asignador': 'SD · Asignador Móvil',
   ut: 'UT01 · Correlativo QR',
   'ut-revision': 'UT02 · Revisión Pallet',
+  'ut-bom-pallet': 'UT03 · Captura BOM Pallet',
   'bd-usuarios': 'BD01 · Usuarios',
   'bd-locales': 'BD02 · Locales'
 };
