@@ -34,8 +34,8 @@ const SD01View: React.FC = () => {
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [mostrarCrearTransporte, setMostrarCrearTransporte] = useState(false);
   const [mostrarEditarTransporte, setMostrarEditarTransporte] = useState(false);
-  const [mostrarModificarTransporte, setMostrarModificarTransporte] = useState(false);
   const [mostrarDetalle, setMostrarDetalle] = useState<any>(null);
+  const [modoDetalleModificar, setModoDetalleModificar] = useState(false);
   const [mostrarKPI, setMostrarKPI] = useState(false);
 
   const [mostrarFinalizados, setMostrarFinalizados] = useState(true);
@@ -171,10 +171,10 @@ const SD01View: React.FC = () => {
     }
     if (!window.confirm('¿Eliminar el transporte ' + t.id_documento + '?')) return;
     try {
-      await fetch(
-        API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento,
-        { method: 'DELETE', headers: HEADERS }
-      );
+      await fetch(API_URL + '/sd01_documento_locales?documento_id=eq.' + t.id_documento, {
+        method: 'DELETE',
+        headers: HEADERS
+      });
       const resp = await fetch(API_URL + '/sd01_documentos?id=eq.' + t.id, {
         method: 'DELETE',
         headers: HEADERS
@@ -257,8 +257,9 @@ const SD01View: React.FC = () => {
         });
         actualizado = { ...transporteSeleccionado, estado: 'En Proceso', fecha_inicio: now };
       }
-      setTransporteSeleccionado(actualizado);
+      setModoDetalleModificar(false);
       setMostrarDetalle(actualizado);
+      setTransporteSeleccionado(actualizado);
       cache.invalidatePrefix('sd01_transportes_');
       cargarTransportes(pagina);
     } catch (e) {
@@ -278,16 +279,18 @@ const SD01View: React.FC = () => {
     setMostrarEditarTransporte(true);
   };
 
+  // Modificar: abre la vista de detalle (igual que Iniciar) en modo modificación
   const handleModificarTransporte = () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
       return;
     }
     if (transporteSeleccionado.estado !== 'Finalizado') {
-      mostrarMensaje('error', 'El botón Modificar solo está disponible para transportes Finalizados');
+      mostrarMensaje('error', 'Solo se pueden modificar transportes Finalizados');
       return;
     }
-    setMostrarModificarTransporte(true);
+    setModoDetalleModificar(true);
+    setMostrarDetalle(transporteSeleccionado);
   };
 
   const handleCrearTransporte = () => setMostrarCrearTransporte(true);
@@ -303,13 +306,6 @@ const SD01View: React.FC = () => {
     cache.invalidatePrefix('sd01_transportes_');
     cargarTransportes(pagina);
     mostrarMensaje('success', 'Transporte editado exitosamente');
-  };
-  const handleTransporteModificado = () => {
-    setMostrarModificarTransporte(false);
-    setTransporteSeleccionado(null);
-    cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(pagina);
-    mostrarMensaje('success', 'Transporte modificado sin alterar su estado');
   };
 
   const cambiarPagina = (nuevaPagina: number) => {
@@ -362,6 +358,11 @@ const SD01View: React.FC = () => {
     );
   };
 
+  // ============ VISTA KPI (reemplaza toda la vista de SD01) ============
+  if (mostrarKPI) {
+    return <SD01KPI onClose={() => setMostrarKPI(false)} />;
+  }
+
   if (cargando) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#64748b', fontSize: '16px' }}>
@@ -376,6 +377,7 @@ const SD01View: React.FC = () => {
         transporte={mostrarDetalle}
         onClose={() => {
           setMostrarDetalle(null);
+          setModoDetalleModificar(false);
           setTransporteSeleccionado(null);
           cargarTransportes(pagina);
         }}
@@ -384,6 +386,7 @@ const SD01View: React.FC = () => {
           cargarTransportes(pagina);
         }}
         usuario={usuario}
+        modoModificar={modoDetalleModificar}
       />
     );
   }
@@ -393,8 +396,6 @@ const SD01View: React.FC = () => {
       {mensaje.visible && (
         <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>{mensaje.texto}</div>
       )}
-
-      {mostrarKPI && <SD01KPI onClose={() => setMostrarKPI(false)} />}
 
       {/* Barra de opciones */}
       <div className="sd01-toolbar" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)', padding: '10px 16px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
@@ -415,7 +416,12 @@ const SD01View: React.FC = () => {
 
         <div className="sd01-separator"></div>
 
-        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado || ['Finalizado', 'Cancelado'].includes(transporteSeleccionado?.estado)}>
+        <button
+          className="sd01-btn"
+          onClick={handleEditarTransporte}
+          disabled={!transporteSeleccionado || ['Finalizado', 'Cancelado'].includes(transporteSeleccionado?.estado)}
+          title="Editar datos base del transporte (conductor, patente, locales). No disponible para Finalizados."
+        >
           ✏️ Editar
         </button>
 
@@ -428,7 +434,7 @@ const SD01View: React.FC = () => {
               ? { color: '#d97706', borderColor: '#fcd34d' }
               : {}
           }
-          title="Permite corregir datos sin cambiar el estado ni la métrica del KPI"
+          title="Modificar bultos, sellos y pallets del transporte sin cambiar su estado Finalizado"
         >
           🔧 Modificar
         </button>
@@ -482,9 +488,7 @@ const SD01View: React.FC = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
           <button className="sd01-btn" onClick={() => cambiarPagina(pagina - 1)} disabled={pagina <= 1} style={{ padding: '4px 8px' }}>‹</button>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            {pagina} / {totalPaginas}
-          </span>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{pagina} / {totalPaginas}</span>
           <button className="sd01-btn" onClick={() => cambiarPagina(pagina + 1)} disabled={pagina >= totalPaginas} style={{ padding: '4px 8px' }}>›</button>
         </div>
       </div>
@@ -600,14 +604,6 @@ const SD01View: React.FC = () => {
       )}
       {mostrarEditarTransporte && (
         <SD01CrearTransporte onClose={() => setMostrarEditarTransporte(false)} onTransporteCreado={handleTransporteEditado} transporteEditar={transporteSeleccionado} />
-      )}
-      {mostrarModificarTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarModificarTransporte(false)}
-          onTransporteCreado={handleTransporteModificado}
-          transporteEditar={transporteSeleccionado}
-          modoModificar={true}
-        />
       )}
     </div>
   );
