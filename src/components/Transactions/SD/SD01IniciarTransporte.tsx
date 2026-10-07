@@ -21,9 +21,9 @@ interface SD01IniciarTransporteProps {
   onClose: () => void;
   onActualizar: () => void;
   usuario: any;
+  modoModificar?: boolean;
 }
 
-// Orígenes de carga y tipos de documento
 const origenesCarga = [
   'CD01 Fashions-Park',
   'CD16 Bodegas San Francisco',
@@ -64,49 +64,12 @@ const tiposDocumentoPorOrigen: Record<string, string[]> = {
   'SG06 Bultos Quedados en Camion': ['Sap', 'Vtradex', 'Guia']
 };
 
-/**
- * Evalúa una expresión aritmética simple tipo Excel.
- * Acepta "=23+27", "23+27", "10*3", "=100/2" etc.
- * Si no es una expresión válida, intenta interpretarlo como número simple.
- */
-const evaluarExpresion = (texto: string): number => {
-  if (texto === null || texto === undefined) return 0;
-  let expr = String(texto).trim();
-  if (expr.startsWith('=')) expr = expr.substring(1).trim();
-  if (!expr) return 0;
-
-  // Validar que solo contenga dígitos, operadores, paréntesis y espacios
-  if (!/^[\d+\-*/().\s]+$/.test(expr)) {
-    const n = parseFloat(expr);
-    return isNaN(n) ? 0 : Math.round(n);
-  }
-
-  try {
-    // Validación previa garantiza que no hay identificadores ni propiedades
-    const resultado = Function('"use strict"; return (' + expr + ')')();
-    if (typeof resultado === 'number' && isFinite(resultado)) {
-      return Math.round(resultado);
-    }
-    return 0;
-  } catch {
-    return 0;
-  }
-};
-
 interface Bulto {
   id: string;
   origenCarga: string;
   tipoDocumento: string;
   numeroDocumento: string;
   cantidad: number;
-  observacion: string;
-}
-
-interface FormBulto {
-  origenCarga: string;
-  tipoDocumento: string;
-  numeroDocumento: string;
-  cantidadTexto: string;
   observacion: string;
 }
 
@@ -265,11 +228,11 @@ const BultosModal = ({
 }: any) => {
   const [localActual, setLocalActual] = useState(localInicial);
   const [bultos, setBultos] = useState<Bulto[]>(bultosPorLocal[localInicial.id] || []);
-  const [nuevoBulto, setNuevoBulto] = useState<FormBulto>({
+  const [nuevoBulto, setNuevoBulto] = useState<Partial<Bulto>>({
     origenCarga: '',
     tipoDocumento: '',
     numeroDocumento: '',
-    cantidadTexto: '',
+    cantidad: 0,
     observacion: ''
   });
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -290,13 +253,7 @@ const BultosModal = ({
 
   useEffect(() => {
     setBultos(bultosPorLocal[localActual.id] || []);
-    setNuevoBulto({
-      origenCarga: '',
-      tipoDocumento: '',
-      numeroDocumento: '',
-      cantidadTexto: '',
-      observacion: ''
-    });
+    setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
     setEditandoId(null);
     setTiposDisponibles([]);
     setErrorMsg('');
@@ -319,7 +276,7 @@ const BultosModal = ({
       origenCarga: bulto.origenCarga,
       tipoDocumento: bulto.tipoDocumento,
       numeroDocumento: bulto.numeroDocumento,
-      cantidadTexto: String(bulto.cantidad),
+      cantidad: bulto.cantidad,
       observacion: bulto.observacion
     });
     setTiposDisponibles(tiposDocumentoPorOrigen[bulto.origenCarga] || []);
@@ -328,13 +285,7 @@ const BultosModal = ({
   };
 
   const handleCancelarEdicion = () => {
-    setNuevoBulto({
-      origenCarga: '',
-      tipoDocumento: '',
-      numeroDocumento: '',
-      cantidadTexto: '',
-      observacion: ''
-    });
+    setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
     setTiposDisponibles([]);
     setEditandoId(null);
     setErrorMsg('');
@@ -342,15 +293,7 @@ const BultosModal = ({
   };
 
   const agregarOActualizarBulto = async () => {
-    if (!nuevoBulto.origenCarga) return;
-
-    // Evaluar la cantidad (permite "=23+27" u operaciones simples)
-    const cantidadNum = evaluarExpresion(nuevoBulto.cantidadTexto);
-    if (!cantidadNum || cantidadNum <= 0) {
-      setErrorMsg('La cantidad debe ser un número mayor a 0 (puedes usar =23+27)');
-      setTimeout(() => setErrorMsg(''), 3000);
-      return;
-    }
+    if (!nuevoBulto.origenCarga || !nuevoBulto.cantidad) return;
 
     if (!origenesCarga.includes(nuevoBulto.origenCarga)) {
       setErrorMsg('El Origen de Carga no es válido. Debe seleccionar uno de la lista.');
@@ -378,7 +321,7 @@ const BultosModal = ({
         origen_carga: nuevoBulto.origenCarga,
         tipo_documento: tipoNoAplica ? '' : nuevoBulto.tipoDocumento,
         numero_documento: nuevoBulto.numeroDocumento || '',
-        cantidad: cantidadNum,
+        cantidad: nuevoBulto.cantidad,
         observacion: nuevoBulto.observacion || '',
         creado_por: usuario?.id,
         creado_en: new Date().toISOString()
@@ -392,16 +335,7 @@ const BultosModal = ({
         });
         if (!resp.ok) throw new Error(await resp.text());
         const nuevos = bultos.map((b) =>
-          b.id === editandoId
-            ? {
-                ...b,
-                origenCarga: nuevoBulto.origenCarga,
-                tipoDocumento: tipoNoAplica ? '' : nuevoBulto.tipoDocumento,
-                numeroDocumento: nuevoBulto.numeroDocumento || '',
-                cantidad: cantidadNum,
-                observacion: nuevoBulto.observacion || ''
-              }
-            : b
+          b.id === editandoId ? { ...b, ...nuevoBulto, id: editandoId } : b
         );
         setBultos(nuevos);
         onBultosChange(localActual.id, nuevos);
@@ -428,13 +362,7 @@ const BultosModal = ({
         onBultosChange(localActual.id, nuevos);
       }
 
-      setNuevoBulto({
-        origenCarga: '',
-        tipoDocumento: '',
-        numeroDocumento: '',
-        cantidadTexto: '',
-        observacion: ''
-      });
+      setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
       setTiposDisponibles([]);
       setTimeout(() => origenRef.current?.focus(), 50);
     } catch (e: any) {
@@ -453,13 +381,7 @@ const BultosModal = ({
       onBultosChange(localActual.id, nuevos);
       if (editandoId === id) {
         setEditandoId(null);
-        setNuevoBulto({
-          origenCarga: '',
-          tipoDocumento: '',
-          numeroDocumento: '',
-          cantidadTexto: '',
-          observacion: ''
-        });
+        setNuevoBulto({ origenCarga: '', tipoDocumento: '', numeroDocumento: '', cantidad: 0, observacion: '' });
       }
     } catch (e: any) {
       setErrorMsg('Error al eliminar bulto: ' + (e.message || 'Desconocido'));
@@ -473,24 +395,11 @@ const BultosModal = ({
       <div className="sd01-modal sd01-modal-bultos" onClick={(e) => e.stopPropagation()}>
         <div className="sd01-modal-header">
           <h2>Bultos por Local</h2>
-          <button className="sd01-modal-close" onClick={onClose}>
-            ×
-          </button>
+          <button className="sd01-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="sd01-modal-body">
           {errorMsg && (
-            <div
-              style={{
-                background: 'var(--error-bg)',
-                color: 'var(--error-text)',
-                border: '1px solid var(--error-border)',
-                borderRadius: '6px',
-                padding: '8px 12px',
-                marginBottom: '12px',
-                fontSize: '13px',
-                fontWeight: 500
-              }}
-            >
+            <div style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)', borderRadius: '6px', padding: '8px 12px', marginBottom: '12px', fontSize: '13px', fontWeight: 500 }}>
               {errorMsg}
             </div>
           )}
@@ -506,9 +415,7 @@ const BultosModal = ({
             ))}
           </div>
           <div className="dc-form-section">
-            <h3>
-              {editandoId !== null ? 'Editar Bulto' : 'Agregar Bulto'} - Local {localActual.codigo_local}
-            </h3>
+            <h3>{editandoId !== null ? 'Editar Bulto' : 'Agregar Bulto'} - Local {localActual.codigo_local}</h3>
             <div className="dc-form-grid">
               <div className="dc-form-field">
                 <label>Origen de Carga</label>
@@ -544,12 +451,7 @@ const BultosModal = ({
                   className={`dc-input ${tipoNoAplica ? 'disabled' : ''}`}
                   value={nuevoBulto.numeroDocumento || ''}
                   onChange={(e) => setNuevoBulto({ ...nuevoBulto, numeroDocumento: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      cantidadRef.current?.focus();
-                    }
-                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); cantidadRef.current?.focus(); } }}
                   placeholder={tipoNoAplica ? 'No aplica' : 'Ej: 22687'}
                   disabled={tipoNoAplica}
                 />
@@ -558,32 +460,14 @@ const BultosModal = ({
                 <label>Cantidad Bultos</label>
                 <input
                   ref={cantidadRef}
-                  type="text"
+                  type="number"
                   className="dc-input"
-                  value={nuevoBulto.cantidadTexto || ''}
-                  onChange={(e) =>
-                    setNuevoBulto({ ...nuevoBulto, cantidadTexto: e.target.value })
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      observacionRef.current?.focus();
-                    }
-                  }}
-                  placeholder="Ej: 25 o =23+27"
-                  title="Puedes usar fórmulas simples tipo Excel: =23+27, 10*2, 100/4"
+                  value={nuevoBulto.cantidad || ''}
+                  onChange={(e) => setNuevoBulto({ ...nuevoBulto, cantidad: parseInt(e.target.value) || 0 })}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); observacionRef.current?.focus(); } }}
+                  placeholder="0"
+                  min="0"
                 />
-                {nuevoBulto.cantidadTexto && nuevoBulto.cantidadTexto.startsWith('=') && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      color: 'var(--text-muted)',
-                      marginTop: '2px'
-                    }}
-                  >
-                    Resultado: {evaluarExpresion(nuevoBulto.cantidadTexto)}
-                  </span>
-                )}
               </div>
               <div className="dc-form-field">
                 <label>Observación</label>
@@ -593,32 +477,20 @@ const BultosModal = ({
                   className="dc-input"
                   value={nuevoBulto.observacion || ''}
                   onChange={(e) => setNuevoBulto({ ...nuevoBulto, observacion: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      agregarBtnRef.current?.focus();
-                    }
-                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregarBtnRef.current?.focus(); } }}
                   placeholder="Observación opcional"
                 />
               </div>
             </div>
             <div className="dc-form-actions">
-              <button
-                ref={agregarBtnRef}
-                className="dc-btn-add"
-                onClick={agregarOActualizarBulto}
-                disabled={guardando}
-              >
+              <button ref={agregarBtnRef} className="dc-btn-add" onClick={agregarOActualizarBulto} disabled={guardando}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
                 {guardando ? 'Guardando...' : editandoId !== null ? 'Actualizar' : 'Agregar'}
               </button>
               {editandoId !== null && (
-                <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>
-                  Cancelar
-                </button>
+                <button className="dc-btn-cancel-edit" onClick={handleCancelarEdicion}>Cancelar</button>
               )}
             </div>
           </div>
@@ -636,11 +508,7 @@ const BultosModal = ({
               </thead>
               <tbody>
                 {bultos.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="dc-empty-table">
-                      No hay bultos registrados en este local.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={6} className="dc-empty-table">No hay bultos registrados en este local.</td></tr>
                 ) : (
                   bultos.map((bulto) => (
                     <tr key={bulto.id} className={editandoId === bulto.id ? 'fila-editando' : ''}>
@@ -653,18 +521,11 @@ const BultosModal = ({
                         <div className="dc-acciones">
                           <button className="dc-row-edit" onClick={() => handleEditar(bulto)} title="Editar">
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <path
-                                d="M10.5 1.5L12.5 3.5L4.5 11.5L1.5 12.5L2.5 9.5L10.5 1.5Z"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                strokeLinejoin="round"
-                              />
+                              <path d="M10.5 1.5L12.5 3.5L4.5 11.5L1.5 12.5L2.5 9.5L10.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                               <path d="M9 3L11 5" stroke="currentColor" strokeWidth="1.5" />
                             </svg>
                           </button>
-                          <button className="dc-row-delete" onClick={() => eliminarBulto(bulto.id)} title="Eliminar">
-                            ×
-                          </button>
+                          <button className="dc-row-delete" onClick={() => eliminarBulto(bulto.id)} title="Eliminar">×</button>
                         </div>
                       </td>
                     </tr>
@@ -678,9 +539,7 @@ const BultosModal = ({
               <span>Total Bultos ({localActual.codigo_local}):</span>
               <strong>{totalBultos}</strong>
             </div>
-            <button className="dc-btn-save" onClick={onClose}>
-              Cerrar
-            </button>
+            <button className="dc-btn-save" onClick={onClose}>Cerrar</button>
           </div>
         </div>
       </div>
@@ -692,7 +551,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
   transporte,
   onClose,
   onActualizar,
-  usuario
+  usuario,
+  modoModificar = false
 }) => {
   const [locales, setLocales] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -741,25 +601,17 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
   const cargarDetalles = async () => {
     try {
       if (transporte.conductor_id) {
-        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporte.conductor_id, {
-          headers: HEADERS
-        });
+        const resp = await fetch(API_URL + '/conductores?select=*&id=eq.' + transporte.conductor_id, { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) setDetallesConductor(data[0]);
       }
       if (transporte.patente_principal_id) {
-        const resp = await fetch(
-          API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id,
-          { headers: HEADERS }
-        );
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_principal_id, { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) setDetallesPatentePrincipal(data[0]);
       }
       if (transporte.patente_adicional_id) {
-        const resp = await fetch(
-          API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id,
-          { headers: HEADERS }
-        );
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporte.patente_adicional_id, { headers: HEADERS });
         const data = await resp.json();
         if (data && data.length > 0) setDetallesPatenteAdicional(data[0]);
       }
@@ -777,14 +629,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
       const data = await resp.json();
 
       if (Array.isArray(data)) {
-        const localesMapeados = ordenarLocales(
-          data.map((local: any) => ({
-            ...local,
-            sello_trasero: local.sello_trasero || '',
-            cantidad_pallet: local.cantidad_pallet || null,
-            seleccionado: false
-          }))
-        );
+        const localesMapeados = ordenarLocales(data.map((local: any) => ({
+          ...local,
+          sello_trasero: local.sello_trasero || '',
+          cantidad_pallet: local.cantidad_pallet || null,
+          seleccionado: false,
+        })));
         setLocales(localesMapeados);
 
         const respBultos = await fetch(
@@ -845,7 +695,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sello_trasero: local.sello_trasero || null,
-          cantidad_pallet: local.cantidad_pallet || null
+          cantidad_pallet: local.cantidad_pallet || null,
         })
       });
       if (!resp.ok) {
@@ -931,59 +781,44 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
       mostrarMensaje('warning', 'No hay correos configurados para los locales');
       return;
     }
-    navigator.clipboard
-      .writeText(correos)
-      .then(() => mostrarMensaje('success', 'Correos copiados al portapapeles'))
-      .catch((err) => {
-        console.error('Error al copiar correos:', err);
-        mostrarMensaje('error', 'Error al copiar correos');
-      });
+    navigator.clipboard.writeText(correos).then(() => {
+      mostrarMensaje('success', 'Correos copiados al portapapeles');
+    }).catch((err) => {
+      console.error('Error al copiar correos:', err);
+      mostrarMensaje('error', 'Error al copiar correos');
+    });
   };
 
   const copiarAsuntoDetalle = () => {
-    const nombresLocales = locales
-      .map((l: any) => {
-        const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
-        return localMaestro?.nombre_local || l.nombre_local;
-      })
-      .filter(Boolean);
+    const nombresLocales = locales.map((l: any) => {
+      const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
+      return localMaestro?.nombre_local || l.nombre_local;
+    }).filter(Boolean);
     const nombresUnicos = [...new Set(nombresLocales)].join(', ');
 
-    const detallePorLocal = locales
-      .map((local: any) => {
-        const actasLocal = (bultosPorLocal[local.id] || [])
-          .map((b: any) => b.numeroDocumento)
-          .filter(Boolean);
-        if (actasLocal.length === 0) return '';
-        const nombreLocal =
-          localesMaestros.find((lm: any) => lm.codigo_local === local.codigo_local)?.nombre_local ||
-          local.nombre_local ||
-          '';
-        return `${nombreLocal}: ${actasLocal.join(', ')}`;
-      })
-      .filter(Boolean);
+    const detallePorLocal = locales.map((local: any) => {
+      const actasLocal = (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean);
+      if (actasLocal.length === 0) return '';
+      const nombreLocal = localesMaestros.find((lm: any) => lm.codigo_local === local.codigo_local)?.nombre_local || local.nombre_local || '';
+      return `${nombreLocal}: ${actasLocal.join(', ')}`;
+    }).filter(Boolean);
 
     const texto = `DETALLE DE DESPACHO: ${nombresUnicos} /// N° DE ACTA: ${detallePorLocal.join(' | ')}`;
-    navigator.clipboard
-      .writeText(texto)
-      .then(() => mostrarMensaje('success', 'Detalle copiado al portapapeles'))
-      .catch((err) => {
-        console.error('Error al copiar detalle:', err);
-        mostrarMensaje('error', 'Error al copiar detalle');
-      });
+    navigator.clipboard.writeText(texto).then(() => {
+      mostrarMensaje('success', 'Detalle copiado al portapapeles');
+    }).catch((err) => {
+      console.error('Error al copiar detalle:', err);
+      mostrarMensaje('error', 'Error al copiar detalle');
+    });
   };
 
   const copiarCuadro = async () => {
-    const destino = [
-      ...new Set(
-        locales
-          .map((l: any) => {
-            const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
-            return localMaestro?.nombre_local || l.nombre_local;
-          })
-          .filter(Boolean)
-      )
-    ].join(', ');
+    const destino = [...new Set(
+      locales.map((l: any) => {
+        const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
+        return localMaestro?.nombre_local || l.nombre_local;
+      }).filter(Boolean)
+    )].join(', ');
 
     const localesCuadro = locales.map((local: any) => {
       const bultosLocal = bultosPorLocal[local.id] || [];
@@ -1000,13 +835,12 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
           tipoDocumento: b.tipoDocumento,
           numeroDocumento: b.numeroDocumento,
           cantidad: b.cantidad,
-          observacion: b.observacion
-        }))
+          observacion: b.observacion,
+        })),
       };
     });
 
-    const administrativo =
-      transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
+    const administrativo = transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim();
 
     const datos = {
       idDocumento: transporte.id_documento,
@@ -1024,7 +858,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
       selloAdicional: selloAdicionalGlobal,
       administrativo,
       actasInformadas: '',
-      locales: localesCuadro
+      locales: localesCuadro,
     };
 
     const exito = await copiarCuadroDespacho(datos);
@@ -1050,6 +884,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         }))
       };
     });
+
     setLocalesImprimir(localesParaImprimir);
     setCopiasImprimir(copias);
     setMostrarImprimirModal(true);
@@ -1073,8 +908,8 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     prepararImpresion(localesSeleccionados, copias);
   };
 
-  const finalizarTransporte = async () => {
-    if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
+  const guardarModificacion = async () => {
+    if (!window.confirm('¿Guardar los cambios realizados? El transporte seguirá Finalizado.')) return;
     try {
       await guardarSellosGlobales();
       for (const local of locales) {
@@ -1083,7 +918,39 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sello_trasero: local.sello_trasero || null,
-            cantidad_pallet: local.cantidad_pallet || null
+            cantidad_pallet: local.cantidad_pallet || null,
+          })
+        });
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          console.error('Error guardando local:', errorText);
+        }
+      }
+      mostrarMensaje('success', 'Cambios guardados. El transporte sigue Finalizado.');
+      onActualizar();
+      onClose();
+    } catch (e) {
+      console.error('Error guardando modificación:', e);
+      mostrarMensaje('error', 'Error al guardar los cambios');
+    }
+  };
+
+  const finalizarTransporte = async () => {
+    if (modoModificar) {
+      return guardarModificacion();
+    }
+    if (!window.confirm('¿Está seguro de finalizar el transporte ' + transporte.id_documento + '?')) return;
+
+    try {
+      await guardarSellosGlobales();
+
+      for (const local of locales) {
+        const resp = await fetch(API_URL + '/sd01_documento_locales?id=eq.' + local.id, {
+          method: 'PATCH',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sello_trasero: local.sello_trasero || null,
+            cantidad_pallet: local.cantidad_pallet || null,
           })
         });
         if (!resp.ok) {
@@ -1119,8 +986,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         const datosResumen = {
           numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
           fechaProgramacion: transporte.fecha_programacion || '',
-          administrativo:
-            transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
+          administrativo: transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
           conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
           rutConductor: detallesConductor?.numero_documento || '',
           patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
@@ -1130,10 +996,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
           locales: locales.map((local: any) => ({
             codigo: local.codigo_local,
             nombre: local.nombre_local || '',
-            actas: (bultosPorLocal[local.id] || [])
-              .map((b: any) => b.numeroDocumento)
-              .filter(Boolean)
-              .join(' - '),
+            actas: (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
             fechaEntrega: local.fecha_entrega || '',
             selloTrasero: local.sello_trasero || ''
           }))
@@ -1177,6 +1040,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>{mensaje.texto}</div>
       )}
 
+      {/* Barra de acciones */}
       <div className="sd01-action-bar">
         <button className="sd01-btn sd01-btn-cancel" onClick={onClose}>
           ← Volver a la lista
@@ -1186,39 +1050,56 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
 
         <div className="sd01-action-group">
           <span className="sd01-action-label">Imprimir</span>
-          <button className="sd01-btn" onClick={imprimirTodos}>
-            Todos los locales
-          </button>
-          <button className="sd01-btn" onClick={imprimirSeleccionados}>
-            Locales Seleccionados
-          </button>
+          <button className="sd01-btn" onClick={imprimirTodos}>Todos los locales</button>
+          <button className="sd01-btn" onClick={imprimirSeleccionados}>Locales Seleccionados</button>
         </div>
 
         <div className="sd01-separator"></div>
 
         <div className="sd01-action-group">
           <span className="sd01-action-label">Envío Correo</span>
-          <button className="sd01-btn" onClick={copiarCorreos}>
-            Seleccionar Correos
-          </button>
-          <button className="sd01-btn" onClick={copiarAsuntoDetalle}>
-            Asunto y Detalle
-          </button>
-          <button className="sd01-btn" onClick={copiarCuadro}>
-            Copiar Cuadro
-          </button>
+          <button className="sd01-btn" onClick={copiarCorreos}>Seleccionar Correos</button>
+          <button className="sd01-btn" onClick={copiarAsuntoDetalle}>Asunto y Detalle</button>
+          <button className="sd01-btn" onClick={copiarCuadro}>Copiar Cuadro</button>
         </div>
 
         <div className="sd01-separator"></div>
 
-        <button
-          className="sd01-btn sd01-btn-success"
-          onClick={finalizarTransporte}
-          style={{ background: '#16a34a', color: 'white' }}
-        >
-          Finalizar Transporte
-        </button>
+        {modoModificar ? (
+          <button
+            className="sd01-btn"
+            onClick={finalizarTransporte}
+            style={{ background: '#f59e0b', color: 'white', borderColor: '#f59e0b' }}
+          >
+            💾 Guardar y Cerrar
+          </button>
+        ) : (
+          <button
+            className="sd01-btn sd01-btn-success"
+            onClick={finalizarTransporte}
+            style={{ background: '#16a34a', color: 'white' }}
+          >
+            Finalizar Transporte
+          </button>
+        )}
       </div>
+
+      {modoModificar && (
+        <div
+          style={{
+            margin: '12px 0 0 0',
+            padding: '12px 16px',
+            background: 'var(--warning-bg)',
+            color: 'var(--warning-text)',
+            border: '1px solid var(--warning-border)',
+            borderRadius: '10px',
+            fontSize: '13px',
+            fontWeight: 500
+          }}
+        >
+          ⚠️ <strong>Modo Modificación:</strong> puedes corregir bultos, sellos y pallets. Al guardar, el transporte seguirá en estado <strong>Finalizado</strong> y la métrica del KPI no se altera.
+        </div>
+      )}
 
       <div style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
@@ -1239,14 +1120,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         </div>
 
         {mostrarInfo && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '16px',
-              marginBottom: '24px'
-            }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div className="sd01-ver-card">
               <div className="sd01-ver-card-title">Programación</div>
               <div className="sd01-ver-field">
@@ -1415,16 +1289,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
                         type="button"
                         onClick={replicarSelloTrasero}
                         title="Replicar el sello del primer local a todos"
-                        style={{
-                          marginLeft: '4px',
-                          padding: '0 6px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          background: 'var(--btn-primary-bg)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px'
-                        }}
+                        style={{ marginLeft: '4px', padding: '0 6px', fontSize: '12px', cursor: 'pointer', background: 'var(--btn-primary-bg)', color: 'white', border: 'none', borderRadius: '4px' }}
                       >
                         +
                       </button>
@@ -1437,16 +1302,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
                         type="button"
                         onClick={replicarCantidadPallet}
                         title="Replicar la cantidad del primer local a todos"
-                        style={{
-                          marginLeft: '4px',
-                          padding: '0 6px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          background: 'var(--btn-primary-bg)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px'
-                        }}
+                        style={{ marginLeft: '4px', padding: '0 6px', fontSize: '12px', cursor: 'pointer', background: 'var(--btn-primary-bg)', color: 'white', border: 'none', borderRadius: '4px' }}
                       >
                         +
                       </button>
@@ -1493,11 +1349,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
                         style={{ width: '80px', padding: '4px 8px', fontSize: '13px' }}
                         value={local.cantidad_pallet || ''}
                         onChange={(e) =>
-                          handleLocalChange(
-                            index,
-                            'cantidad_pallet',
-                            e.target.value ? Number(e.target.value) : null
-                          )
+                          handleLocalChange(index, 'cantidad_pallet', e.target.value ? Number(e.target.value) : null)
                         }
                         onBlur={() => guardarCambiosLocal(index)}
                         placeholder="0"
