@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD01KPI.tsx
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import './SD01KPI.css';
 
@@ -120,7 +120,7 @@ const mediana = (arr: number[]): number => {
   return copia[mid];
 };
 
-// ===================== MultiSelect Usuarios =====================
+// ================ MultiSelect Usuarios ================
 interface MultiSelectProps {
   options: Usuario[];
   value: string[];
@@ -191,28 +191,25 @@ const MultiSelectUsuarios: React.FC<MultiSelectProps> = ({ options, value, onCha
   );
 };
 
-// ===================== Componente principal =====================
+// ================ Componente principal ================
 const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   const [cargando, setCargando] = useState(true);
   const [todosTransportes, setTodosTransportes] = useState<TransporteKPI[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [tab, setTab] = useState<Tab>('resumen');
 
-  // Filtros
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [usuariosSeleccionados, setUsuariosSeleccionados] = useState<string[]>([]);
 
-  // Ordenamiento de la tabla usuarios
   const [ordenUsuarios, setOrdenUsuarios] = useState<{ col: string; dir: 'asc' | 'desc' }>({
     col: 'cantidad',
     dir: 'desc'
   });
 
-  // Evolución diaria
   const [escalaEvolucion, setEscalaEvolucion] = useState<'diario' | 'semanal' | 'mensual'>('diario');
 
-  // ============ Carga inicial ============
+  // ============ Carga ============
   useEffect(() => {
     const cargarTodo = async () => {
       setCargando(true);
@@ -223,12 +220,10 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
           fetchAllPaginado(`${API_URL}/usuarios?select=id,nombre,apellido,rol,usuario`)
         ]);
 
-        // Mapa de usuarios
         const uMap = new Map<string, Usuario>();
         usuariosData.forEach((u: any) => uMap.set(u.id, u));
         setUsuarios(usuariosData);
 
-        // Contar locales y bultos por documento
         const localesPorDoc = new Map<string, number>();
         const bultosPorDoc = new Map<string, number>();
         localesData.forEach((l: any) => {
@@ -237,7 +232,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
           bultosPorDoc.set(doc, (bultosPorDoc.get(doc) || 0) + (Number(l.cantidad_solicitada) || 0));
         });
 
-        // Mapear a TransporteKPI
         const kpis: TransporteKPI[] = docsData
           .filter((d: any) => d.creado_en && d.finalizado_en)
           .map((d: any) => {
@@ -347,7 +341,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     return stats;
   }, [transportesFiltrados, kpisGenerales.total, ordenUsuarios]);
 
-  // ============ Evolución temporal ============
+  // ============ Evolución ============
   const evolucion = useMemo(() => {
     const agrupado = new Map<string, number[]>();
     transportesFiltrados.forEach((t) => {
@@ -367,15 +361,13 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       agrupado.get(key)!.push(t.duracionMs);
     });
 
-    const puntos = Array.from(agrupado.entries())
+    return Array.from(agrupado.entries())
       .map(([key, duraciones]) => ({
         key,
         promedio: duraciones.reduce((s, d) => s + d, 0) / duraciones.length,
         cantidad: duraciones.length
       }))
       .sort((a, b) => a.key.localeCompare(b.key));
-
-    return puntos;
   }, [transportesFiltrados, escalaEvolucion]);
 
   // ============ Exportación ============
@@ -428,7 +420,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   const indicador = (col: string) =>
     ordenUsuarios.col === col ? (ordenUsuarios.dir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  // ============ Render del gráfico ============
+  // ============ Gráfico ============
   const renderGrafico = () => {
     if (evolucion.length === 0) {
       return <div className="sd01-kpi-empty">Sin datos para graficar</div>;
@@ -459,7 +451,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
 
     const areaPath = `${linePath} L ${puntos[puntos.length - 1].x.toFixed(1)} ${padT + chartH} L ${puntos[0].x.toFixed(1)} ${padT + chartH} Z`;
 
-    // Grid Y: 5 líneas
     const gridLines = [];
     for (let i = 0; i <= 5; i++) {
       const y = padT + (chartH / 5) * i;
@@ -571,325 +562,320 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="sd01-kpi-overlay">
-      <div className="sd01-kpi-window">
-        <button className="sd01-kpi-close" onClick={onClose}>×</button>
-
-        <div className="sd01-kpi-header">
+    <div className="sd01-kpi-container">
+      {/* Header */}
+      <div className="sd01-kpi-header">
+        <div className="sd01-kpi-header-left">
           <h1>KPI de Transportes</h1>
           <p>Métricas de tiempos de ciclo desde la creación hasta la finalización</p>
         </div>
-
-        <div className="sd01-kpi-note">
-          ℹ️ Tiempos medidos desde <strong>creado_en</strong> hasta <strong>finalizado_en</strong>. Solo transportes <strong>Finalizados</strong>. La duración depende directamente de la cantidad de locales del transporte.
-        </div>
-
-        {/* Filtros */}
-        <div className="sd01-kpi-filters">
-          <div className="sd01-kpi-filters-grid">
-            <div className="sd01-kpi-filter-row">
-              <label>Fecha desde</label>
-              <input
-                type="date"
-                value={fechaDesde}
-                onChange={(e) => setFechaDesde(e.target.value)}
-              />
-            </div>
-            <div className="sd01-kpi-filter-row">
-              <label>Fecha hasta</label>
-              <input
-                type="date"
-                value={fechaHasta}
-                onChange={(e) => setFechaHasta(e.target.value)}
-              />
-            </div>
-            <div className="sd01-kpi-filter-row">
-              <label>Usuarios a medir</label>
-              <MultiSelectUsuarios
-                options={usuarios}
-                value={usuariosSeleccionados}
-                onChange={setUsuariosSeleccionados}
-                placeholder="Todos los usuarios"
-              />
-            </div>
-            <div className="sd01-kpi-filter-row">
-              <label>&nbsp;</label>
-              <button
-                className="sd01-btn"
-                onClick={() => {
-                  setFechaDesde('');
-                  setFechaHasta('');
-                  setUsuariosSeleccionados([]);
-                }}
-              >
-                🧹 Limpiar filtros
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="sd01-kpi-tabs">
-          <button
-            className={`sd01-kpi-tab ${tab === 'resumen' ? 'active' : ''}`}
-            onClick={() => setTab('resumen')}
-          >
-            Resumen General
-          </button>
-          <button
-            className={`sd01-kpi-tab ${tab === 'usuarios' ? 'active' : ''}`}
-            onClick={() => setTab('usuarios')}
-          >
-            Por Usuario <span className="count">{statsUsuarios.length}</span>
-          </button>
-          <button
-            className={`sd01-kpi-tab ${tab === 'detalle' ? 'active' : ''}`}
-            onClick={() => setTab('detalle')}
-          >
-            Detalle Transportes <span className="count">{transportesFiltrados.length}</span>
-          </button>
-          <button
-            className={`sd01-kpi-tab ${tab === 'evolucion' ? 'active' : ''}`}
-            onClick={() => setTab('evolucion')}
-          >
-            Evolución Temporal
+        <div className="sd01-kpi-header-actions">
+          <button className="sd01-kpi-btn" onClick={onClose}>
+            ← Volver a SD01
           </button>
         </div>
-
-        {cargando ? (
-          <div className="sd01-kpi-panel">
-            <div className="sd01-kpi-loading">Cargando datos KPI...</div>
-          </div>
-        ) : transportesFiltrados.length === 0 ? (
-          <div className="sd01-kpi-panel">
-            <div className="sd01-kpi-empty">No hay transportes finalizados con los filtros aplicados.</div>
-          </div>
-        ) : (
-          <>
-            {/* ============ TAB: RESUMEN ============ */}
-            {tab === 'resumen' && (
-              <div className="sd01-kpi-panel">
-                <div className="sd01-kpi-grid">
-                  <div className="sd01-kpi-card">
-                    <div className="sd01-kpi-label">Transportes Finalizados</div>
-                    <div className="sd01-kpi-value">{kpisGenerales.total}</div>
-                    <div className="sd01-kpi-sub">
-                      {fechaDesde || fechaHasta
-                        ? `${fechaDesde || '...'} → ${fechaHasta || '...'}`
-                        : 'Todos los periodos'}
-                    </div>
-                  </div>
-                  <div className="sd01-kpi-card success">
-                    <div className="sd01-kpi-label">Tiempo Promedio</div>
-                    <div className="sd01-kpi-value">
-                      {(() => {
-                        const d = formatDuracion(kpisGenerales.promedio);
-                        const match = d.corta.match(/(\d+)m\s+(\d+)s/);
-                        if (match) {
-                          return <>{match[1]}<span className="unit">m</span> {match[2]}<span className="unit">s</span></>;
-                        }
-                        return d.corta;
-                      })()}
-                    </div>
-                    <div className="sd01-kpi-sub">Media general</div>
-                  </div>
-                  <div className="sd01-kpi-card purple">
-                    <div className="sd01-kpi-label">Tiempo Mínimo</div>
-                    <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.minimo).corta}</div>
-                    <div className="sd01-kpi-sub">Más rápido</div>
-                  </div>
-                  <div className="sd01-kpi-card danger">
-                    <div className="sd01-kpi-label">Tiempo Máximo</div>
-                    <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.maximo).corta}</div>
-                    <div className="sd01-kpi-sub">Más lento</div>
-                  </div>
-                  <div className="sd01-kpi-card warning">
-                    <div className="sd01-kpi-label">Mediana</div>
-                    <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.mediana).corta}</div>
-                    <div className="sd01-kpi-sub">50% bajo este valor</div>
-                  </div>
-                  <div className="sd01-kpi-card">
-                    <div className="sd01-kpi-label">Prom. Locales</div>
-                    <div className="sd01-kpi-value">{kpisGenerales.promLocales.toFixed(1)}</div>
-                    <div className="sd01-kpi-sub">Por transporte</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ============ TAB: USUARIOS ============ */}
-            {tab === 'usuarios' && (
-              <div className="sd01-kpi-panel rounded">
-                <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Estadísticas por usuario</h2>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Ordenado por {ordenUsuarios.col} · La columna "Locales prom." ayuda a interpretar el tiempo
-                    </div>
-                  </div>
-                  <button className="sd01-btn" onClick={exportarUsuarios}>📊 Exportar Excel</button>
-                </div>
-                <div className="sd01-kpi-table-wrap">
-                  <table className="sd01-kpi-table">
-                    <thead>
-                      <tr>
-                        <th onClick={() => cambiarOrden('nombre')}>Usuario{indicador('nombre')}</th>
-                        <th className="num" onClick={() => cambiarOrden('cantidad')}>Transportes{indicador('cantidad')}</th>
-                        <th className="num" onClick={() => cambiarOrden('locales')}>Locales prom.{indicador('locales')}</th>
-                        <th className="num" onClick={() => cambiarOrden('promedio')}>Promedio{indicador('promedio')}</th>
-                        <th className="num" onClick={() => cambiarOrden('minimo')}>Mínimo{indicador('minimo')}</th>
-                        <th className="num" onClick={() => cambiarOrden('maximo')}>Máximo{indicador('maximo')}</th>
-                        <th className="num">Mediana</th>
-                        <th className="num">% del Total</th>
-                        <th>Distribución</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statsUsuarios.map((u) => (
-                        <tr key={u.usuario_id}>
-                          <td>
-                            <div className="sd01-kpi-user-cell">
-                              <div className="sd01-kpi-avatar">{getIniciales(u.usuario_nombre)}</div>
-                              <div>
-                                <div className="sd01-kpi-user-name">{u.usuario_nombre}</div>
-                                <div className="sd01-kpi-user-role">{u.usuario_rol}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="num">{u.cantidad}</td>
-                          <td className="num">{u.promLocales.toFixed(1)}</td>
-                          <td className="num"><strong>{formatDuracion(u.promedio).corta}</strong></td>
-                          <td className="num">{formatDuracion(u.minimo).corta}</td>
-                          <td className="num">{formatDuracion(u.maximo).corta}</td>
-                          <td className="num">{formatDuracion(u.mediana).corta}</td>
-                          <td className="num">{u.porcentaje.toFixed(1)}%</td>
-                          <td>
-                            <span
-                              className={`sd01-kpi-tiempo-bar ${getColorClase(u.promedio)}`}
-                              style={{ width: Math.min(100, u.promedio / 60000 * 2) + 'px' }}
-                            ></span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td>PROMEDIO GENERAL</td>
-                        <td className="num">{kpisGenerales.total}</td>
-                        <td className="num">{kpisGenerales.promLocales.toFixed(1)}</td>
-                        <td className="num">{formatDuracion(kpisGenerales.promedio).corta}</td>
-                        <td className="num">{formatDuracion(kpisGenerales.minimo).corta}</td>
-                        <td className="num">{formatDuracion(kpisGenerales.maximo).corta}</td>
-                        <td className="num">{formatDuracion(kpisGenerales.mediana).corta}</td>
-                        <td className="num">100%</td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-                <div className="sd01-kpi-legend">
-                  <div className="sd01-kpi-legend-item">
-                    <span className="sd01-kpi-legend-dot" style={{ background: '#22c55e' }}></span> ≤ 15 min (rápido)
-                  </div>
-                  <div className="sd01-kpi-legend-item">
-                    <span className="sd01-kpi-legend-dot" style={{ background: '#fbbf24' }}></span> 15 – 25 min (normal)
-                  </div>
-                  <div className="sd01-kpi-legend-item">
-                    <span className="sd01-kpi-legend-dot" style={{ background: '#f87171' }}></span> ≥ 25 min (lento)
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ============ TAB: DETALLE ============ */}
-            {tab === 'detalle' && (
-              <div className="sd01-kpi-panel rounded">
-                <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Detalle de transportes finalizados</h2>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      {transportesFiltrados.length} transportes · La duración se correlaciona con la cantidad de locales
-                    </div>
-                  </div>
-                  <button className="sd01-btn" onClick={exportarDetalle}>📊 Exportar Excel</button>
-                </div>
-                <div className="sd01-kpi-table-wrap">
-                  <table className="sd01-kpi-table">
-                    <thead>
-                      <tr>
-                        <th>N° Transporte</th>
-                        <th>Fecha Prog.</th>
-                        <th>Usuario</th>
-                        <th className="num">Locales</th>
-                        <th className="num">Bultos</th>
-                        <th>Creado</th>
-                        <th>Finalizado</th>
-                        <th className="num">Duración</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transportesFiltrados.slice(0, 200).map((t) => (
-                        <tr key={t.id}>
-                          <td className="mono">{t.id_documento}</td>
-                          <td>{formatFechaCorta(t.fecha_programacion)}</td>
-                          <td>{t.usuario_nombre}</td>
-                          <td className="num"><span className="sd01-kpi-locales-badge">{t.cantidad_locales}</span></td>
-                          <td className="num">{t.cantidad_bultos}</td>
-                          <td>{formatFechaHora(t.creado_en)}</td>
-                          <td>{formatFechaHora(t.finalizado_en)}</td>
-                          <td className="num">
-                            <span
-                              className={`sd01-kpi-tiempo-bar ${getColorClase(t.duracionMs)}`}
-                              style={{ width: Math.min(80, t.duracionMs / 60000 * 2) + 'px' }}
-                            ></span>
-                            {formatDuracion(t.duracionMs).corta}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {transportesFiltrados.length > 200 && (
-                    <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
-                      Mostrando 200 de {transportesFiltrados.length}. Exporta a Excel para ver todos.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ============ TAB: EVOLUCIÓN ============ */}
-            {tab === 'evolucion' && (
-              <div className="sd01-kpi-panel rounded">
-                <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Evolución temporal del promedio</h2>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Duración promedio por {escalaEvolucion}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {(['diario', 'semanal', 'mensual'] as const).map((e) => (
-                      <button
-                        key={e}
-                        className="sd01-btn"
-                        onClick={() => setEscalaEvolucion(e)}
-                        style={
-                          escalaEvolucion === e
-                            ? { background: '#3b82f6', color: '#fff', borderColor: '#3b82f6' }
-                            : {}
-                        }
-                      >
-                        {e.charAt(0).toUpperCase() + e.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {renderGrafico()}
-              </div>
-            )}
-          </>
-        )}
       </div>
+
+      <div className="sd01-kpi-note">
+        ℹ️ Tiempos medidos desde <strong>creado_en</strong> hasta <strong>finalizado_en</strong>. Solo transportes <strong>Finalizados</strong>. La duración depende directamente de la cantidad de locales del transporte.
+      </div>
+
+      {/* Filtros */}
+      <div className="sd01-kpi-filters">
+        <div className="sd01-kpi-filters-grid">
+          <div className="sd01-kpi-filter-row">
+            <label>Fecha desde</label>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+            />
+          </div>
+          <div className="sd01-kpi-filter-row">
+            <label>Fecha hasta</label>
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+            />
+          </div>
+          <div className="sd01-kpi-filter-row">
+            <label>Usuarios a medir</label>
+            <MultiSelectUsuarios
+              options={usuarios}
+              value={usuariosSeleccionados}
+              onChange={setUsuariosSeleccionados}
+              placeholder="Todos los usuarios"
+            />
+          </div>
+          <div className="sd01-kpi-filter-row">
+            <label>&nbsp;</label>
+            <button
+              className="sd01-kpi-btn"
+              onClick={() => {
+                setFechaDesde('');
+                setFechaHasta('');
+                setUsuariosSeleccionados([]);
+              }}
+            >
+              🧹 Limpiar filtros
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="sd01-kpi-tabs">
+        <button
+          className={`sd01-kpi-tab ${tab === 'resumen' ? 'active' : ''}`}
+          onClick={() => setTab('resumen')}
+        >
+          Resumen General
+        </button>
+        <button
+          className={`sd01-kpi-tab ${tab === 'usuarios' ? 'active' : ''}`}
+          onClick={() => setTab('usuarios')}
+        >
+          Por Usuario <span className="count">{statsUsuarios.length}</span>
+        </button>
+        <button
+          className={`sd01-kpi-tab ${tab === 'detalle' ? 'active' : ''}`}
+          onClick={() => setTab('detalle')}
+        >
+          Detalle Transportes <span className="count">{transportesFiltrados.length}</span>
+        </button>
+        <button
+          className={`sd01-kpi-tab ${tab === 'evolucion' ? 'active' : ''}`}
+          onClick={() => setTab('evolucion')}
+        >
+          Evolución Temporal
+        </button>
+      </div>
+
+      {cargando ? (
+        <div className="sd01-kpi-panel">
+          <div className="sd01-kpi-loading">Cargando datos KPI...</div>
+        </div>
+      ) : transportesFiltrados.length === 0 ? (
+        <div className="sd01-kpi-panel">
+          <div className="sd01-kpi-empty">No hay transportes finalizados con los filtros aplicados.</div>
+        </div>
+      ) : (
+        <>
+          {/* ============ RESUMEN ============ */}
+          {tab === 'resumen' && (
+            <div className="sd01-kpi-panel">
+              <div className="sd01-kpi-grid">
+                <div className="sd01-kpi-card">
+                  <div className="sd01-kpi-label">Transportes Finalizados</div>
+                  <div className="sd01-kpi-value">{kpisGenerales.total}</div>
+                  <div className="sd01-kpi-sub">
+                    {fechaDesde || fechaHasta
+                      ? `${fechaDesde || '...'} → ${fechaHasta || '...'}`
+                      : 'Todos los periodos'}
+                  </div>
+                </div>
+                <div className="sd01-kpi-card success">
+                  <div className="sd01-kpi-label">Tiempo Promedio</div>
+                  <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.promedio).corta}</div>
+                  <div className="sd01-kpi-sub">Media general</div>
+                </div>
+                <div className="sd01-kpi-card purple">
+                  <div className="sd01-kpi-label">Tiempo Mínimo</div>
+                  <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.minimo).corta}</div>
+                  <div className="sd01-kpi-sub">Más rápido</div>
+                </div>
+                <div className="sd01-kpi-card danger">
+                  <div className="sd01-kpi-label">Tiempo Máximo</div>
+                  <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.maximo).corta}</div>
+                  <div className="sd01-kpi-sub">Más lento</div>
+                </div>
+                <div className="sd01-kpi-card warning">
+                  <div className="sd01-kpi-label">Mediana</div>
+                  <div className="sd01-kpi-value">{formatDuracion(kpisGenerales.mediana).corta}</div>
+                  <div className="sd01-kpi-sub">50% bajo este valor</div>
+                </div>
+                <div className="sd01-kpi-card">
+                  <div className="sd01-kpi-label">Prom. Locales</div>
+                  <div className="sd01-kpi-value">{kpisGenerales.promLocales.toFixed(1)}</div>
+                  <div className="sd01-kpi-sub">Por transporte</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============ USUARIOS ============ */}
+          {tab === 'usuarios' && (
+            <div className="sd01-kpi-panel rounded">
+              <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Estadísticas por usuario</h2>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Ordenado por {ordenUsuarios.col} · La columna "Locales prom." ayuda a interpretar el tiempo
+                  </div>
+                </div>
+                <button className="sd01-kpi-btn" onClick={exportarUsuarios}>📊 Exportar Excel</button>
+              </div>
+              <div className="sd01-kpi-table-wrap">
+                <table className="sd01-kpi-table">
+                  <thead>
+                    <tr>
+                      <th onClick={() => cambiarOrden('nombre')}>Usuario{indicador('nombre')}</th>
+                      <th className="num" onClick={() => cambiarOrden('cantidad')}>Transportes{indicador('cantidad')}</th>
+                      <th className="num" onClick={() => cambiarOrden('locales')}>Locales prom.{indicador('locales')}</th>
+                      <th className="num" onClick={() => cambiarOrden('promedio')}>Promedio{indicador('promedio')}</th>
+                      <th className="num" onClick={() => cambiarOrden('minimo')}>Mínimo{indicador('minimo')}</th>
+                      <th className="num" onClick={() => cambiarOrden('maximo')}>Máximo{indicador('maximo')}</th>
+                      <th className="num">Mediana</th>
+                      <th className="num">% del Total</th>
+                      <th>Distribución</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statsUsuarios.map((u) => (
+                      <tr key={u.usuario_id}>
+                        <td>
+                          <div className="sd01-kpi-user-cell">
+                            <div className="sd01-kpi-avatar">{getIniciales(u.usuario_nombre)}</div>
+                            <div>
+                              <div className="sd01-kpi-user-name">{u.usuario_nombre}</div>
+                              <div className="sd01-kpi-user-role">{u.usuario_rol}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="num">{u.cantidad}</td>
+                        <td className="num">{u.promLocales.toFixed(1)}</td>
+                        <td className="num"><strong>{formatDuracion(u.promedio).corta}</strong></td>
+                        <td className="num">{formatDuracion(u.minimo).corta}</td>
+                        <td className="num">{formatDuracion(u.maximo).corta}</td>
+                        <td className="num">{formatDuracion(u.mediana).corta}</td>
+                        <td className="num">{u.porcentaje.toFixed(1)}%</td>
+                        <td>
+                          <span
+                            className={`sd01-kpi-tiempo-bar ${getColorClase(u.promedio)}`}
+                            style={{ width: Math.min(100, u.promedio / 60000 * 2) + 'px' }}
+                          ></span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>PROMEDIO GENERAL</td>
+                      <td className="num">{kpisGenerales.total}</td>
+                      <td className="num">{kpisGenerales.promLocales.toFixed(1)}</td>
+                      <td className="num">{formatDuracion(kpisGenerales.promedio).corta}</td>
+                      <td className="num">{formatDuracion(kpisGenerales.minimo).corta}</td>
+                      <td className="num">{formatDuracion(kpisGenerales.maximo).corta}</td>
+                      <td className="num">{formatDuracion(kpisGenerales.mediana).corta}</td>
+                      <td className="num">100%</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div className="sd01-kpi-legend">
+                <div className="sd01-kpi-legend-item">
+                  <span className="sd01-kpi-legend-dot" style={{ background: '#22c55e' }}></span> ≤ 15 min (rápido)
+                </div>
+                <div className="sd01-kpi-legend-item">
+                  <span className="sd01-kpi-legend-dot" style={{ background: '#fbbf24' }}></span> 15 – 25 min (normal)
+                </div>
+                <div className="sd01-kpi-legend-item">
+                  <span className="sd01-kpi-legend-dot" style={{ background: '#f87171' }}></span> ≥ 25 min (lento)
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============ DETALLE ============ */}
+          {tab === 'detalle' && (
+            <div className="sd01-kpi-panel rounded">
+              <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Detalle de transportes finalizados</h2>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    {transportesFiltrados.length} transportes · La duración se correlaciona con la cantidad de locales
+                  </div>
+                </div>
+                <button className="sd01-kpi-btn" onClick={exportarDetalle}>📊 Exportar Excel</button>
+              </div>
+              <div className="sd01-kpi-table-wrap">
+                <table className="sd01-kpi-table">
+                  <thead>
+                    <tr>
+                      <th>N° Transporte</th>
+                      <th>Fecha Prog.</th>
+                      <th>Usuario</th>
+                      <th className="num">Locales</th>
+                      <th className="num">Bultos</th>
+                      <th>Creado</th>
+                      <th>Finalizado</th>
+                      <th className="num">Duración</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transportesFiltrados.slice(0, 200).map((t) => (
+                      <tr key={t.id}>
+                        <td className="mono">{t.id_documento}</td>
+                        <td>{formatFechaCorta(t.fecha_programacion)}</td>
+                        <td>{t.usuario_nombre}</td>
+                        <td className="num"><span className="sd01-kpi-locales-badge">{t.cantidad_locales}</span></td>
+                        <td className="num">{t.cantidad_bultos}</td>
+                        <td>{formatFechaHora(t.creado_en)}</td>
+                        <td>{formatFechaHora(t.finalizado_en)}</td>
+                        <td className="num">
+                          <span
+                            className={`sd01-kpi-tiempo-bar ${getColorClase(t.duracionMs)}`}
+                            style={{ width: Math.min(80, t.duracionMs / 60000 * 2) + 'px' }}
+                          ></span>
+                          {formatDuracion(t.duracionMs).corta}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {transportesFiltrados.length > 200 && (
+                  <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                    Mostrando 200 de {transportesFiltrados.length}. Exporta a Excel para ver todos.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ============ EVOLUCIÓN ============ */}
+          {tab === 'evolucion' && (
+            <div className="sd01-kpi-panel rounded">
+              <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Evolución temporal del promedio</h2>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Duración promedio por {escalaEvolucion}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['diario', 'semanal', 'mensual'] as const).map((e) => (
+                    <button
+                      key={e}
+                      className="sd01-kpi-btn"
+                      onClick={() => setEscalaEvolucion(e)}
+                      style={
+                        escalaEvolucion === e
+                          ? { background: '#3b82f6', color: '#fff', borderColor: '#3b82f6' }
+                          : {}
+                      }
+                    >
+                      {e.charAt(0).toUpperCase() + e.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {renderGrafico()}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
