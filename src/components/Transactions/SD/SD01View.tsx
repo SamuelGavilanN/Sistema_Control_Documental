@@ -3,15 +3,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../../lib/auth';
 import SD01CrearTransporte from './SD01CrearTransporte';
-import SD01CargaExcel from './SD01CargaExcel';
 import SD01IniciarTransporte from './SD01IniciarTransporte';
+import SD01KPI from './SD01KPI';
 import { cache } from '../../../lib/cache';
 import './SD01.css';
 
 const API_URL = 'https://jeabsljwaghhyxjpaslv.supabase.co/rest/v1';
 const HEADERS: any = {
-  'apikey': 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
-  'Authorization': 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
+  apikey: 'sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G',
+  Authorization: 'Bearer sb_publishable_hZdYQky0f9owzRFCIn4VxA_VB8cQ-1G'
 };
 
 const PAGE_SIZE = 20;
@@ -34,17 +34,15 @@ const SD01View: React.FC = () => {
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
   const [mostrarCrearTransporte, setMostrarCrearTransporte] = useState(false);
   const [mostrarEditarTransporte, setMostrarEditarTransporte] = useState(false);
-  const [mostrarCargaExcel, setMostrarCargaExcel] = useState(false);
+  const [mostrarModificarTransporte, setMostrarModificarTransporte] = useState(false);
   const [mostrarDetalle, setMostrarDetalle] = useState<any>(null);
+  const [mostrarKPI, setMostrarKPI] = useState(false);
 
-  // Toggle finalizados
   const [mostrarFinalizados, setMostrarFinalizados] = useState(true);
 
-  // Ordenamiento
   const [ordenColumna, setOrdenColumna] = useState<OrdenColumna>('creado_en');
   const [ordenDireccion, setOrdenDireccion] = useState<OrdenDireccion>('desc');
 
-  // Expansión inline
   const [filaExpandida, setFilaExpandida] = useState<string | null>(null);
   const [detallesExpandido, setDetallesExpandido] = useState<any>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
@@ -83,7 +81,6 @@ const SD01View: React.FC = () => {
         if (!resp.ok) throw new Error('Error al cargar transportes');
         const data = await resp.json();
 
-        // Contar total
         let countQuery = `${API_URL}/sd01_documentos?select=id`;
         if (!mostrarFinalizados) countQuery += `&estado=neq.Finalizado`;
         const countResp = await fetch(countQuery, {
@@ -269,37 +266,6 @@ const SD01View: React.FC = () => {
     }
   };
 
-  const handleReabrirTransporte = async () => {
-    if (!transporteSeleccionado) {
-      mostrarMensaje('warning', 'Debe seleccionar un transporte');
-      return;
-    }
-    if (transporteSeleccionado.estado !== 'Finalizado') {
-      mostrarMensaje('error', 'Solo se pueden reabrir transportes en estado Finalizado');
-      return;
-    }
-    if (!window.confirm('¿Reabrir el transporte ' + transporteSeleccionado.id_documento + '? Pasará a Pendiente.'))
-      return;
-    try {
-      await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteSeleccionado.id, {
-        method: 'PATCH',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Pendiente',
-          finalizado_en: null,
-          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-          modificado_en: new Date().toISOString()
-        })
-      });
-      mostrarMensaje('success', 'Transporte reabierto exitosamente');
-      setTransporteSeleccionado(null);
-      cache.invalidatePrefix('sd01_transportes_');
-      cargarTransportes(pagina);
-    } catch (e) {
-      mostrarMensaje('error', 'Error al reabrir transporte');
-    }
-  };
-
   const handleEditarTransporte = () => {
     if (!transporteSeleccionado) {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
@@ -310,6 +276,18 @@ const SD01View: React.FC = () => {
       return;
     }
     setMostrarEditarTransporte(true);
+  };
+
+  const handleModificarTransporte = () => {
+    if (!transporteSeleccionado) {
+      mostrarMensaje('warning', 'Debe seleccionar un transporte');
+      return;
+    }
+    if (transporteSeleccionado.estado !== 'Finalizado') {
+      mostrarMensaje('error', 'El botón Modificar solo está disponible para transportes Finalizados');
+      return;
+    }
+    setMostrarModificarTransporte(true);
   };
 
   const handleCrearTransporte = () => setMostrarCrearTransporte(true);
@@ -326,12 +304,12 @@ const SD01View: React.FC = () => {
     cargarTransportes(pagina);
     mostrarMensaje('success', 'Transporte editado exitosamente');
   };
-  const handleCargarTransporte = () => setMostrarCargaExcel(true);
-  const handleCargaExcelCompletada = () => {
-    setMostrarCargaExcel(false);
+  const handleTransporteModificado = () => {
+    setMostrarModificarTransporte(false);
+    setTransporteSeleccionado(null);
     cache.invalidatePrefix('sd01_transportes_');
-    cargarTransportes(1);
-    mostrarMensaje('success', 'Transportes creados exitosamente');
+    cargarTransportes(pagina);
+    mostrarMensaje('success', 'Transporte modificado sin alterar su estado');
   };
 
   const cambiarPagina = (nuevaPagina: number) => {
@@ -386,16 +364,7 @@ const SD01View: React.FC = () => {
 
   if (cargando) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '400px',
-          color: '#64748b',
-          fontSize: '16px'
-        }}
-      >
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#64748b', fontSize: '16px' }}>
         Cargando transportes...
       </div>
     );
@@ -425,18 +394,10 @@ const SD01View: React.FC = () => {
         <div className={`sd01-toast sd01-toast-${mensaje.tipo}`}>{mensaje.texto}</div>
       )}
 
-      {/* Barra de opciones sticky */}
-      <div
-        className="sd01-toolbar"
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          background: 'var(--bg-panel)',
-          padding: '10px 16px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
-        }}
-      >
+      {mostrarKPI && <SD01KPI onClose={() => setMostrarKPI(false)} />}
+
+      {/* Barra de opciones */}
+      <div className="sd01-toolbar" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)', padding: '10px 16px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
         <button className="sd01-btn sd01-btn-primary" onClick={handleCrearTransporte}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -444,78 +405,40 @@ const SD01View: React.FC = () => {
           Crear Transporte
         </button>
 
-        <button className="sd01-btn" onClick={handleCargarTransporte}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M14 10V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V10M4.66667 6.66667L8 10M8 10L11.3333 6.66667M8 10V2"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Cargar Excel
-        </button>
-
         <button className="sd01-btn" onClick={() => cargarTransportes(pagina)} title="Actualizar tabla">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M12.6667 2L12.6667 5.33333L9.33333 5.33333"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12.6667 2L12.6667 5.33333L9.33333 5.33333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Actualizar
         </button>
 
         <div className="sd01-separator"></div>
 
-        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M11.3333 2.00004C11.5084 1.82494 11.7163 1.68605 11.9451 1.59129C12.1738 1.49653 12.4187 1.44775 12.6663 1.44775C12.9138 1.44775 13.1587 1.49653 13.3875 1.59129C13.6163 1.68605 13.8242 1.82494 13.9993 2.00004C14.1744 2.17514 14.3133 2.38305 14.408 2.61187C14.5028 2.8407 14.5516 3.08557 14.5516 3.33337C14.5516 3.58118 14.5028 3.82605 14.408 4.05487C14.3133 4.2837 14.1744 4.49161 13.9993 4.66671L5.33333 13.3327L2 13.9994L2.66667 10.666L11.3333 2.00004Z"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Editar
+        <button className="sd01-btn" onClick={handleEditarTransporte} disabled={!transporteSeleccionado || ['Finalizado', 'Cancelado'].includes(transporteSeleccionado?.estado)}>
+          ✏️ Editar
+        </button>
+
+        <button
+          className="sd01-btn"
+          onClick={handleModificarTransporte}
+          disabled={!transporteSeleccionado || transporteSeleccionado?.estado !== 'Finalizado'}
+          style={
+            transporteSeleccionado?.estado === 'Finalizado'
+              ? { color: '#d97706', borderColor: '#fcd34d' }
+              : {}
+          }
+          title="Permite corregir datos sin cambiar el estado ni la métrica del KPI"
+        >
+          🔧 Modificar
         </button>
 
         <button className="sd01-btn sd01-btn-danger" onClick={handleCancelarTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Cancelar
+          ❌ Cancelar
         </button>
 
         <button className="sd01-btn sd01-btn-danger" onClick={handleEliminarSeleccionados} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M2 4H14M12.6667 4V13.3333C12.6667 14 12 14.6667 11.3333 14.6667H4.66667C4 14.6667 3.33333 14 3.33333 13.3333V4M5.33333 4V2.66667C5.33333 2 6 1.33333 6.66667 1.33333H9.33333C10 1.33333 10.6667 2 10.6667 2.66667V4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Eliminar ({transporteSeleccionado ? 1 : 0})
+          🗑️ Eliminar
         </button>
 
         <div className="sd01-separator"></div>
@@ -536,40 +459,18 @@ const SD01View: React.FC = () => {
               : 'var(--text-muted)'
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M4 2L12 8L4 14V2Z" fill="currentColor" />
-          </svg>
-          {transporteSeleccionado?.estado === 'En Proceso' ? 'Continuar' : 'Iniciar'}
+          ▶ {transporteSeleccionado?.estado === 'En Proceso' ? 'Continuar' : 'Iniciar'}
         </button>
 
         <div className="sd01-separator"></div>
 
-        <button className="sd01-btn sd01-btn-warning" onClick={handleReabrirTransporte} disabled={!transporteSeleccionado}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M1.33333 8.00004C1.33333 8.00004 3.99999 3.33337 7.99999 3.33337C11.3333 3.33337 13.6667 6.66671 14.6667 8.00004C13.6667 9.33337 11.3333 12.6667 7.99999 12.6667C3.99999 12.6667 1.33333 8.00004 1.33333 8.00004Z"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Reabrir
+        <button className="sd01-btn sd01-btn-kpi" onClick={() => setMostrarKPI(true)}>
+          📊 KPI
         </button>
 
         <div className="sd01-separator"></div>
 
-        {/* Toggle Finalizados */}
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '13px',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer'
-          }}
-        >
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={mostrarFinalizados}
@@ -579,48 +480,12 @@ const SD01View: React.FC = () => {
           Mostrar finalizados
         </label>
 
-        {/* Paginación */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Mostrar</span>
-          <select
-            value={20}
-            onChange={() => {
-              setPagina(1);
-              cargarTransportes(1);
-            }}
-            style={{
-              padding: '4px 8px',
-              border: '1px solid var(--border-input)',
-              borderRadius: '6px',
-              background: 'var(--bg-input)',
-              color: 'var(--text-primary)',
-              fontSize: '13px'
-            }}
-          >
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>|</span>
-          <button
-            className="sd01-btn"
-            onClick={() => cambiarPagina(pagina - 1)}
-            disabled={pagina <= 1}
-            style={{ padding: '4px 8px' }}
-          >
-            ‹
-          </button>
+          <button className="sd01-btn" onClick={() => cambiarPagina(pagina - 1)} disabled={pagina <= 1} style={{ padding: '4px 8px' }}>‹</button>
           <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
             {pagina} / {totalPaginas}
           </span>
-          <button
-            className="sd01-btn"
-            onClick={() => cambiarPagina(pagina + 1)}
-            disabled={pagina >= totalPaginas}
-            style={{ padding: '4px 8px' }}
-          >
-            ›
-          </button>
+          <button className="sd01-btn" onClick={() => cambiarPagina(pagina + 1)} disabled={pagina >= totalPaginas} style={{ padding: '4px 8px' }}>›</button>
         </div>
       </div>
 
@@ -630,36 +495,16 @@ const SD01View: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ width: '36px' }}></th>
-                <th onClick={() => cambiarOrden('id_documento')} style={{ cursor: 'pointer' }}>
-                  ID Transporte{indicador('id_documento')}
-                </th>
-                <th onClick={() => cambiarOrden('fecha_programacion')} style={{ cursor: 'pointer' }}>
-                  Fecha Programación{indicador('fecha_programacion')}
-                </th>
-                <th onClick={() => cambiarOrden('conductor')} style={{ cursor: 'pointer' }}>
-                  Conductor{indicador('conductor')}
-                </th>
-                <th onClick={() => cambiarOrden('patente')} style={{ cursor: 'pointer' }}>
-                  Patente{indicador('patente')}
-                </th>
-                <th onClick={() => cambiarOrden('locales')} style={{ cursor: 'pointer', textAlign: 'center' }}>
-                  Locales{indicador('locales')}
-                </th>
-                <th onClick={() => cambiarOrden('estado')} style={{ cursor: 'pointer' }}>
-                  Estado{indicador('estado')}
-                </th>
-                <th onClick={() => cambiarOrden('creado_en')} style={{ cursor: 'pointer' }}>
-                  Creado Por{indicador('creado_en')}
-                </th>
-                <th onClick={() => cambiarOrden('creado_en')} style={{ cursor: 'pointer' }}>
-                  Creado En{indicador('creado_en')}
-                </th>
-                <th onClick={() => cambiarOrden('modificado_en')} style={{ cursor: 'pointer' }}>
-                  Modificado Por{indicador('modificado_en')}
-                </th>
-                <th onClick={() => cambiarOrden('modificado_en')} style={{ cursor: 'pointer' }}>
-                  Modificado En{indicador('modificado_en')}
-                </th>
+                <th onClick={() => cambiarOrden('id_documento')} style={{ cursor: 'pointer' }}>ID Transporte{indicador('id_documento')}</th>
+                <th onClick={() => cambiarOrden('fecha_programacion')} style={{ cursor: 'pointer' }}>Fecha Programación{indicador('fecha_programacion')}</th>
+                <th onClick={() => cambiarOrden('conductor')} style={{ cursor: 'pointer' }}>Conductor{indicador('conductor')}</th>
+                <th onClick={() => cambiarOrden('patente')} style={{ cursor: 'pointer' }}>Patente{indicador('patente')}</th>
+                <th onClick={() => cambiarOrden('locales')} style={{ cursor: 'pointer', textAlign: 'center' }}>Locales{indicador('locales')}</th>
+                <th onClick={() => cambiarOrden('estado')} style={{ cursor: 'pointer' }}>Estado{indicador('estado')}</th>
+                <th>Creado Por</th>
+                <th onClick={() => cambiarOrden('creado_en')} style={{ cursor: 'pointer' }}>Creado En{indicador('creado_en')}</th>
+                <th>Modificado Por</th>
+                <th onClick={() => cambiarOrden('modificado_en')} style={{ cursor: 'pointer' }}>Modificado En{indicador('modificado_en')}</th>
               </tr>
             </thead>
             <tbody>
@@ -683,11 +528,7 @@ const SD01View: React.FC = () => {
                         }}
                         onClick={() => seleccionarTransporte(transporte)}
                       >
-                        <td
-                          onClick={(e) => toggleExpandir(transporte, e)}
-                          style={{ textAlign: 'center', userSelect: 'none', fontSize: '14px' }}
-                          title={expandido ? 'Ocultar detalle' : 'Ver detalle'}
-                        >
+                        <td onClick={(e) => toggleExpandir(transporte, e)} style={{ textAlign: 'center', userSelect: 'none', fontSize: '14px' }} title={expandido ? 'Ocultar detalle' : 'Ver detalle'}>
                           {expandido ? '▼' : '▶'}
                         </td>
                         <td className="sd01-id-documento">{transporte.id_documento}</td>
@@ -699,13 +540,9 @@ const SD01View: React.FC = () => {
                         </td>
                         <td>{getEstadoBadge(transporte.estado)}</td>
                         <td>{getCreadoPorNombre(transporte)}</td>
-                        <td style={{ fontSize: '12px', color: '#64748b' }}>
-                          {formatearFechaHora(transporte.creado_en)}
-                        </td>
+                        <td style={{ fontSize: '12px', color: '#64748b' }}>{formatearFechaHora(transporte.creado_en)}</td>
                         <td>{transporte.modificado_por || '-'}</td>
-                        <td style={{ fontSize: '12px', color: '#64748b' }}>
-                          {transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}
-                        </td>
+                        <td style={{ fontSize: '12px', color: '#64748b' }}>{transporte.modificado_en ? formatearFechaHora(transporte.modificado_en) : '-'}</td>
                       </tr>
                       {expandido && (
                         <tr>
@@ -714,9 +551,7 @@ const SD01View: React.FC = () => {
                               <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Cargando detalle...</div>
                             ) : (
                               <div>
-                                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
-                                  Locales del transporte
-                                </div>
+                                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>Locales del transporte</div>
                                 <table className="sd01-table" style={{ minWidth: '600px' }}>
                                   <thead>
                                     <tr>
@@ -738,11 +573,7 @@ const SD01View: React.FC = () => {
                                       </tr>
                                     ))}
                                     {(detallesExpandido?.localesDetalle || []).length === 0 && (
-                                      <tr>
-                                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                                          Sin locales
-                                        </td>
-                                      </tr>
+                                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Sin locales</td></tr>
                                     )}
                                   </tbody>
                                 </table>
@@ -765,22 +596,17 @@ const SD01View: React.FC = () => {
       </div>
 
       {mostrarCrearTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarCrearTransporte(false)}
-          onTransporteCreado={handleTransporteCreado}
-        />
+        <SD01CrearTransporte onClose={() => setMostrarCrearTransporte(false)} onTransporteCreado={handleTransporteCreado} />
       )}
       {mostrarEditarTransporte && (
-        <SD01CrearTransporte
-          onClose={() => setMostrarEditarTransporte(false)}
-          onTransporteCreado={handleTransporteEditado}
-          transporteEditar={transporteSeleccionado}
-        />
+        <SD01CrearTransporte onClose={() => setMostrarEditarTransporte(false)} onTransporteCreado={handleTransporteEditado} transporteEditar={transporteSeleccionado} />
       )}
-      {mostrarCargaExcel && (
-        <SD01CargaExcel
-          onClose={() => setMostrarCargaExcel(false)}
-          onTransportesCreados={handleCargaExcelCompletada}
+      {mostrarModificarTransporte && (
+        <SD01CrearTransporte
+          onClose={() => setMostrarModificarTransporte(false)}
+          onTransporteCreado={handleTransporteModificado}
+          transporteEditar={transporteSeleccionado}
+          modoModificar={true}
         />
       )}
     </div>
