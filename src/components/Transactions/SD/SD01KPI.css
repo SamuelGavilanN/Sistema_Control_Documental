@@ -1,41 +1,52 @@
 /* src/components/Transactions/SD/SD01KPI.css */
 
-.sd01-kpi-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  z-index: 3000;
-  overflow-y: auto;
-  padding: 20px;
-}
-.sd01-kpi-window {
-  max-width: 1400px;
-  margin: 0 auto;
-  background: var(--bg-app);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: var(--shadow-lg);
+.sd01-kpi-container {
   padding: 24px;
-  position: relative;
+  background: var(--bg-app);
+  min-height: 100vh;
 }
-.sd01-kpi-close {
-  position: absolute;
-  top: 20px; right: 20px;
-  width: 36px; height: 36px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 20px;
-  display: flex; align-items: center; justify-content: center;
-}
-.sd01-kpi-close:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-.sd01-kpi-header { margin-bottom: 20px; }
-.sd01-kpi-header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
-.sd01-kpi-header p { font-size: 13px; color: var(--text-muted); }
+.sd01-kpi-header {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sd01-kpi-header-left h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+.sd01-kpi-header-left p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.sd01-kpi-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sd01-kpi-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--btn-text);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.sd01-kpi-btn:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+.sd01-kpi-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-bg); }
+.sd01-kpi-btn-primary:hover { background: var(--btn-primary-hover); }
 
 .sd01-kpi-note {
   background: var(--info-bg);
@@ -51,6 +62,7 @@
 }
 .sd01-kpi-note strong { font-weight: 700; }
 
+/* Filtros */
 .sd01-kpi-filters {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -66,7 +78,9 @@
 }
 .sd01-kpi-filter-row { display: flex; flex-direction: column; gap: 4px; }
 .sd01-kpi-filter-row label {
-  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 .sd01-kpi-filter-row input,
 .sd01-kpi-filter-row select {
@@ -85,7 +99,7 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* MultiSelect de usuarios */
+/* MultiSelect */
 .sd01-kpi-multiselect { position: relative; }
 .sd01-kpi-multiselect-trigger {
   width: 100%;
@@ -104,9 +118,7 @@
   text-align: left;
 }
 .sd01-kpi-multiselect-trigger:hover { border-color: var(--border-focus); }
-.sd01-kpi-multiselect-chips {
-  display: flex; gap: 4px; flex-wrap: wrap; flex: 1;
-}
+.sd01-kpi-multiselect-chips { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
 .sd01-kpi-multiselect-chip {
   background: var(--info-bg);
   color: var(--info-text);
@@ -402,7 +414,7 @@
   color: var(--text-primary);
 }
 
-/* Estado vacío */
+/* Empty / loading */
 .sd01-kpi-empty {
   text-align: center;
   padding: 60px 20px;
@@ -416,7 +428,7 @@
   font-size: 14px;
 }
 
-/* Botón KPI en toolbar */
+/* Botón KPI en toolbar SD01 */
 .sd01-btn-kpi {
   background: linear-gradient(135deg, #7c3aed, #6366f1) !important;
   color: #fff !important;
@@ -427,10 +439,8 @@
   background: linear-gradient(135deg, #6d28d9, #4f46e5) !important;
 }
 
-/* Responsive */
 @media (max-width: 640px) {
-  .sd01-kpi-overlay { padding: 8px; }
-  .sd01-kpi-window { padding: 16px; }
-  .sd01-kpi-header h1 { font-size: 18px; }
+  .sd01-kpi-container { padding: 12px; }
+  .sd01-kpi-header-left h1 { font-size: 18px; }
   .sd01-kpi-value { font-size: 20px; }
 }
