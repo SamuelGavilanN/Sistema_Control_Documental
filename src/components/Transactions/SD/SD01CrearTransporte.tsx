@@ -18,15 +18,18 @@ interface SD01CrearTransporteProps {
   onClose: () => void;
   onTransporteCreado: () => void;
   transporteEditar?: any;
+  modoModificar?: boolean;
 }
 
 const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
   onClose,
   onTransporteCreado,
-  transporteEditar
+  transporteEditar,
+  modoModificar = false
 }) => {
   const usuario: any = auth.getUsuario();
-  const esEdicion = !!transporteEditar;
+  const esModificacion = !!transporteEditar && modoModificar;
+  const esEdicion = !!transporteEditar && !modoModificar;
 
   const [fechaProgramacion, setFechaProgramacion] = useState('');
   const [conductorId, setConductorId] = useState('');
@@ -52,6 +55,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
   const [patentes, setPatentes] = useState<any[]>([]);
   const [todosLocales, setTodosLocales] = useState<any[]>([]);
 
+  // Autocompletado
   const [mostrarSugerenciasConductor, setMostrarSugerenciasConductor] = useState(false);
   const [sugerenciasConductor, setSugerenciasConductor] = useState<any[]>([]);
   const [indiceSeleccionadoConductor, setIndiceSeleccionadoConductor] = useState(-1);
@@ -69,6 +73,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
   const inputPatenteAdicionalRef = useRef<HTMLInputElement>(null);
   const sugerenciasConductorRef = useRef<HTMLDivElement>(null);
 
+  // Modales para nuevo conductor/patente
   const [showModalConductor, setShowModalConductor] = useState(false);
   const [showModalPatente, setShowModalPatente] = useState(false);
 
@@ -90,7 +95,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     cargarConductores();
     cargarPatentes();
     cargarLocales();
-    if (esEdicion && transporteEditar) cargarDatosEdicion();
+    if (transporteEditar) cargarDatosEdicion();
   }, []);
 
   const cargarDatosEdicion = async () => {
@@ -112,10 +117,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     }
     if (transporteEditar.patente_principal_id) {
       try {
-        const resp = await fetch(
-          API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id,
-          { headers: HEADERS }
-        );
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_principal_id, {
+          headers: HEADERS
+        });
         const data = await resp.json();
         if (data && data.length > 0) {
           setPatentePrincipalId(data[0].id);
@@ -125,10 +129,9 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     }
     if (transporteEditar.patente_adicional_id) {
       try {
-        const resp = await fetch(
-          API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_adicional_id,
-          { headers: HEADERS }
-        );
+        const resp = await fetch(API_URL + '/patentes?select=*&id=eq.' + transporteEditar.patente_adicional_id, {
+          headers: HEADERS
+        });
         const data = await resp.json();
         if (data && data.length > 0) {
           setPatenteAdicionalId(data[0].id);
@@ -485,7 +488,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     }
     setGuardando(true);
     try {
-      if (esEdicion) {
+      if (esEdicion || esModificacion) {
+        // ============ EDICIÓN o MODIFICACIÓN ============
         const resp = await fetch(
           API_URL + '/sd01_documento_locales?select=id,codigo_local&documento_id=eq.' + transporteEditar.id_documento,
           { headers: HEADERS }
@@ -531,19 +535,27 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
           }
         }
 
+        // PATCH del documento principal
+        const patchBody: any = {
+          conductor_id: conductorId,
+          patente_principal_id: patentePrincipalId,
+          patente_adicional_id: patenteAdicionalId || null,
+          modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
+          modificado_en: new Date().toISOString()
+        };
+
+        // Solo en modo edición normal (no modificación) se permite cambiar fecha_programacion
+        if (esEdicion) {
+          patchBody.fecha_programacion = fechaProgramacion + 'T12:00:00';
+        }
+
         await fetch(API_URL + '/sd01_documentos?id=eq.' + transporteEditar.id, {
           method: 'PATCH',
           headers: { ...HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conductor_id: conductorId,
-            patente_principal_id: patentePrincipalId,
-            patente_adicional_id: patenteAdicionalId || null,
-            fecha_programacion: fechaProgramacion + 'T12:00:00',
-            modificado_por: usuario?.nombre + ' ' + usuario?.apellido,
-            modificado_en: new Date().toISOString()
-          })
+          body: JSON.stringify(patchBody)
         });
       } else {
+        // ============ CREACIÓN ============
         const idDocumento = await generarIdTransporte(fechaProgramacion);
         const transporteData = {
           id_documento: idDocumento,
@@ -587,7 +599,10 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
       onTransporteCreado();
     } catch (e) {
       console.error('Error:', e);
-      setMensaje({ tipo: 'error', texto: 'Error al ' + (esEdicion ? 'editar' : 'crear') + ' el transporte' });
+      setMensaje({
+        tipo: 'error',
+        texto: 'Error al ' + (esModificacion ? 'modificar' : esEdicion ? 'editar' : 'crear') + ' el transporte'
+      });
     }
     setGuardando(false);
   };
@@ -667,16 +682,52 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
     }
   };
 
+  const tituloModal = esModificacion
+    ? 'Modificar Transporte'
+    : esEdicion
+    ? 'Editar Transporte'
+    : 'Crear Nuevo Transporte';
+
+  const labelBotonGuardar = guardando
+    ? esModificacion
+      ? 'Guardando...'
+      : esEdicion
+      ? 'Guardando...'
+      : 'Creando...'
+    : esModificacion
+    ? 'Guardar Modificación'
+    : esEdicion
+    ? 'Guardar Cambios'
+    : 'Crear Transporte';
+
   return (
     <div className="sd01-modal-overlay">
       <div className="sd01-modal" onClick={(e: any) => e.stopPropagation()}>
         <div className="sd01-modal-header">
-          <h2>{esEdicion ? 'Editar Transporte' : 'Crear Nuevo Transporte'}</h2>
+          <h2>{tituloModal}</h2>
           <button className="sd01-modal-close" onClick={onClose}>
             ×
           </button>
         </div>
         <div className="sd01-modal-body">
+          {esModificacion && (
+            <div
+              style={{
+                background: 'var(--warning-bg)',
+                color: 'var(--warning-text)',
+                border: '1px solid var(--warning-border)',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: 500
+              }}
+            >
+              ⚠️ Modo Modificar: puedes corregir los datos del transporte sin afectar su estado Finalizado
+              ni la métrica del KPI.
+            </div>
+          )}
+
           {mensaje.texto && (
             <div className={'sd01-alert ' + (mensaje.tipo === 'error' ? 'sd01-alert-error' : 'sd01-alert-warning')}>
               {mensaje.texto}
@@ -691,6 +742,8 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
                 className="sd01-form-input"
                 value={fechaProgramacion}
                 onChange={(e: any) => setFechaProgramacion(e.target.value)}
+                disabled={esModificacion}
+                title={esModificacion ? 'No se puede modificar en modo Modificar para preservar el KPI' : ''}
               />
             </div>
 
@@ -960,13 +1013,7 @@ const SD01CrearTransporte: React.FC<SD01CrearTransporteProps> = ({
               Cancelar
             </button>
             <button className="sd01-btn-save" onClick={handleGuardar} disabled={guardando}>
-              {guardando
-                ? esEdicion
-                  ? 'Guardando...'
-                  : 'Creando...'
-                : esEdicion
-                ? 'Guardar Cambios'
-                : 'Crear Transporte'}
+              {labelBotonGuardar}
             </button>
           </div>
         </div>
