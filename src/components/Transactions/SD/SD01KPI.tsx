@@ -378,11 +378,10 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   };
 
   // ============ Consulta inicial al montar (sin filtros) ============
-  useEffect(() => {
+    useEffect(() => {
     if (!cargandoUsuarios) {
       ejecutarConsulta(filtrosVacios);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargandoUsuarios]);
 
   // ============ Los datos ya vienen filtrados: no filtramos en cliente ============
