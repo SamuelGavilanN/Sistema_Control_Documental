@@ -125,6 +125,20 @@ const mediana = (arr: number[]): number => {
   return copia[mid];
 };
 
+// Comparador genérico
+const comparar = (a: any, b: any, dir: 'asc' | 'desc'): number => {
+  let va = a;
+  let vb = b;
+  if (typeof va === 'number' && typeof vb === 'number') {
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  va = String(va ?? '').toLowerCase();
+  vb = String(vb ?? '').toLowerCase();
+  if (va < vb) return dir === 'asc' ? -1 : 1;
+  if (va > vb) return dir === 'asc' ? 1 : -1;
+  return 0;
+};
+
 // ================ MultiSelect Usuarios ================
 interface MultiSelectProps {
   options: Usuario[];
@@ -225,8 +239,15 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   const [filtrosForm, setFiltrosForm] = useState<Filtros>(filtrosVacios);
   const [filtrosAplicados, setFiltrosAplicados] = useState<Filtros>(filtrosVacios);
 
+  // Ordenamiento tabla usuarios
   const [ordenUsuarios, setOrdenUsuarios] = useState<{ col: string; dir: 'asc' | 'desc' }>({
     col: 'cantidad',
+    dir: 'desc'
+  });
+
+  // Ordenamiento tabla detalle
+  const [ordenDetalle, setOrdenDetalle] = useState<{ col: string; dir: 'asc' | 'desc' }>({
+    col: 'creado_en',
     dir: 'desc'
   });
 
@@ -275,7 +296,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     setCargando(true);
     setHaConsultado(true);
     try {
-      // 1. Consultar documentos con filtros aplicados
       const params = new URLSearchParams();
       params.set(
         'select',
@@ -284,7 +304,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       params.append('estado', 'eq.Finalizado');
       params.append('finalizado_en', 'not.is.null');
 
-      // Filtro por FECHA DE CREACIÓN (no fecha programación)
       if (filtros.fechaDesde) {
         params.append('creado_en', `gte.${filtros.fechaDesde}T00:00:00`);
       }
@@ -303,7 +322,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
         return;
       }
 
-      // 2. Consultar locales de esos documentos (para contar y sumar)
       const docIds: string[] = docsData.map((d: any) => d.id_documento);
       const localesData: any[] = [];
       for (const chunk of chunkArray(docIds, 80)) {
@@ -314,7 +332,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
         localesData.push(...l);
       }
 
-      // 3. Cargar los usuarios que aparecen en los resultados (para mostrar nombre/rol)
       const uIds: string[] = Array.from(
         new Set(docsData.map((d: any) => d.creado_por).filter(Boolean))
       );
@@ -328,7 +345,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
         (uData || []).forEach((u: any) => usuariosMap.set(u.id, u));
       }
 
-      // 4. Agrupar locales por documento
       const localesPorDoc = new Map<string, number>();
       const bultosPorDoc = new Map<string, number>();
       localesData.forEach((l: any) => {
@@ -339,7 +355,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
         );
       });
 
-      // 5. Construir los KPI
       const kpis: TransporteKPI[] = docsData
         .filter((d: any) => d.creado_en && d.finalizado_en)
         .map((d: any) => {
@@ -371,20 +386,17 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     }
   }, []);
 
-  // ============ Handler: aplicar filtros y consultar ============
   const handleActualizar = () => {
     setFiltrosAplicados({ ...filtrosForm });
     ejecutarConsulta(filtrosForm);
   };
 
-  // ============ Consulta inicial al montar (sin filtros) ============
   useEffect(() => {
     if (!cargandoUsuarios) {
       ejecutarConsulta(filtrosVacios);
     }
   }, [cargandoUsuarios]);
 
-  // ============ Los datos ya vienen filtrados ============
   const transportesFiltrados = todosTransportes;
 
   // ============ KPIs generales ============
@@ -432,20 +444,42 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     });
 
     stats.sort((a, b) => {
-      const dir = ordenUsuarios.dir === 'asc' ? 1 : -1;
+      const dir = ordenUsuarios.dir;
       switch (ordenUsuarios.col) {
-        case 'nombre': return a.usuario_nombre.localeCompare(b.usuario_nombre) * dir;
-        case 'cantidad': return (a.cantidad - b.cantidad) * dir;
-        case 'promedio': return (a.promedio - b.promedio) * dir;
-        case 'minimo': return (a.minimo - b.minimo) * dir;
-        case 'maximo': return (a.maximo - b.maximo) * dir;
-        case 'locales': return (a.promLocales - b.promLocales) * dir;
+        case 'nombre': return comparar(a.usuario_nombre, b.usuario_nombre, dir);
+        case 'cantidad': return comparar(a.cantidad, b.cantidad, dir);
+        case 'promedio': return comparar(a.promedio, b.promedio, dir);
+        case 'minimo': return comparar(a.minimo, b.minimo, dir);
+        case 'maximo': return comparar(a.maximo, b.maximo, dir);
+        case 'mediana': return comparar(a.mediana, b.mediana, dir);
+        case 'locales': return comparar(a.promLocales, b.promLocales, dir);
+        case 'porcentaje': return comparar(a.porcentaje, b.porcentaje, dir);
         default: return 0;
       }
     });
 
     return stats;
   }, [transportesFiltrados, kpisGenerales.total, ordenUsuarios]);
+
+  // ============ Detalle transportes ordenado ============
+  const transportesDetalleOrdenados = useMemo(() => {
+    const copia = [...transportesFiltrados];
+    copia.sort((a, b) => {
+      const dir = ordenDetalle.dir;
+      switch (ordenDetalle.col) {
+        case 'id_documento': return comparar(a.id_documento, b.id_documento, dir);
+        case 'fecha_programacion': return comparar(a.fecha_programacion, b.fecha_programacion, dir);
+        case 'usuario': return comparar(a.usuario_nombre, b.usuario_nombre, dir);
+        case 'cantidad_locales': return comparar(a.cantidad_locales, b.cantidad_locales, dir);
+        case 'cantidad_bultos': return comparar(a.cantidad_bultos, b.cantidad_bultos, dir);
+        case 'creado_en': return comparar(a.creado_en, b.creado_en, dir);
+        case 'finalizado_en': return comparar(a.finalizado_en, b.finalizado_en, dir);
+        case 'duracionMs': return comparar(a.duracionMs, b.duracionMs, dir);
+        default: return 0;
+      }
+    });
+    return copia;
+  }, [transportesFiltrados, ordenDetalle]);
 
   // ============ Evolución ============
   const evolucion = useMemo(() => {
@@ -478,28 +512,16 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       .sort((a, b) => a.key.localeCompare(b.key));
   }, [transportesFiltrados, escalaEvolucion]);
 
-  // ============ Exportación ============
+  // ============ Exportaciones ============
   const exportarUsuarios = () => {
     const headers = [
-      'Usuario',
-      'Rol',
-      'Transportes',
-      'Locales prom.',
-      'Promedio',
-      'Mínimo',
-      'Máximo',
-      'Mediana',
-      '% del Total'
+      'Usuario', 'Rol', 'Transportes', 'Locales prom.', 'Promedio',
+      'Mínimo', 'Máximo', 'Mediana', '% del Total'
     ];
     const rows = statsUsuarios.map((u) => [
-      u.usuario_nombre,
-      u.usuario_rol,
-      u.cantidad,
-      u.promLocales.toFixed(1),
-      formatDuracion(u.promedio).texto,
-      formatDuracion(u.minimo).texto,
-      formatDuracion(u.maximo).texto,
-      formatDuracion(u.mediana).texto,
+      u.usuario_nombre, u.usuario_rol, u.cantidad, u.promLocales.toFixed(1),
+      formatDuracion(u.promedio).texto, formatDuracion(u.minimo).texto,
+      formatDuracion(u.maximo).texto, formatDuracion(u.mediana).texto,
       `${u.porcentaje.toFixed(1)}%`
     ]);
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -510,26 +532,13 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
 
   const exportarDetalle = () => {
     const headers = [
-      'N° Transporte',
-      'Fecha Prog.',
-      'Usuario',
-      'Creado',
-      'Finalizado',
-      'Duración (ms)',
-      'Duración',
-      'Locales',
-      'Bultos'
+      'N° Transporte', 'Fecha Prog.', 'Usuario', 'Creado', 'Finalizado',
+      'Duración (ms)', 'Duración', 'Locales', 'Bultos'
     ];
-    const rows = transportesFiltrados.map((t) => [
-      t.id_documento,
-      t.fecha_programacion.slice(0, 10),
-      t.usuario_nombre,
-      t.creado_en,
-      t.finalizado_en,
-      t.duracionMs,
-      formatDuracion(t.duracionMs).texto,
-      t.cantidad_locales,
-      t.cantidad_bultos
+    const rows = transportesDetalleOrdenados.map((t) => [
+      t.id_documento, t.fecha_programacion.slice(0, 10), t.usuario_nombre,
+      t.creado_en, t.finalizado_en, t.duracionMs,
+      formatDuracion(t.duracionMs).texto, t.cantidad_locales, t.cantidad_bultos
     ]);
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
@@ -537,7 +546,8 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     XLSX.writeFile(wb, `KPI_Detalle_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const cambiarOrden = (col: string) => {
+  // ============ Cambio de orden ============
+  const cambiarOrdenUsuarios = (col: string) => {
     setOrdenUsuarios((prev) =>
       prev.col === col
         ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
@@ -545,8 +555,19 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     );
   };
 
-  const indicador = (col: string) =>
+  const cambiarOrdenDetalle = (col: string) => {
+    setOrdenDetalle((prev) =>
+      prev.col === col
+        ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { col, dir: 'asc' }
+    );
+  };
+
+  const indicadorUsuarios = (col: string) =>
     ordenUsuarios.col === col ? (ordenUsuarios.dir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const indicadorDetalle = (col: string) =>
+    ordenDetalle.col === col ? (ordenDetalle.dir === 'asc' ? ' ▲' : ' ▼') : '';
 
   // ============ Gráfico ============
   const renderGrafico = () => {
@@ -695,7 +716,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     );
   };
 
-  // ============ Chips de filtros activos ============
+  // ============ Chips filtros activos ============
   const filtrosActivos = useMemo(() => {
     const chips: string[] = [];
     if (filtrosAplicados.fechaDesde || filtrosAplicados.fechaHasta) {
@@ -872,7 +893,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                 <div>
                   <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Estadísticas por usuario</h2>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Ordenado por {ordenUsuarios.col} · La columna "Locales prom." ayuda a interpretar el tiempo
+                    Clic en cualquier encabezado para ordenar · "Locales prom." ayuda a interpretar el tiempo
                   </div>
                 </div>
                 <button className="sd01-kpi-btn" onClick={exportarUsuarios}>📊 Exportar Excel</button>
@@ -881,14 +902,14 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                 <table className="sd01-kpi-table">
                   <thead>
                     <tr>
-                      <th onClick={() => cambiarOrden('nombre')}>Usuario{indicador('nombre')}</th>
-                      <th className="num" onClick={() => cambiarOrden('cantidad')}>Transportes{indicador('cantidad')}</th>
-                      <th className="num" onClick={() => cambiarOrden('locales')}>Locales prom.{indicador('locales')}</th>
-                      <th className="num" onClick={() => cambiarOrden('promedio')}>Promedio{indicador('promedio')}</th>
-                      <th className="num" onClick={() => cambiarOrden('minimo')}>Mínimo{indicador('minimo')}</th>
-                      <th className="num" onClick={() => cambiarOrden('maximo')}>Máximo{indicador('maximo')}</th>
-                      <th className="num">Mediana</th>
-                      <th className="num">% del Total</th>
+                      <th onClick={() => cambiarOrdenUsuarios('nombre')}>Usuario{indicadorUsuarios('nombre')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('cantidad')}>Transportes{indicadorUsuarios('cantidad')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('locales')}>Locales prom.{indicadorUsuarios('locales')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('promedio')}>Promedio{indicadorUsuarios('promedio')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('minimo')}>Mínimo{indicadorUsuarios('minimo')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('maximo')}>Máximo{indicadorUsuarios('maximo')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('mediana')}>Mediana{indicadorUsuarios('mediana')}</th>
+                      <th className="num" onClick={() => cambiarOrdenUsuarios('porcentaje')}>% del Total{indicadorUsuarios('porcentaje')}</th>
                       <th>Distribución</th>
                     </tr>
                   </thead>
@@ -955,7 +976,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                 <div>
                   <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Detalle de transportes finalizados</h2>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {transportesFiltrados.length} transportes · La duración se correlaciona con la cantidad de locales
+                    {transportesFiltrados.length} transportes · Clic en cualquier encabezado para ordenar
                   </div>
                 </div>
                 <button className="sd01-kpi-btn" onClick={exportarDetalle}>📊 Exportar Excel</button>
@@ -964,18 +985,18 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                 <table className="sd01-kpi-table">
                   <thead>
                     <tr>
-                      <th>N° Transporte</th>
-                      <th>Fecha Prog.</th>
-                      <th>Usuario</th>
-                      <th className="num">Locales</th>
-                      <th className="num">Bultos</th>
-                      <th>Creado</th>
-                      <th>Finalizado</th>
-                      <th className="num">Duración</th>
+                      <th onClick={() => cambiarOrdenDetalle('id_documento')}>N° Transporte{indicadorDetalle('id_documento')}</th>
+                      <th onClick={() => cambiarOrdenDetalle('fecha_programacion')}>Fecha Prog.{indicadorDetalle('fecha_programacion')}</th>
+                      <th onClick={() => cambiarOrdenDetalle('usuario')}>Usuario{indicadorDetalle('usuario')}</th>
+                      <th className="num" onClick={() => cambiarOrdenDetalle('cantidad_locales')}>Locales{indicadorDetalle('cantidad_locales')}</th>
+                      <th className="num" onClick={() => cambiarOrdenDetalle('cantidad_bultos')}>Bultos{indicadorDetalle('cantidad_bultos')}</th>
+                      <th onClick={() => cambiarOrdenDetalle('creado_en')}>Creado{indicadorDetalle('creado_en')}</th>
+                      <th onClick={() => cambiarOrdenDetalle('finalizado_en')}>Finalizado{indicadorDetalle('finalizado_en')}</th>
+                      <th className="num" onClick={() => cambiarOrdenDetalle('duracionMs')}>Duración{indicadorDetalle('duracionMs')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {transportesFiltrados.slice(0, 200).map((t) => (
+                    {transportesDetalleOrdenados.slice(0, 200).map((t) => (
                       <tr key={t.id}>
                         <td className="mono">{t.id_documento}</td>
                         <td>{formatFechaCorta(t.fecha_programacion)}</td>
