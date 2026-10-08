@@ -1,6 +1,6 @@
 // src/components/Transactions/SD/SD01KPI.tsx
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import './SD01KPI.css';
 
@@ -57,6 +57,12 @@ const fetchAllPaginado = async (baseUrl: string): Promise<any[]> => {
   return out;
 };
 
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
 const formatDuracion = (ms: number): { texto: string; corta: string } => {
   if (!ms || ms < 0) return { texto: '0m 00s', corta: '0m' };
   const totalSeg = Math.round(ms / 1000);
@@ -90,11 +96,10 @@ const formatFechaHora = (f: string): string => {
 const formatFechaCorta = (f: string): string => {
   if (!f) return '-';
   try {
-    const d = new Date(f);
-    if (isNaN(d.getTime())) return f;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${dd}/${mm}`;
+    const soloFecha = f.includes('T') ? f.split('T')[0] : f;
+    const partes = soloFecha.split('-');
+    if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    return soloFecha;
   } catch { return f; }
 };
 
@@ -126,9 +131,10 @@ interface MultiSelectProps {
   value: string[];
   onChange: (v: string[]) => void;
   placeholder: string;
+  disabled?: boolean;
 }
 
-const MultiSelectUsuarios: React.FC<MultiSelectProps> = ({ options, value, onChange, placeholder }) => {
+const MultiSelectUsuarios: React.FC<MultiSelectProps> = ({ options, value, onChange, placeholder, disabled }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -153,7 +159,8 @@ const MultiSelectUsuarios: React.FC<MultiSelectProps> = ({ options, value, onCha
       <button
         type="button"
         className="sd01-kpi-multiselect-trigger"
-        onClick={() => setOpen(!open)}
+        onClick={() => !disabled && setOpen(!open)}
+        disabled={disabled}
       >
         {nombresSeleccionados.length === 0 ? (
           <span className="sd01-kpi-multiselect-placeholder">{placeholder}</span>
@@ -169,18 +176,25 @@ const MultiSelectUsuarios: React.FC<MultiSelectProps> = ({ options, value, onCha
         )}
         <span className="sd01-kpi-multiselect-arrow">{open ? '▲' : '▼'}</span>
       </button>
-      {open && (
+      {open && !disabled && (
         <div className="sd01-kpi-multiselect-dropdown">
-          {options.map((u) => (
-            <label key={u.id} className="sd01-kpi-multiselect-item">
-              <input
-                type="checkbox"
-                checked={value.includes(u.id)}
-                onChange={() => toggle(u.id)}
-              />
-              {u.nombre} {u.apellido} <span style={{ color: 'var(--text-placeholder)', fontSize: 11 }}>· {u.rol}</span>
-            </label>
-          ))}
+          {options.length === 0 ? (
+            <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+              Sin usuarios disponibles
+            </div>
+          ) : (
+            options.map((u) => (
+              <label key={u.id} className="sd01-kpi-multiselect-item">
+                <input
+                  type="checkbox"
+                  checked={value.includes(u.id)}
+                  onChange={() => toggle(u.id)}
+                />
+                {u.nombre} {u.apellido}{' '}
+                <span style={{ color: 'var(--text-placeholder)', fontSize: 11 }}>· {u.rol}</span>
+              </label>
+            ))
+          )}
           <div className="sd01-kpi-multiselect-footer">
             <button type="button" onClick={() => onChange(options.map((u) => u.id))}>Todos</button>
             <button type="button" onClick={() => onChange([])}>Limpiar</button>
@@ -192,15 +206,25 @@ const MultiSelectUsuarios: React.FC<MultiSelectProps> = ({ options, value, onCha
 };
 
 // ================ Componente principal ================
+interface Filtros {
+  fechaDesde: string;
+  fechaHasta: string;
+  usuarios: string[];
+}
+
+const filtrosVacios: Filtros = { fechaDesde: '', fechaHasta: '', usuarios: [] };
+
 const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando] = useState(false);
+  const [cargandoUsuarios, setCargandoUsuarios] = useState(true);
+  const [haConsultado, setHaConsultado] = useState(false);
   const [todosTransportes, setTodosTransportes] = useState<TransporteKPI[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [tab, setTab] = useState<Tab>('resumen');
 
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
-  const [usuariosSeleccionados, setUsuariosSeleccionados] = useState<string[]>([]);
+  // Filtros: form vs aplicados
+  const [filtrosForm, setFiltrosForm] = useState<Filtros>(filtrosVacios);
+  const [filtrosAplicados, setFiltrosAplicados] = useState<Filtros>(filtrosVacios);
 
   const [ordenUsuarios, setOrdenUsuarios] = useState<{ col: string; dir: 'asc' | 'desc' }>({
     col: 'cantidad',
@@ -209,77 +233,160 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
 
   const [escalaEvolucion, setEscalaEvolucion] = useState<'diario' | 'semanal' | 'mensual'>('diario');
 
-  // ============ Carga ============
+  // ============ Cargar usuarios disponibles (solo con al menos 1 transporte finalizado) ============
   useEffect(() => {
-    const cargarTodo = async () => {
-      setCargando(true);
+    const cargarUsuariosDisponibles = async () => {
+      setCargandoUsuarios(true);
       try {
-        const [docsData, localesData, usuariosData] = await Promise.all([
-          fetchAllPaginado(`${API_URL}/sd01_documentos?select=id,id_documento,fecha_programacion,estado,creado_por,creado_en,finalizado_en&estado=eq.Finalizado&finalizado_en=not.is.null`),
-          fetchAllPaginado(`${API_URL}/sd01_documento_locales?select=id,documento_id,cantidad_solicitada`),
-          fetchAllPaginado(`${API_URL}/usuarios?select=id,nombre,apellido,rol,usuario`)
-        ]);
+        const resp = await fetch(
+          `${API_URL}/sd01_documentos?select=creado_por&estado=eq.Finalizado&finalizado_en=not.is.null`,
+          { headers: HEADERS }
+        );
+        const data = await resp.json();
+        const idsUnicos: string[] = Array.from(
+          new Set((data || []).map((d: any) => d.creado_por).filter(Boolean))
+        );
 
-        const uMap = new Map<string, Usuario>();
-        usuariosData.forEach((u: any) => uMap.set(u.id, u));
-        setUsuarios(usuariosData);
-
-        const localesPorDoc = new Map<string, number>();
-        const bultosPorDoc = new Map<string, number>();
-        localesData.forEach((l: any) => {
-          const doc = l.documento_id;
-          localesPorDoc.set(doc, (localesPorDoc.get(doc) || 0) + 1);
-          bultosPorDoc.set(doc, (bultosPorDoc.get(doc) || 0) + (Number(l.cantidad_solicitada) || 0));
-        });
-
-        const kpis: TransporteKPI[] = docsData
-          .filter((d: any) => d.creado_en && d.finalizado_en)
-          .map((d: any) => {
-            const creado = new Date(d.creado_en).getTime();
-            const finalizado = new Date(d.finalizado_en).getTime();
-            const duracion = finalizado - creado;
-            const u = uMap.get(d.creado_por);
-            return {
-              id: d.id,
-              id_documento: d.id_documento,
-              fecha_programacion: d.fecha_programacion || '',
-              usuario_id: d.creado_por || 'sin-usuario',
-              usuario_nombre: u ? `${u.nombre} ${u.apellido}`.trim() : 'Usuario desconocido',
-              usuario_rol: u?.rol || '-',
-              creado_en: d.creado_en,
-              finalizado_en: d.finalizado_en,
-              duracionMs: duracion > 0 ? duracion : 0,
-              cantidad_locales: localesPorDoc.get(d.id_documento) || 0,
-              cantidad_bultos: bultosPorDoc.get(d.id_documento) || 0
-            };
-          })
-          .filter((t) => t.duracionMs > 0);
-
-        setTodosTransportes(kpis);
+        if (idsUnicos.length > 0) {
+          const usuariosData: any[] = [];
+          for (const chunk of chunkArray(idsUnicos, 80)) {
+            const respU = await fetch(
+              `${API_URL}/usuarios?select=id,nombre,apellido,rol,usuario&id=in.(${chunk.join(',')})`,
+              { headers: HEADERS }
+            );
+            const uData = await respU.json();
+            usuariosData.push(...(uData || []));
+          }
+          usuariosData.sort((a, b) =>
+            `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`)
+          );
+          setUsuarios(usuariosData);
+        }
       } catch (e) {
-        console.error('Error cargando KPI:', e);
+        console.error('Error cargando usuarios disponibles:', e);
       } finally {
-        setCargando(false);
+        setCargandoUsuarios(false);
       }
     };
-    cargarTodo();
+    cargarUsuariosDisponibles();
   }, []);
 
-  // ============ Filtrado ============
-  const transportesFiltrados = useMemo(() => {
-    return todosTransportes.filter((t) => {
-      if (fechaDesde) {
-        const f = (t.fecha_programacion || '').slice(0, 10);
-        if (f < fechaDesde) return false;
+  // ============ Ejecutar consulta con filtros en el servidor ============
+  const ejecutarConsulta = useCallback(async (filtros: Filtros) => {
+    setCargando(true);
+    setHaConsultado(true);
+    try {
+      // 1. Consultar documentos con filtros aplicados
+      const params = new URLSearchParams();
+      params.set(
+        'select',
+        'id,id_documento,fecha_programacion,estado,creado_por,creado_en,finalizado_en'
+      );
+      params.append('estado', 'eq.Finalizado');
+      params.append('finalizado_en', 'not.is.null');
+
+      if (filtros.fechaDesde) {
+        params.append('fecha_programacion', `gte.${filtros.fechaDesde}T00:00:00`);
       }
-      if (fechaHasta) {
-        const f = (t.fecha_programacion || '').slice(0, 10);
-        if (f > fechaHasta) return false;
+      if (filtros.fechaHasta) {
+        params.append('fecha_programacion', `lte.${filtros.fechaHasta}T23:59:59`);
       }
-      if (usuariosSeleccionados.length > 0 && !usuariosSeleccionados.includes(t.usuario_id)) return false;
-      return true;
-    });
-  }, [todosTransportes, fechaDesde, fechaHasta, usuariosSeleccionados]);
+      if (filtros.usuarios.length > 0) {
+        params.append('creado_por', `in.(${filtros.usuarios.join(',')})`);
+      }
+
+      const docsData = await fetchAllPaginado(`${API_URL}/sd01_documentos?${params.toString()}`);
+
+      if (docsData.length === 0) {
+        setTodosTransportes([]);
+        setCargando(false);
+        return;
+      }
+
+      // 2. Consultar locales de esos documentos (para contar y sumar)
+      const docIds: string[] = docsData.map((d: any) => d.id_documento);
+      const localesData: any[] = [];
+      for (const chunk of chunkArray(docIds, 80)) {
+        const p = new URLSearchParams();
+        p.set('select', 'id,documento_id,cantidad_solicitada');
+        p.append('documento_id', `in.(${chunk.join(',')})`);
+        const l = await fetchAllPaginado(`${API_URL}/sd01_documento_locales?${p.toString()}`);
+        localesData.push(...l);
+      }
+
+      // 3. Cargar los usuarios que aparecen en los resultados (para mostrar nombre/rol)
+      const uIds: string[] = Array.from(
+        new Set(docsData.map((d: any) => d.creado_por).filter(Boolean))
+      );
+      const usuariosMap = new Map<string, Usuario>();
+      for (const chunk of chunkArray(uIds, 80)) {
+        const respU = await fetch(
+          `${API_URL}/usuarios?select=id,nombre,apellido,rol,usuario&id=in.(${chunk.join(',')})`,
+          { headers: HEADERS }
+        );
+        const uData = await respU.json();
+        (uData || []).forEach((u: any) => usuariosMap.set(u.id, u));
+      }
+
+      // 4. Agrupar locales por documento
+      const localesPorDoc = new Map<string, number>();
+      const bultosPorDoc = new Map<string, number>();
+      localesData.forEach((l: any) => {
+        localesPorDoc.set(l.documento_id, (localesPorDoc.get(l.documento_id) || 0) + 1);
+        bultosPorDoc.set(
+          l.documento_id,
+          (bultosPorDoc.get(l.documento_id) || 0) + (Number(l.cantidad_solicitada) || 0)
+        );
+      });
+
+      // 5. Construir los KPI
+      const kpis: TransporteKPI[] = docsData
+        .filter((d: any) => d.creado_en && d.finalizado_en)
+        .map((d: any) => {
+          const creado = new Date(d.creado_en).getTime();
+          const finalizado = new Date(d.finalizado_en).getTime();
+          const duracion = finalizado - creado;
+          const u = usuariosMap.get(d.creado_por);
+          return {
+            id: d.id,
+            id_documento: d.id_documento,
+            fecha_programacion: d.fecha_programacion || '',
+            usuario_id: d.creado_por || 'sin-usuario',
+            usuario_nombre: u ? `${u.nombre} ${u.apellido}`.trim() : 'Usuario desconocido',
+            usuario_rol: u?.rol || '-',
+            creado_en: d.creado_en,
+            finalizado_en: d.finalizado_en,
+            duracionMs: duracion > 0 ? duracion : 0,
+            cantidad_locales: localesPorDoc.get(d.id_documento) || 0,
+            cantidad_bultos: bultosPorDoc.get(d.id_documento) || 0
+          };
+        })
+        .filter((t) => t.duracionMs > 0);
+
+      setTodosTransportes(kpis);
+    } catch (e) {
+      console.error('Error en consulta KPI:', e);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  // ============ Handler: aplicar filtros y consultar ============
+  const handleActualizar = () => {
+    setFiltrosAplicados({ ...filtrosForm });
+    ejecutarConsulta(filtrosForm);
+  };
+
+  // ============ Consulta inicial al montar (sin filtros) ============
+  useEffect(() => {
+    if (!cargandoUsuarios) {
+      ejecutarConsulta(filtrosVacios);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cargandoUsuarios]);
+
+  // ============ Los datos ya vienen filtrados: no filtramos en cliente ============
+  const transportesFiltrados = todosTransportes;
 
   // ============ KPIs generales ============
   const kpisGenerales = useMemo(() => {
@@ -348,7 +455,9 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       let key: string;
       const d = new Date(t.fecha_programacion || t.creado_en);
       if (escalaEvolucion === 'diario') {
-        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+          d.getDate()
+        ).padStart(2, '0')}`;
       } else if (escalaEvolucion === 'semanal') {
         const firstDayOfYear = new Date(d.getFullYear(), 0, 1);
         const pastDaysOfYear = (d.getTime() - firstDayOfYear.getTime()) / 86400000;
@@ -372,7 +481,17 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
 
   // ============ Exportación ============
   const exportarUsuarios = () => {
-    const headers = ['Usuario', 'Rol', 'Transportes', 'Locales prom.', 'Promedio', 'Mínimo', 'Máximo', 'Mediana', '% del Total'];
+    const headers = [
+      'Usuario',
+      'Rol',
+      'Transportes',
+      'Locales prom.',
+      'Promedio',
+      'Mínimo',
+      'Máximo',
+      'Mediana',
+      '% del Total'
+    ];
     const rows = statsUsuarios.map((u) => [
       u.usuario_nombre,
       u.usuario_rol,
@@ -391,7 +510,17 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   };
 
   const exportarDetalle = () => {
-    const headers = ['N° Transporte', 'Fecha Prog.', 'Usuario', 'Creado', 'Finalizado', 'Duración (ms)', 'Duración', 'Locales', 'Bultos'];
+    const headers = [
+      'N° Transporte',
+      'Fecha Prog.',
+      'Usuario',
+      'Creado',
+      'Finalizado',
+      'Duración (ms)',
+      'Duración',
+      'Locales',
+      'Bultos'
+    ];
     const rows = transportesFiltrados.map((t) => [
       t.id_documento,
       t.fecha_programacion.slice(0, 10),
@@ -530,14 +659,16 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
           </div>
           <div className="sd01-kpi-chart-summary-item">
             <div className="label">Tendencia</div>
-            <div className="value" style={{ color: (() => {
-              if (evolucion.length < 2) return 'var(--text-primary)';
-              const first = evolucion.slice(0, Math.ceil(evolucion.length / 3));
-              const last = evolucion.slice(-Math.ceil(evolucion.length / 3));
-              const avgFirst = first.reduce((s, p) => s + p.promedio, 0) / first.length;
-              const avgLast = last.reduce((s, p) => s + p.promedio, 0) / last.length;
-              return avgLast < avgFirst ? '#22c55e' : avgLast > avgFirst ? '#f87171' : 'var(--text-primary)';
-            })() }}>
+            <div className="value" style={{
+              color: (() => {
+                if (evolucion.length < 2) return 'var(--text-primary)';
+                const first = evolucion.slice(0, Math.ceil(evolucion.length / 3));
+                const last = evolucion.slice(-Math.ceil(evolucion.length / 3));
+                const avgFirst = first.reduce((s, p) => s + p.promedio, 0) / first.length;
+                const avgLast = last.reduce((s, p) => s + p.promedio, 0) / last.length;
+                return avgLast < avgFirst ? '#22c55e' : avgLast > avgFirst ? '#f87171' : 'var(--text-primary)';
+              })()
+            }}>
               {(() => {
                 if (evolucion.length < 2) return 'Sin datos';
                 const first = evolucion.slice(0, Math.ceil(evolucion.length / 3));
@@ -553,7 +684,11 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
           <div className="sd01-kpi-chart-summary-item">
             <div className="label">Variación</div>
             <div className="value">
-              ± {formatDuracion(Math.max(...evolucion.map((p) => p.promedio)) - Math.min(...evolucion.map((p) => p.promedio))).corta}
+              ±{' '}
+              {formatDuracion(
+                Math.max(...evolucion.map((p) => p.promedio)) -
+                  Math.min(...evolucion.map((p) => p.promedio))
+              ).corta}
             </div>
           </div>
         </div>
@@ -561,108 +696,136 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     );
   };
 
+  // ============ Chips de filtros activos ============
+  const filtrosActivos = useMemo(() => {
+    const chips: string[] = [];
+    if (filtrosAplicados.fechaDesde || filtrosAplicados.fechaHasta) {
+      chips.push(
+        `📅 ${filtrosAplicados.fechaDesde || '...'} → ${filtrosAplicados.fechaHasta || '...'}`
+      );
+    }
+    if (filtrosAplicados.usuarios.length > 0) {
+      const nombres = usuarios
+        .filter((u) => filtrosAplicados.usuarios.includes(u.id))
+        .map((u) => `${u.nombre} ${u.apellido}`);
+      chips.push(`👤 ${nombres.length === 1 ? nombres[0] : `${nombres.length} usuarios`}`);
+    }
+    return chips;
+  }, [filtrosAplicados, usuarios]);
+
   return (
     <div className="sd01-kpi-container">
-      {/* Header */}
       <div className="sd01-kpi-header">
         <div className="sd01-kpi-header-left">
           <h1>KPI de Transportes</h1>
           <p>Métricas de tiempos de ciclo desde la creación hasta la finalización</p>
         </div>
         <div className="sd01-kpi-header-actions">
-          <button className="sd01-kpi-btn" onClick={onClose}>
-            ← Volver a SD01
-          </button>
+          <button className="sd01-kpi-btn" onClick={onClose}>← Volver a SD01</button>
         </div>
       </div>
 
       <div className="sd01-kpi-note">
         ℹ️ Tiempos medidos desde <strong>creado_en</strong> hasta <strong>finalizado_en</strong>. Solo transportes <strong>Finalizados</strong>. La duración depende directamente de la cantidad de locales del transporte.
+        <br />
+        ⚠️ Los filtros se aplican al presionar <strong>Actualizar</strong>.
       </div>
 
-      {/* Filtros */}
       <div className="sd01-kpi-filters">
         <div className="sd01-kpi-filters-grid">
           <div className="sd01-kpi-filter-row">
-            <label>Fecha desde</label>
+            <label>Fecha programación desde</label>
             <input
               type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
+              value={filtrosForm.fechaDesde}
+              onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaDesde: e.target.value })}
             />
           </div>
           <div className="sd01-kpi-filter-row">
-            <label>Fecha hasta</label>
+            <label>Fecha programación hasta</label>
             <input
               type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
+              value={filtrosForm.fechaHasta}
+              onChange={(e) => setFiltrosForm({ ...filtrosForm, fechaHasta: e.target.value })}
             />
           </div>
           <div className="sd01-kpi-filter-row">
             <label>Usuarios a medir</label>
             <MultiSelectUsuarios
               options={usuarios}
-              value={usuariosSeleccionados}
-              onChange={setUsuariosSeleccionados}
-              placeholder="Todos los usuarios"
+              value={filtrosForm.usuarios}
+              onChange={(v) => setFiltrosForm({ ...filtrosForm, usuarios: v })}
+              placeholder={cargandoUsuarios ? 'Cargando...' : 'Todos los usuarios'}
+              disabled={cargandoUsuarios}
             />
           </div>
           <div className="sd01-kpi-filter-row">
             <label>&nbsp;</label>
-            <button
-              className="sd01-kpi-btn"
-              onClick={() => {
-                setFechaDesde('');
-                setFechaHasta('');
-                setUsuariosSeleccionados([]);
-              }}
-            >
-              🧹 Limpiar filtros
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="sd01-kpi-btn sd01-kpi-btn-primary"
+                onClick={handleActualizar}
+                disabled={cargando}
+                style={{ flex: 1 }}
+              >
+                {cargando ? '⏳ Consultando...' : '🔄 Actualizar'}
+              </button>
+              <button
+                className="sd01-kpi-btn"
+                onClick={() => {
+                  setFiltrosForm(filtrosVacios);
+                  setFiltrosAplicados(filtrosVacios);
+                  ejecutarConsulta(filtrosVacios);
+                }}
+                disabled={cargando}
+              >
+                🧹 Limpiar
+              </button>
+            </div>
           </div>
         </div>
+
+        {filtrosActivos.length > 0 && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Filtros activos
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {filtrosActivos.map((c, i) => (
+                <span key={i} className="sd01-kpi-multiselect-chip">{c}</span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
       <div className="sd01-kpi-tabs">
-        <button
-          className={`sd01-kpi-tab ${tab === 'resumen' ? 'active' : ''}`}
-          onClick={() => setTab('resumen')}
-        >
+        <button className={`sd01-kpi-tab ${tab === 'resumen' ? 'active' : ''}`} onClick={() => setTab('resumen')}>
           Resumen General
         </button>
-        <button
-          className={`sd01-kpi-tab ${tab === 'usuarios' ? 'active' : ''}`}
-          onClick={() => setTab('usuarios')}
-        >
+        <button className={`sd01-kpi-tab ${tab === 'usuarios' ? 'active' : ''}`} onClick={() => setTab('usuarios')}>
           Por Usuario <span className="count">{statsUsuarios.length}</span>
         </button>
-        <button
-          className={`sd01-kpi-tab ${tab === 'detalle' ? 'active' : ''}`}
-          onClick={() => setTab('detalle')}
-        >
+        <button className={`sd01-kpi-tab ${tab === 'detalle' ? 'active' : ''}`} onClick={() => setTab('detalle')}>
           Detalle Transportes <span className="count">{transportesFiltrados.length}</span>
         </button>
-        <button
-          className={`sd01-kpi-tab ${tab === 'evolucion' ? 'active' : ''}`}
-          onClick={() => setTab('evolucion')}
-        >
+        <button className={`sd01-kpi-tab ${tab === 'evolucion' ? 'active' : ''}`} onClick={() => setTab('evolucion')}>
           Evolución Temporal
         </button>
       </div>
 
-      {cargando ? (
+      {cargando && !haConsultado ? (
         <div className="sd01-kpi-panel">
-          <div className="sd01-kpi-loading">Cargando datos KPI...</div>
+          <div className="sd01-kpi-loading">Consultando datos...</div>
         </div>
       ) : transportesFiltrados.length === 0 ? (
         <div className="sd01-kpi-panel">
-          <div className="sd01-kpi-empty">No hay transportes finalizados con los filtros aplicados.</div>
+          <div className="sd01-kpi-empty">
+            No hay transportes finalizados con los filtros aplicados.
+          </div>
         </div>
       ) : (
         <>
-          {/* ============ RESUMEN ============ */}
           {tab === 'resumen' && (
             <div className="sd01-kpi-panel">
               <div className="sd01-kpi-grid">
@@ -670,8 +833,8 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                   <div className="sd01-kpi-label">Transportes Finalizados</div>
                   <div className="sd01-kpi-value">{kpisGenerales.total}</div>
                   <div className="sd01-kpi-sub">
-                    {fechaDesde || fechaHasta
-                      ? `${fechaDesde || '...'} → ${fechaHasta || '...'}`
+                    {filtrosAplicados.fechaDesde || filtrosAplicados.fechaHasta
+                      ? `${filtrosAplicados.fechaDesde || '...'} → ${filtrosAplicados.fechaHasta || '...'}`
                       : 'Todos los periodos'}
                   </div>
                 </div>
@@ -704,7 +867,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ============ USUARIOS ============ */}
           {tab === 'usuarios' && (
             <div className="sd01-kpi-panel rounded">
               <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -753,7 +915,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                         <td>
                           <span
                             className={`sd01-kpi-tiempo-bar ${getColorClase(u.promedio)}`}
-                            style={{ width: Math.min(100, u.promedio / 60000 * 2) + 'px' }}
+                            style={{ width: Math.min(100, (u.promedio / 60000) * 2) + 'px' }}
                           ></span>
                         </td>
                       </tr>
@@ -788,7 +950,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ============ DETALLE ============ */}
           {tab === 'detalle' && (
             <div className="sd01-kpi-panel rounded">
               <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -827,7 +988,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                         <td className="num">
                           <span
                             className={`sd01-kpi-tiempo-bar ${getColorClase(t.duracionMs)}`}
-                            style={{ width: Math.min(80, t.duracionMs / 60000 * 2) + 'px' }}
+                            style={{ width: Math.min(80, (t.duracionMs / 60000) * 2) + 'px' }}
                           ></span>
                           {formatDuracion(t.duracionMs).corta}
                         </td>
@@ -844,7 +1005,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* ============ EVOLUCIÓN ============ */}
           {tab === 'evolucion' && (
             <div className="sd01-kpi-panel rounded">
               <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
