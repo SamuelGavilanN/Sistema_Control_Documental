@@ -272,8 +272,8 @@ const SD01View: React.FC = () => {
       mostrarMensaje('warning', 'Debe seleccionar un transporte');
       return;
     }
-    if (transporteSeleccionado.estado === 'Cancelado' || transporteSeleccionado.estado === 'Finalizado') {
-      mostrarMensaje('error', 'No se puede editar un transporte cancelado o finalizado');
+    if (transporteSeleccionado.estado === 'Cancelado') {
+      mostrarMensaje('error', 'No se puede editar un transporte cancelado');
       return;
     }
     setMostrarEditarTransporte(true);
@@ -419,8 +419,8 @@ const SD01View: React.FC = () => {
         <button
           className="sd01-btn"
           onClick={handleEditarTransporte}
-          disabled={!transporteSeleccionado || ['Finalizado', 'Cancelado'].includes(transporteSeleccionado?.estado)}
-          title="Editar datos base del transporte (conductor, patente, locales). No disponible para Finalizados."
+          disabled={!transporteSeleccionado || transporteSeleccionado?.estado === 'Cancelado'}
+          title="Editar datos base del transporte (conductor, patente, locales, fecha programación)."
         >
           ✏️ Editar
         </button>
