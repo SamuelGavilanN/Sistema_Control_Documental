@@ -908,6 +908,54 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     prepararImpresion(localesSeleccionados, copias);
   };
 
+  // Imprime el resumen (mismo HTML que se usa al finalizar un transporte)
+  const imprimirResumen = () => {
+    const logoImg = new Image();
+    logoImg.crossOrigin = 'anonymous';
+    logoImg.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = logoImg.naturalWidth;
+      canvas.height = logoImg.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(logoImg, 0, 0);
+      const logoBase64 = canvas.toDataURL('image/png');
+
+      const datosResumen = {
+        numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
+        fechaProgramacion: transporte.fecha_programacion || '',
+        administrativo:
+          transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
+        conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
+        rutConductor: detallesConductor?.numero_documento || '',
+        patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
+        patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
+        selloLateral: selloLateralGlobal,
+        selloAdicional: selloAdicionalGlobal,
+        locales: locales.map((local: any) => ({
+          codigo: local.codigo_local,
+          nombre: local.nombre_local || '',
+          actas: (bultosPorLocal[local.id] || [])
+            .map((b: any) => b.numeroDocumento)
+            .filter(Boolean)
+            .join(' - '),
+          fechaEntrega: local.fecha_entrega || '',
+          selloTrasero: local.sello_trasero || ''
+        }))
+      };
+
+      const html = generarResumenFinalizarHTML(datosResumen, logoBase64);
+      const ventana = window.open('', '_blank');
+      if (ventana) {
+        ventana.document.write(html);
+        ventana.document.close();
+        ventana.focus();
+        setTimeout(() => ventana.print(), 500);
+      }
+    };
+    logoImg.src = logoPath;
+  };
+
+  // Modo modificar: guardar sin cambiar estado + imprimir resumen
   const guardarModificacion = async () => {
     if (!window.confirm('¿Guardar los cambios realizados? El transporte seguirá Finalizado.')) return;
     try {
@@ -927,6 +975,10 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         }
       }
       mostrarMensaje('success', 'Cambios guardados. El transporte sigue Finalizado.');
+
+      // Imprimir resumen con los datos actualizados
+      imprimirResumen();
+
       onActualizar();
       onClose();
     } catch (e) {
@@ -973,45 +1025,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
 
       mostrarMensaje('success', 'Transporte finalizado exitosamente');
 
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'anonymous';
-      logoImg.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = logoImg.naturalWidth;
-        canvas.height = logoImg.naturalHeight;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(logoImg, 0, 0);
-        const logoBase64 = canvas.toDataURL('image/png');
-
-        const datosResumen = {
-          numeroTransporte: transporte.id_documento || transporte.numero_transporte || '',
-          fechaProgramacion: transporte.fecha_programacion || '',
-          administrativo: transporte.administrativo || `${usuario?.nombre || ''} ${usuario?.apellido || ''}`.trim(),
-          conductor: detallesConductor ? `${detallesConductor.nombre} ${detallesConductor.apellido}` : '',
-          rutConductor: detallesConductor?.numero_documento || '',
-          patentePrincipal: detallesPatentePrincipal?.numero_patente || '',
-          patenteAdicional: detallesPatenteAdicional?.numero_patente || undefined,
-          selloLateral: selloLateralGlobal,
-          selloAdicional: selloAdicionalGlobal,
-          locales: locales.map((local: any) => ({
-            codigo: local.codigo_local,
-            nombre: local.nombre_local || '',
-            actas: (bultosPorLocal[local.id] || []).map((b: any) => b.numeroDocumento).filter(Boolean).join(' - '),
-            fechaEntrega: local.fecha_entrega || '',
-            selloTrasero: local.sello_trasero || ''
-          }))
-        };
-
-        const html = generarResumenFinalizarHTML(datosResumen, logoBase64);
-        const ventana = window.open('', '_blank');
-        if (ventana) {
-          ventana.document.write(html);
-          ventana.document.close();
-          ventana.focus();
-          setTimeout(() => ventana.print(), 500);
-        }
-      };
-      logoImg.src = logoPath;
+      imprimirResumen();
 
       onActualizar();
       onClose();
@@ -1097,7 +1111,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
             fontWeight: 500
           }}
         >
-          ⚠️ <strong>Modo Modificación:</strong> puedes corregir bultos, sellos y pallets. Al guardar, el transporte seguirá en estado <strong>Finalizado</strong> y la métrica del KPI no se altera.
+          ⚠️ <strong>Modo Modificación:</strong> puedes corregir bultos, sellos y pallets. Al guardar, el transporte seguirá en estado <strong>Finalizado</strong>, la métrica del KPI no se altera y se imprimirá el resumen actualizado.
         </div>
       )}
 
