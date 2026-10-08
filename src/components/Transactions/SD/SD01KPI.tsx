@@ -222,7 +222,6 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [tab, setTab] = useState<Tab>('resumen');
 
-  // Filtros: form vs aplicados
   const [filtrosForm, setFiltrosForm] = useState<Filtros>(filtrosVacios);
   const [filtrosAplicados, setFiltrosAplicados] = useState<Filtros>(filtrosVacios);
 
@@ -285,11 +284,12 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       params.append('estado', 'eq.Finalizado');
       params.append('finalizado_en', 'not.is.null');
 
+      // Filtro por FECHA DE CREACIÓN (no fecha programación)
       if (filtros.fechaDesde) {
-        params.append('fecha_programacion', `gte.${filtros.fechaDesde}T00:00:00`);
+        params.append('creado_en', `gte.${filtros.fechaDesde}T00:00:00`);
       }
       if (filtros.fechaHasta) {
-        params.append('fecha_programacion', `lte.${filtros.fechaHasta}T23:59:59`);
+        params.append('creado_en', `lte.${filtros.fechaHasta}T23:59:59`);
       }
       if (filtros.usuarios.length > 0) {
         params.append('creado_por', `in.(${filtros.usuarios.join(',')})`);
@@ -378,13 +378,13 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
   };
 
   // ============ Consulta inicial al montar (sin filtros) ============
-    useEffect(() => {
+  useEffect(() => {
     if (!cargandoUsuarios) {
       ejecutarConsulta(filtrosVacios);
     }
   }, [cargandoUsuarios]);
 
-  // ============ Los datos ya vienen filtrados: no filtramos en cliente ============
+  // ============ Los datos ya vienen filtrados ============
   const transportesFiltrados = todosTransportes;
 
   // ============ KPIs generales ============
@@ -452,7 +452,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     const agrupado = new Map<string, number[]>();
     transportesFiltrados.forEach((t) => {
       let key: string;
-      const d = new Date(t.fecha_programacion || t.creado_en);
+      const d = new Date(t.creado_en);
       if (escalaEvolucion === 'diario') {
         key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
           d.getDate()
@@ -700,7 +700,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
     const chips: string[] = [];
     if (filtrosAplicados.fechaDesde || filtrosAplicados.fechaHasta) {
       chips.push(
-        `📅 ${filtrosAplicados.fechaDesde || '...'} → ${filtrosAplicados.fechaHasta || '...'}`
+        `🗓️ Creado ${filtrosAplicados.fechaDesde || '...'} → ${filtrosAplicados.fechaHasta || '...'}`
       );
     }
     if (filtrosAplicados.usuarios.length > 0) {
@@ -725,7 +725,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       </div>
 
       <div className="sd01-kpi-note">
-        ℹ️ Tiempos medidos desde <strong>creado_en</strong> hasta <strong>finalizado_en</strong>. Solo transportes <strong>Finalizados</strong>. La duración depende directamente de la cantidad de locales del transporte.
+        ℹ️ Tiempos medidos desde <strong>creado_en</strong> hasta <strong>finalizado_en</strong>. Solo transportes <strong>Finalizados</strong>. El filtro de fechas aplica sobre la <strong>fecha de creación</strong> del transporte.
         <br />
         ⚠️ Los filtros se aplican al presionar <strong>Actualizar</strong>.
       </div>
@@ -733,7 +733,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
       <div className="sd01-kpi-filters">
         <div className="sd01-kpi-filters-grid">
           <div className="sd01-kpi-filter-row">
-            <label>Fecha programación desde</label>
+            <label>Fecha creación desde</label>
             <input
               type="date"
               value={filtrosForm.fechaDesde}
@@ -741,7 +741,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
             />
           </div>
           <div className="sd01-kpi-filter-row">
-            <label>Fecha programación hasta</label>
+            <label>Fecha creación hasta</label>
             <input
               type="date"
               value={filtrosForm.fechaHasta}
@@ -1010,7 +1010,7 @@ const SD01KPI: React.FC<SD01KPIProps> = ({ onClose }) => {
                 <div>
                   <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Evolución temporal del promedio</h2>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Duración promedio por {escalaEvolucion}
+                    Duración promedio por {escalaEvolucion} (agrupado por fecha de creación)
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
