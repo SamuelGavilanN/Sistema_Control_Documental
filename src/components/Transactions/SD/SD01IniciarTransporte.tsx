@@ -566,6 +566,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
   const [bultosPorLocal, setBultosPorLocal] = useState<Record<string, Bulto[]>>({});
   const [selloLateralGlobal, setSelloLateralGlobal] = useState(transporte.sello_lateral || '');
   const [selloAdicionalGlobal, setSelloAdicionalGlobal] = useState(transporte.sello_adicional || '');
+  const [zonalesMap, setZonalesMap] = useState<Map<string, { correo: string; detalle: string }>>(new Map());
 
   const [mostrarImprimirModal, setMostrarImprimirModal] = useState(false);
   const [localesImprimir, setLocalesImprimir] = useState<LocalImprimir[]>([]);
@@ -593,10 +594,33 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     if (transporte) {
       cargarDetalles();
       cargarLocales();
+      cargarZonales();
       setSelloLateralGlobal(transporte.sello_lateral || '');
       setSelloAdicionalGlobal(transporte.sello_adicional || '');
     }
   }, [transporte]);
+
+  const cargarZonales = async () => {
+    try {
+      const resp = await fetch(
+        API_URL + '/zonales_contactos?select=cod,correo_zonal,detalle_despacho&activo=eq.true',
+        { headers: HEADERS }
+      );
+      const data = await resp.json();
+      const map = new Map<string, { correo: string; detalle: string }>();
+      (data || []).forEach((z: any) => {
+        if (z.cod) {
+          map.set(String(z.cod).toUpperCase().trim(), {
+            correo: (z.correo_zonal || '').trim(),
+            detalle: (z.detalle_despacho || '').trim()
+          });
+        }
+      });
+      setZonalesMap(map);
+    } catch (e) {
+      console.error('Error cargando zonales:', e);
+    }
+  };
 
   const cargarDetalles = async () => {
     try {
@@ -789,6 +813,33 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     });
   };
 
+  const copiarZonal = () => {
+    const valoresSet = new Set<string>();
+
+    locales.forEach((l: any) => {
+      const codigo = String(l.codigo_local || '').toUpperCase().trim();
+      const z = zonalesMap.get(codigo);
+      if (z) {
+        if (z.correo) valoresSet.add(z.correo);
+        if (z.detalle) valoresSet.add(z.detalle);
+      }
+    });
+
+    const texto = Array.from(valoresSet).join(';');
+
+    if (!texto) {
+      mostrarMensaje('warning', 'No hay correos zonales configurados para los locales del transporte');
+      return;
+    }
+
+    navigator.clipboard.writeText(texto).then(() => {
+      mostrarMensaje('success', 'Zonales copiados al portapapeles');
+    }).catch((err) => {
+      console.error('Error al copiar zonales:', err);
+      mostrarMensaje('error', 'Error al copiar zonales');
+    });
+  };
+
   const copiarAsuntoDetalle = () => {
     const nombresLocales = locales.map((l: any) => {
       const localMaestro = localesMaestros.find((lm: any) => lm.codigo_local === l.codigo_local);
@@ -908,7 +959,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     prepararImpresion(localesSeleccionados, copias);
   };
 
-  // Imprime el resumen (mismo HTML que se usa al finalizar un transporte)
   const imprimirResumen = () => {
     const logoImg = new Image();
     logoImg.crossOrigin = 'anonymous';
@@ -955,7 +1005,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
     logoImg.src = logoPath;
   };
 
-  // Modo modificar: guardar sin cambiar estado + imprimir resumen
   const guardarModificacion = async () => {
     if (!window.confirm('¿Guardar los cambios realizados? El transporte seguirá Finalizado.')) return;
     try {
@@ -976,7 +1025,6 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
       }
       mostrarMensaje('success', 'Cambios guardados. El transporte sigue Finalizado.');
 
-      // Imprimir resumen con los datos actualizados
       imprimirResumen();
 
       onActualizar();
@@ -1073,6 +1121,7 @@ const SD01IniciarTransporte: React.FC<SD01IniciarTransporteProps> = ({
         <div className="sd01-action-group">
           <span className="sd01-action-label">Envío Correo</span>
           <button className="sd01-btn" onClick={copiarCorreos}>Seleccionar Correos</button>
+          <button className="sd01-btn" onClick={copiarZonal}>Copiar Zonal</button>
           <button className="sd01-btn" onClick={copiarAsuntoDetalle}>Asunto y Detalle</button>
           <button className="sd01-btn" onClick={copiarCuadro}>Copiar Cuadro</button>
         </div>
