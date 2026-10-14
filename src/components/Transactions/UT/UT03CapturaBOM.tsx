@@ -66,9 +66,7 @@ const UT03CapturaBOM: React.FC = () => {
   const [pallets, setPallets] = useState<PalletFinalizado[]>([]);
   const [capturasActuales, setCapturasActuales] = useState<string[]>([]);
 
-  // Ref para valor sincrónico de capturas (evita problemas de timing con scanner físico)
   const capturasRef = useRef<string[]>([]);
-  // Bandera para bloquear capturas durante transiciones (evita caracteres residuales del scanner)
   const [inputBloqueado, setInputBloqueado] = useState(false);
 
   const [bomInput, setBomInput] = useState('');
@@ -89,7 +87,6 @@ const UT03CapturaBOM: React.FC = () => {
     setTimeout(() => setMensaje({ tipo: '', texto: '', visible: false }), 3500);
   };
 
-  // Sincronizar ref con el state
   useEffect(() => {
     capturasRef.current = capturasActuales;
   }, [capturasActuales]);
@@ -201,11 +198,11 @@ const UT03CapturaBOM: React.FC = () => {
     const codigo = bomInput.trim();
     if (!codigo) return;
 
+    // Se agrega al FINAL del array (orden de guardado intacto)
     const nuevas = [...capturasRef.current, codigo];
     capturasRef.current = nuevas;
     setCapturasActuales(nuevas);
     setBomInput('');
-    // Limpiar también el DOM por si el scanner dejó algo residual
     if (inputRef.current) inputRef.current.value = '';
 
     setTimeout(() => {
@@ -237,7 +234,6 @@ const UT03CapturaBOM: React.FC = () => {
   };
 
   const palletRevisado = () => {
-    // Bloqueo inmediato del input (evita caracteres residuales del scanner)
     setInputBloqueado(true);
 
     const capturas = capturasRef.current;
@@ -247,22 +243,18 @@ const UT03CapturaBOM: React.FC = () => {
       return;
     }
 
-    // Snapshot antes de cualquier modificación
     const snapshot = [...capturas];
     const numeroPallet = pallets.length + 1;
 
-    // Reset COMPLETO del estado del pallet
     capturasRef.current = [];
     setCapturasActuales([]);
     setBomInput('');
     if (inputRef.current) inputRef.current.value = '';
 
-    // Agregar el pallet a la lista
     setPallets((prev) => [...prev, { numero: numeroPallet, boms: snapshot }]);
 
     mostrarMensaje('success', `Pallet ${numeroPallet} guardado (${snapshot.length} bultos)`);
 
-    // Desbloquear después de un delay suficiente para que el scanner termine de enviar
     setTimeout(() => {
       setInputBloqueado(false);
       setInputMode('none');
@@ -273,7 +265,6 @@ const UT03CapturaBOM: React.FC = () => {
   const finalizarTarea = async () => {
     if (!tarea) return;
 
-    // Bloquear input por si acaso
     setInputBloqueado(true);
 
     let palletsFinales = [...pallets];
@@ -378,7 +369,6 @@ const UT03CapturaBOM: React.FC = () => {
     }
     setEliminandoId(t.id);
     try {
-      // Los pallets se eliminan en cascada por la FK (on delete cascade)
       const { error } = await supabase
         .from('bom_pallet_tareas')
         .delete()
@@ -489,6 +479,11 @@ const UT03CapturaBOM: React.FC = () => {
   // ============ VISTA: CAPTURAR ============
   if (vista === 'capturar' && tarea) {
     const numeroPalletActual = pallets.length + 1;
+    // Inversión SOLO visual: las capturas se muestran con la más reciente arriba,
+    // pero el array subyacente conserva el orden de captura.
+    const capturasParaMostrar = capturasActuales
+      .map((bom, idx) => ({ bom, idx }))
+      .reverse();
 
     return (
       <div className="ut03-container">
@@ -575,7 +570,7 @@ const UT03CapturaBOM: React.FC = () => {
           {capturasActuales.length === 0 ? (
             <div className="ut03-empty-capturas">Sin capturas en este pallet</div>
           ) : (
-            capturasActuales.map((bom, idx) => (
+            capturasParaMostrar.map(({ bom, idx }) => (
               <div key={`${bom}-${idx}`} className="ut03-captura-item">
                 <span
                   className="ut03-captura-dot"
