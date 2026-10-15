@@ -1,6 +1,6 @@
 // src/components/Transactions/UT/UT03CapturaBOM.tsx
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
 import { auth } from '../../../lib/auth';
@@ -78,7 +78,12 @@ const UT03CapturaBOM: React.FC = () => {
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '', visible: false });
 
+  // Paginación
   const [tareas, setTareas] = useState<TareaFinalizada[]>([]);
+  const [pagina, setPagina] = useState(1);
+  const [paginaSize, setPaginaSize] = useState(12);
+  const [totalTareas, setTotalTareas] = useState(0);
+  const [totalPaginas, setTotalPaginas] = useState(1);
 
   const usuario = auth.getUsuario();
 
@@ -105,58 +110,90 @@ const UT03CapturaBOM: React.FC = () => {
     return map;
   }, [pallets, capturasActuales]);
 
-  // ============ CARGA DE TAREAS ============
-  const cargarTareas = async () => {
-    setCargando(true);
-    try {
-      const { data: tareasData, error: errT } = await supabase
-        .from('bom_pallet_tareas')
-        .select('*')
-        .order('creado_en', { ascending: false })
-        .limit(30);
+  // ============ CARGA DE TAREAS (con paginación) ============
+  const cargarTareas = useCallback(
+    async (paginaActual: number = 1, size: number = paginaSize) => {
+      setCargando(true);
+      try {
+        const desde = (paginaActual - 1) * size;
+        const hasta = desde + size - 1;
 
-      if (errT) throw errT;
-      if (!tareasData || tareasData.length === 0) {
-        setTareas([]);
-        return;
-      }
+        // 1. Contar total
+        const { count, error: errCount } = await supabase
+          .from('bom_pallet_tareas')
+          .select('id', { count: 'exact', head: true });
 
-      const ids = tareasData.map((t: any) => t.id);
-      const { data: palletsData, error: errP } = await supabase
-        .from('bom_pallet_pallets')
-        .select('*')
-        .in('tarea_id', ids)
-        .order('numero_pallet', { ascending: true });
+        if (errCount) throw errCount;
+        const total = count || 0;
 
-      if (errP) throw errP;
+        // 2. Traer las tareas de la página
+        const { data: tareasData, error: errT } = await supabase
+          .from('bom_pallet_tareas')
+          .select('*')
+          .order('creado_en', { ascending: false })
+          .range(desde, hasta);
 
-      const palletsPorTarea = new Map<string, any[]>();
-      (palletsData || []).forEach((p: any) => {
-        if (!palletsPorTarea.has(p.tarea_id)) palletsPorTarea.set(p.tarea_id, []);
-        palletsPorTarea.get(p.tarea_id)!.push({
-          numero_pallet: p.numero_pallet,
-          boms: p.boms || [],
-          cantidad_bultos: p.cantidad_bultos || 0
+        if (errT) throw errT;
+
+        if (!tareasData || tareasData.length === 0) {
+          setTareas([]);
+          setTotalTareas(total);
+          setTotalPaginas(Math.max(1, Math.ceil(total / size)));
+          setCargando(false);
+          return;
+        }
+
+        // 3. Traer pallets de esas tareas
+        const ids = tareasData.map((t: any) => t.id);
+        const { data: palletsData, error: errP } = await supabase
+          .from('bom_pallet_pallets')
+          .select('*')
+          .in('tarea_id', ids)
+          .order('numero_pallet', { ascending: true });
+
+        if (errP) throw errP;
+
+        const palletsPorTarea = new Map<string, any[]>();
+        (palletsData || []).forEach((p: any) => {
+          if (!palletsPorTarea.has(p.tarea_id)) palletsPorTarea.set(p.tarea_id, []);
+          palletsPorTarea.get(p.tarea_id)!.push({
+            numero_pallet: p.numero_pallet,
+            boms: p.boms || [],
+            cantidad_bultos: p.cantidad_bultos || 0
+          });
         });
-      });
 
-      setTareas(
-        tareasData.map((t: any) => ({
-          ...t,
-          pallets: palletsPorTarea.get(t.id) || []
-        }))
-      );
-    } catch (e) {
-      console.error('Error cargando tareas:', e);
-      mostrarMensaje('error', 'Error al cargar tareas');
-    } finally {
-      setCargando(false);
-    }
-  };
+        setTareas(
+          tareasData.map((t: any) => ({
+            ...t,
+            pallets: palletsPorTarea.get(t.id) || []
+          }))
+        );
+        setTotalTareas(total);
+        setTotalPaginas(Math.max(1, Math.ceil(total / size)));
+      } catch (e) {
+        console.error('Error cargando tareas:', e);
+        mostrarMensaje('error', 'Error al cargar tareas');
+      } finally {
+        setCargando(false);
+      }
+    },
+    [paginaSize]
+  );
 
   useEffect(() => {
-    cargarTareas();
-  }, []);
+    cargarTareas(pagina, paginaSize);
+  }, [pagina, paginaSize, cargarTareas]);
+
+  const cambiarPagina = (nueva: number) => {
+    if (nueva < 1 || nueva > totalPaginas) return;
+    setPagina(nueva);
+  };
+
+  const cambiarPaginaSize = (nuevaSize: number) => {
+    setPaginaSize(nuevaSize);
+    setPagina(1);
+  };
 
   // ============ FOCO AUTOMÁTICO PARA SCANNER ============
   useEffect(() => {
@@ -198,7 +235,6 @@ const UT03CapturaBOM: React.FC = () => {
     const codigo = bomInput.trim();
     if (!codigo) return;
 
-    // Se agrega al FINAL del array (orden de guardado intacto)
     const nuevas = [...capturasRef.current, codigo];
     capturasRef.current = nuevas;
     setCapturasActuales(nuevas);
@@ -341,8 +377,9 @@ const UT03CapturaBOM: React.FC = () => {
       setForm({ pedido: '', tienda: TIENDAS_DISPONIBLES[0], numero_acta: '' });
       setInputBloqueado(false);
       setVista('main');
+      setPagina(1);
 
-      await cargarTareas();
+      await cargarTareas(1, paginaSize);
     } catch (e) {
       console.error('Error finalizando tarea:', e);
       mostrarMensaje('error', 'Error al finalizar tarea: ' + (e as Error).message);
@@ -377,7 +414,13 @@ const UT03CapturaBOM: React.FC = () => {
       if (error) throw error;
 
       mostrarMensaje('success', 'Tarea eliminada');
-      await cargarTareas();
+
+      // Si la página quedó vacía y no es la primera, retrocedemos
+      if (tareas.length === 1 && pagina > 1) {
+        setPagina(pagina - 1);
+      } else {
+        await cargarTareas(pagina, paginaSize);
+      }
     } catch (e) {
       console.error('Error eliminando tarea:', e);
       mostrarMensaje('error', 'Error al eliminar tarea: ' + (e as Error).message);
@@ -479,8 +522,6 @@ const UT03CapturaBOM: React.FC = () => {
   // ============ VISTA: CAPTURAR ============
   if (vista === 'capturar' && tarea) {
     const numeroPalletActual = pallets.length + 1;
-    // Inversión SOLO visual: las capturas se muestran con la más reciente arriba,
-    // pero el array subyacente conserva el orden de captura.
     const capturasParaMostrar = capturasActuales
       .map((bom, idx) => ({ bom, idx }))
       .reverse();
@@ -661,10 +702,13 @@ const UT03CapturaBOM: React.FC = () => {
 
       <div className="ut03-header">
         <h1>UT03 · Captura BOM en Pallet</h1>
-        <p>Registro y consolidación de BOM por pallet</p>
+        <p>
+          Registro y consolidación de BOM por pallet
+          {totalTareas > 0 && <> · {totalTareas} tarea(s) en total</>}
+        </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="ut03-toolbar-acciones">
         <button
           className="ut03-btn ut03-btn-primary"
           onClick={() => setVista('crear')}
@@ -674,7 +718,7 @@ const UT03CapturaBOM: React.FC = () => {
         </button>
         <button
           className="ut03-btn"
-          onClick={cargarTareas}
+          onClick={() => cargarTareas(pagina, paginaSize)}
           disabled={cargando}
           style={{ flex: 1 }}
           title="Actualizar lista de tareas"
@@ -683,101 +727,149 @@ const UT03CapturaBOM: React.FC = () => {
         </button>
       </div>
 
-      <div className="ut03-card-title" style={{ marginBottom: 8 }}>
-        Tareas recientes {tareas.length > 0 && `(${tareas.length})`}
-      </div>
-
-      {cargando ? (
+      {cargando && tareas.length === 0 ? (
         <div className="ut03-loading">Cargando tareas...</div>
       ) : tareas.length === 0 ? (
         <div className="ut03-empty">No hay tareas registradas todavía.</div>
       ) : (
-        tareas.map((t) => (
-          <div key={t.id} className="ut03-tarea-card">
-            <div className="ut03-tarea-card-header">
-              <div>
-                <div className="ut03-tarea-card-pedido">{t.pedido}</div>
-                <div className="ut03-tarea-card-meta">
-                  Acta {t.numero_acta} · {t.tienda}
+        <>
+          <div className="ut03-tareas-grid">
+            {tareas.map((t) => (
+              <div key={t.id} className="ut03-tarea-card">
+                <div className="ut03-tarea-card-header">
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="ut03-tarea-card-pedido">{t.pedido}</div>
+                    <div className="ut03-tarea-card-meta">
+                      Acta {t.numero_acta} · {t.tienda}
+                    </div>
+                  </div>
+                  <button
+                    className="ut03-captura-eliminar"
+                    onClick={() => eliminarTarea(t)}
+                    disabled={eliminandoId === t.id}
+                    title="Eliminar tarea"
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    {eliminandoId === t.id ? '…' : '×'}
+                  </button>
+                </div>
+
+                <div className="ut03-tarea-card-body">
+                  <div className="ut03-stat">
+                    <div className="ut03-stat-value">{t.cantidad_pallets}</div>
+                    <div className="ut03-stat-label">Pallets</div>
+                  </div>
+                  <div className="ut03-stat">
+                    <div className="ut03-stat-value">{t.cantidad_total_bultos}</div>
+                    <div className="ut03-stat-label">Bultos</div>
+                  </div>
+                  <div className="ut03-stat">
+                    <div className="ut03-stat-value" style={{ fontSize: 12, fontFamily: 'sans-serif' }}>
+                      {t.cantidad_pallets > 0
+                        ? Math.round((t.cantidad_total_bultos / t.cantidad_pallets) * 10) / 10
+                        : 0}
+                    </div>
+                    <div className="ut03-stat-label">Prom/Pallet</div>
+                  </div>
+                </div>
+
+                {t.pallets.length > 0 && (
+                  <div className="ut03-pallets-detalle">
+                    {t.pallets.map((p) => (
+                      <div key={p.numero_pallet} className="ut03-pallet-detalle-item">
+                        <span>Pallet {p.numero_pallet}</span>
+                        <span>{p.cantidad_bultos} bulto(s)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="ut03-tarea-card-footer">
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {t.usuario_nombre}
+                    </div>
+                    <div style={{ fontSize: 11 }}>{formatFechaHora(t.creado_en)}</div>
+                  </div>
+                  <div className="ut03-tarea-card-actions">
+                    <button
+                      className="ut03-btn ut03-btn-sm"
+                      onClick={() => exportarCapturas(t)}
+                      type="button"
+                    >
+                      📄 Capturas
+                    </button>
+                    <button
+                      className="ut03-btn ut03-btn-sm ut03-btn-success"
+                      onClick={() => exportarConsolidacion(t)}
+                      type="button"
+                    >
+                      📊 Consolidado
+                    </button>
+                  </div>
                 </div>
               </div>
-              <button
-                className="ut03-captura-eliminar"
-                onClick={() => eliminarTarea(t)}
-                disabled={eliminandoId === t.id}
-                title="Eliminar tarea"
-                style={{ alignSelf: 'flex-start' }}
+            ))}
+          </div>
+
+          {/* Paginación */}
+          <div className="ut03-paginacion">
+            <div className="ut03-paginacion-info">
+              Mostrando{' '}
+              <strong>
+                {(pagina - 1) * paginaSize + 1}–{Math.min(pagina * paginaSize, totalTareas)}
+              </strong>{' '}
+              de <strong>{totalTareas}</strong>
+            </div>
+            <div className="ut03-paginacion-controls">
+              <select
+                className="ut03-paginacion-select"
+                value={paginaSize}
+                onChange={(e) => cambiarPaginaSize(Number(e.target.value))}
               >
-                {eliminandoId === t.id ? '…' : '×'}
+                <option value={6}>6 por página</option>
+                <option value={12}>12 por página</option>
+                <option value={24}>24 por página</option>
+                <option value={48}>48 por página</option>
+              </select>
+              <button
+                className="ut03-btn ut03-btn-sm"
+                onClick={() => cambiarPagina(1)}
+                disabled={pagina <= 1}
+                title="Primera página"
+              >
+                «
+              </button>
+              <button
+                className="ut03-btn ut03-btn-sm"
+                onClick={() => cambiarPagina(pagina - 1)}
+                disabled={pagina <= 1}
+                title="Página anterior"
+              >
+                ‹
+              </button>
+              <span className="ut03-paginacion-pagina">
+                Página {pagina} de {totalPaginas}
+              </span>
+              <button
+                className="ut03-btn ut03-btn-sm"
+                onClick={() => cambiarPagina(pagina + 1)}
+                disabled={pagina >= totalPaginas}
+                title="Página siguiente"
+              >
+                ›
+              </button>
+              <button
+                className="ut03-btn ut03-btn-sm"
+                onClick={() => cambiarPagina(totalPaginas)}
+                disabled={pagina >= totalPaginas}
+                title="Última página"
+              >
+                »
               </button>
             </div>
-
-            <div className="ut03-tarea-card-body">
-              <div className="ut03-stat">
-                <div className="ut03-stat-value">{t.cantidad_pallets}</div>
-                <div className="ut03-stat-label">Pallets</div>
-              </div>
-              <div className="ut03-stat">
-                <div className="ut03-stat-value">{t.cantidad_total_bultos}</div>
-                <div className="ut03-stat-label">Bultos</div>
-              </div>
-              <div className="ut03-stat">
-                <div className="ut03-stat-value" style={{ fontSize: 12, fontFamily: 'sans-serif' }}>
-                  {t.cantidad_pallets > 0
-                    ? Math.round((t.cantidad_total_bultos / t.cantidad_pallets) * 10) / 10
-                    : 0}
-                </div>
-                <div className="ut03-stat-label">Prom/Pallet</div>
-              </div>
-            </div>
-
-            {t.pallets.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                {t.pallets.map((p) => (
-                  <div
-                    key={p.numero_pallet}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: 12,
-                      color: 'var(--text-muted)',
-                      padding: '4px 0',
-                      borderTop: '1px solid var(--border)'
-                    }}
-                  >
-                    <span>Pallet {p.numero_pallet}</span>
-                    <span>{p.cantidad_bultos} bulto(s)</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="ut03-tarea-card-footer">
-              <div>
-                <div style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  {t.usuario_nombre}
-                </div>
-                <div style={{ fontSize: 11 }}>{formatFechaHora(t.creado_en)}</div>
-              </div>
-              <div className="ut03-tarea-card-actions">
-                <button
-                  className="ut03-btn ut03-btn-sm"
-                  onClick={() => exportarCapturas(t)}
-                  type="button"
-                >
-                  📄 Capturas
-                </button>
-                <button
-                  className="ut03-btn ut03-btn-sm ut03-btn-success"
-                  onClick={() => exportarConsolidacion(t)}
-                  type="button"
-                >
-                  📊 Consolidado
-                </button>
-              </div>
-            </div>
           </div>
-        ))
+        </>
       )}
     </div>
   );
