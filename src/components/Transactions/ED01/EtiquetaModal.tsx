@@ -1,6 +1,6 @@
-// src/components/Transactions/ED/EtiquetaModal.tsx
+// src/components/Transactions/ED01/EtiquetaModal.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
 import { ED01Row } from './ED01View';
@@ -11,6 +11,7 @@ interface EtiquetaModalProps {
   onClose: () => void;
   registro: ED01Row | null;
   nombreCreador?: string;
+  autoPrint?: boolean;
 }
 
 const generarHTML = (
@@ -95,12 +96,21 @@ body{background:white;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif!
 }
 `;
 
-const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro, nombreCreador }) => {
+const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  registro, 
+  nombreCreador,
+  autoPrint = false
+}) => {
   const [qrGrande, setQrGrande] = useState('');
   const [qrPequeno, setQrPequeno] = useState('');
   const [barcodeSvg, setBarcodeSvg] = useState('');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => { if (isOpen && registro) generarCodigos(); }, [isOpen, registro]);
+  useEffect(() => { 
+    if (isOpen && registro) generarCodigos(); 
+  }, [isOpen, registro]);
 
   const generarCodigos = async () => {
     if (!registro) return;
@@ -114,29 +124,55 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro
     setBarcodeSvg(svgElement.outerHTML);
   };
 
-  const handleImprimir = () => {
-    if (!registro || !qrGrande || !qrPequeno || !barcodeSvg) return;
+  const obtenerHTMLCompleto = () => {
+    if (!registro || !qrGrande || !qrPequeno || !barcodeSvg) return '';
     const totalPallets = registro.cantidad_pallet || 1;
-    const ventana = window.open('', '_blank');
-    if (!ventana) return;
     const nombre = nombreCreador || 'Usuario';
     let htmlCompleto = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquetas</title><style>' + cssEtiqueta + '</style></head><body>';
     for (let i = 1; i <= totalPallets; i++) {
       htmlCompleto += '<div class="etiqueta-wrapper">' + generarHTML(registro, i, totalPallets, qrGrande, qrPequeno, barcodeSvg, nombre) + '</div>';
     }
     htmlCompleto += '</body></html>';
-    ventana.document.write(htmlCompleto);
-    ventana.document.close();
-    ventana.focus();
-    setTimeout(() => ventana.print(), 800);
+    return htmlCompleto;
   };
+
+  const handleImprimir = () => {
+    const htmlCompleto = obtenerHTMLCompleto();
+    if (!htmlCompleto || !iframeRef.current) return;
+    
+    const iframe = iframeRef.current;
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+    
+    doc.open();
+    doc.write(htmlCompleto);
+    doc.close();
+    
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    }, 800);
+  };
+
+  // Auto-Impresión: se dispara cuando los códigos están listos y autoPrint es true
+  useEffect(() => {
+    if (isOpen && autoPrint && qrGrande && qrPequeno && barcodeSvg) {
+      const timer = setTimeout(() => {
+        handleImprimir();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, autoPrint, qrGrande, qrPequeno, barcodeSvg]);
 
   if (!isOpen || !registro) return null;
 
   return (
     <div className="etiqueta-modal-overlay" onClick={onClose}>
       <div className="etiqueta-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="etiqueta-modal-header"><h2>Imprimir Etiqueta</h2><button className="etiqueta-modal-close" onClick={onClose}>×</button></div>
+        <div className="etiqueta-modal-header">
+          <h2>Imprimir Etiqueta</h2>
+          <button className="etiqueta-modal-close" onClick={onClose}>×</button>
+        </div>
         <div className="etiqueta-modal-body">
           <div className="etiqueta-info">
             <div className="etiqueta-dato"><span>Empaque:</span> <strong>{registro.numero_empaque}</strong></div>
@@ -144,13 +180,22 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({ isOpen, onClose, registro
             <div className="etiqueta-dato"><span>Bultos:</span> <strong>{registro.cantidad_bultos}</strong></div>
             <div className="etiqueta-dato"><span>Pallets:</span> <strong>{registro.cantidad_pallet}</strong></div>
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px' }}>Se generaran <strong>{registro.cantidad_pallet}</strong> etiqueta(s).</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px' }}>
+            Se generarán <strong>{registro.cantidad_pallet}</strong> etiqueta(s).
+          </p>
         </div>
         <div className="etiqueta-modal-footer">
           <button className="ed01-btn-cancel" onClick={onClose}>Cancelar</button>
           <button className="ed01-btn-save" onClick={handleImprimir}>Imprimir Etiquetas</button>
         </div>
       </div>
+      
+      {/* Iframe oculto para impresión sin bloqueo de ventanas emergentes */}
+      <iframe 
+        ref={iframeRef} 
+        style={{ display: 'none', width: 0, height: 0, border: 'none' }} 
+        title="print-iframe" 
+      />
     </div>
   );
 };
