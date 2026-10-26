@@ -30,7 +30,6 @@ export interface ED01Row {
   modificado_en: string | null;
 }
 
-// Función auxiliar: si el numero_tarea existe en pedidos_especiales, actualizar estado a "Listo para cargar"
 const actualizarPedidoEspecialSiExiste = async (numeroTarea: string) => {
   if (!numeroTarea) return;
   try {
@@ -68,6 +67,7 @@ const ED01View: React.FC = () => {
   const [observacionVer, setObservacionVer] = useState('');
   const [showFiltroModal, setShowFiltroModal] = useState(false);
   const [showEtiquetaModal, setShowEtiquetaModal] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
   const [filtros, setFiltros] = useState<any[]>([]);
   const [ordenColumna, setOrdenColumna] = useState<string>('creado_en');
   const [ordenDireccion, setOrdenDireccion] = useState<'asc' | 'desc'>('desc');
@@ -76,7 +76,6 @@ const ED01View: React.FC = () => {
   const [empaquesDisponibles, setEmpaquesDisponibles] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  // Paginación
   const [paginaActual, setPaginaActual] = useState(1);
   const [limitePorPagina, setLimitePorPagina] = useState(50);
   const [totalRegistros, setTotalRegistros] = useState(0);
@@ -87,7 +86,6 @@ const ED01View: React.FC = () => {
     cargarRegistros(true);
   }, []);
 
-  // Realtime para actualizar tabla automáticamente
   useEffect(() => {
     const channel = supabase
       .channel('ed01-empaques-realtime')
@@ -146,11 +144,9 @@ const ED01View: React.FC = () => {
         const op = filtro.operador;
         const val = filtro.valor || '';
 
-        if (op === 'vacio') {
-          query = query.is(col, null);
-        } else if (op === 'no_vacio') {
-          query = query.not(col, 'is', null);
-        } else if (val !== '') {
+        if (op === 'vacio') query = query.is(col, null);
+        else if (op === 'no_vacio') query = query.not(col, 'is', null);
+        else if (val !== '') {
           if (op === 'igual') query = query.filter(col, 'eq', val);
           else if (op === 'mayor') query = query.filter(col, 'gt', Number(val));
           else if (op === 'menor') query = query.filter(col, 'lt', Number(val));
@@ -177,7 +173,6 @@ const ED01View: React.FC = () => {
     }
   };
 
-  // --- Manejadores ---
   const handleNuevo = () => {
     if (!loteActivo) { alert('No hay un lote activo. Cargue un lote en ED04 primero.'); return; }
     if (empaquesDisponibles <= 0) { alert('El lote activo está agotado.'); return; }
@@ -202,6 +197,7 @@ const ED01View: React.FC = () => {
 
   const handleImprimirEtiqueta = () => {
     if (!registroSeleccionado) { alert('Selecciona un registro'); return; }
+    setAutoPrint(false); // Impresión manual, NO auto-print
     setShowEtiquetaModal(true);
   };
 
@@ -218,7 +214,7 @@ const ED01View: React.FC = () => {
       'Creado Por': nombresUsuarios[reg.creado_por] || reg.creado_por,
       'Creado En': reg.creado_en ? new Date(reg.creado_en).toLocaleString('es-CL') : '-',
       'Mod. Por': reg.modificado_por ? (nombresUsuarios[reg.modificado_por] || reg.modificado_por) : '-',
-      'Mod. En': reg.modificado_en ? new Date(reg.modificado_en).toLocaleString('es-CL') : '-',
+      'Mod. En': reg.modificado_en ? new Date(registroSeleccionado?.modificado_en || '').toLocaleString('es-CL') : '-',
       'Observación': reg.observacion || ''
     }));
     const ws = XLSX.utils.json_to_sheet(datosExport);
@@ -251,13 +247,13 @@ const ED01View: React.FC = () => {
         }]);
         if (insertError) throw insertError;
 
-        // ACTUALIZAR PEDIDO ESPECIAL SI EL NÚMERO DE TAREA COINCIDE
         await actualizarPedidoEspecialSiExiste(datos.numero_tarea);
 
         invalidarRegistrosED01();
         setShowModal(false);
         verificarLoteActivo();
         cargarRegistros(false);
+        
         setTimeout(() => {
           setRegistroSeleccionado({
             id: '',
@@ -270,8 +266,12 @@ const ED01View: React.FC = () => {
             creado_por: user?.id,
             ...datos
           } as any);
-          setTimeout(() => setShowEtiquetaModal(true), 300);
+          setTimeout(() => {
+            setAutoPrint(true); // Activar auto-print
+            setShowEtiquetaModal(true);
+          }, 300);
         }, 500);
+
       } else if (modoModal === 'editar') {
         await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         await supabase.from('ed01_empaques').update({
@@ -285,13 +285,19 @@ const ED01View: React.FC = () => {
           modificado_por: user?.id,
           modificado_en: new Date().toISOString()
         }).eq('id', registroSeleccionado?.id);
+        
         invalidarRegistrosED01();
         setShowModal(false);
         cargarRegistros(false);
+        
         setTimeout(() => {
           setRegistroSeleccionado({ ...registroSeleccionado!, ...datos } as any);
-          setTimeout(() => setShowEtiquetaModal(true), 300);
+          setTimeout(() => {
+            setAutoPrint(true); // Activar auto-print
+            setShowEtiquetaModal(true);
+          }, 300);
         }, 500);
+
       } else if (modoModal === 'cancelar') {
         await supabase.from('ed01_empaques').update({ estado: 'Editando', modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
         await supabase.from('ed01_empaques').update({ estado: 'Cancelado', observacion: datos.observacion, modificado_por: user?.id, modificado_en: new Date().toISOString() }).eq('id', registroSeleccionado?.id);
@@ -393,9 +399,13 @@ const ED01View: React.FC = () => {
       />
       <EtiquetaModal
         isOpen={showEtiquetaModal}
-        onClose={() => setShowEtiquetaModal(false)}
+        onClose={() => {
+          setShowEtiquetaModal(false);
+          setAutoPrint(false); // Reset al cerrar
+        }}
         registro={registroSeleccionado}
         nombreCreador={nombreCreadorEtiqueta}
+        autoPrint={autoPrint}
       />
     </div>
   );
