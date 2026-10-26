@@ -151,10 +151,14 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({
     setTimeout(() => {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
+      // Si es autoPrint, cerramos el componente después de lanzar la impresión
+      if (autoPrint) {
+        setTimeout(() => onClose(), 1500);
+      }
     }, 800);
   };
 
-  // Auto-Impresión: se dispara cuando los códigos están listos y autoPrint es true
+  // Auto-Impresión
   useEffect(() => {
     if (isOpen && autoPrint && qrGrande && qrPequeno && barcodeSvg) {
       const timer = setTimeout(() => {
@@ -166,6 +170,19 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({
 
   if (!isOpen || !registro) return null;
 
+  // Si es autoPrint, NO mostramos el modal visual, solo el iframe oculto
+  if (autoPrint) {
+    return (
+      <iframe 
+        ref={iframeRef} 
+        style={{ display: 'none', width: 0, height: 0, border: 'none' }} 
+        title="print-iframe"
+        sandbox="allow-modals allow-same-origin allow-scripts"
+      />
+    );
+  }
+
+  // Si NO es autoPrint (impresión manual desde el botón de la barra), mostramos el modal normal
   return (
     <div className="etiqueta-modal-overlay" onClick={onClose}>
       <div className="etiqueta-modal" onClick={(e) => e.stopPropagation()}>
@@ -190,7 +207,6 @@ const EtiquetaModal: React.FC<EtiquetaModalProps> = ({
         </div>
       </div>
       
-      {/* Iframe oculto para impresión sin bloqueo de ventanas emergentes */}
       <iframe 
         ref={iframeRef} 
         style={{ display: 'none', width: 0, height: 0, border: 'none' }} 
